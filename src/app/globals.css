@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/* Creato — mode sombre uniquement. Inspiration : Discord / Whop. */
+:root {
+  --bg: #000000;
+  --card: #1c1c1e;
+  --card-2: #2a2a2c;
+  --line: #3a3a3c;
+  --text: #ffffff;
+  --muted: #8e8e93;
+  --gold: #f5b301;
+  --danger: #ff453a;
+  --success: #30d158;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-gold: var(--gold);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-type-u: #facc15;
+  --color-type-p: #ff453a;
+  --color-type-d: #7c7cff;
+  --color-type-v: #30d158;
+  --font-sans: var(--font-poppins), system-ui, sans-serif;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Logo provisoire : Helvetica gras, lettres serrées (−100 Photoshop ≈ −0,1 em). */
+.logo {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.1em;
+}

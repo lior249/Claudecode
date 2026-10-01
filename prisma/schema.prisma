@@ -1,0 +1,158 @@
+// Creato Learn — schéma de données.
+// Règles : docs/SPEC.md + docs/DECISIONS.md (prioritaire).
+// Le verrouillage des leçons n'est jamais stocké : il est dérivé des validations.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  COACH
+  LEARNER
+}
+
+enum UserStatus {
+  ACTIVE
+  REVOKED // a perdu le rôle Discord @TikTok
+}
+
+// Rangs saisis à la main par le coach (A à SSS dépendent de TikTok).
+// E à B sont calculés depuis la progression.
+enum ManualRank {
+  A
+  S
+  SS
+  SSS
+}
+
+enum LessonType {
+  UNDERSTANDING // Compréhension : QCM de 20 questions
+  DECISION // Décision : choix d'une fiche dans un catalogue
+  PRACTICE_AI // Pratique corrigée par l'IA
+  PRACTICE_HUMAN // Pratique validée par le coach
+  CODE_VALIDATION // Phrase + code secret (niveau Lancement)
+}
+
+model User {
+  id              String      @id @default(cuid())
+  discordUserId   String?     @unique
+  discordUsername String?
+  displayName     String
+  avatarUrl       String?
+  role            Role        @default(LEARNER)
+  status          UserStatus  @default(ACTIVE)
+  manualRank      ManualRank?
+
+  // Coachs : ordre de remplissage et capacité (20 élèves par défaut).
+  coachOrder    Int?
+  coachCapacity Int  @default(20)
+
+  // Élève : coach attribué.
+  coachId  String?
+  coach    User?   @relation("CoachLearners", fields: [coachId], references: [id], onDelete: SetNull)
+  learners User[]  @relation("CoachLearners")
+
+  learnStartedAt   DateTime?
+  learnCompletedAt DateTime?
+  eliteGrantedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions  Session[]
+  progress  LessonProgress[]
+  auditLogs AuditLog[]
+
+  @@index([coachId])
+}
+
+model Session {
+  id        String   @id // hash SHA-256 du jeton (jamais le jeton en clair)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Level {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  position    Int
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  modules     Module[]
+}
+
+model Module {
+  id          String   @id @default(cuid())
+  levelId     String
+  level       Level    @relation(fields: [levelId], references: [id], onDelete: Restrict)
+  title       String
+  description String   @default("")
+  position    Int
+  isPublished Boolean  @default(true)
+  whopUrl     String? // lien d'accès secret, révélé seulement quand le module est débloqué
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lessons     Lesson[]
+
+  @@index([levelId, position])
+}
+
+model Lesson {
+  id          String     @id @default(cuid())
+  moduleId    String
+  module      Module     @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  title       String
+  summary     String     @default("") // consigne courte affichée à l'élève
+  type        LessonType
+  position    Int
+  isPublished Boolean    @default(true)
+  // Paramètres propres au type (barème texte, seuil, catalogue…). Jamais envoyés tels quels au navigateur.
+  config      Json       @default("{}")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  progress LessonProgress[]
+
+  @@index([moduleId, position])
+}
+
+// Une ligne par leçon validée (ou en cours de tentatives). Une validation acquise reste acquise.
+model LessonProgress {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId     String
+  lesson       Lesson    @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+  attemptCount Int       @default(0)
+  bestScore    Float?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([userId, lessonId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String?
+  entityId    String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
