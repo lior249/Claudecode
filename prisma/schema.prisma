@@ -81,6 +81,11 @@ model User {
   learnCompletedAt DateTime?
   eliteGrantedAt   DateTime?
 
+  // Notifications : heure du rappel quotidien (heure locale), messages privés Discord, dernière visite.
+  reminderHour Int       @default(19)
+  dmEnabled    Boolean   @default(true)
+  lastSeenAt   DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -98,6 +103,7 @@ model User {
   rankProofs       RankProof[]           @relation("ProofLearner")
   reactivations    ReactivationRequest[] @relation("ReactivationLearner")
   auditLogs        AuditLog[]
+  notifications    Notification[]
 
   @@index([coachId])
 }
@@ -424,6 +430,31 @@ model LaunchReport {
 }
 
 // Rappels déjà envoyés (chaque rappel ne part qu'une fois).
+enum DmStatus {
+  PENDING // à envoyer (le worker attend la fin des heures calmes)
+  SENT
+  SKIPPED // pas de message privé (plafond du jour, désactivé, trop ancien)
+  FAILED
+}
+
+// Centre de notifications (cloche) + message privé Discord envoyé par le worker.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // ex. "streak.risk", "coach.digest"
+  text      String
+  href      String?
+  urgent    Boolean   @default(false) // ignore les heures calmes et le plafond quotidien
+  dmStatus  DmStatus  @default(PENDING)
+  dmSentAt  DateTime?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([dmStatus, createdAt])
+}
+
 model Reminder {
   id     String   @id @default(cuid())
   userId String

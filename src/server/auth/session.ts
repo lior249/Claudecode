@@ -37,6 +37,12 @@ export async function getCurrentUser() {
   const session = await prisma.session.findUnique({ where: { id: hash(token) }, include: { user: true } });
   if (!session || session.expiresAt < new Date() || session.user.status !== "ACTIVE") return null;
   if (!(await recheckRoleIfDue(session.user))) return null;
+  // Dernière visite (sert aux relances des élèves absents), mise à jour au plus toutes les 5 min.
+  const now = new Date();
+  if (!session.user.lastSeenAt || now.getTime() - session.user.lastSeenAt.getTime() > 5 * 60_000) {
+    await prisma.user.update({ where: { id: session.user.id }, data: { lastSeenAt: now } });
+    session.user.lastSeenAt = now;
+  }
   return session.user;
 }
 

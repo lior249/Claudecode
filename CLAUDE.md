@@ -18,9 +18,14 @@ Référence produit : `docs/DECISIONS.md` (prioritaire) puis `docs/SPEC.md`. Int
 8. Coaching : règles pures dans `src/server/coaching/rules.ts` (streak, vues, rangs, fenêtre mensuelle, étoiles) ; tickets,
    délais de 12 h et étoiles dans `tickets.ts` ; entrée / révocation / réactivation dans `lifecycle.ts`. Un coach n'accède
    qu'à ses élèves (sinon « introuvable »). Les dates affichées côté navigateur passent par `LocalTime` (fuseau du lecteur).
+9. Notifications : toujours `notify()` (`src/server/notifications/service.ts`), jamais Discord directement. La notification
+   va dans la cloche ; le worker envoie le message privé (heures calmes 22 h–8 h, 3 par jour, sauf `urgent`). Les relances
+   programmées vivent dans `engagement.ts` avec une `onceKey` (pas de doublon). Textes et règles pures dans `rules.ts`.
 
 ## Pièges
 - Next.js 16 : `proxy.ts` (pas `middleware.ts`), `params`/`cookies()` sont des Promises. Lire `node_modules/next/dist/docs/`.
+- `getEnv()` ne doit jamais être appelé au chargement d'un module (la compilation de production n'a pas les secrets) ;
+  la configuration est vérifiée au démarrage par `src/instrumentation.ts` et par le worker.
 - Prisma 7 : client généré dans `src/generated/prisma` (ignoré par git) ; config dans `prisma.config.ts`.
 - Pas de `Promise.all` de requêtes Prisma dans une transaction.
 - Les modules `server-only` s'exécutent hors Next grâce à `tsx --conditions=react-server` (worker) et à un alias dans vitest.

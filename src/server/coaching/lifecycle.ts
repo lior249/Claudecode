@@ -1,10 +1,10 @@
 import "server-only";
 import { prisma } from "@/server/db";
 import { enqueue } from "@/server/jobs/queue";
-import { notifyLearner } from "@/server/notifications/service";
+import { notify } from "@/server/notifications/service";
 import { botConfigured, botRemoveRole } from "@/server/discord/api";
 import { getEnv } from "@/server/env";
-import { markReminder } from "@/server/reminders/service";
+import { markReminder } from "@/server/notifications/service";
 import { ABSENCE_DAYS, ABSENCE_WARNING_DAYS } from "./rules";
 
 export class CoachingError extends Error {}
@@ -44,11 +44,11 @@ export async function startCoaching(learnerId: string, preferredCoachId?: string
   await prisma.auditLog.create({ data: { actorUserId: learnerId, action: "COACHING_STARTED", entityType: "user", entityId: learnerId, metadata: { coachId } } });
   await enqueue("discord.grantElite", { userId: learnerId }, new Date(), 8);
   if (coachId) {
-    await notifyLearner(coachId, `🎓 ${learner.displayName} entre en coaching avec toi. Sa fiche est sur Creato.`);
+    await notify(coachId, { kind: "coach.newLearner", href: "/coach/learners", text: `🎓 ${learner.displayName} entre en coaching avec toi. Sa fiche est sur Creato.` });
   } else {
     // Aucune place libre : les admins sont prévenus.
     const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
-    for (const a of admins) await notifyLearner(a.id, `⚠️ ${learner.displayName} entre en coaching mais aucun coach n'a de place libre.`);
+    for (const a of admins) await notify(a.id, { kind: "admin.noCoach", href: "/admin/coaches", text: `⚠️ ${learner.displayName} entre en coaching mais aucun coach n'a de place libre.` });
   }
   return coachId;
 }
@@ -57,7 +57,7 @@ export async function startCoaching(learnerId: string, preferredCoachId?: string
 export async function completeCoaching(learnerId: string) {
   await prisma.user.update({ where: { id: learnerId }, data: { coachingStatus: "COMPLETED", coachingEndedAt: new Date() } });
   await prisma.auditLog.create({ data: { actorUserId: learnerId, action: "COACHING_COMPLETED", entityType: "user", entityId: learnerId } });
-  await notifyLearner(learnerId, "🏆 Rang SSS ! Tu as atteint 1 000 € en un mois : ton coaching est officiellement terminé. Bravo !");
+  await notify(learnerId, { kind: "rank.sss", href: "/coaching", text: "🏆 Rang SSS ! Tu as atteint 1 000 € en un mois : ton coaching est officiellement terminé. Bravo !" });
 }
 
 // Dernier signe d'activité : dernier post déclaré, sinon le début du coaching.
@@ -83,7 +83,7 @@ export async function processAbsences(now = new Date()) {
     }
     for (const w of ABSENCE_WARNING_DAYS) {
       if (days >= w && (await markReminder(l.id, `absence${w}:${since.toISOString()}`))) {
-        await notifyLearner(l.id, `⚠️ Aucun post depuis ${days} jours. Au bout de ${ABSENCE_DAYS} jours sans post, ta place de coaching est retirée. Ajoute ton post du jour sur Creato !`);
+        await notify(l.id, { kind: "coaching.absence", href: "/coaching", text: `⚠️ Aucun post depuis ${days} jours. Au bout de ${ABSENCE_DAYS} jours sans post, ta place de coaching est retirée. Ajoute ton post du jour sur Creato !` });
       }
     }
   }
@@ -100,7 +100,7 @@ export async function revokeCoaching(learnerId: string, now = new Date()) {
   if (l.discordUserId && roleId && botConfigured()) {
     await botRemoveRole(l.discordUserId, roleId).catch((e) => console.error("[coaching] retrait @Élite impossible", e));
   }
-  await notifyLearner(learnerId, `Ton coaching a été mis en pause après ${ABSENCE_DAYS} jours sans post. Pour revenir, fais une demande de réactivation sur Creato.`);
+  await notify(learnerId, { kind: "coaching.revoked", href: "/coaching", text: `Ton coaching a été mis en pause après ${ABSENCE_DAYS} jours sans post. Pour revenir, fais une demande de réactivation sur Creato.` });
 }
 
 // ---------- Réactivation ----------
@@ -121,7 +121,7 @@ export async function requestReactivation(learnerId: string, reason: string) {
   const formerCoach = (lastStart?.metadata as { coachId?: string } | null)?.coachId;
   const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
   for (const id of new Set([formerCoach, ...admins.map((a) => a.id)].filter(Boolean) as string[])) {
-    await notifyLearner(id, `🔁 ${l.displayName} demande à réactiver son coaching. À examiner sur Creato.`);
+    await notify(id, { kind: "coach.reactivation", href: "/coach/reactivations", text: `🔁 ${l.displayName} demande à réactiver son coaching. À examiner sur Creato.` });
   }
 }
 
@@ -138,8 +138,8 @@ export async function decideReactivation(deciderId: string, requestId: string, a
   if (accept) {
     const decider = await prisma.user.findUnique({ where: { id: deciderId }, select: { coachOrder: true } });
     await startCoaching(req.learnerId, decider?.coachOrder != null ? deciderId : null);
-    await notifyLearner(req.learnerId, "✅ Ton coaching est réactivé. Bon retour !");
+    await notify(req.learnerId, { kind: "coaching.reactivated", href: "/coaching", text: "✅ Ton coaching est réactivé. Bon retour !" });
   } else {
-    await notifyLearner(req.learnerId, "Ta demande de réactivation n'a pas été acceptée pour le moment. Contacte l'équipe sur Discord.");
+    await notify(req.learnerId, { kind: "coaching.reactivationRefused", href: "/coaching", text: "Ta demande de réactivation n'a pas été acceptée pour le moment. Contacte l'équipe sur Discord." });
   }
 }

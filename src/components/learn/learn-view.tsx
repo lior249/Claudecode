@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NotificationBell } from "@/components/notifications/bell";
 import { useState, useTransition } from "react";
 import { Check, ChevronRight, ExternalLink, Lock, LogOut, X } from "lucide-react";
 import type { LessonType } from "@/generated/prisma/enums";
@@ -39,6 +40,7 @@ export interface LearnViewData {
   devTools: boolean;
   isAdmin: boolean;
   inCoaching: boolean;
+  unread: number;
   levels: { id: string; title: string; position: number; status: Status; modules: ModuleView[] }[];
 }
 
@@ -77,6 +79,7 @@ export function LearnView({ data }: { data: LearnViewData }) {
       <header className="flex items-center justify-between py-5">
         <span className="logo text-3xl">Creato</span>
         <div className="flex items-center gap-2">
+        <NotificationBell unread={data.unread} />
         {data.inCoaching && (
           <Link href="/coaching" className="rounded-full bg-gold px-3 py-2 text-xs font-semibold text-black">
             Coaching

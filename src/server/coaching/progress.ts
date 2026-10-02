@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/server/db";
-import { notifyLearner } from "@/server/notifications/service";
+import { notify } from "@/server/notifications/service";
+import { STREAK_MILESTONES, streakMilestone } from "@/server/notifications/rules";
 import { fileUrl } from "@/server/decisions/service";
 import { USER_IMAGE_KEY } from "@/server/storage/images";
 import type { ManualRank } from "@/generated/prisma/enums";
@@ -49,14 +50,25 @@ export async function addPost(learnerId: string, url: string, now = new Date()) 
   if (!parsed) throw new CoachingError("Colle le lien complet de ta vidéo TikTok (tiktok.com/@ton_compte/video/…).");
   if (parsed.username !== l.tiktokUsername) throw new CoachingError(`Ce post n'est pas sur ton compte @${l.tiktokUsername}.`);
   if (parsed.postedAt.getTime() > now.getTime() + 5 * 60_000) throw new CoachingError("La date de ce post est invalide.");
+  let post;
   try {
-    return await prisma.post.create({
+    post = await prisma.post.create({
       data: { learnerId, url: `https://www.tiktok.com/@${parsed.username}/video/${parsed.videoId}`, videoId: parsed.videoId, postedAt: parsed.postedAt, localDate: localDate(parsed.postedAt, tzOf(l)) },
     });
   } catch (e) {
     if ((e as { code?: string }).code === "P2002") throw new CoachingError("Ce post est déjà enregistré.");
     throw e;
   }
+  const streak = await getStreak(learnerId, now);
+  if (STREAK_MILESTONES.includes(streak.current)) {
+    await notify(learnerId, {
+      kind: "streak.milestone",
+      href: "/coaching",
+      onceKey: `streak-milestone:${streak.current}:${localDate(now, tzOf(l))}`,
+      text: streakMilestone(streak.current),
+    });
+  }
+  return post;
 }
 
 export async function getStreak(learnerId: string, now = new Date()) {
@@ -137,7 +149,7 @@ async function assertNoPending(learnerId: string, kind: "FOLLOWERS_10K" | "MONTH
 
 async function notifyCoach(learnerId: string, message: string) {
   const l = await prisma.user.findUniqueOrThrow({ where: { id: learnerId }, select: { coachId: true, displayName: true } });
-  if (l.coachId) await notifyLearner(l.coachId, `${message} (${l.displayName})`);
+  if (l.coachId) await notify(l.coachId, { kind: "coach.proof", href: "/coach/proofs", text: `${message} (${l.displayName})` });
 }
 
 async function assertCoachOf(reviewer: { id: string; role: string }, learnerId: string) {
@@ -168,7 +180,7 @@ export async function reviewViewProof(
   if (approve && views > (proof.post.validatedViews ?? 0)) {
     await prisma.post.update({ where: { id: proof.postId }, data: { validatedViews: views } });
   }
-  await notifyLearner(proof.post.learnerId, approve ? `📊 Capture validée : ${views.toLocaleString("fr-FR")} vues.` : `Capture refusée : ${comment || "illisible ou non conforme."}`);
+  await notify(proof.post.learnerId, { kind: "proof.views", href: "/coaching", text: approve ? `📊 Capture validée : ${views.toLocaleString("fr-FR")} vues.` : `Capture refusée : ${comment || "illisible ou non conforme."}` });
 }
 
 export async function reviewRankProof(reviewer: { id: string; role: string }, proofId: string, approve: boolean, comment = "", verified = false) {
@@ -182,7 +194,7 @@ export async function reviewRankProof(reviewer: { id: string; role: string }, pr
     data: { status: approve ? "APPROVED" : "REJECTED", reviewComment: comment || null, reviewedAt: new Date(), reviewedById: reviewer.id },
   });
   if (!approve) {
-    await notifyLearner(proof.learnerId, `Preuve refusée : ${comment || "capture illisible ou non conforme."}`);
+    await notify(proof.learnerId, { kind: "proof.refused", href: "/coaching", text: `Preuve refusée : ${comment || "capture illisible ou non conforme."}` });
     return;
   }
   const newRank: AnyRank | null = proof.kind === "FOLLOWERS_10K" ? "A" : rankFromMonthlyAmount(proof.amountEur ?? 0);
@@ -191,7 +203,7 @@ export async function reviewRankProof(reviewer: { id: string; role: string }, pr
   if (best && best !== learner.manualRank && ["A", "S", "SS", "SSS"].includes(best)) {
     await prisma.user.update({ where: { id: learner.id }, data: { manualRank: best as ManualRank } });
     await prisma.auditLog.create({ data: { actorUserId: reviewer.id, action: "RANK_GRANTED", entityType: "user", entityId: learner.id, metadata: { rank: best } } });
-    await notifyLearner(learner.id, `🏅 Nouveau rang : ${best} !`);
+    await notify(learner.id, { kind: "rank.up", href: "/coaching", text: `🏅 Nouveau rang : ${best} !` });
   }
   if (best === "SSS" && learner.coachingStatus === "ACTIVE") await completeCoaching(learner.id);
 }

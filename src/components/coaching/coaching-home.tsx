@@ -14,6 +14,7 @@ import {
   viewProofAction,
 } from "@/app/actions/coaching";
 import { RankBadge } from "@/components/learn/badges";
+import { NotificationBell } from "@/components/notifications/bell";
 import { Flame } from "./flame";
 import { uploadImage } from "./image-upload";
 
@@ -56,12 +57,14 @@ export function CoachingHome({
   tickets,
   canOpenTicket,
   maxTickets,
+  unread,
 }: {
   name: string;
   dashboard: CoachingDashboard;
   tickets: TicketRow[];
   canOpenTicket: boolean;
   maxTickets: number;
+  unread: number;
 }) {
   return (
     <>
@@ -69,9 +72,12 @@ export function CoachingHome({
         <Link href="/learn" className="logo text-3xl">
           Creato
         </Link>
-        <Link href="/classement" className="flex items-center gap-1.5 rounded-full bg-card px-3 py-2 text-xs">
-          <Trophy size={14} className="text-gold" /> Classement
-        </Link>
+        <div className="flex items-center gap-2">
+          <NotificationBell unread={unread} />
+          <Link href="/classement" className="flex items-center gap-1.5 rounded-full bg-card px-3 py-2 text-xs">
+            <Trophy size={14} className="text-gold" /> Classement
+          </Link>
+        </div>
       </header>
 
       <section className={card}>

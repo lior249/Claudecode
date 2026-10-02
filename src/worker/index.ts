@@ -1,4 +1,4 @@
-// Worker : traite la file de tâches (analyse des soumissions) et le ménage périodique.
+// Worker : traite la file de tâches (analyse des soumissions), les relances, les messages privés et le ménage périodique.
 // Lancement : npm run worker (un processus séparé du site, avec ffmpeg installé).
 import "dotenv/config";
 import { claimNextJob, completeJob, failJob, releaseStuckJobs } from "@/server/jobs/queue";
@@ -8,11 +8,15 @@ import { grantEliteRole } from "@/server/launch/service";
 import { sendDeadlineReminders } from "@/server/reminders/service";
 import { processOutcomeReminders, processResponseWaits } from "@/server/coaching/tickets";
 import { processAbsences } from "@/server/coaching/lifecycle";
+import { deliverPendingDms, pruneNotifications } from "@/server/notifications/service";
+import { runEngagement } from "@/server/notifications/engagement";
 import { prisma } from "@/server/db";
+import { getEnv } from "@/server/env";
 
 const IDLE_MS = 1500;
 const HOUSEKEEPING_MS = 10 * 60 * 1000;
 const REMINDERS_MS = 5 * 60 * 1000;
+const DMS_MS = 60 * 1000;
 let stopping = false;
 
 async function handle(type: string, payload: Record<string, unknown>) {
@@ -35,14 +39,17 @@ async function housekeeping() {
   });
   const orphans = await cleanupOrphanAssets();
   const revoked = await processAbsences();
+  await pruneNotifications();
   if (revoked) console.log(`[worker] ${revoked} coaching(s) révoqué(s) pour absence`);
   if (released || stuck.count || orphans) console.log(`[worker] ménage : ${released} tâches relancées, ${stuck.count} soumissions débloquées, ${orphans} fichiers orphelins supprimés`);
 }
 
 async function main() {
+  getEnv(); // configuration vérifiée dès le démarrage
   console.log("[worker] démarré");
   let lastHousekeeping = 0;
   let lastReminders = 0;
+  let lastDms = 0;
   while (!stopping) {
     if (Date.now() - lastReminders > REMINDERS_MS) {
       lastReminders = Date.now();
@@ -51,6 +58,16 @@ async function main() {
         .catch((e) => console.error("[worker] rappels", e));
       await processResponseWaits().catch((e) => console.error("[worker] délais coachs", e));
       await processOutcomeReminders().catch((e) => console.error("[worker] retours de conseils", e));
+      await runEngagement()
+        .then((n) => n && console.log(`[worker] ${n} relance(s) créée(s)`))
+        .catch((e) => console.error("[worker] relances", e));
+    }
+    // Messages privés Discord des notifications (heures calmes et plafond du jour respectés).
+    if (Date.now() - lastDms > DMS_MS) {
+      lastDms = Date.now();
+      await deliverPendingDms()
+        .then((n) => n && console.log(`[worker] ${n} message(s) privé(s) envoyé(s)`))
+        .catch((e) => console.error("[worker] messages privés", e));
     }
     if (Date.now() - lastHousekeeping > HOUSEKEEPING_MS) {
       lastHousekeeping = Date.now();

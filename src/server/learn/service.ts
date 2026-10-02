@@ -1,4 +1,5 @@
 import "server-only";
+import { notify } from "@/server/notifications/service";
 import { prisma } from "@/server/db";
 import { computeProgression, type Progression } from "./progression";
 import type { ManualRank } from "@/generated/prisma/enums";
@@ -103,5 +104,23 @@ export async function completeLesson(userId: string, lessonId: string, score: nu
   if (progression.learnCompleted) {
     await prisma.user.updateMany({ where: { id: userId, learnCompletedAt: null }, data: { learnCompletedAt: now } });
   }
+  await celebrate(userId, lessonId, progression);
   return row;
+}
+
+// Fêter la fin d'un module ou d'un niveau (une seule fois chacun).
+async function celebrate(userId: string, lessonId: string, progression: Awaited<ReturnType<typeof getLearnerProgression>>["progression"]) {
+  const level = progression.levels.find((l) => l.modules.some((m) => m.lessons.some((x) => x.id === lessonId)));
+  const mod = level?.modules.find((m) => m.lessons.some((x) => x.id === lessonId));
+  if (!level || !mod || progression.learnCompleted) return;
+  if (level.status === "COMPLETED") {
+    await notify(userId, {
+      kind: "learn.level",
+      href: "/learn",
+      onceKey: `level-done:${level.id}`,
+      text: `🏅 Niveau « ${level.title} » terminé ! ${progression.percent} % du parcours. Le niveau suivant est ouvert.`,
+    });
+  } else if (mod.status === "COMPLETED") {
+    await notify(userId, { kind: "learn.module", href: "/learn", onceKey: `module-done:${mod.id}`, text: `🎉 Module « ${mod.title} » terminé ! Tu en es à ${progression.percent} %.` });
+  }
 }

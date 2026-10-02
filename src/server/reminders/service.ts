@@ -2,20 +2,11 @@ import "server-only";
 import { prisma } from "@/server/db";
 import { getLearnerProgression } from "@/server/learn/service";
 import { DEADLINE_REMINDER_MS } from "@/server/learn/progression";
-import { notifyLearner } from "@/server/notifications/service";
+import { markReminder, notify } from "@/server/notifications/service";
 
-// Envoie un rappel une seule fois : renvoie false si déjà envoyé.
-export async function markReminder(userId: string, key: string) {
-  try {
-    await prisma.reminder.create({ data: { userId, key } });
-    return true;
-  } catch (e) {
-    if ((e as { code?: string }).code === "P2002") return false;
-    throw e;
-  }
-}
+export { markReminder };
 
-// Rappel Discord 4 h avant la fin des 24 h de la leçon en cours.
+// Rappel (urgent : le délai tourne même la nuit) 4 h avant la fin des 24 h de la leçon en cours.
 export async function sendDeadlineReminders(now = new Date()) {
   const learners = await prisma.user.findMany({
     where: { role: "LEARNER", status: "ACTIVE", learnStartedAt: { not: null }, learnCompletedAt: null },
@@ -30,7 +21,7 @@ export async function sendDeadlineReminders(now = new Date()) {
     if (left <= 0 || left > DEADLINE_REMINDER_MS) continue;
     if (!(await markReminder(id, `deadline4h:${current.id}`))) continue;
     const hours = Math.max(1, Math.ceil(left / 3_600_000));
-    await notifyLearner(id, `⏰ Il te reste moins de ${hours} h pour valider « ${current.title} ». Tu peux le faire !`);
+    await notify(id, { kind: "learn.deadline", href: "/learn", urgent: true, text: `⏰ Il te reste moins de ${hours} h pour valider « ${current.title} ». Tu peux le faire !` });
     sent++;
   }
   return sent;

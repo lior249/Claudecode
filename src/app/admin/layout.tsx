@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { requireUser } from "@/server/auth/session";
+import { unreadCount } from "@/server/notifications/service";
+import { NotificationBell } from "@/components/notifications/bell";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
-  await requireUser(["ADMIN"]);
+  const user = await requireUser(["ADMIN"]);
   return (
     <div className="mx-auto min-h-dvh max-w-3xl px-4 pb-16">
       <header className="flex items-center justify-between py-5">
@@ -10,12 +12,13 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <span className="logo text-3xl">Creato</span>
           <span className="text-sm font-medium text-gold">Admin</span>
         </Link>
-        <div className="flex gap-2">
-          <Link href="/coach" className="rounded-full bg-gold/15 px-3 py-2 text-xs text-gold">
-            Espace coach
+        <div className="flex items-center gap-2">
+          <NotificationBell unread={await unreadCount(user.id)} />
+          <Link href="/coach" className="whitespace-nowrap rounded-full bg-gold/15 px-3 py-2 text-xs text-gold">
+            Coach
           </Link>
-          <Link href="/learn" className="rounded-full bg-card px-3 py-2 text-xs text-muted">
-            Vue élève
+          <Link href="/learn" className="whitespace-nowrap rounded-full bg-card px-3 py-2 text-xs text-muted">
+            Élève
           </Link>
         </div>
       </header>

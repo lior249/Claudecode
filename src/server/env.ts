@@ -26,6 +26,8 @@ const schema = z.object({
   GEMINI_GRADER_MODEL: z.string().default("gemini-2.5-pro"),
   // Images analysées par seconde de vidéo (plus = plus précis sur les timings, mais plus cher).
   GEMINI_VIDEO_FPS: z.coerce.number().min(0.1).max(24).default(2),
+  // Fuseau par défaut (élèves qui ne l'ont pas encore donné, horaires des coachs et admins).
+  APP_TIMEZONE: z.string().default("Europe/Paris"),
   // Pour les tests uniquement : faux serveur Discord.
   DISCORD_API_BASE: z.string().url().default("https://discord.com"),
 });

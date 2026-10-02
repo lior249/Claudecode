@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/server/db";
 import { completeLesson } from "@/server/learn/service";
-import { notifyLearner } from "@/server/notifications/service";
+import { notify } from "@/server/notifications/service";
 import type { CriterionResult } from "@/server/practice/scoring";
 import type { AnalysisReport } from "@/server/ai/types";
 
@@ -74,10 +74,7 @@ export async function decideReview(adminId: string, id: string, decision: "APPRO
     data: { actorUserId: adminId, action: decision === "APPROVE" ? "SUBMISSION_APPROVED" : "SUBMISSION_REJECTED", entityType: "submission", entityId: id },
   });
   if (decision === "APPROVE") await completeLesson(s.userId, s.lessonId, null);
-  await notifyLearner(
-    s.userId,
-    decision === "APPROVE"
+  await notify(s.userId, { kind: "learn.review", href: "/learn", text: decision === "APPROVE"
       ? `✅ Un coach a validé « ${s.lesson.title} ». La suite est débloquée !`
-      : `❌ Un coach a examiné « ${s.lesson.title} » : ${comment.trim()} Renvoie une nouvelle réalisation sur Creato.`,
-  );
+      : `❌ Un coach a examiné « ${s.lesson.title} » : ${comment.trim()} Renvoie une nouvelle réalisation sur Creato.` });
 }

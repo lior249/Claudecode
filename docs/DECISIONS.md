@@ -207,10 +207,30 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
 - Pour revenir : bouton **« Réactiver mon coaching »**, avec un champ texte pour la raison de l'absence.
   Un coach ou un admin valide la demande **à la main**. Le rôle @Élite et une place sont alors redonnés.
 
-## Notifications (Discord, message privé du bot)
+## Notifications (façon Duolingo)
 
-- **Élève** : résultat de correction, rappel 4 h avant la fin des 24 h, déblocages, réponses du coach, rappels de retour sur un conseil.
-- **Coach** : demande d'intervention humaine, élève passé en coaching, nouveau message de ticket, rappels à 4 h et 2 h de la fin des 12 h.
+- **Pour tout le monde** (élève, coach, admin) : une **cloche** avec le nombre de non-lues et une page « Notifications ».
+  Chaque notification est aussi envoyée en **message privé Discord** par le bot, avec des garde-fous :
+  - pas de message entre **22 h et 8 h** (heure locale) : il part le matin ;
+  - **3 messages par jour** au maximum ; au-delà, seulement dans la cloche ;
+  - exceptions **urgentes** (à toute heure, sans plafond) : rappel 4 h avant la fin des 24 h d'une leçon, nouvelle demande
+    et rappels à 4 h / 2 h de la fin des 12 h pour le coach ;
+  - chacun choisit l'**heure de son rappel du jour** (8 h–21 h, 19 h par défaut) et peut couper les messages privés.
+- **Élève (Learn)** : résultat de correction, fin de module et de niveau, rappel des 24 h, relance s'il n'est pas venu :
+  1, 2, 3, 5, 7 et 14 jours d'absence, à son heure, avec des messages variés, puis plus rien (on n'insiste pas).
+- **Élève (coaching)** : flamme en danger à son heure s'il n'a pas posté, « dernière chance » à 21 h, paliers
+  (3, 7, 14, 30, 50, 100, 200, 365 jours), gel utilisé, place au classement chaque lundi (écart avec le suivant),
+  ouverture et fin de la fenêtre des résultats du mois, réponses du coach, preuves validées ou refusées, nouveau rang.
+- **Coach** : résumé à 9 h s'il a quelque chose à faire (réponses, retards, preuves, réactivations), nouvel élève,
+  nouveaux messages, retours 👍/👎, étoile gagnée ou perdue.
+- **Admin** : résumé à 9 h (corrections humaines, réactivations, élèves sans coach, coachs à 1–2 étoiles, tâches en échec).
+
+## Preuves (vues et résultats du mois)
+
+- **Vues d'une vidéo** : l'élève déclare vues, j'aime et commentaires + la capture des statistiques.
+- **Résultats du mois** : montant + capture du tableau de bord + **liens des vidéos** (1 à 10) qui ont rapporté.
+- Le coach ouvre la vidéo / les liens, compare avec la capture et les chiffres déclarés, et doit cocher
+  « tout concorde » pour valider. Un refus demande toujours une explication.
 
 ## Rangs
 
