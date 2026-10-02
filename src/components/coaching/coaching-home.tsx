@@ -286,19 +286,58 @@ function Videos({ posts }: { posts: CoachingDashboard["posts"] }) {
 function ViewProofForm({ postId, onDone }: { postId: string; onDone: () => void }) {
   const { pending, error, run } = useAction();
   const [views, setViews] = useState("");
+  const [likes, setLikes] = useState("");
+  const [comments, setComments] = useState("");
   const [img, setImg] = useState<{ key: string; url: string } | null>(null);
+  const digits = (v: string) => v.replace(/\D/g, "");
   return (
     <div className="mt-2 space-y-2 rounded-2xl bg-bg/40 p-3">
-      <input value={views} onChange={(e) => setViews(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Nombre de vues" className={field} />
+      <p className="text-xs text-muted">Recopie les chiffres affichés sur ta capture : ton coach vérifie qu&apos;ils concordent avec la vidéo.</p>
+      <input value={views} onChange={(e) => setViews(digits(e.target.value))} inputMode="numeric" placeholder="Vues" className={field} />
+      <div className="grid grid-cols-2 gap-2">
+        <input value={likes} onChange={(e) => setLikes(digits(e.target.value))} inputMode="numeric" placeholder="J'aime" className={field} />
+        <input value={comments} onChange={(e) => setComments(digits(e.target.value))} inputMode="numeric" placeholder="Commentaires" className={field} />
+      </div>
       <ImagePicker value={img} onChange={setImg} label="Capture des statistiques" />
       <button
-        disabled={pending || !views || !img}
-        onClick={() => run(() => viewProofAction({ postId, views: Number(views), imageKey: img!.key }), "Envoyé.", onDone)}
+        disabled={pending || !views || !likes || !comments || !img}
+        onClick={() =>
+          run(() => viewProofAction({ postId, views: Number(views), likes: Number(likes), comments: Number(comments), imageKey: img!.key }), "Envoyé.", onDone)
+        }
         className="w-full rounded-xl bg-text py-2.5 text-sm font-semibold text-black disabled:opacity-40"
       >
         Envoyer à mon coach
       </button>
       {error && <p className="text-xs text-danger">{error}</p>}
+    </div>
+  );
+}
+
+function VideoLinks({ value, onChange, username }: { value: string[]; onChange: (v: string[]) => void; username: string | null }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted">Liens des vidéos qui ont rapporté ces gains (1 à 10).</p>
+      {value.map((url, i) => (
+        <div key={i} className="flex gap-2">
+          <input
+            value={url}
+            onChange={(e) => onChange(value.map((u, j) => (j === i ? e.target.value : u)))}
+            inputMode="url"
+            placeholder={`https://www.tiktok.com/@${username ?? "ton_compte"}/video/…`}
+            className={field}
+          />
+          {value.length > 1 && (
+            <button onClick={() => onChange(value.filter((_, j) => j !== i))} className="shrink-0 rounded-xl bg-card-2 px-3 text-xs text-muted" aria-label="Retirer ce lien">
+              ✕
+            </button>
+          )}
+        </div>
+      ))}
+      {value.length < 10 && (
+        <button onClick={() => onChange([...value, ""])} className="flex items-center gap-1 text-xs text-muted underline">
+          <Plus size={12} /> Ajouter un lien
+        </button>
+      )}
     </div>
   );
 }
@@ -312,6 +351,8 @@ function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
   const [amount, setAmount] = useState("");
   const [fImg, setFImg] = useState<{ key: string; url: string } | null>(null);
   const [mImg, setMImg] = useState<{ key: string; url: string } | null>(null);
+  const [links, setLinks] = useState<string[]>([""]);
+  const filledLinks = links.map((l) => l.trim()).filter(Boolean);
   const hasA = ["A", "S", "SS", "SSS"].includes(d.rank);
   return (
     <section className={card}>
@@ -339,12 +380,15 @@ function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
         <p className="text-sm font-medium">Résultats du mois</p>
         {d.monthlyWindow.open && !d.monthlyAlreadySent ? (
           <>
-            <p className="text-xs text-muted">Mois de {d.monthlyWindow.month} : envoie ce que tu as gagné et la capture de ton tableau de bord.</p>
+            <p className="text-xs text-muted">
+              Mois de {d.monthlyWindow.month} : envoie ce que tu as gagné, la capture de ton tableau de bord et les liens des vidéos. Ton coach vérifie que tout concorde avant de valider.
+            </p>
             <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Montant gagné (€)" className={field} />
             <ImagePicker value={mImg} onChange={setMImg} label="Capture du tableau de bord" />
+            <VideoLinks value={links} onChange={setLinks} username={d.tiktokUsername} />
             <button
-              disabled={monthly.pending || !amount || !mImg}
-              onClick={() => monthly.run(() => monthlyProofAction({ amountEur: Number(amount), imageKey: mImg!.key }), "Résultats envoyés.")}
+              disabled={monthly.pending || !amount || !mImg || filledLinks.length === 0}
+              onClick={() => monthly.run(() => monthlyProofAction({ amountEur: Number(amount), videoUrls: filledLinks, imageKey: mImg!.key }), "Résultats envoyés.")}
               className="w-full rounded-xl bg-gold py-2.5 text-sm font-semibold text-black disabled:opacity-40"
             >
               Envoyer mes résultats
@@ -362,6 +406,7 @@ function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
             <li key={p.id}>
               {p.kind === "MONTHLY" ? `Résultats ${p.month} : ${p.amountEur} €` : `${p.followers?.toLocaleString("fr-FR")} abonnés`} — {PROOF_STATUS[p.status]}
               {p.reviewComment ? ` (${p.reviewComment})` : ""}
+              {p.videoUrls.length > 0 && ` · ${p.videoUrls.length} vidéo${p.videoUrls.length > 1 ? "s" : ""}`}
             </li>
           ))}
         </ul>

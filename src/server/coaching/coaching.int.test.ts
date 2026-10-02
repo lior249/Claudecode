@@ -157,11 +157,13 @@ describe("Posts, streak, preuves et rangs", () => {
     const intruder = await coach("Intrus", 3, 20, 2);
     const l = await learner("ines", c.id, new Date(Date.now() - D));
     const post = await addPost(l.id, `https://www.tiktok.com/@ines/video/${idFor(new Date())}`);
-    await expect(submitViewProof(l.id, post.id, 5_000, img(l.id))).rejects.toThrow("10 000");
-    await submitViewProof(l.id, post.id, 150_000, img(l.id));
+    await expect(submitViewProof(l.id, post.id, { views: 5_000, likes: 10, comments: 1 }, img(l.id))).rejects.toThrow("10 000");
+    await submitViewProof(l.id, post.id, { views: 150_000, likes: 9_000, comments: 120 }, img(l.id));
     const proof = await prisma.viewProof.findFirstOrThrow();
-    await expect(reviewViewProof({ id: intruder.id, role: "COACH" }, proof.id, true)).rejects.toThrow("introuvable");
-    await reviewViewProof({ id: c.id, role: "COACH" }, proof.id, true, 320_000);
+    expect(proof).toMatchObject({ likes: 9_000, comments: 120 });
+    await expect(reviewViewProof({ id: intruder.id, role: "COACH" }, proof.id, true, undefined, "", true)).rejects.toThrow("introuvable");
+    await expect(reviewViewProof({ id: c.id, role: "COACH" }, proof.id, true, 320_000)).rejects.toThrow("concordent");
+    await reviewViewProof({ id: c.id, role: "COACH" }, proof.id, true, 320_000, "", true);
     const board = await leaderboard();
     expect(board[0]).toMatchObject({ displayName: "ines", points: 3 }); // 320 000 vues = 3 points
   });
@@ -169,12 +171,16 @@ describe("Posts, streak, preuves et rangs", () => {
   it("résultats du mois : fenêtre, rang S, puis SSS = coaching terminé et place libérée", async () => {
     const c = await coach("Coach");
     const l = await learner("ines", c.id);
-    await expect(submitMonthlyProof(l.id, 150, img(l.id), new Date("2026-10-15T12:00:00Z"))).rejects.toThrow("dernier jour");
-    await submitMonthlyProof(l.id, 150, img(l.id), new Date("2026-10-31T12:00:00Z"));
-    await reviewRankProof({ id: c.id, role: "COACH" }, (await prisma.rankProof.findFirstOrThrow()).id, true);
+    const video = `https://www.tiktok.com/@ines/video/${idFor(new Date("2026-10-20T12:00:00Z"))}`;
+    await expect(submitMonthlyProof(l.id, 150, [video], img(l.id), new Date("2026-10-15T12:00:00Z"))).rejects.toThrow("dernier jour");
+    await expect(submitMonthlyProof(l.id, 150, [], img(l.id), new Date("2026-10-31T12:00:00Z"))).rejects.toThrow("au moins une vidéo");
+    await expect(submitMonthlyProof(l.id, 150, [`https://www.tiktok.com/@autre/video/${idFor(new Date())}`], img(l.id), new Date("2026-10-31T12:00:00Z"))).rejects.toThrow("pas sur ton compte");
+    await submitMonthlyProof(l.id, 150, [video], img(l.id), new Date("2026-10-31T12:00:00Z"));
+    expect((await prisma.rankProof.findFirstOrThrow()).videoUrls).toEqual([video]);
+    await reviewRankProof({ id: c.id, role: "COACH" }, (await prisma.rankProof.findFirstOrThrow()).id, true, "", true);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: l.id } })).manualRank).toBe("S");
-    await submitMonthlyProof(l.id, 1200, img(l.id), new Date("2026-12-02T12:00:00Z"));
-    await reviewRankProof({ id: c.id, role: "COACH" }, (await prisma.rankProof.findFirstOrThrow({ where: { status: "PENDING" } })).id, true);
+    await submitMonthlyProof(l.id, 1200, [video], img(l.id), new Date("2026-12-02T12:00:00Z"));
+    await reviewRankProof({ id: c.id, role: "COACH" }, (await prisma.rankProof.findFirstOrThrow({ where: { status: "PENDING" } })).id, true, "", true);
     const done = await prisma.user.findUniqueOrThrow({ where: { id: l.id } });
     expect(done).toMatchObject({ manualRank: "SSS", coachingStatus: "COMPLETED" });
     expect((await prisma.user.count({ where: { coachId: c.id, coachingStatus: "ACTIVE" } }))).toBe(0);

@@ -72,13 +72,20 @@ export const rateTicketAction = async (raw: unknown) =>
   );
 
 export const viewProofAction = async (raw: unknown) =>
-  run(["LEARNER"], z.object({ postId: id, views: z.number().int(), imageKey: z.string().max(200) }), raw, (u, d) => submitViewProof(u.id, d.postId, d.views, d.imageKey));
+  run(
+    ["LEARNER"],
+    z.object({ postId: id, views: z.number().int(), likes: z.number().int(), comments: z.number().int(), imageKey: z.string().max(200) }),
+    raw,
+    (u, d) => submitViewProof(u.id, d.postId, { views: d.views, likes: d.likes, comments: d.comments }, d.imageKey),
+  );
 
 export const followersProofAction = async (raw: unknown) =>
   run(["LEARNER"], z.object({ followers: z.number().int(), imageKey: z.string().max(200) }), raw, (u, d) => submitFollowersProof(u.id, d.followers, d.imageKey));
 
 export const monthlyProofAction = async (raw: unknown) =>
-  run(["LEARNER"], z.object({ amountEur: z.number().int(), imageKey: z.string().max(200) }), raw, (u, d) => submitMonthlyProof(u.id, d.amountEur, d.imageKey));
+  run(["LEARNER"], z.object({ amountEur: z.number().int(), videoUrls: z.array(z.string().max(500)).max(10), imageKey: z.string().max(200) }), raw, (u, d) =>
+    submitMonthlyProof(u.id, d.amountEur, d.videoUrls, d.imageKey),
+  );
 
 export const reactivationAction = async (raw: unknown) => run(["LEARNER"], z.object({ reason: z.string().max(2000) }), raw, (u, d) => requestReactivation(u.id, d.reason));
 
@@ -101,9 +108,19 @@ export const followUpsAction = async (raw: unknown) =>
 export const reviewProofAction = async (raw: unknown) =>
   run(
     COACHES,
-    z.object({ kind: z.enum(["views", "rank"]), proofId: id, approve: z.boolean(), views: z.number().int().positive().optional(), comment: z.string().max(1000) }),
+    z.object({
+      kind: z.enum(["views", "rank"]),
+      proofId: id,
+      approve: z.boolean(),
+      views: z.number().int().positive().optional(),
+      comment: z.string().max(1000),
+      verified: z.boolean(),
+    }),
     raw,
-    (u, d) => (d.kind === "views" ? reviewViewProof(u, d.proofId, d.approve, d.views, d.comment) : reviewRankProof(u, d.proofId, d.approve, d.comment)),
+    (u, d) =>
+      d.kind === "views"
+        ? reviewViewProof(u, d.proofId, d.approve, d.views, d.comment, d.verified)
+        : reviewRankProof(u, d.proofId, d.approve, d.comment, d.verified),
   );
 
 export const reactivationDecisionAction = async (raw: unknown) =>

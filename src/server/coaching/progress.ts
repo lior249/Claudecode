@@ -73,15 +73,25 @@ export async function getStreak(learnerId: string, now = new Date()) {
 
 // ---------- Preuves ----------
 
-export async function submitViewProof(learnerId: string, postId: string, views: number, imageKey: string) {
+export interface VideoStats {
+  views: number;
+  likes: number;
+  comments: number;
+}
+
+const isCount = (n: number) => Number.isInteger(n) && n >= 0 && n <= 2_000_000_000;
+
+export async function submitViewProof(learnerId: string, postId: string, stats: VideoStats, imageKey: string) {
   await coachingLearner(learnerId);
   assertOwnImage(learnerId, imageKey);
+  const { views, likes, comments } = stats;
+  if (![views, likes, comments].every(isCount)) throw new CoachingError("Indique les vues, les likes et les commentaires.");
   const post = await prisma.post.findFirst({ where: { id: postId, learnerId } });
   if (!post) throw new CoachingError("Vidéo introuvable.");
   if (!Number.isInteger(views) || views < 10_000) throw new CoachingError("Les points commencent à 10 000 vues.");
   if (viewPoints(views) <= viewPoints(post.validatedViews ?? 0)) throw new CoachingError("Cette vidéo a déjà ses points pour ce palier.");
   if (await prisma.viewProof.findFirst({ where: { postId, status: "PENDING" } })) throw new CoachingError("Une capture est déjà en attente pour cette vidéo.");
-  await prisma.viewProof.create({ data: { postId, views, imageKey } });
+  await prisma.viewProof.create({ data: { postId, views, likes, comments, imageKey } });
   await notifyCoach(learnerId, "📊 Nouvelle capture de vues à valider.");
 }
 
@@ -94,16 +104,30 @@ export async function submitFollowersProof(learnerId: string, followers: number,
   await notifyCoach(learnerId, "⭐ Nouvelle preuve « 10 000 abonnés » à valider.");
 }
 
-export async function submitMonthlyProof(learnerId: string, amountEur: number, imageKey: string, now = new Date()) {
+// Liens des vidéos : 1 à 10, sur le compte TikTok de l'élève.
+function ownVideoUrls(username: string | null, urls: string[]) {
+  const clean = [...new Set(urls.map((u) => u.trim()).filter(Boolean))];
+  if (clean.length < 1) throw new CoachingError("Ajoute le lien d'au moins une vidéo qui t'a rapporté de l'argent.");
+  if (clean.length > 10) throw new CoachingError("10 liens maximum.");
+  return clean.map((u) => {
+    const p = parseTikTokUrl(u);
+    if (!p) throw new CoachingError(`Lien invalide : ${u.slice(0, 80)}`);
+    if (username && p.username !== username) throw new CoachingError(`Cette vidéo n'est pas sur ton compte @${username}.`);
+    return `https://www.tiktok.com/@${p.username}/video/${p.videoId}`;
+  });
+}
+
+export async function submitMonthlyProof(learnerId: string, amountEur: number, videoUrls: string[], imageKey: string, now = new Date()) {
   const l = await coachingLearner(learnerId);
   assertOwnImage(learnerId, imageKey);
+  const links = ownVideoUrls(l.tiktokUsername, videoUrls);
   const window = monthlyWindow(localDate(now, tzOf(l)));
   if (!window.open || !window.month) throw new CoachingError("Les résultats du mois s'envoient du dernier jour du mois au 5 du mois suivant.");
   if (!Number.isInteger(amountEur) || amountEur < 0 || amountEur > 1_000_000) throw new CoachingError("Montant invalide.");
   if (await prisma.rankProof.findFirst({ where: { learnerId, kind: "MONTHLY", month: window.month, status: { in: ["PENDING", "APPROVED"] } } })) {
     throw new CoachingError("Tes résultats de ce mois sont déjà envoyés.");
   }
-  await prisma.rankProof.create({ data: { learnerId, kind: "MONTHLY", month: window.month, amountEur, imageKey } });
+  await prisma.rankProof.create({ data: { learnerId, kind: "MONTHLY", month: window.month, amountEur, videoUrls: links, imageKey } });
   await notifyCoach(learnerId, `💶 Résultats du mois ${window.month} à valider.`);
 }
 
@@ -123,9 +147,18 @@ async function assertCoachOf(reviewer: { id: string; role: string }, learnerId: 
 }
 
 // Validation par le coach (il peut corriger le chiffre lu sur la capture).
-export async function reviewViewProof(reviewer: { id: string; role: string }, proofId: string, approve: boolean, correctedViews?: number, comment = "") {
+export async function reviewViewProof(
+  reviewer: { id: string; role: string },
+  proofId: string,
+  approve: boolean,
+  correctedViews?: number,
+  comment = "",
+  verified = false,
+) {
   const proof = await prisma.viewProof.findUnique({ where: { id: proofId }, include: { post: true } });
   if (!proof || proof.status !== "PENDING") throw new CoachingError("Cette preuve a déjà été traitée.");
+  if (approve && !verified) throw new CoachingError("Vérifie que la vidéo, la capture et les chiffres concordent avant de valider.");
+  if (!approve && !comment.trim()) throw new CoachingError("Explique à l'élève pourquoi tu refuses.");
   await assertCoachOf(reviewer, proof.post.learnerId);
   const views = approve ? (correctedViews ?? proof.views) : proof.views;
   await prisma.viewProof.update({
@@ -138,9 +171,11 @@ export async function reviewViewProof(reviewer: { id: string; role: string }, pr
   await notifyLearner(proof.post.learnerId, approve ? `📊 Capture validée : ${views.toLocaleString("fr-FR")} vues.` : `Capture refusée : ${comment || "illisible ou non conforme."}`);
 }
 
-export async function reviewRankProof(reviewer: { id: string; role: string }, proofId: string, approve: boolean, comment = "") {
+export async function reviewRankProof(reviewer: { id: string; role: string }, proofId: string, approve: boolean, comment = "", verified = false) {
   const proof = await prisma.rankProof.findUnique({ where: { id: proofId } });
   if (!proof || proof.status !== "PENDING") throw new CoachingError("Cette preuve a déjà été traitée.");
+  if (approve && !verified) throw new CoachingError("Vérifie que les vidéos, la capture et les chiffres concordent avant de valider.");
+  if (!approve && !comment.trim()) throw new CoachingError("Explique à l'élève pourquoi tu refuses.");
   await assertCoachOf(reviewer, proof.learnerId);
   await prisma.rankProof.update({
     where: { id: proofId },
@@ -170,10 +205,23 @@ export async function listPendingProofs(coach: { id: string; role: string }) {
       include: { post: { include: { learner: { select: { displayName: true } } } } },
       orderBy: { createdAt: "asc" },
     }),
-    await prisma.rankProof.findMany({ where: { status: "PENDING", learnerId: { in: learnerIds } }, include: { learner: { select: { displayName: true } } }, orderBy: { createdAt: "asc" } }),
+    await prisma.rankProof.findMany({
+      where: { status: "PENDING", learnerId: { in: learnerIds } },
+      include: { learner: { select: { displayName: true, tiktokUsername: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
   ];
   return {
-    views: views.map((v) => ({ id: v.id, learner: v.post.learner.displayName, url: v.post.url, views: v.views, imageUrl: fileUrl(v.imageKey), createdAt: v.createdAt.toISOString() })),
+    views: views.map((v) => ({
+      id: v.id,
+      learner: v.post.learner.displayName,
+      url: v.post.url,
+      views: v.views,
+      likes: v.likes,
+      comments: v.comments,
+      imageUrl: fileUrl(v.imageKey),
+      createdAt: v.createdAt.toISOString(),
+    })),
     ranks: ranks.map((r) => ({
       id: r.id,
       learner: r.learner.displayName,
@@ -181,6 +229,8 @@ export async function listPendingProofs(coach: { id: string; role: string }) {
       month: r.month,
       amountEur: r.amountEur,
       followers: r.followers,
+      videoUrls: (r.videoUrls as string[]) ?? [],
+      profileUrl: r.learner.tiktokUsername ? `https://www.tiktok.com/@${r.learner.tiktokUsername}` : null,
       imageUrl: fileUrl(r.imageKey),
       createdAt: r.createdAt.toISOString(),
     })),
@@ -237,7 +287,7 @@ export async function getCoachingDashboard(learnerId: string, now = new Date()) 
       points: viewPoints(p.validatedViews ?? 0),
       pendingProof: p.viewProofs.length > 0,
     })),
-    proofs: proofs.map((p) => ({ id: p.id, kind: p.kind, month: p.month, amountEur: p.amountEur, followers: p.followers, status: p.status, reviewComment: p.reviewComment })),
+    proofs: proofs.map((p) => ({ id: p.id, kind: p.kind, month: p.month, amountEur: p.amountEur, followers: p.followers, status: p.status, reviewComment: p.reviewComment, videoUrls: (p.videoUrls as string[]) ?? [] })),
     monthlyWindow: window,
     monthlyAlreadySent: window.month ? proofs.some((p) => p.kind === "MONTHLY" && p.month === window.month && p.status !== "REJECTED") : false,
     reactivation: reactivation ? { status: reactivation.status, createdAt: reactivation.createdAt.toISOString() } : null,

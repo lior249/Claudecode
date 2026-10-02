@@ -556,6 +556,8 @@ model ViewProof {
   postId        String
   post          Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
   views         Int
+  likes         Int?
+  comments      Int?
   imageKey      String
   status        ProofStatus @default(PENDING)
   reviewComment String?
@@ -577,6 +579,7 @@ model RankProof {
   month         String? // mois déclaré (AAAA-MM)
   amountEur     Int?
   followers     Int?
+  videoUrls     Json          @default("[]") // liens des vidéos concernées (vérifiés par le coach)
   imageKey      String
   status        ProofStatus   @default(PENDING)
   reviewComment String?
