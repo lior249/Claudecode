@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
 import type { Role } from "@/generated/prisma/enums";
+import { recheckRoleIfDue } from "./role-check";
 
 const COOKIE = "creato_session";
 const SESSION_DAYS = 30;
@@ -35,6 +36,7 @@ export async function getCurrentUser() {
   if (!token) return null;
   const session = await prisma.session.findUnique({ where: { id: hash(token) }, include: { user: true } });
   if (!session || session.expiresAt < new Date() || session.user.status !== "ACTIVE") return null;
+  if (!(await recheckRoleIfDue(session.user))) return null;
   return session.user;
 }
 

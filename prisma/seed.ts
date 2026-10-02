@@ -26,6 +26,18 @@ const curriculum: LevelSeed[] = [
     description: "Maîtrise le montage et le script avant tout.",
     modules: [
       {
+        title: "Monétisation",
+        description: "Comprendre comment on gagne de l'argent sur TikTok.",
+        lessons: [
+          {
+            title: "Comprendre la monétisation",
+            type: "UNDERSTANDING",
+            summary: "Regarde le module sur Whop, puis réponds aux 20 questions. Il te faut 16/20 pour valider.",
+            config: { passScore: 16, cooldownMinutes: 5 },
+          },
+        ],
+      },
+      {
         title: "Montage",
         description: "Cuts, voix off et illustrations en rythme.",
         lessons: [
@@ -174,7 +186,7 @@ async function main() {
   });
   await prisma.user.create({ data: { displayName: "Élève démo", role: "LEARNER", coachId: coach.id } });
 
-  console.log("Parcours de départ créé (3 niveaux, 7 modules, 11 leçons) + comptes de démonstration.");
+  console.log("Parcours de départ créé (3 niveaux, 8 modules, 12 leçons) + comptes de démonstration.");
 }
 
 main()

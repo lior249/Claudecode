@@ -30,8 +30,8 @@ npm run dev                 # http://localhost:3000
 ## Avancement
 
 - [x] **Bloc 1** : fondations, parcours niveau → module → leçon, progression linéaire, délais de 24 h, rangs E–B, écran de progression mobile.
-- [ ] Bloc 2 : connexion Discord + vérification du rôle @TikTok.
-- [ ] Bloc 3 : QCM (Compréhension).
+- [x] **Bloc 2** : connexion Discord (OAuth2 + PKCE), accès réservé au rôle @TikTok, revérification horaire par le bot.
+- [ ] Bloc 3 : QCM (Compréhension) — module Monétisation.
 - [ ] Bloc 4 : Pratique IA (envoi de fichiers, mesures ffmpeg, Gemini).
 - [ ] Bloc 5 : Décisions (catalogues de fiches) et Lancement (phrase + code, rôle @Élite).
 - [ ] Bloc 6 : espace Admin / Coach (parcours, fiches élèves, notifications Discord).

@@ -21,6 +21,9 @@ librement niveaux, modules et leçons.
 
 ### Niveau 1 — Les bases
 
+**Module Monétisation** (module explicatif)
+1. **QCM** : comprendre la monétisation TikTok (Compréhension, 20 questions).
+
 **Module Montage**
 1. **Cuts.** Vidéo **sans piste audio**. 4 cuts attendus : à 3 s, puis +2 s, +3 s et +5 s (soit 3 s, 5 s, 8 s et 13 s), à ± 0,5 s.
    Chaque cut manquant ou mal placé coûte **−2 points**. Un seul raté est toléré : avec deux ratés, la note tombe sous 8.
@@ -58,7 +61,7 @@ Un seul module, une seule leçon :
    et un **code de 10 caractères** montré dans la vidéo Whop. Le code est généré par Creato et modifiable par l'Admin.
    **Aucun indice** de la phrase ni du code n'apparaît dans l'application, y compris dans le code envoyé au navigateur.
    Ce n'est pas un coffre-fort : la vraie vérification se fait en coaching, où l'élève doit montrer ses vidéos.
-2. Puis environ 10 questions ouvertes sur son ressenti : le montage, TikTok, ce qu'il pense pouvoir réussir… *(à confirmer : garde-t-on ces questions ?)*
+2. Puis environ 10 questions ouvertes sur son ressenti : le montage, TikTok, ce qu'il pense pouvoir réussir… (confirmé)
 3. Bouton **« Envoyer à mon coach »** :
    - il reçoit **tout de suite le rôle Discord @Élite** ;
    - son coach reçoit une notification « X vient d'obtenir le droit au coaching » avec le résumé ;
@@ -107,7 +110,10 @@ Un seul module, une seule leçon :
 
 ## Accès et authentification
 
-- Seuls les membres du serveur Discord qui ont le rôle **@TikTok** (donné après paiement) peuvent entrer. L'identifiant du rôle sera fourni.
+- Seuls les membres du serveur Discord qui ont le rôle **@TikTok** (donné après paiement) peuvent entrer.
+- Serveur `1538598086589550604` · rôle @TikTok `1539957105560260738` · rôle @Élite `1540797992360218674`.
+- Les administrateurs (déclarés par leur identifiant Discord dans `ADMIN_DISCORD_IDS`) entrent même sans le rôle.
+  Le premier administrateur connecté devient le coach n° 1.
 - Connexion Discord OAuth2, puis **vérification du rôle @TikTok** à la connexion et à intervalles réguliers. Pas de code envoyé par le bot.
 - La fin du Learn donne le rôle **@Élite** (identifiant à fournir) via le bot.
 
@@ -137,8 +143,8 @@ Un seul module, une seule leçon :
 | Rang | Condition | Calcul |
 |---|---|---|
 | E | Inscrit, rien commencé | automatique |
-| D | Niveau 1 (Les bases) terminé *(à confirmer)* | automatique |
-| C | Niveau 2 (Positionnement) terminé *(à confirmer)* | automatique |
+| D | Niveau 1 (Les bases) terminé | automatique |
+| C | Niveau 2 (Positionnement) terminé | automatique |
 | B | Niveau 3 (Lancement) terminé, rôle @Élite | automatique |
 | A | 10 000 abonnés | saisi par le coach |
 | S | 3 millions de vues | saisi par le coach |

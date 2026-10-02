@@ -2,10 +2,13 @@ import { redirect } from "next/navigation";
 import { getEnv } from "@/server/env";
 import { getCurrentUser } from "@/server/auth/session";
 import { devLogin } from "@/app/actions/auth";
+import { ACCESS_ERRORS } from "@/server/discord/access";
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect("/learn");
-  const { devLoginEnabled } = getEnv();
+  const { devLoginEnabled, discordLoginEnabled } = getEnv();
+  const code = (await searchParams).erreur;
+  const error = typeof code === "string" ? (Object.hasOwn(ACCESS_ERRORS, code) ? ACCESS_ERRORS[code] : ACCESS_ERRORS.DISCORD) : null;
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-between px-6 py-12">
@@ -19,18 +22,23 @@ export default async function LoginPage() {
       </div>
 
       <div className="space-y-3">
-        <button
-          disabled
-          className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#5865F2] py-4 font-semibold opacity-50"
-        >
-          <DiscordIcon />
-          Se connecter avec Discord
-        </button>
-        <p className="text-center text-xs text-muted">
-          Réservé aux membres du Discord qui ont le rôle @TikTok.
-          <br />
-          (Connexion Discord activée au prochain bloc.)
-        </p>
+        {error && (
+          <p role="alert" className="rounded-2xl border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
+            {error}
+          </p>
+        )}
+        {discordLoginEnabled ? (
+          <a
+            href="/api/auth/discord/start"
+            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#5865F2] py-4 font-semibold"
+          >
+            <DiscordIcon />
+            Se connecter avec Discord
+          </a>
+        ) : (
+          <p className="rounded-2xl bg-card p-4 text-center text-sm text-muted">Connexion Discord pas encore configurée.</p>
+        )}
+        <p className="text-center text-xs text-muted">Réservé aux membres du Discord qui ont le rôle @TikTok.</p>
 
         {devLoginEnabled && (
           <form action={devLogin} className="mt-8 space-y-2 rounded-2xl border border-line p-4">
