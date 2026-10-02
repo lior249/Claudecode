@@ -8,6 +8,7 @@ import type { PracticeView } from "@/server/practice/service";
 import { requestHumanAction, retrySubmissionAction, submitPracticeAction } from "@/app/actions/practice";
 import { TypeBadge } from "@/components/learn/badges";
 import { UploadDropzone, type UploadedAsset } from "./upload-dropzone";
+import { LocalTime } from "@/components/local-time";
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 const formatTime = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
@@ -262,7 +263,7 @@ function History({ submissions }: { submissions: Sub[] }) {
             <span className="min-w-0 flex-1">
               <span className="block">{STATUS_LABEL[s.status] ?? s.status}</span>
               <span className="block truncate text-xs text-muted">
-                {new Date(s.createdAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                <LocalTime iso={s.createdAt} />
                 {s.files.map((f) => ` · ${f.name}${f.deleted ? " (fichier supprimé)" : ""}`).join("")}
                 {s.hasText ? " · texte" : ""}
               </span>

@@ -6,6 +6,8 @@ import { processSubmission } from "@/server/practice/service";
 import { cleanupOrphanAssets } from "@/server/retention/service";
 import { grantEliteRole } from "@/server/launch/service";
 import { sendDeadlineReminders } from "@/server/reminders/service";
+import { processOutcomeReminders, processResponseWaits } from "@/server/coaching/tickets";
+import { processAbsences } from "@/server/coaching/lifecycle";
 import { prisma } from "@/server/db";
 
 const IDLE_MS = 1500;
@@ -32,6 +34,8 @@ async function housekeeping() {
     data: { status: "ERROR", technicalFailures: { increment: 1 }, lastError: "analyse bloquée" },
   });
   const orphans = await cleanupOrphanAssets();
+  const revoked = await processAbsences();
+  if (revoked) console.log(`[worker] ${revoked} coaching(s) révoqué(s) pour absence`);
   if (released || stuck.count || orphans) console.log(`[worker] ménage : ${released} tâches relancées, ${stuck.count} soumissions débloquées, ${orphans} fichiers orphelins supprimés`);
 }
 
@@ -45,6 +49,8 @@ async function main() {
       await sendDeadlineReminders()
         .then((n) => n && console.log(`[worker] ${n} rappel(s) de délai envoyé(s)`))
         .catch((e) => console.error("[worker] rappels", e));
+      await processResponseWaits().catch((e) => console.error("[worker] délais coachs", e));
+      await processOutcomeReminders().catch((e) => console.error("[worker] retours de conseils", e));
     }
     if (Date.now() - lastHousekeeping > HOUSEKEEPING_MS) {
       lastHousekeeping = Date.now();

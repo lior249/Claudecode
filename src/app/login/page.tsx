@@ -43,12 +43,15 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         {devLoginEnabled && (
           <form action={devLogin} className="mt-8 space-y-2 rounded-2xl border border-line p-4">
             <p className="text-xs font-medium uppercase tracking-wider text-muted">Démo</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button name="as" value="learner" className="rounded-xl bg-card-2 py-3 text-sm font-medium">
-                Élève démo
+                Élève
+              </button>
+              <button name="as" value="coaching" className="rounded-xl bg-card-2 py-3 text-sm font-medium">
+                En coaching
               </button>
               <button name="as" value="coach" className="rounded-xl bg-card-2 py-3 text-sm font-medium">
-                Coach démo
+                Coach
               </button>
             </div>
           </form>

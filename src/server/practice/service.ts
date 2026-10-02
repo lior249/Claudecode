@@ -355,8 +355,10 @@ export async function requestHumanReview(userId: string, submissionId: string) {
   await prisma.auditLog.create({
     data: { actorUserId: userId, action: "HUMAN_REVIEW_REQUESTED", entityType: "submission", entityId: sub.id, metadata: { lessonId: sub.lessonId } },
   });
-  if (sub.user.coachId) {
-    await notifyLearner(sub.user.coachId, `🙋 ${sub.user.displayName} demande une correction humaine pour « ${sub.lesson.title} ». Ouvre Creato pour l'examiner.`);
+  // Pendant le Learn, les corrections humaines sont traitées par les admins.
+  const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+  for (const a of admins) {
+    await notifyLearner(a.id, `🙋 ${sub.user.displayName} demande une correction humaine pour « ${sub.lesson.title} ». Ouvre Creato pour l'examiner.`);
   }
 }
 

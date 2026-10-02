@@ -1,10 +1,10 @@
 import "server-only";
 import { prisma } from "@/server/db";
 import { assertCanStartLesson, completeLesson, LessonLockedError } from "@/server/learn/service";
-import { enqueue } from "@/server/jobs/queue";
 import { notifyLearner } from "@/server/notifications/service";
 import { botAddRole, botConfigured } from "@/server/discord/api";
 import { getEnv } from "@/server/env";
+import { startCoaching } from "@/server/coaching/lifecycle";
 import { isLaunchKeyValid, MAX_FAILED_CODE_ATTEMPTS_PER_HOUR, MIN_ANSWER_CHARS, parseLaunchConfig } from "./rules";
 
 export class LaunchError extends Error {}
@@ -78,12 +78,9 @@ export async function submitLaunch(userId: string, lessonId: string, input: { ph
   await prisma.auditLog.create({ data: { actorUserId: userId, action: "LAUNCH_SUBMITTED", entityType: "lesson", entityId: lessonId } });
   await completeLesson(userId, lessonId, null);
 
-  // Rôle @Élite donné par le bot (tâche relancée automatiquement si Discord ne répond pas).
-  await enqueue("discord.grantElite", { userId }, new Date(), 8);
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  if (user.coachId) {
-    await notifyLearner(user.coachId, `🎓 ${user.displayName} vient de terminer « ${lesson.title} » et a obtenu le droit au coaching. Son résumé est sur Creato.`);
-  }
+  // Entrée en coaching : coach attribué selon les étoiles, rôle @Élite demandé au bot.
+  await startCoaching(userId);
+  void lesson;
 }
 
 // Tâche worker : ajoute le rôle @Élite sur Discord.

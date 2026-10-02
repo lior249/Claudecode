@@ -22,6 +22,7 @@ export default async function LearnPage() {
     currentLessonId: progression.currentLessonId,
     devTools: getEnv().devLoginEnabled,
     isAdmin: user.role === "ADMIN",
+    inCoaching: user.coachingStatus !== "NONE",
     levels: progression.levels.map((level) => ({
       id: level.id,
       title: level.title,

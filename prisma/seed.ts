@@ -170,9 +170,24 @@ async function main() {
   }
 
   const coach = await prisma.user.create({
-    data: { displayName: "Coach Creato", role: "ADMIN", coachOrder: 1, coachCapacity: 20 },
+    data: { displayName: "Coach Creato", role: "ADMIN", coachOrder: 1, coachCapacity: 20, coachStars: 3 },
   });
-  await prisma.user.create({ data: { displayName: "Élève démo", role: "LEARNER", coachId: coach.id } });
+  await prisma.user.create({ data: { displayName: "Élève démo", role: "LEARNER" } });
+  // Élève déjà en coaching (démo) : Learn terminé, suivi par le coach n° 1.
+  const now = new Date();
+  await prisma.user.create({
+    data: {
+      displayName: "Inès (démo coaching)",
+      role: "LEARNER",
+      coachId: coach.id,
+      coachingStatus: "ACTIVE",
+      coachingStartedAt: new Date(now.getTime() - 10 * 86_400_000),
+      learnStartedAt: new Date(now.getTime() - 20 * 86_400_000),
+      learnCompletedAt: new Date(now.getTime() - 10 * 86_400_000),
+      tiktokUsername: "ines.demo",
+      timezone: "Europe/Paris",
+    },
+  });
 
   console.log("Parcours de départ créé (3 niveaux, 8 modules, 12 leçons) + comptes de démonstration.");
 }

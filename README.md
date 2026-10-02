@@ -36,5 +36,5 @@ npm run worker              # dans un 2e terminal : analyse des exercices (ffmpe
 - [x] **Bloc 4** : Pratique IA — envoi de vidéo/audio/texte, mesures automatiques (cuts, silences, son, durée, ressemblance de texte, hook), correction Gemini sur barème texte, note sur 10 calculée par le serveur, doublons refusés, 5 dernières tentatives gardées, « Faire appel à un humain » après 3 pannes.
 - [x] **Bloc 5** : catalogues (niches, pays, méthodes 10K) gérés dans l'Admin, fiche avec concurrence et matériel, choix unique ; lancement (phrase + code secrets, 10 questions de ressenti, envoi au coach, rôle @Élite).
 - [x] **Bloc 6a** : éditeur du parcours (niveaux, modules, leçons, ordre, liens Whop), fiche Learn des élèves (décrochages en rouge), file « Faire appel à un humain », rappel 4 h avant la fin des 24 h.
-- [ ] Bloc 6b : espace coaching (tickets, étoiles des coachs, streak, points, classement, résultats du mois, absence).
+- [x] **Bloc 6b** : espace coaching (tickets avec images et liens, délai de 12 h et étoiles des coachs, questions de suivi, « conseil reçu » et 👍/👎, notes 😞😐🙂, streak avec gel, points de vues, classement avec podium, résultats du mois et rangs S/SS/SSS, révocation après 15 jours et réactivation, rapport des coachs pour l'Admin).
 - [ ] Bloc 7 : mise en ligne sur le serveur.

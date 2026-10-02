@@ -20,9 +20,16 @@ export function sniffImage(head: Buffer): { ext: string; mime: string } | null {
 export const MIME_BY_EXT: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
 
 // Enregistre une image du catalogue (JPG, PNG ou WebP, 10 Mo maximum).
-export async function storeCatalogImage(body: Readable) {
+export const storeCatalogImage = (body: Readable) => storeImage("catalog", body);
+
+// Image privée d'un utilisateur (tickets, preuves) : uploads/<propriétaire>/<id>.<ext>.
+export const storeUserImage = (ownerId: string, body: Readable) => storeImage(`uploads/${ownerId}`, body);
+
+export const USER_IMAGE_KEY = /^uploads\/([a-z0-9]{20,40})\/[0-9a-f-]{36}\.(jpg|png|webp)$/;
+
+async function storeImage(prefix: string, body: Readable) {
   const id = randomUUID();
-  const tmpKey = `catalog/${id}.upload`;
+  const tmpKey = `${prefix}/${id}.upload`;
   try {
     await writeStream(tmpKey, body, MAX_IMAGE_BYTES);
   } catch (e) {
@@ -39,7 +46,7 @@ export async function storeCatalogImage(body: Readable) {
     await deleteFile(tmpKey);
     throw new ImageError("Format d'image non accepté (JPG, PNG ou WebP).");
   }
-  const key = `catalog/${id}.${type.ext}`;
+  const key = `${prefix}/${id}.${type.ext}`;
   const { rename } = await import("node:fs/promises");
   await rename(filePath(tmpKey), filePath(key));
   return key;

@@ -15,6 +15,9 @@ Référence produit : `docs/DECISIONS.md` (prioritaire) puis `docs/SPEC.md`. Int
 6. Pas de traitement long dans une requête HTTP : l'analyse des soumissions passe par la file `Job` et le worker
    (`npm run worker`, `src/worker/index.ts`). Seul `src/server/retention/service.ts` supprime des fichiers.
 7. L'IA renvoie des critères (points perdus) ; la note et le statut sont calculés par `src/server/practice/scoring.ts`.
+8. Coaching : règles pures dans `src/server/coaching/rules.ts` (streak, vues, rangs, fenêtre mensuelle, étoiles) ; tickets,
+   délais de 12 h et étoiles dans `tickets.ts` ; entrée / révocation / réactivation dans `lifecycle.ts`. Un coach n'accède
+   qu'à ses élèves (sinon « introuvable »). Les dates affichées côté navigateur passent par `LocalTime` (fuseau du lecteur).
 
 ## Pièges
 - Next.js 16 : `proxy.ts` (pas `middleware.ts`), `params`/`cookies()` sont des Promises. Lire `node_modules/next/dist/docs/`.

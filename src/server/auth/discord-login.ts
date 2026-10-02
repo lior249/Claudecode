@@ -3,7 +3,6 @@ import { prisma } from "@/server/db";
 import { getEnv } from "@/server/env";
 import { decideAccess } from "@/server/discord/access";
 import { avatarUrl, exchangeCode, fetchCurrentUser, fetchOwnGuildMember } from "@/server/discord/api";
-import { assignCoachIfNeeded } from "@/server/coaching/assign";
 
 export type DiscordLoginResult = { ok: true; userId: string } | { ok: false; error: string };
 
@@ -56,7 +55,6 @@ export async function loginWithDiscord(code: string, codeVerifier: string): Prom
     });
   }
 
-  await assignCoachIfNeeded(user.id);
   await audit(user.id, "USER_LOGIN", { method: "discord" });
   return { ok: true, userId: user.id };
 }

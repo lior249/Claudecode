@@ -161,6 +161,8 @@ Un seul module, une seule leçon :
     « Je vais appliquer ce que tu m'as dit et je te reviens d'ici X ». Le délai X (24 h, 48 h, 72 h ou 5 jours) est choisi par le coach
     dans sa réponse. L'élève reçoit un rappel à l'échéance pour dire si **ça a marché 👍 ou pas 👎** (avec une explication si 👎).
 - **Coach → élève** (tickets de suivi) : questions **prédéfinies**, envoyées à un ou plusieurs élèves d'un coup.
+  Questions proposées : capture du compte, difficultés récentes, avis sur le coaching, meilleure vidéo, vidéo la moins vue,
+  objectif de la semaine, routine, niche (modifiables dans `src/server/coaching/rules.ts`).
   **Un seul ticket de suivi ouvert** par élève. Pas de délai.
 - **Seul le coach clôture un ticket.** À la clôture d'un ticket ouvert par l'élève, celui-ci note la réponse :
   😞 (rouge), 😐 (neutre) ou 🙂 (vert). Une justification est obligatoire pour 😞 et 😐.
@@ -219,7 +221,7 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
 | C | Niveau 2 (Positionnement) terminé | automatique |
 | B | Niveau 3 (Lancement) terminé, rôle @Élite | automatique |
 | A | 10 000 abonnés | preuve validée par le coach |
-| S | Un mois à **100 €** ou plus *(compris comme « cent euros » : à confirmer)* | résultats du mois validés par le coach |
+| S | Un mois à **100 €** ou plus | résultats du mois validés par le coach |
 | SS | Un mois à **500 €** ou plus | résultats du mois validés par le coach |
 | SSS | Un mois à **1 000 €** ou plus : **coaching terminé** | résultats du mois validés par le coach |
 

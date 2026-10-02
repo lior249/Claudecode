@@ -24,6 +24,13 @@ enum UserStatus {
 
 // Rangs saisis à la main par le coach (A à SSS dépendent de TikTok).
 // E à B sont calculés depuis la progression.
+enum CoachingStatus {
+  NONE // pas encore en coaching
+  ACTIVE
+  REVOKED // absence de plus de 15 jours
+  COMPLETED // rang SSS atteint
+}
+
 enum ManualRank {
   A
   S
@@ -61,6 +68,15 @@ model User {
   // Dernière vérification du rôle @TikTok (à la connexion, puis toutes les heures via le bot).
   lastRoleCheckAt DateTime?
 
+  // Coaching (après le rôle @Élite).
+  coachingStatus    CoachingStatus @default(NONE)
+  coachingStartedAt DateTime?
+  coachingEndedAt   DateTime?
+  tiktokUsername    String? // sans @, pour vérifier les liens des posts
+  timezone          String? // fuseau IANA de l'élève (ex. "Africa/Abidjan")
+  coachStars        Int            @default(3) // coachs : de 1 à 6
+  coachFastAnswers  Int            @default(0) // réponses en moins d'1 h (toutes les 10 : +1 étoile)
+
   learnStartedAt   DateTime?
   learnCompletedAt DateTime?
   eliteGrantedAt   DateTime?
@@ -68,14 +84,20 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions      Session[]
-  progress      LessonProgress[]
-  quizAttempts  QuizAttempt[]
-  submissions   Submission[]
-  assets        Asset[]
-  decisions     DecisionResponse[]
-  launchReports LaunchReport[]
-  auditLogs     AuditLog[]
+  sessions         Session[]
+  progress         LessonProgress[]
+  quizAttempts     QuizAttempt[]
+  submissions      Submission[]
+  assets           Asset[]
+  decisions        DecisionResponse[]
+  launchReports    LaunchReport[]
+  ticketsAsLearner Ticket[]              @relation("TicketLearner")
+  ticketsAsCoach   Ticket[]              @relation("TicketCoach")
+  ticketMessages   TicketMessage[]
+  posts            Post[]
+  rankProofs       RankProof[]           @relation("ProofLearner")
+  reactivations    ReactivationRequest[] @relation("ReactivationLearner")
+  auditLogs        AuditLog[]
 
   @@index([coachId])
 }
@@ -409,4 +431,169 @@ model Reminder {
   sentAt DateTime @default(now())
 
   @@unique([userId, key])
+}
+
+// --- Coaching ---
+
+enum TicketOrigin {
+  LEARNER // demande de l'élève (délai de 12 h pour le coach)
+  COACH // ticket de suivi (question prédéfinie)
+}
+
+enum TicketStatus {
+  OPEN
+  CLOSED
+}
+
+enum TicketRating {
+  BAD
+  NEUTRAL
+  GOOD
+}
+
+enum MessageKind {
+  TEXT
+  ACK // « Conseil reçu, je l'applique »
+  OUTCOME // retour de l'élève : ça a marché ou pas
+}
+
+model Ticket {
+  id            String          @id @default(cuid())
+  learnerId     String
+  learner       User            @relation("TicketLearner", fields: [learnerId], references: [id], onDelete: Cascade)
+  coachId       String
+  coach         User            @relation("TicketCoach", fields: [coachId], references: [id], onDelete: Restrict)
+  origin        TicketOrigin
+  subject       String
+  templateKey   String?
+  status        TicketStatus    @default(OPEN)
+  createdAt     DateTime        @default(now())
+  closedAt      DateTime?
+  rating        TicketRating?
+  ratingComment String?
+  ratedAt       DateTime?
+  messages      TicketMessage[]
+  waits         ResponseWait[]
+
+  @@index([learnerId, status])
+  @@index([coachId, status])
+}
+
+model TicketMessage {
+  id             String      @id @default(cuid())
+  ticketId       String
+  ticket         Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  kind           MessageKind @default(TEXT)
+  body           String
+  imageKeys      Json        @default("[]")
+  // Réponse du coach : délai dans lequel l'élève doit revenir (heures).
+  followUpHours  Int?
+  acknowledgedAt DateTime? // l'élève a cliqué « Conseil reçu »
+  outcomeDueAt   DateTime? // date à laquelle l'élève doit dire si ça a marché
+  outcome        String? // WORKED | DIDNT_WORK
+  createdAt      DateTime    @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+// Attente d'une réponse du coach (messages de l'élève dans ses tickets) : délai de 12 h et étoiles.
+model ResponseWait {
+  id         String    @id @default(cuid())
+  ticketId   String
+  ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  coachId    String
+  askedAt    DateTime
+  dueAt      DateTime
+  answeredAt DateTime?
+  late       Boolean   @default(false) // délai dépassé (compté une seule fois)
+  lateWeek   String? // semaine du retard, ex. "2026-W40"
+  fast       Boolean   @default(false) // réponse en moins d'une heure
+
+  @@index([coachId, answeredAt])
+  @@index([answeredAt, dueAt])
+}
+
+// Historique des étoiles d'un coach.
+model CoachStarEvent {
+  id        String   @id @default(cuid())
+  coachId   String
+  delta     Int
+  stars     Int // valeur après changement
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([coachId, createdAt])
+}
+
+// Post TikTok déclaré par l'élève (streak et qualité).
+model Post {
+  id             String      @id @default(cuid())
+  learnerId      String
+  learner        User        @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  url            String
+  videoId        String
+  postedAt       DateTime // lu dans l'identifiant de la vidéo
+  localDate      String // jour du post dans le fuseau de l'élève (AAAA-MM-JJ)
+  validatedViews Int? // dernières vues validées par le coach
+  createdAt      DateTime    @default(now())
+  viewProofs     ViewProof[]
+
+  @@unique([learnerId, videoId])
+  @@index([learnerId, localDate])
+}
+
+enum ProofStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Capture des statistiques d'une vidéo (points de qualité).
+model ViewProof {
+  id            String      @id @default(cuid())
+  postId        String
+  post          Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  views         Int
+  imageKey      String
+  status        ProofStatus @default(PENDING)
+  reviewComment String?
+  reviewedAt    DateTime?
+  reviewedById  String?
+  createdAt     DateTime    @default(now())
+}
+
+enum RankProofKind {
+  FOLLOWERS_10K // rang A
+  MONTHLY // résultats du mois : S (100 €), SS (500 €), SSS (1 000 €)
+}
+
+model RankProof {
+  id            String        @id @default(cuid())
+  learnerId     String
+  learner       User          @relation("ProofLearner", fields: [learnerId], references: [id], onDelete: Cascade)
+  kind          RankProofKind
+  month         String? // mois déclaré (AAAA-MM)
+  amountEur     Int?
+  followers     Int?
+  imageKey      String
+  status        ProofStatus   @default(PENDING)
+  reviewComment String?
+  reviewedAt    DateTime?
+  reviewedById  String?
+  createdAt     DateTime      @default(now())
+
+  @@index([learnerId, kind])
+}
+
+model ReactivationRequest {
+  id          String      @id @default(cuid())
+  learnerId   String
+  learner     User        @relation("ReactivationLearner", fields: [learnerId], references: [id], onDelete: Cascade)
+  reason      String
+  status      ProofStatus @default(PENDING)
+  decidedAt   DateTime?
+  decidedById String?
+  createdAt   DateTime    @default(now())
 }

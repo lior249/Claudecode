@@ -9,6 +9,7 @@ import { devCompleteLesson } from "@/app/actions/learn";
 import { logout } from "@/app/actions/auth";
 import { LESSON_TYPES, RankBadge, TypeBadge } from "./badges";
 import { Countdown } from "./countdown";
+import { LocalTime } from "@/components/local-time";
 
 export interface LessonView {
   id: string;
@@ -37,6 +38,7 @@ export interface LearnViewData {
   currentLessonId: string | null;
   devTools: boolean;
   isAdmin: boolean;
+  inCoaching: boolean;
   levels: { id: string; title: string; position: number; status: Status; modules: ModuleView[] }[];
 }
 
@@ -75,6 +77,11 @@ export function LearnView({ data }: { data: LearnViewData }) {
       <header className="flex items-center justify-between py-5">
         <span className="logo text-3xl">Creato</span>
         <div className="flex items-center gap-2">
+        {data.inCoaching && (
+          <Link href="/coaching" className="rounded-full bg-gold px-3 py-2 text-xs font-semibold text-black">
+            Coaching
+          </Link>
+        )}
         {data.isAdmin && (
           <Link href="/admin" className="rounded-full bg-gold/15 px-3 py-2 text-xs font-medium text-gold">
             Admin
@@ -313,7 +320,7 @@ function LessonSheet({
         <div className="mt-5 rounded-2xl bg-card-2 p-4 text-sm">
           {lesson.status === "COMPLETED" ? (
             <p className="flex items-center gap-2 font-medium text-success">
-              <Check size={16} /> Validée le {new Date(lesson.completedAt!).toLocaleDateString("fr-FR")}
+              <Check size={16} /> Validée le <LocalTime iso={lesson.completedAt!} date />
             </p>
           ) : (
             <>

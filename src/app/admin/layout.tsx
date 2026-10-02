@@ -10,22 +10,30 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <span className="logo text-3xl">Creato</span>
           <span className="text-sm font-medium text-gold">Admin</span>
         </Link>
-        <Link href="/learn" className="rounded-full bg-card px-3 py-2 text-xs text-muted">
-          Vue élève
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/coach" className="rounded-full bg-gold/15 px-3 py-2 text-xs text-gold">
+            Espace coach
+          </Link>
+          <Link href="/learn" className="rounded-full bg-card px-3 py-2 text-xs text-muted">
+            Vue élève
+          </Link>
+        </div>
       </header>
-      <nav className="mb-6 flex gap-1 rounded-2xl bg-card p-1 text-sm">
-        <Link href="/admin" className="flex-1 rounded-xl py-2.5 text-center">
+      <nav className="mb-6 flex gap-1 overflow-x-auto rounded-2xl bg-card p-1 text-sm">
+        <Link href="/admin" className="flex-1 whitespace-nowrap rounded-xl px-2 py-2.5 text-center">
           Parcours
         </Link>
-        <Link href="/admin/learners" className="flex-1 rounded-xl py-2.5 text-center">
+        <Link href="/admin/learners" className="flex-1 whitespace-nowrap rounded-xl px-2 py-2.5 text-center">
           Élèves
         </Link>
-        <Link href="/admin/reviews" className="flex-1 rounded-xl py-2.5 text-center">
+        <Link href="/admin/reviews" className="flex-1 whitespace-nowrap rounded-xl px-2 py-2.5 text-center">
           Validations
         </Link>
-        <Link href="/admin/catalogs" className="flex-1 rounded-xl py-2.5 text-center">
+        <Link href="/admin/catalogs" className="flex-1 whitespace-nowrap rounded-xl px-2 py-2.5 text-center">
           Catalogues
+        </Link>
+        <Link href="/admin/coaches" className="flex-1 whitespace-nowrap rounded-xl px-2 py-2.5 text-center">
+          Coachs
         </Link>
       </nav>
       {children}

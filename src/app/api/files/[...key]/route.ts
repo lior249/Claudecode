@@ -2,15 +2,21 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { getCurrentUser } from "@/server/auth/session";
 import { filePath, readStream } from "@/server/storage/storage";
-import { MIME_BY_EXT } from "@/server/storage/images";
+import { MIME_BY_EXT, USER_IMAGE_KEY } from "@/server/storage/images";
+import { canSeeUpload } from "@/server/coaching/access";
 
-// Images du catalogue, réservées aux personnes connectées. Les fichiers des élèves ne passent jamais par ici.
+// Images : catalogue (toute personne connectée) et images privées des tickets / preuves (élève, son coach, admins).
+// Les vidéos et audios des élèves ne passent jamais par ici.
 export async function GET(_request: Request, ctx: RouteContext<"/api/files/[...key]">) {
-  if (!(await getCurrentUser())) return new Response("Introuvable", { status: 404 });
+  const user = await getCurrentUser();
+  if (!user) return new Response("Introuvable", { status: 404 });
   const { key: parts } = await ctx.params;
   const key = parts.join("/");
-  const match = key.match(/^catalog\/[0-9a-f-]{36}\.(jpg|png|webp)$/);
+  const catalog = key.match(/^catalog\/[0-9a-f-]{36}\.(jpg|png|webp)$/);
+  const upload = key.match(USER_IMAGE_KEY);
+  const match = catalog ?? upload;
   if (!match) return new Response("Introuvable", { status: 404 });
+  if (upload && !(await canSeeUpload(user, upload[1]))) return new Response("Introuvable", { status: 404 });
   try {
     const info = await stat(filePath(key));
     return new Response(Readable.toWeb(readStream(key)) as ReadableStream, {

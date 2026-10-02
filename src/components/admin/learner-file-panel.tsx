@@ -6,7 +6,7 @@ import { LESSON_TYPES, RankBadge, TypeBadge } from "@/components/learn/badges";
 const date = (iso: string | null) => (iso ? new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—");
 
 // Fiche d'un élève en panneau latéral (plein écran sur téléphone).
-export function LearnerFilePanel({ file, closeHref }: { file: LearnerFile; closeHref: string }) {
+export function LearnerFilePanel({ file, closeHref, extra }: { file: LearnerFile; closeHref: string; extra?: React.ReactNode }) {
   const u = file.user;
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/60">
@@ -35,6 +35,8 @@ export function LearnerFilePanel({ file, closeHref }: { file: LearnerFile; close
           {u.learnCompletedAt && ` · terminé le ${date(u.learnCompletedAt)}`}
           {u.eliteGrantedAt && " · rôle @Élite donné"}
         </p>
+
+        {extra}
 
         {file.lateRemarks.length > 0 && (
           <Section title="Décrochages">

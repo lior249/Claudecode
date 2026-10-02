@@ -104,6 +104,14 @@ export async function botAddRole(discordUserId: string, roleId: string) {
   if (!res.ok) throw new DiscordError(`add role failed: ${res.status} ${await res.text()}`);
 }
 
+export async function botRemoveRole(discordUserId: string, roleId: string) {
+  const res = await fetch(`${api()}/guilds/${getEnv().DISCORD_GUILD_ID}/members/${discordUserId}/roles/${roleId}`, {
+    method: "DELETE",
+    headers: { ...botHeaders(), "X-Audit-Log-Reason": "Creato : coaching révoqué (absence)" },
+  });
+  if (!res.ok && res.status !== 404) throw new DiscordError(`remove role failed: ${res.status}`);
+}
+
 export async function botSendDirectMessage(discordUserId: string, content: string) {
   const dm = await fetch(`${api()}/users/@me/channels`, {
     method: "POST",
