@@ -138,22 +138,77 @@ Un seul module, une seule leçon :
 
 - Chaque module a un **lien d'accès Whop secret** (lien à 0 €). Il n'est révélé qu'une fois le module précédent validé.
 
-## Coachs
+## Coachs et places
 
-- Rôle **Coach** construit dès maintenant. Au maximum **20 élèves par coach**. Les coachs sont pris dans l'ordre : le coach 1 (le porteur de projet) se remplit en premier.
-- Les notifications d'un élève ne vont qu'à **son** coach.
-- Le coach voit **la liste de ses élèves**. Un clic ouvre la **fiche** dans un panneau latéral :
-  - progression, rang et dates de validation ;
-  - nombre d'essais par exercice ;
-  - critères qui ont posé problème ;
-  - décrochages (en rouge) ;
-  - choix du niveau 2 ;
-  - ressenti du niveau 3.
+- Rôle **Coach**. **20 places par coach** par défaut, modifiables par l'Admin coach par coach.
+- Une place = un élève **en coaching actif** (après @Élite). Pendant le Learn, l'élève n'occupe aucune place, et les demandes
+  « Faire appel à un humain » vont aux admins.
+- **Attribution au passage en coaching** : le coach qui a le **plus d'étoiles** et une place libre (à égalité, l'ordre des coachs).
+- La place se libère quand l'élève atteint **SSS** (coaching terminé) ou quand son coaching est **révoqué** (absence).
+- Le coach voit la liste de ses élèves. La fiche d'un élève s'ouvre dans un panneau latéral :
+  - progression Learn, rang, dates de validation, nombre d'essais, critères ratés, décrochages (en rouge) ;
+  - choix du niveau 2 et ressenti du niveau 3 ;
+  - streak, points, preuves de rang, résultats mensuels, tickets.
+
+## Espace coaching (élève avec le rôle @Élite)
+
+### Tickets (discussion interne)
+- Une discussion par ticket : **texte, images et liens**. Pas de vidéo ni d'audio.
+- **Élève → coach** : jusqu'à **3 tickets ouverts** à la fois, un par sujet.
+  - Chaque message de l'élève attend une réponse du coach sous **12 heures, en continu** (nuits comprises).
+    Rappels Discord au coach à **4 h** puis **2 h** de la fin.
+  - Sous une réponse du coach, l'élève a un bouton **« Conseil reçu, je l'applique »**. Il envoie automatiquement :
+    « Je vais appliquer ce que tu m'as dit et je te reviens d'ici X ». Le délai X (24 h, 48 h, 72 h ou 5 jours) est choisi par le coach
+    dans sa réponse. L'élève reçoit un rappel à l'échéance pour dire si **ça a marché 👍 ou pas 👎** (avec une explication si 👎).
+- **Coach → élève** (tickets de suivi) : questions **prédéfinies**, envoyées à un ou plusieurs élèves d'un coup.
+  **Un seul ticket de suivi ouvert** par élève. Pas de délai.
+- **Seul le coach clôture un ticket.** À la clôture d'un ticket ouvert par l'élève, celui-ci note la réponse :
+  😞 (rouge), 😐 (neutre) ou 🙂 (vert). Une justification est obligatoire pour 😞 et 😐.
+- L'Admin voit, par coach : les avis et leurs justifications, les délais de réponse, les retards, et peut ouvrir chaque ticket
+  pour relire toute la discussion.
+
+### Étoiles des coachs (visibles par les admins)
+- Départ : **3 étoiles**. **Minimum 1, maximum 6.**
+- **+1 étoile** toutes les **10 réponses envoyées en moins d'une heure**.
+- **−1 étoile** toutes les **5 réponses en retard** (plus de 12 h) dans la même semaine (du lundi au dimanche).
+- Les étoiles décident de l'ordre d'attribution des nouveaux élèves.
+
+### Régularité : le streak
+- Un jour compte s'il y a **au moins 1 post TikTok** ce jour-là, **dans le fuseau horaire de l'élève**.
+- Preuve : le lien du post. Sa date de publication est lue dans le lien, et le @ doit être celui du compte de l'élève.
+- La flamme évolue : de 1 à 6 jours, de 7 à 29, de 30 à 99, puis 100 jours et plus.
+- **Gel de streak** (comme Duolingo) : 1 jour par mois qui ne casse pas la chaîne.
+- Points : +1 par semaine complète, +3 de bonus à 30 jours, +10 à 100 jours. Le record personnel reste affiché.
+
+### Qualité : points par vidéo (capture des statistiques validée par le coach)
+| Vues | Points |
+|---|---|
+| 10 000 à 99 999 | 1 |
+| 100 000 à 299 999 | 2 |
+| 300 000 à 499 999 | 3 |
+| 500 000 à 999 999 | 4 |
+| 1 million et plus | 5 |
+
+Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève gagne seulement la différence.
+
+### Classement
+- Les élèves en coaching sont classés par points (streak + qualité).
+- **Podium des 3 premiers**, puis le tableau complet. Visible par tous les membres de la plateforme.
+
+### Résultats du mois et fin du coaching
+- Une fenêtre s'ouvre du **dernier jour du mois au 5 du mois suivant**.
+- L'élève envoie le montant gagné et une capture de son tableau de bord, où son nom d'utilisateur est visible. Le coach valide.
+- Le **coach peut clôturer le coaching** quand l'élève atteint SSS. Sa place est alors libérée.
+
+### Absence
+- **15 jours sans post** : coaching **révoqué automatiquement**. Le rôle @Élite est retiré sur Discord et la place est libérée.
+- Pour revenir : bouton **« Réactiver mon coaching »**, avec un champ texte pour la raison de l'absence.
+  Un coach ou un admin valide la demande **à la main**. Le rôle @Élite et une place sont alors redonnés.
 
 ## Notifications (Discord, message privé du bot)
 
-- **Élève** : résultat de correction, rappel 4 h avant la fin du délai, déblocages.
-- **Coach** : demande d'intervention humaine, élève passé en coaching.
+- **Élève** : résultat de correction, rappel 4 h avant la fin des 24 h, déblocages, réponses du coach, rappels de retour sur un conseil.
+- **Coach** : demande d'intervention humaine, élève passé en coaching, nouveau message de ticket, rappels à 4 h et 2 h de la fin des 12 h.
 
 ## Rangs
 
@@ -163,10 +218,12 @@ Un seul module, une seule leçon :
 | D | Niveau 1 (Les bases) terminé | automatique |
 | C | Niveau 2 (Positionnement) terminé | automatique |
 | B | Niveau 3 (Lancement) terminé, rôle @Élite | automatique |
-| A | 10 000 abonnés | saisi par le coach |
-| S | 3 millions de vues | saisi par le coach |
-| SS | 500 € générés | saisi par le coach |
-| SSS | Plus de 1 000 € générés | saisi par le coach |
+| A | 10 000 abonnés | preuve validée par le coach |
+| S | Un mois à **100 €** ou plus *(compris comme « cent euros » : à confirmer)* | résultats du mois validés par le coach |
+| SS | Un mois à **500 €** ou plus | résultats du mois validés par le coach |
+| SSS | Un mois à **1 000 €** ou plus : **coaching terminé** | résultats du mois validés par le coach |
+
+Les montants se comptent **sur un seul mois**. Un rang atteint reste acquis.
 
 ## Design
 
