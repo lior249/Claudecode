@@ -35,17 +35,24 @@ Le secret OAuth et le token du bot ont été envoyés dans la conversation : on 
 > Chez OVH, on ne se connecte pas en `root` mais avec l'utilisateur **`ubuntu`**. C'est pour ça que les commandes
 > ci-dessous commencent par `sudo` (= « faire en tant qu'administrateur »).
 
-## Étape 2 — Brancher le domaine (5 min + attente)
+## Étape 2 — Brancher le domaine chez Namecheap (5 min + attente)
 
-Chez **LWS** → ton domaine **creatoskills.site** → **Zone DNS** :
+1. Connecte-toi sur <https://www.namecheap.com> → **Domain List** → à côté de **creatoskills.site**, clique **Manage**.
+2. Onglet **Domain** → rubrique **Nameservers** : vérifie que c'est **Namecheap BasicDNS** (sinon choisis-le et valide ✓).
+3. Onglet **Advanced DNS** → rubrique **Host Records** :
+   - **Supprime** (icône poubelle) les lignes par défaut de Namecheap : le **CNAME Record** `www` → `parkingpage.namecheap.com`
+     et le **URL Redirect Record** `@`, s'ils existent.
+   - **Add New Record** deux fois :
 
-| Type | Nom | Valeur |
-|------|-----|--------|
-| A | `@` (vide) | l'IP du serveur |
-| A | `www` | l'IP du serveur |
+     | Type | Host | Value | TTL |
+     |------|------|-------|-----|
+     | A Record | `@` | l'IP du serveur | Automatic |
+     | A Record | `www` | l'IP du serveur | Automatic |
 
-Supprime les anciennes lignes **A** et **AAAA** de `@` et `www` (page de parking LWS).
-La prise en compte prend de 5 minutes à quelques heures. Vérifie sur <https://dnschecker.org> (type A).
+   - Clique sur la coche verte ✓ de chaque ligne pour l'enregistrer.
+
+La prise en compte prend de 5 minutes à quelques heures. Vérifie sur <https://dnschecker.org> (type A) que
+`creatoskills.site` affiche bien l'IP de ton serveur **avant** l'étape 4 (sinon le certificat HTTPS ne peut pas être créé).
 
 ## Étape 3 — Préparer l'accès au code (5 min)
 
@@ -156,5 +163,5 @@ cd /opt/creato && sudo ./deploy/update.sh
 | Poste | Prix |
 |-------|------|
 | VPS OVHcloud + sauvegarde automatisée | ≈ 6 à 10 € selon l'offre (voir ta facture) |
-| Domaine (LWS) | déjà payé |
+| Domaine (Namecheap) | déjà payé (pense au renouvellement annuel) |
 | Gemini | ≤ 20 $ (alerte de budget) |
