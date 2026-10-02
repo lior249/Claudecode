@@ -20,20 +20,24 @@ Le secret OAuth et le token du bot ont été envoyés dans la conversation : on 
 5. Sur ton serveur Discord : **Paramètres du serveur → Rôles** → fais glisser le rôle du bot **au-dessus** de @Élite,
    et vérifie qu'il a la permission **Gérer les rôles**. Sinon il ne pourra pas donner/retirer @Élite.
 
-## Étape 1 — Louer le serveur chez OVHcloud (10 min, ~6 à 8 €/mois)
+## Étape 1 — Louer le serveur chez Namecheap (10 min, ~7 à 12 $/mois)
 
-1. Va sur <https://www.ovhcloud.com/fr/vps/> → choisis l'offre **VPS** d'entrée de gamme (au moins **2 vCore, 4 Go de mémoire, 40 Go de disque**).
-2. Pendant la commande :
-   - **Localisation** : France (Gravelines, Strasbourg ou Roubaix).
-   - **Système** : **Ubuntu 24.04** (sans application préinstallée).
-   - **Option « Sauvegarde automatisée »** : ✅ recommandée (quelques euros/mois) → OVH garde une copie complète du serveur chaque jour, en plus de nos sauvegardes.
-   - Clé SSH : tu peux laisser vide.
-3. Paie. Quelques minutes plus tard, tu reçois un e-mail avec l'**adresse IP** du serveur (ex. `51.75.12.34`)
-   et le moyen de récupérer le **mot de passe** de l'utilisateur **`ubuntu`** (lien vers ton espace client OVH).
-   Tu retrouves aussi l'IP dans l'espace client : **Bare Metal Cloud → VPS → ton VPS**.
+Tu utilises le même compte Namecheap que pour le domaine.
 
-> Chez OVH, on ne se connecte pas en `root` mais avec l'utilisateur **`ubuntu`**. C'est pour ça que les commandes
-> ci-dessous commencent par `sudo` (= « faire en tant qu'administrateur »).
+1. Sur <https://www.namecheap.com> → menu **Hosting** → **VPS Hosting**.
+2. Choisis l'offre :
+   - **Quasar** (≈ 12 $/mois, 6 Go de mémoire) : **recommandée**, tout est fluide.
+   - **Pulsar** (≈ 7 $/mois, 2 Go de mémoire) : ça marche, mais l'installation et les mises à jour sont lentes,
+     et c'est juste quand plusieurs élèves envoient des vidéos en même temps.
+   - Les prix changent souvent : vérifie sur leur site.
+3. Pendant la commande :
+   - **Système (OS)** : **Ubuntu 24.04** (ou **Ubuntu 22.04** si la 24.04 n'est pas proposée).
+   - **Panneau de contrôle (cPanel / WHM)** : ❌ **refuse-le**. Il bloquerait le site en HTTPS de Creato. Il faut le serveur « nu ».
+   - Vérifie que l'offre indique **KVM** dans sa description (c'est le type de serveur dont Creato a besoin).
+   - Si une option de **sauvegarde du serveur** est proposée, tu peux la prendre (en plus de nos sauvegardes).
+4. Paie (même carte, même nom et même adresse que pour le domaine, VPN coupé).
+5. Quand le serveur est prêt (de quelques minutes à quelques heures), tu reçois un e-mail avec l'**adresse IP**
+   (ex. `198.54.12.34`) et le **mot de passe `root`**. Tu les retrouves aussi dans **Dashboard → Hosting List → ton VPS**.
 
 ## Étape 2 — Brancher le domaine chez Namecheap (5 min + attente)
 
@@ -69,23 +73,23 @@ Le dépôt GitHub est privé : le serveur a besoin d'un « jeton de lecture ».
    - Mac : **Terminal**.
 2. Connecte-toi au serveur (remplace par ton IP) :
    ```
-   ssh ubuntu@51.75.12.34
+   ssh root@198.54.12.34
    ```
-   Tape `yes`, puis le mot de passe OVH (rien ne s'affiche quand tu tapes, c'est normal).
-   S'il ne te demande pas d'en changer, fais-le tout de suite avec `passwd` : choisis-en un long et garde-le dans un gestionnaire de mots de passe.
+   Tape `yes`, puis le mot de passe `root` reçu par e-mail (rien ne s'affiche quand tu tapes, c'est normal).
+   Change-le tout de suite avec la commande `passwd` : choisis-en un long et garde-le dans un gestionnaire de mots de passe.
 3. Récupère le code :
    ```
-   sudo git clone -b claude/nifty-bell-8c7abw https://github.com/lior249/Claudecode.git /opt/creato
+   git clone -b claude/nifty-bell-8c7abw https://github.com/lior249/Claudecode.git /opt/creato
    ```
    *Username* : ton nom GitHub. *Password* : **le jeton de l'étape 3** (pas ton mot de passe GitHub).
 4. Lance l'installation :
    ```
-   cd /opt/creato && sudo ./deploy/install.sh
+   cd /opt/creato && ./deploy/install.sh
    ```
    La première fois, il prépare tout puis s'arrête en disant qu'il manque 3 valeurs. C'est normal.
 5. Ouvre le fichier de réglages :
    ```
-   sudo nano /opt/creato/.env
+   nano /opt/creato/.env
    ```
    Colle entre les guillemets :
    - `DISCORD_CLIENT_SECRET="…"` → le **nouveau** secret (étape 0)
@@ -95,7 +99,7 @@ Le dépôt GitHub est privé : le serveur a besoin d'un « jeton de lecture ».
    Enregistre : **Ctrl+O**, **Entrée**, puis quitte : **Ctrl+X**.
 6. Relance :
    ```
-   sudo ./deploy/install.sh
+   ./deploy/install.sh
    ```
    Après quelques minutes : **✅ Creato tourne**. Ouvre <https://creatoskills.site>.
 
@@ -124,27 +128,21 @@ Si quelque chose cloche, note ce que tu as fait et ce qui s'est affiché, et env
 ## Sauvegardes (déjà actives)
 
 - **Chaque nuit à 3 h 30** : copie de la base (14 jours gardés) et des fichiers (7 jours) dans `/var/backups/creato`.
-- **Sauvegarde automatisée OVH** : copie complète du serveur chaque jour (si choisie à l'étape 1).
-  Avant une grosse modification, tu peux aussi faire un **snapshot** dans l'espace client OVH (VPS → Snapshot).
-- Sauvegarde à la main : `sudo /opt/creato/deploy/backup.sh`
-- Une fois par mois, garde une copie chez toi :
-  1. Sur le serveur :
-     ```
-     sudo cp /var/backups/creato/db-*.dump /home/ubuntu/ && sudo chown ubuntu /home/ubuntu/db-*.dump
-     ```
-  2. Depuis ton ordinateur (nouvelle fenêtre PowerShell / Terminal) :
-     ```
-     scp "ubuntu@51.75.12.34:db-*.dump" .
-     ```
-  3. De retour sur le serveur : `rm /home/ubuntu/db-*.dump`
-- Restaurer (en cas de souci) : `sudo /opt/creato/deploy/restore.sh /var/backups/creato/db-AAAA-MM-JJ-HHMM.dump`
+- **Sauvegarde Namecheap du serveur** : seulement si tu as pris l'option à l'étape 1.
+- Nos sauvegardes sont **sur le même serveur** : si le serveur disparaît, elles disparaissent avec.
+  Donc **une fois par mois**, garde une copie chez toi, depuis ton ordinateur (PowerShell / Terminal, pas le serveur) :
+  ```
+  scp "root@198.54.12.34:/var/backups/creato/db-*.dump" .
+  ```
+- Sauvegarde à la main : `/opt/creato/deploy/backup.sh`
+- Restaurer (en cas de souci) : `/opt/creato/deploy/restore.sh /var/backups/creato/db-AAAA-MM-JJ-HHMM.dump`
 
 ## Mises à jour
 
 Quand je te dis qu'une nouvelle version est prête :
 ```
-ssh ubuntu@51.75.12.34
-cd /opt/creato && sudo ./deploy/update.sh
+ssh root@198.54.12.34
+cd /opt/creato && ./deploy/update.sh
 ```
 (Le script fait une sauvegarde avant, puis met le site à jour.)
 
@@ -152,16 +150,16 @@ cd /opt/creato && sudo ./deploy/update.sh
 
 | Besoin | Commande (dans `/opt/creato`) |
 |--------|------------------------------|
-| État des services | `sudo docker compose ps` |
-| Messages du site | `sudo docker compose logs app --tail 50` |
-| Messages du worker (IA, rappels) | `sudo docker compose logs worker --tail 50` |
-| Redémarrer | `sudo docker compose restart` |
-| Modifier un réglage | `sudo nano .env` puis `sudo docker compose up -d` |
+| État des services | `docker compose ps` |
+| Messages du site | `docker compose logs app --tail 50` |
+| Messages du worker (IA, rappels) | `docker compose logs worker --tail 50` |
+| Redémarrer | `docker compose restart` |
+| Modifier un réglage | `nano .env` puis `docker compose up -d` |
 
 ## Coûts mensuels
 
 | Poste | Prix |
 |-------|------|
-| VPS OVHcloud + sauvegarde automatisée | ≈ 6 à 10 € selon l'offre (voir ta facture) |
+| VPS Namecheap (Quasar recommandé) | ≈ 7 à 12 $ selon l'offre (voir ta facture) |
 | Domaine (Namecheap) | déjà payé (pense au renouvellement annuel) |
 | Gemini | ≤ 20 $ (alerte de budget) |
