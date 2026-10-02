@@ -4,6 +4,7 @@ import "dotenv/config";
 import { claimNextJob, completeJob, failJob, releaseStuckJobs } from "@/server/jobs/queue";
 import { processSubmission } from "@/server/practice/service";
 import { cleanupOrphanAssets } from "@/server/retention/service";
+import { grantEliteRole } from "@/server/launch/service";
 import { prisma } from "@/server/db";
 
 const IDLE_MS = 1500;
@@ -14,6 +15,8 @@ async function handle(type: string, payload: Record<string, unknown>) {
   switch (type) {
     case "submission.process":
       return processSubmission(String(payload.submissionId));
+    case "discord.grantElite":
+      return grantEliteRole(String(payload.userId));
     default:
       throw new Error(`type de tâche inconnu : ${type}`);
   }

@@ -41,6 +41,12 @@ export interface LearnViewData {
 }
 
 const VISIBLE_LOCKED_MODULES = 3;
+const LESSON_HREF: Partial<Record<LessonType, string>> = {
+  UNDERSTANDING: "/learn/quiz",
+  PRACTICE_AI: "/learn/practice",
+  DECISION: "/learn/decision",
+  CODE_VALIDATION: "/learn/launch",
+};
 const LOCKED_OPACITY = [0.55, 0.35, 0.2];
 
 export function LearnView({ data }: { data: LearnViewData }) {
@@ -323,9 +329,9 @@ function LessonSheet({
 
         {isCurrent && (
           <div className="mt-5 space-y-2">
-            {lesson.type === "UNDERSTANDING" || lesson.type === "PRACTICE_AI" ? (
+            {LESSON_HREF[lesson.type] ? (
               <Link
-                href={lesson.type === "UNDERSTANDING" ? `/learn/quiz/${lesson.id}` : `/learn/practice/${lesson.id}`}
+                href={`${LESSON_HREF[lesson.type]}/${lesson.id}`}
                 className="block w-full rounded-2xl bg-text py-4 text-center font-semibold text-black"
               >
                 {t.action}

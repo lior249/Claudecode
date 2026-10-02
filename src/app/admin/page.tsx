@@ -4,6 +4,7 @@ import { prisma } from "@/server/db";
 import { LESSON_TYPES, TypeBadge } from "@/components/learn/badges";
 import { QUIZ_QUESTION_COUNT } from "@/server/quizzes/rules";
 import { isPracticeReady, parsePracticeConfig } from "@/server/practice/config";
+import { CATALOGS, catalogOfLesson } from "@/server/decisions/catalog";
 
 export default async function AdminHome() {
   const levels = await prisma.level.findMany({
@@ -20,7 +21,7 @@ export default async function AdminHome() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold">Parcours</h1>
-        <p className="mt-1 text-sm text-muted">L&apos;éditeur complet (modules, leçons, ordre) arrive au bloc 6. Ici : les QCM et la correction des exercices.</p>
+        <p className="mt-1 text-sm text-muted">L&apos;éditeur complet (modules, leçons, ordre) arrive au bloc 6. Ici : les QCM, la correction des exercices, les catalogues et le lancement.</p>
       </div>
       {levels.map((level) => (
         <section key={level.id}>
@@ -38,7 +39,16 @@ export default async function AdminHome() {
                     const isPractice = lesson.type === "PRACTICE_AI";
                     const count = lesson._count.quizQuestions;
                     const practice = isPractice ? parsePracticeConfig(lesson.config) : null;
-                    const href = isQuiz ? `/admin/quiz/${lesson.id}` : isPractice ? `/admin/practice/${lesson.id}` : null;
+                    const catalog = lesson.type === "DECISION" ? catalogOfLesson(lesson.config) : null;
+                    const href = isQuiz
+                      ? `/admin/quiz/${lesson.id}`
+                      : isPractice
+                        ? `/admin/practice/${lesson.id}`
+                        : catalog
+                          ? `/admin/catalogs?c=${catalog}`
+                          : lesson.type === "CODE_VALIDATION"
+                            ? `/admin/launch/${lesson.id}`
+                            : null;
                     const row = (
                       <>
                         <TypeBadge type={lesson.type} size={30} />
@@ -52,6 +62,7 @@ export default async function AdminHome() {
                                 · {count}/{QUIZ_QUESTION_COUNT} questions
                               </span>
                             )}
+                            {catalog && <span> · catalogue {CATALOGS[catalog].plural.toLowerCase()}</span>}
                             {practice && (
                               <span className={isPracticeReady(practice) ? "text-success" : "text-gold"}>
                                 {" "}

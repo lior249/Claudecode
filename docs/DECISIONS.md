@@ -45,8 +45,14 @@ Il faut **8/10 minimum** sur chaque exercice.
 
 ### Niveau 2 — Positionnement
 
-Chaque module consiste à **choisir une seule fiche** dans un catalogue que l'Admin remplit.
-Une fiche contient du texte, des photos, une miniature et des liens cliquables.
+Chaque module consiste à **choisir une seule fiche**, de façon définitive, dans un catalogue que l'Admin remplit à la main
+(Admin → Catalogues → « Ajouter une niche », « Ajouter un pays », « Ajouter une méthode 10K »).
+
+- **Vue d'ensemble** (liste) : miniature, nom, résumé, **niveau de concurrence** (Faible / Moyenne / Forte),
+  **matériel nécessaire** (PC / Téléphone / PC et téléphone), et un bouton **« Choisir cette niche »**.
+- **Page de la fiche** : tout le contenu (texte, photos, liens), avec le même bouton « Choisir cette niche ».
+- Le choix demande une **confirmation**, car il est définitif.
+- Une fiche déjà choisie ne peut pas être supprimée, seulement masquée. Le titre choisi est conservé même si la fiche change.
 
 1. **Choix de niche.** Fiche niche : comptes exemples, résumé, types de contenus qui marchent, 2 ou 3 exemples de scripts, pays à cibler, erreurs à éviter.
 2. **Pays cible.** Un pays de la monétisation, avec ses avantages et ses inconvénients.
@@ -61,7 +67,8 @@ Un seul module, une seule leçon :
    et un **code de 10 caractères** montré dans la vidéo Whop. Le code est généré par Creato et modifiable par l'Admin.
    **Aucun indice** de la phrase ni du code n'apparaît dans l'application, y compris dans le code envoyé au navigateur.
    Ce n'est pas un coffre-fort : la vraie vérification se fait en coaching, où l'élève doit montrer ses vidéos.
-2. Puis environ 10 questions ouvertes sur son ressenti : le montage, TikTok, ce qu'il pense pouvoir réussir… (confirmé)
+2. Puis environ 10 questions ouvertes sur son ressenti (30 caractères minimum par réponse), modifiables dans l'Admin.
+   Après 10 mauvais essais de phrase ou de code en une heure, l'élève est bloqué une heure.
 3. Bouton **« Envoyer à mon coach »** :
    - il reçoit **tout de suite le rôle Discord @Élite** ;
    - son coach reçoit une notification « X vient d'obtenir le droit au coaching » avec le résumé ;

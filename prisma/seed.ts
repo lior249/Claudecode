@@ -126,16 +126,10 @@ async function seedPlaceholderQuiz(lessonId: string) {
 }
 
 async function reset() {
-  await prisma.quizAnswer.deleteMany();
-  await prisma.quizAttempt.deleteMany();
-  await prisma.quizQuestion.deleteMany();
-  await prisma.auditLog.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.lessonProgress.deleteMany();
-  await prisma.lesson.deleteMany();
-  await prisma.module.deleteMany();
-  await prisma.level.deleteMany();
-  await prisma.user.deleteMany();
+  // Vide toutes les tables de l'application (pas l'historique des migrations).
+  const tables = await prisma.$queryRaw<{ tablename: string }[]>`
+    SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+  if (tables.length) await prisma.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} CASCADE`);
 }
 
 async function main() {

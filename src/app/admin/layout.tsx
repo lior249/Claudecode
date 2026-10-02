@@ -14,6 +14,14 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           Vue élève
         </Link>
       </header>
+      <nav className="mb-6 flex gap-1 rounded-2xl bg-card p-1 text-sm">
+        <Link href="/admin" className="flex-1 rounded-xl py-2.5 text-center">
+          Parcours
+        </Link>
+        <Link href="/admin/catalogs" className="flex-1 rounded-xl py-2.5 text-center">
+          Catalogues
+        </Link>
+      </nav>
       {children}
     </div>
   );

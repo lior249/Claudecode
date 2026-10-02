@@ -68,12 +68,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions     Session[]
-  progress     LessonProgress[]
-  quizAttempts QuizAttempt[]
-  submissions  Submission[]
-  assets       Asset[]
-  auditLogs    AuditLog[]
+  sessions      Session[]
+  progress      LessonProgress[]
+  quizAttempts  QuizAttempt[]
+  submissions   Submission[]
+  assets        Asset[]
+  decisions     DecisionResponse[]
+  launchReports LaunchReport[]
+  auditLogs     AuditLog[]
 
   @@index([coachId])
 }
@@ -134,6 +136,8 @@ model Lesson {
   quizAttempts  QuizAttempt[]
   submissions   Submission[]
   assets        Asset[]
+  decisions     DecisionResponse[]
+  launchReports LaunchReport[]
 
   @@index([moduleId, position])
 }
@@ -325,4 +329,74 @@ model Job {
   finishedAt  DateTime?
 
   @@index([status, runAt])
+}
+
+// --- Décisions (niveau 2) : catalogues remplis par l'Admin ---
+
+enum Catalog {
+  NICHE
+  COUNTRY
+  METHOD_10K
+}
+
+enum Competition {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum Equipment {
+  PC
+  PHONE
+  BOTH
+}
+
+model CatalogItem {
+  id           String             @id @default(cuid())
+  catalog      Catalog
+  title        String
+  summary      String             @default("") // phrase d'accroche affichée dans la liste
+  body         String             @default("") // contenu complet de la fiche
+  competition  Competition?
+  equipment    Equipment?
+  thumbnailKey String? // image (clé de stockage)
+  imageKeys    Json               @default("[]") // photos de la fiche
+  links        Json               @default("[]") // [{ label, url }]
+  position     Int                @default(0)
+  isPublished  Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  choices      DecisionResponse[]
+
+  @@index([catalog, position])
+}
+
+// Choix d'un élève pour une leçon Décision : un seul, définitif.
+model DecisionResponse {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId      String
+  lesson        Lesson      @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+  catalogItemId String
+  catalogItem   CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  // Copie du titre au moment du choix (la fiche peut être modifiée ensuite).
+  itemTitle     String
+  chosenAt      DateTime    @default(now())
+
+  @@unique([userId, lessonId])
+}
+
+// --- Lancement (niveau 3) : rapport envoyé au coach ---
+
+model LaunchReport {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+  answers     Json // [{ question, answer }]
+  submittedAt DateTime @default(now())
+
+  @@unique([userId, lessonId])
 }

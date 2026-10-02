@@ -34,6 +34,6 @@ npm run worker              # dans un 2e terminal : analyse des exercices (ffmpe
 - [x] **Bloc 2** : connexion Discord (OAuth2 + PKCE), accès réservé au rôle @TikTok, revérification horaire par le bot.
 - [x] **Bloc 3** : QCM — correction immédiate (vert/rouge + explication), 16/20, attente de 5 min après un échec, tentatives illimitées, saisie des 20 questions dans l'Admin.
 - [x] **Bloc 4** : Pratique IA — envoi de vidéo/audio/texte, mesures automatiques (cuts, silences, son, durée, ressemblance de texte, hook), correction Gemini sur barème texte, note sur 10 calculée par le serveur, doublons refusés, 5 dernières tentatives gardées, « Faire appel à un humain » après 3 pannes.
-- [ ] Bloc 5 : Décisions (catalogues de fiches) et Lancement (phrase + code, rôle @Élite).
+- [x] **Bloc 5** : catalogues (niches, pays, méthodes 10K) gérés dans l'Admin, fiche avec concurrence et matériel, choix unique ; lancement (phrase + code secrets, 10 questions de ressenti, envoi au coach, rôle @Élite).
 - [ ] Bloc 6 : espace Admin / Coach (parcours, fiches élèves, notifications Discord).
 - [ ] Bloc 7 : mise en ligne sur le serveur.
