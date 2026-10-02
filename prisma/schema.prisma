@@ -51,7 +51,8 @@ model User {
   discordUserId   String?     @unique
   discordUsername String?
   displayName     String
-  avatarUrl       String?
+  avatarUrl       String? // photo Discord (mise à jour à chaque connexion)
+  photoKey        String? // photo choisie sur Creato (remplace la photo Discord)
   role            Role        @default(LEARNER)
   status          UserStatus  @default(ACTIVE)
   manualRank      ManualRank?

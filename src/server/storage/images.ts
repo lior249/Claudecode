@@ -25,6 +25,10 @@ export const storeCatalogImage = (body: Readable) => storeImage("catalog", body)
 // Image privée d'un utilisateur (tickets, preuves) : uploads/<propriétaire>/<id>.<ext>.
 export const storeUserImage = (ownerId: string, body: Readable) => storeImage(`uploads/${ownerId}`, body);
 
+// Photo de profil (visible par tous les membres connectés) : avatars/<id>.<ext>.
+export const storeAvatarImage = (body: Readable) => storeImage("avatars", body);
+export const AVATAR_KEY = /^avatars\/[0-9a-f-]{36}\.(jpg|png|webp)$/;
+
 export const USER_IMAGE_KEY = /^uploads\/([a-z0-9]{20,40})\/[0-9a-f-]{36}\.(jpg|png|webp)$/;
 
 async function storeImage(prefix: string, body: Readable) {

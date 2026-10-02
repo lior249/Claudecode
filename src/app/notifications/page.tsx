@@ -20,8 +20,6 @@ export default async function NotificationsPage() {
       </header>
       <NotificationCenter
         items={items.map((n) => ({ id: n.id, text: n.text, href: n.href, createdAt: n.createdAt.toISOString(), unread: !n.readAt }))}
-        reminderHour={user.reminderHour}
-        dmEnabled={user.dmEnabled}
       />
     </main>
   );

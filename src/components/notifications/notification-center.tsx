@@ -15,7 +15,7 @@ export interface NotificationRow {
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 8); // 8 h → 21 h
 
-export function NotificationCenter({ items, reminderHour, dmEnabled }: { items: NotificationRow[]; reminderHour: number; dmEnabled: boolean }) {
+export function NotificationCenter({ items }: { items: NotificationRow[] }) {
   // La page ouverte = tout est lu (le point rouge disparaît à la prochaine visite).
   useEffect(() => {
     if (items.some((n) => n.unread)) void markAllReadAction();
@@ -54,12 +54,14 @@ export function NotificationCenter({ items, reminderHour, dmEnabled }: { items: 
           })}
         </ul>
       )}
-      <Settings reminderHour={reminderHour} dmEnabled={dmEnabled} />
+      <Link href="/profil#rappels" className="mt-6 block text-center text-sm text-muted underline">
+        Régler mes rappels
+      </Link>
     </>
   );
 }
 
-function Settings(props: { reminderHour: number; dmEnabled: boolean }) {
+export function ReminderSettings(props: { reminderHour: number; dmEnabled: boolean }) {
   const [hour, setHour] = useState(props.reminderHour);
   const [dm, setDm] = useState(props.dmEnabled);
   const [pending, start] = useTransition();
@@ -71,7 +73,7 @@ function Settings(props: { reminderHour: number; dmEnabled: boolean }) {
       setSaved(res.ok);
     });
   return (
-    <section className="mt-8 rounded-3xl border border-line bg-card p-5">
+    <section id="rappels" className="rounded-3xl border border-line bg-card p-5">
       <h2 className="font-semibold">Mes rappels</h2>
       <label className="mt-3 flex items-center justify-between gap-3 text-sm">
         <span>Heure de mon rappel du jour</span>

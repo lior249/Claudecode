@@ -2,7 +2,7 @@ import { requireUser } from "@/server/auth/session";
 import { getEnv } from "@/server/env";
 import { getLearnerProgression, getUnlockedWhopLinks } from "@/server/learn/service";
 import { LearnView, type LearnViewData } from "@/components/learn/learn-view";
-import { unreadCount } from "@/server/notifications/service";
+import { accountBarData } from "@/server/profile/menu";
 import { TimezoneSync } from "@/components/notifications/timezone-sync";
 
 export default async function LearnPage() {
@@ -23,9 +23,8 @@ export default async function LearnPage() {
     learnCompleted: progression.learnCompleted,
     currentLessonId: progression.currentLessonId,
     devTools: getEnv().devLoginEnabled,
-    isAdmin: user.role === "ADMIN",
     inCoaching: user.coachingStatus !== "NONE",
-    unread: await unreadCount(user.id),
+    account: await accountBarData(user),
     levels: progression.levels.map((level) => ({
       id: level.id,
       title: level.title,

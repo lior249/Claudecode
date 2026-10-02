@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/server/db";
 import { deleteFile } from "@/server/storage/storage";
+import { AVATAR_KEY } from "@/server/storage/images";
 
 // Seul module qui supprime des fichiers. Supprimer un fichier ≠ supprimer une soumission :
 // la ligne Asset (hash, taille, durée) et la soumission (note, retour) restent en base.
@@ -36,4 +37,9 @@ export async function cleanupOrphanAssets(olderThanMs = 24 * 60 * 60 * 1000) {
   });
   await deleteAssetFiles(orphans, "orphan");
   return orphans.length;
+}
+
+// Photo de profil remplacée ou retirée : l'ancienne est supprimée.
+export async function deleteAvatarFile(key: string | null) {
+  if (key && AVATAR_KEY.test(key)) await deleteFile(key).catch(() => {});
 }

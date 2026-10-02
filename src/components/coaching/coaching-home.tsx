@@ -14,7 +14,8 @@ import {
   viewProofAction,
 } from "@/app/actions/coaching";
 import { RankBadge } from "@/components/learn/badges";
-import { NotificationBell } from "@/components/notifications/bell";
+import { AccountBar } from "@/components/profile/account-bar";
+import type { MenuUser } from "@/components/profile/user-menu";
 import { Flame } from "./flame";
 import { uploadImage } from "./image-upload";
 
@@ -57,14 +58,14 @@ export function CoachingHome({
   tickets,
   canOpenTicket,
   maxTickets,
-  unread,
+  account,
 }: {
   name: string;
   dashboard: CoachingDashboard;
   tickets: TicketRow[];
   canOpenTicket: boolean;
   maxTickets: number;
-  unread: number;
+  account: { user: MenuUser; unread: number };
 }) {
   return (
     <>
@@ -73,10 +74,10 @@ export function CoachingHome({
           Creato
         </Link>
         <div className="flex items-center gap-2">
-          <NotificationBell unread={unread} />
-          <Link href="/classement" className="flex items-center gap-1.5 rounded-full bg-card px-3 py-2 text-xs">
-            <Trophy size={14} className="text-gold" /> Classement
+          <Link href="/classement" className="rounded-full bg-card p-2" aria-label="Classement">
+            <Trophy size={16} className="text-gold" />
           </Link>
+          <AccountBar user={account.user} unread={account.unread} />
         </div>
       </header>
 
@@ -392,6 +393,7 @@ function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
             <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Montant gagné (€)" className={field} />
             <ImagePicker value={mImg} onChange={setMImg} label="Capture du tableau de bord" />
             <VideoLinks value={links} onChange={setLinks} username={d.tiktokUsername} />
+            <p className="text-xs text-muted">Une fois validés, tes résultats du mois et ton meilleur mois sont visibles par tous les membres dans le classement (jamais tes captures ni tes vidéos).</p>
             <button
               disabled={monthly.pending || !amount || !mImg || filledLinks.length === 0}
               onClick={() => monthly.run(() => monthlyProofAction({ amountEur: Number(amount), videoUrls: filledLinks, imageKey: mImg!.key }), "Résultats envoyés.")}

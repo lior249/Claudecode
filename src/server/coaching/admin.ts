@@ -75,10 +75,10 @@ export async function listReactivationRequests(viewer: { id: string; role: strin
 
 // ---------- Équipe de coachs ----------
 
-// Personnes qui peuvent devenir coach : connectées au moins une fois, pas déjà coach, pas en coaching.
+// Personnes qui peuvent devenir coach : formation terminée, pas déjà coach.
 export function listCoachCandidates() {
   return prisma.user.findMany({
-    where: { status: "ACTIVE", coachOrder: null, role: { in: ["LEARNER", "ADMIN"] }, coachingStatus: { not: "ACTIVE" } },
+    where: { status: "ACTIVE", coachOrder: null, role: { in: ["LEARNER", "ADMIN"] }, learnCompletedAt: { not: null } },
     select: { id: true, displayName: true, discordUsername: true, role: true },
     orderBy: { displayName: "asc" },
   });
@@ -86,7 +86,8 @@ export function listCoachCandidates() {
 
 export async function addCoach(adminId: string, userId: string) {
   const u = await prisma.user.findUnique({ where: { id: userId } });
-  if (!u || u.status !== "ACTIVE" || u.coachOrder !== null || u.coachingStatus === "ACTIVE") throw new CoachingError("Cette personne ne peut pas devenir coach.");
+  if (!u || u.status !== "ACTIVE" || u.coachOrder !== null) throw new CoachingError("Cette personne ne peut pas devenir coach.");
+  if (!u.learnCompletedAt) throw new CoachingError("Il faut avoir terminé toute la formation pour devenir coach.");
   const last = await prisma.user.aggregate({ _max: { coachOrder: true } });
   await prisma.user.update({
     where: { id: userId },

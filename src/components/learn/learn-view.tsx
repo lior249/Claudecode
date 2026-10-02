@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { NotificationBell } from "@/components/notifications/bell";
+import { AccountBar } from "@/components/profile/account-bar";
+import type { MenuUser } from "@/components/profile/user-menu";
 import { useState, useTransition } from "react";
-import { Check, ChevronRight, ExternalLink, Lock, LogOut, X } from "lucide-react";
+import { Check, ChevronRight, ExternalLink, Lock, X } from "lucide-react";
 import type { LessonType } from "@/generated/prisma/enums";
 import type { Rank, Status } from "@/server/learn/progression";
 import { devCompleteLesson } from "@/app/actions/learn";
-import { logout } from "@/app/actions/auth";
 import { LESSON_TYPES, RankBadge, TypeBadge } from "./badges";
 import { Countdown } from "./countdown";
 import { LocalTime } from "@/components/local-time";
@@ -38,9 +38,8 @@ export interface LearnViewData {
   learnCompleted: boolean;
   currentLessonId: string | null;
   devTools: boolean;
-  isAdmin: boolean;
   inCoaching: boolean;
-  unread: number;
+  account: { user: MenuUser; unread: number };
   levels: { id: string; title: string; position: number; status: Status; modules: ModuleView[] }[];
 }
 
@@ -79,22 +78,12 @@ export function LearnView({ data }: { data: LearnViewData }) {
       <header className="flex items-center justify-between py-5">
         <span className="logo text-3xl">Creato</span>
         <div className="flex items-center gap-2">
-        <NotificationBell unread={data.unread} />
         {data.inCoaching && (
           <Link href="/coaching" className="rounded-full bg-gold px-3 py-2 text-xs font-semibold text-black">
             Coaching
           </Link>
         )}
-        {data.isAdmin && (
-          <Link href="/admin" className="rounded-full bg-gold/15 px-3 py-2 text-xs font-medium text-gold">
-            Admin
-          </Link>
-        )}
-        <form action={logout}>
-          <button className="flex items-center gap-2 rounded-full bg-card px-3 py-2 text-xs text-muted" aria-label="Déconnexion">
-            <LogOut size={14} /> Quitter
-          </button>
-        </form>
+        <AccountBar user={data.account.user} unread={data.account.unread} />
         </div>
       </header>
 

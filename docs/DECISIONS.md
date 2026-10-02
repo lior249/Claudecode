@@ -232,6 +232,22 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
 - Le coach ouvre la vidéo / les liens, compare avec la capture et les chiffres déclarés, et doit cocher
   « tout concorde » pour valider. Un refus demande toujours une explication.
 
+## Profil, menu et classement
+
+- **Rond de la photo de profil** en haut à droite (à côté de la cloche) : Mon profil, Classement, Changer de vue
+  (Élève / Coach / Admin, seulement si la personne a plusieurs rôles), Déconnexion.
+- **Photo** : celle de Discord par défaut ; on peut en choisir une autre sur Creato (et revenir à celle de Discord).
+  Le **nom** est toujours le nom Discord (non modifiable sur Creato).
+- **Mon profil** : photo, nom, rang, date d'arrivée, progression du parcours, flamme actuelle et record, points,
+  meilleur mois, résultats du mois validés, pseudo TikTok (modifiable), réglages des rappels.
+  Les remarques rouges (retards) restent réservées aux coachs et aux admins.
+- **Classement** : visible par tous les membres connectés. Y figurent ceux qui ont fini la formation (en coaching).
+  Un clic ouvre une **fenêtre** avec la fiche du membre : photo, nom, rang, points, date d'entrée en coaching,
+  flamme actuelle et record, meilleur mois (résultats validés par un coach, 0 € sinon) et tous ses résultats du mois.
+  Jamais les captures, les vidéos, la niche ni les remarques.
+- **Devenir coach** : seulement après avoir terminé toute la formation (les coachs déjà nommés restent coachs).
+- Le nombre d'élèves par niche n'est visible que dans l'Admin.
+
 ## Rangs
 
 | Rang | Condition | Calcul |

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/server/auth/session";
-import { unreadCount } from "@/server/notifications/service";
-import { NotificationBell } from "@/components/notifications/bell";
+import { accountBarData } from "@/server/profile/menu";
+import { AccountBar } from "@/components/profile/account-bar";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const user = await requireUser(["ADMIN"]);
@@ -12,15 +12,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <span className="logo text-3xl">Creato</span>
           <span className="text-sm font-medium text-gold">Admin</span>
         </Link>
-        <div className="flex items-center gap-2">
-          <NotificationBell unread={await unreadCount(user.id)} />
-          <Link href="/coach" className="whitespace-nowrap rounded-full bg-gold/15 px-3 py-2 text-xs text-gold">
-            Coach
-          </Link>
-          <Link href="/learn" className="whitespace-nowrap rounded-full bg-card px-3 py-2 text-xs text-muted">
-            Élève
-          </Link>
-        </div>
+        <AccountBar {...await accountBarData(user)} />
       </header>
       <nav className="mb-6 flex gap-1 overflow-x-auto rounded-2xl bg-card p-1 text-sm">
         <Link href="/admin" className="flex-1 whitespace-nowrap rounded-xl px-2 py-2.5 text-center">

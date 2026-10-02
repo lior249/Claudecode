@@ -259,13 +259,20 @@ export async function qualityPoints(learnerId: string) {
 export async function leaderboard(now = new Date()) {
   const learners = await prisma.user.findMany({
     where: { role: "LEARNER", coachingStatus: { in: ["ACTIVE", "COMPLETED"] } },
-    select: { id: true, displayName: true, avatarUrl: true, tiktokUsername: true, manualRank: true },
+    select: { id: true, displayName: true, avatarUrl: true, photoKey: true, tiktokUsername: true, manualRank: true },
   });
   const rows = [];
-  for (const l of learners) {
+  for (const { photoKey, ...l } of learners) {
     const streak = await getStreak(l.id, now);
     const quality = await qualityPoints(l.id);
-    rows.push({ ...l, rank: (l.manualRank ?? "B") as AnyRank, streak: streak.current, flame: streak.flame, points: streak.points + quality });
+    rows.push({
+      ...l,
+      avatarUrl: photoKey ? fileUrl(photoKey) : l.avatarUrl,
+      rank: (l.manualRank ?? "B") as AnyRank,
+      streak: streak.current,
+      flame: streak.flame,
+      points: streak.points + quality,
+    });
   }
   return rows.sort((a, b) => b.points - a.points || b.streak - a.streak || a.displayName.localeCompare(b.displayName));
 }

@@ -216,9 +216,11 @@ describe("Équipe de coachs", () => {
 
   it("ajoute un coach à la suite, refuse de retirer un coach qui suit des élèves", async () => {
     const first = await coach("Coach 1");
-    const u = await prisma.user.create({ data: { displayName: "Sam", role: "LEARNER" } });
+    const u = await prisma.user.create({ data: { displayName: "Sam", role: "LEARNER", learnCompletedAt: new Date() } });
     const admin = await prisma.user.create({ data: { displayName: "Admin", role: "ADMIN" } });
-    expect((await listCoachCandidates()).map((c) => c.displayName)).toEqual(["Admin", "Sam"]);
+    const fresh = await prisma.user.create({ data: { displayName: "Nouveau", role: "LEARNER" } });
+    expect((await listCoachCandidates()).map((c) => c.displayName)).toEqual(["Sam"]);
+    await expect(addCoach(admin.id, fresh.id)).rejects.toThrow("terminé toute la formation");
     await addCoach(admin.id, u.id);
     expect(await prisma.user.findUniqueOrThrow({ where: { id: u.id } })).toMatchObject({ role: "COACH", coachOrder: 2, coachStars: 3 });
     await expect(addCoach(admin.id, u.id)).rejects.toThrow(CoachingError);

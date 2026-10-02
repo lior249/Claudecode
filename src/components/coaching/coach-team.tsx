@@ -12,7 +12,7 @@ export function AddCoach({ candidates }: { candidates: { id: string; label: stri
   return (
     <section className="rounded-3xl border border-line bg-card p-4">
       <h2 className="font-semibold">Ajouter un coach</h2>
-      <p className="mt-1 text-xs text-muted">La personne doit s&apos;être connectée une fois à Creato. Elle commence avec 3 étoiles et 20 places.</p>
+      <p className="mt-1 text-xs text-muted">Seuls les membres qui ont terminé toute la formation peuvent devenir coach. Ils commencent avec 3 étoiles et 20 places.</p>
       {candidates.length === 0 ? (
         <p className="mt-3 text-sm text-muted">Personne à ajouter pour l&apos;instant.</p>
       ) : (
