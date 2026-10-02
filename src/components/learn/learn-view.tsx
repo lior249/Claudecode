@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Check, ChevronRight, ExternalLink, Lock, LogOut, X } from "lucide-react";
 import type { LessonType } from "@/generated/prisma/enums";
@@ -35,6 +36,7 @@ export interface LearnViewData {
   learnCompleted: boolean;
   currentLessonId: string | null;
   devTools: boolean;
+  isAdmin: boolean;
   levels: { id: string; title: string; position: number; status: Status; modules: ModuleView[] }[];
 }
 
@@ -66,11 +68,18 @@ export function LearnView({ data }: { data: LearnViewData }) {
       {/* En-tête */}
       <header className="flex items-center justify-between py-5">
         <span className="logo text-3xl">Creato</span>
+        <div className="flex items-center gap-2">
+        {data.isAdmin && (
+          <Link href="/admin" className="rounded-full bg-gold/15 px-3 py-2 text-xs font-medium text-gold">
+            Admin
+          </Link>
+        )}
         <form action={logout}>
           <button className="flex items-center gap-2 rounded-full bg-card px-3 py-2 text-xs text-muted" aria-label="Déconnexion">
             <LogOut size={14} /> Quitter
           </button>
         </form>
+        </div>
       </header>
 
       {/* Carte joueur */}
@@ -314,10 +323,21 @@ function LessonSheet({
 
         {isCurrent && (
           <div className="mt-5 space-y-2">
-            <button disabled className="w-full rounded-2xl bg-text py-4 font-semibold text-black opacity-40">
-              {t.action}
-            </button>
-            <p className="text-center text-xs text-muted">Les exercices arrivent dans les prochains blocs.</p>
+            {lesson.type === "UNDERSTANDING" ? (
+              <Link
+                href={`/learn/quiz/${lesson.id}`}
+                className="block w-full rounded-2xl bg-text py-4 text-center font-semibold text-black"
+              >
+                {t.action}
+              </Link>
+            ) : (
+              <>
+                <button disabled className="w-full rounded-2xl bg-text py-4 font-semibold text-black opacity-40">
+                  {t.action}
+                </button>
+                <p className="text-center text-xs text-muted">Cet exercice arrive dans un prochain bloc.</p>
+              </>
+            )}
             {devTools && (
               <button
                 disabled={pending}

@@ -68,9 +68,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions  Session[]
-  progress  LessonProgress[]
-  auditLogs AuditLog[]
+  sessions     Session[]
+  progress     LessonProgress[]
+  quizAttempts QuizAttempt[]
+  auditLogs    AuditLog[]
 
   @@index([coachId])
 }
@@ -126,7 +127,9 @@ model Lesson {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  progress LessonProgress[]
+  progress      LessonProgress[]
+  quizQuestions QuizQuestion[]
+  quizAttempts  QuizAttempt[]
 
   @@index([moduleId, position])
 }
@@ -158,4 +161,62 @@ model AuditLog {
   createdAt   DateTime @default(now())
 
   @@index([entityType, entityId])
+}
+
+// --- Compréhension (QCM) ---
+
+enum QuizChoice {
+  A
+  B
+  C
+  D
+}
+
+model QuizQuestion {
+  id            String     @id @default(cuid())
+  lessonId      String
+  lesson        Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  position      Int // 1 à 20
+  question      String
+  answerA       String
+  answerB       String
+  answerC       String
+  answerD       String
+  correctAnswer QuizChoice
+  explanation   String     @default("")
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([lessonId, position])
+}
+
+model QuizAttempt {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId       String
+  lesson         Lesson       @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+  totalQuestions Int
+  score          Int?
+  passed         Boolean?
+  startedAt      DateTime     @default(now())
+  completedAt    DateTime?
+  answers        QuizAnswer[]
+
+  @@index([userId, lessonId])
+}
+
+// Chaque réponse garde une copie de la question : l'historique survit aux modifications de l'Admin.
+model QuizAnswer {
+  id             String      @id @default(cuid())
+  attemptId      String
+  attempt        QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  position       Int
+  questionId     String? // peut disparaître si l'Admin supprime la question
+  questionText   String
+  selectedAnswer QuizChoice
+  correctAnswer  QuizChoice
+  isCorrect      Boolean
+  answeredAt     DateTime    @default(now())
+
+  @@unique([attemptId, position])
 }

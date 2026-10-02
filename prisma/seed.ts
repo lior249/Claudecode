@@ -135,7 +135,29 @@ const curriculum: LevelSeed[] = [
   },
 ];
 
+// 20 questions d'exemple pour le QCM Monétisation (à remplacer dans l'Admin).
+async function seedPlaceholderQuiz(lessonId: string) {
+  for (let position = 1; position <= 20; position++) {
+    await prisma.quizQuestion.create({
+      data: {
+        lessonId,
+        position,
+        question: `Question d'exemple n° ${position} : laquelle est la bonne réponse ?`,
+        answerA: "La bonne réponse",
+        answerB: "Une mauvaise réponse",
+        answerC: "Une autre mauvaise réponse",
+        answerD: "Encore une mauvaise réponse",
+        correctAnswer: "A",
+        explanation: "Exemple d'explication : remplace cette question dans l'Admin.",
+      },
+    });
+  }
+}
+
 async function reset() {
+  await prisma.quizAnswer.deleteMany();
+  await prisma.quizAttempt.deleteMany();
+  await prisma.quizQuestion.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.session.deleteMany();
   await prisma.lessonProgress.deleteMany();
@@ -167,7 +189,7 @@ async function main() {
         },
       });
       for (const [i, lesson] of mod.lessons.entries()) {
-        await prisma.lesson.create({
+        const lessonRow = await prisma.lesson.create({
           data: {
             moduleId: moduleRow.id,
             title: lesson.title,
@@ -177,6 +199,7 @@ async function main() {
             config: (lesson.config ?? {}) as object,
           },
         });
+        if (lesson.type === "UNDERSTANDING") await seedPlaceholderQuiz(lessonRow.id);
       }
     }
   }

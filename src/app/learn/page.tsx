@@ -21,6 +21,7 @@ export default async function LearnPage() {
     learnCompleted: progression.learnCompleted,
     currentLessonId: progression.currentLessonId,
     devTools: getEnv().devLoginEnabled,
+    isAdmin: user.role === "ADMIN",
     levels: progression.levels.map((level) => ({
       id: level.id,
       title: level.title,
