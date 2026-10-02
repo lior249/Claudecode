@@ -1,10 +1,34 @@
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
 import { prisma } from "@/server/db";
-import { LESSON_TYPES, TypeBadge } from "@/components/learn/badges";
 import { QUIZ_QUESTION_COUNT } from "@/server/quizzes/rules";
 import { isPracticeReady, parsePracticeConfig } from "@/server/practice/config";
 import { CATALOGS, catalogOfLesson } from "@/server/decisions/catalog";
+import { parseLaunchConfig } from "@/server/launch/rules";
+import { CurriculumEditor, type LevelNode } from "@/components/admin/curriculum-editor";
+
+// Statut « prêt / à configurer » et lien vers la configuration de chaque leçon.
+function lessonSetup(lesson: { id: string; type: string; config: unknown; _count: { quizQuestions: number } }) {
+  switch (lesson.type) {
+    case "UNDERSTANDING": {
+      const n = lesson._count.quizQuestions;
+      return { href: `/admin/quiz/${lesson.id}`, ready: n === QUIZ_QUESTION_COUNT, label: `${n}/${QUIZ_QUESTION_COUNT} questions` };
+    }
+    case "PRACTICE_AI": {
+      const c = parsePracticeConfig(lesson.config);
+      const ready = isPracticeReady(c);
+      return { href: `/admin/practice/${lesson.id}`, ready, label: ready ? `${c.criteria.length} critère${c.criteria.length > 1 ? "s" : ""}` : "à configurer" };
+    }
+    case "DECISION": {
+      const cat = catalogOfLesson(lesson.config);
+      return { href: cat ? `/admin/catalogs?c=${cat}` : null, ready: Boolean(cat), label: cat ? `catalogue ${CATALOGS[cat].plural.toLowerCase()}` : "catalogue manquant" };
+    }
+    case "CODE_VALIDATION": {
+      const c = parseLaunchConfig(lesson.config);
+      return { href: `/admin/launch/${lesson.id}`, ready: Boolean(c.code), label: c.code ? "phrase + code prêts" : "code manquant" };
+    }
+    default:
+      return { href: null, ready: false, label: "" };
+  }
+}
 
 export default async function AdminHome() {
   const levels = await prisma.level.findMany({
@@ -12,86 +36,47 @@ export default async function AdminHome() {
     include: {
       modules: {
         orderBy: { position: "asc" },
-        include: { lessons: { orderBy: { position: "asc" }, include: { _count: { select: { quizQuestions: true } } } } },
+        include: {
+          lessons: {
+            orderBy: { position: "asc" },
+            include: { _count: { select: { quizQuestions: true, progress: true } } },
+          },
+        },
       },
     },
   });
 
+  const tree: LevelNode[] = levels.map((l) => ({
+    id: l.id,
+    title: l.title,
+    description: l.description,
+    isPublished: l.isPublished,
+    modules: l.modules.map((m) => ({
+      id: m.id,
+      title: m.title,
+      description: m.description,
+      whopUrl: m.whopUrl ?? "",
+      isPublished: m.isPublished,
+      lessons: m.lessons.map((x) => ({
+        id: x.id,
+        title: x.title,
+        type: x.type,
+        isPublished: x.isPublished,
+        learners: x._count.progress,
+        setup: lessonSetup(x),
+      })),
+    })),
+  }));
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Parcours</h1>
-        <p className="mt-1 text-sm text-muted">L&apos;éditeur complet (modules, leçons, ordre) arrive au bloc 6. Ici : les QCM, la correction des exercices, les catalogues et le lancement.</p>
+        <p className="mt-1 text-sm text-muted">
+          Niveau → module → leçon. Une nouvelle leçon est créée masquée : configure-la, puis rends-la visible.
+        </p>
       </div>
-      {levels.map((level) => (
-        <section key={level.id}>
-          <h2 className="mb-3 text-lg font-semibold">
-            <span className="text-muted">Niveau {level.position} · </span>
-            {level.title}
-          </h2>
-          <div className="space-y-3">
-            {level.modules.map((mod) => (
-              <div key={mod.id} className="rounded-3xl border border-line bg-card p-4">
-                <p className="font-semibold">{mod.title}</p>
-                <ul className="mt-2 divide-y divide-line">
-                  {mod.lessons.map((lesson) => {
-                    const isQuiz = lesson.type === "UNDERSTANDING";
-                    const isPractice = lesson.type === "PRACTICE_AI";
-                    const count = lesson._count.quizQuestions;
-                    const practice = isPractice ? parsePracticeConfig(lesson.config) : null;
-                    const catalog = lesson.type === "DECISION" ? catalogOfLesson(lesson.config) : null;
-                    const href = isQuiz
-                      ? `/admin/quiz/${lesson.id}`
-                      : isPractice
-                        ? `/admin/practice/${lesson.id}`
-                        : catalog
-                          ? `/admin/catalogs?c=${catalog}`
-                          : lesson.type === "CODE_VALIDATION"
-                            ? `/admin/launch/${lesson.id}`
-                            : null;
-                    const row = (
-                      <>
-                        <TypeBadge type={lesson.type} size={30} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium">{lesson.title}</span>
-                          <span className="block text-xs text-muted">
-                            {LESSON_TYPES[lesson.type].label}
-                            {isQuiz && (
-                              <span className={count === QUIZ_QUESTION_COUNT ? "text-success" : "text-gold"}>
-                                {" "}
-                                · {count}/{QUIZ_QUESTION_COUNT} questions
-                              </span>
-                            )}
-                            {catalog && <span> · catalogue {CATALOGS[catalog].plural.toLowerCase()}</span>}
-                            {practice && (
-                              <span className={isPracticeReady(practice) ? "text-success" : "text-gold"}>
-                                {" "}
-                                · {isPracticeReady(practice) ? `${practice.criteria.length} critère${practice.criteria.length > 1 ? "s" : ""}` : "à configurer"}
-                              </span>
-                            )}
-                          </span>
-                        </span>
-                      </>
-                    );
-                    return (
-                      <li key={lesson.id}>
-                        {href ? (
-                          <Link href={href} className="flex items-center gap-3 py-3">
-                            {row}
-                            <ChevronRight size={16} className="text-muted" />
-                          </Link>
-                        ) : (
-                          <div className="flex items-center gap-3 py-3">{row}</div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+      <CurriculumEditor levels={tree} />
     </div>
   );
 }

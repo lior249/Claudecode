@@ -74,6 +74,9 @@ export function PracticeScreen({ view, moduleTitle, whopUrl }: { view: PracticeV
         )}
         {latest?.status === "ERROR" && view.status === "OPEN" && <ErrorCard view={view} sub={latest} />}
         {latest?.status === "FAILED" && view.status === "OPEN" && <ResultCard sub={latest} threshold={view.threshold} />}
+        {latest?.status === "HUMAN_REJECTED" && view.status === "OPEN" && (
+          <StatusCard title="Le coach a demandé une correction" text={latest.reviewComment ?? "Renvoie une nouvelle réalisation."} />
+        )}
         {view.status === "OPEN" && latest?.status !== "ERROR" && <SubmitForm view={view} />}
         {passedSub && passedSub.criteria.length > 0 && <ResultCard sub={passedSub} threshold={view.threshold} />}
         {view.submissions.length > 0 && <History submissions={view.submissions} />}

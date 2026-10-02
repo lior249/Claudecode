@@ -5,10 +5,12 @@ import { claimNextJob, completeJob, failJob, releaseStuckJobs } from "@/server/j
 import { processSubmission } from "@/server/practice/service";
 import { cleanupOrphanAssets } from "@/server/retention/service";
 import { grantEliteRole } from "@/server/launch/service";
+import { sendDeadlineReminders } from "@/server/reminders/service";
 import { prisma } from "@/server/db";
 
 const IDLE_MS = 1500;
 const HOUSEKEEPING_MS = 10 * 60 * 1000;
+const REMINDERS_MS = 5 * 60 * 1000;
 let stopping = false;
 
 async function handle(type: string, payload: Record<string, unknown>) {
@@ -36,7 +38,14 @@ async function housekeeping() {
 async function main() {
   console.log("[worker] démarré");
   let lastHousekeeping = 0;
+  let lastReminders = 0;
   while (!stopping) {
+    if (Date.now() - lastReminders > REMINDERS_MS) {
+      lastReminders = Date.now();
+      await sendDeadlineReminders()
+        .then((n) => n && console.log(`[worker] ${n} rappel(s) de délai envoyé(s)`))
+        .catch((e) => console.error("[worker] rappels", e));
+    }
     if (Date.now() - lastHousekeeping > HOUSEKEEPING_MS) {
       lastHousekeeping = Date.now();
       await housekeeping().catch((e) => console.error("[worker] ménage", e));

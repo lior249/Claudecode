@@ -382,6 +382,7 @@ export interface PracticeView {
     technicalFailures: number;
     files: { name: string; deleted: boolean }[];
     hasText: boolean;
+    reviewComment: string | null;
   }[];
 }
 
@@ -423,6 +424,7 @@ export async function getPracticeView(userId: string, lessonId: string): Promise
       technicalFailures: s.technicalFailures,
       files: s.assets.map((a) => ({ name: a.originalName, deleted: Boolean(a.deletedAt) })),
       hasText: Boolean(s.text),
+      reviewComment: s.reviewComment,
     })),
   };
 }

@@ -35,5 +35,6 @@ npm run worker              # dans un 2e terminal : analyse des exercices (ffmpe
 - [x] **Bloc 3** : QCM — correction immédiate (vert/rouge + explication), 16/20, attente de 5 min après un échec, tentatives illimitées, saisie des 20 questions dans l'Admin.
 - [x] **Bloc 4** : Pratique IA — envoi de vidéo/audio/texte, mesures automatiques (cuts, silences, son, durée, ressemblance de texte, hook), correction Gemini sur barème texte, note sur 10 calculée par le serveur, doublons refusés, 5 dernières tentatives gardées, « Faire appel à un humain » après 3 pannes.
 - [x] **Bloc 5** : catalogues (niches, pays, méthodes 10K) gérés dans l'Admin, fiche avec concurrence et matériel, choix unique ; lancement (phrase + code secrets, 10 questions de ressenti, envoi au coach, rôle @Élite).
-- [ ] Bloc 6 : espace Admin / Coach (parcours, fiches élèves, notifications Discord).
+- [x] **Bloc 6a** : éditeur du parcours (niveaux, modules, leçons, ordre, liens Whop), fiche Learn des élèves (décrochages en rouge), file « Faire appel à un humain », rappel 4 h avant la fin des 24 h.
+- [ ] Bloc 6b : espace coaching (tickets, étoiles des coachs, streak, points, classement, résultats du mois, absence).
 - [ ] Bloc 7 : mise en ligne sur le serveur.

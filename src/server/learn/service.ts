@@ -32,10 +32,10 @@ export async function loadCurriculum() {
   });
 }
 
-export async function getLearnerProgression(userId: string, now = new Date()) {
-  // Le chrono du Learn démarre à la première visite.
+export async function getLearnerProgression(userId: string, now = new Date(), opts: { startClock?: boolean } = {}) {
+  // Le chrono du Learn démarre à la première visite de l'élève (jamais quand un admin consulte sa fiche).
   let user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  if (!user.learnStartedAt) {
+  if (!user.learnStartedAt && opts.startClock !== false) {
     user = await prisma.user.update({ where: { id: userId }, data: { learnStartedAt: now } });
   }
 

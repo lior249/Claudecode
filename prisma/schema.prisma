@@ -400,3 +400,13 @@ model LaunchReport {
 
   @@unique([userId, lessonId])
 }
+
+// Rappels déjà envoyés (chaque rappel ne part qu'une fois).
+model Reminder {
+  id     String   @id @default(cuid())
+  userId String
+  key    String // ex. "deadline4h:<lessonId>"
+  sentAt DateTime @default(now())
+
+  @@unique([userId, key])
+}

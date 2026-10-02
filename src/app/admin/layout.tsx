@@ -18,6 +18,12 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         <Link href="/admin" className="flex-1 rounded-xl py-2.5 text-center">
           Parcours
         </Link>
+        <Link href="/admin/learners" className="flex-1 rounded-xl py-2.5 text-center">
+          Élèves
+        </Link>
+        <Link href="/admin/reviews" className="flex-1 rounded-xl py-2.5 text-center">
+          Validations
+        </Link>
         <Link href="/admin/catalogs" className="flex-1 rounded-xl py-2.5 text-center">
           Catalogues
         </Link>
