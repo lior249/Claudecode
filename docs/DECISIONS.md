@@ -112,7 +112,8 @@ Un seul module, une seule leçon :
 
 - L'IA ne calcule jamais la note. Un critère oublié par le correcteur compte comme une panne (relançable), jamais comme un 10/10.
 - Les critères sont figés au moment de l'envoi : une modification par l'Admin ne change pas une correction en cours ou passée.
-- Fournisseur d'IA interchangeable par réglage. Modèles (`GEMINI_ANALYST_MODEL`, `GEMINI_GRADER_MODEL`) et précision (`GEMINI_VIDEO_FPS`, images par seconde) configurables. Budget IA *(à confirmer)*.
+- Fournisseur d'IA interchangeable par réglage. Modèles (`GEMINI_ANALYST_MODEL`, `GEMINI_GRADER_MODEL`) et précision (`GEMINI_VIDEO_FPS`, images par seconde) configurables.
+- **Budget IA : 20 $ par mois.** Le coût réel est mesuré dès les premières corrections. Si le plafond est atteint, les corrections attendent en file au lieu de dépenser plus (mis en place à la mise en ligne).
 - Si l'IA tombe en panne : « Ta demande n'a pas pu être traitée ». **Après 3 échecs techniques**, un bouton **« Faire appel à un humain »** apparaît.
 - Formats : vidéos exportées de CapCut en MP4, audios en MP3 ou M4A.
 
