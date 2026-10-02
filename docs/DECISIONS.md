@@ -203,7 +203,7 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
 - Le **coach peut clôturer le coaching** quand l'élève atteint SSS. Sa place est alors libérée.
 
 ### Absence
-- **15 jours sans post** : coaching **révoqué automatiquement**. Le rôle @Élite est retiré sur Discord et la place est libérée.
+- **7 jours sans post** (élèves seulement, rappels à J+4 et J+6) : coaching **révoqué automatiquement**. Le rôle @Élite est retiré sur Discord et la place est libérée.
 - Pour revenir : bouton **« Réactiver mon coaching »**, avec un champ texte pour la raison de l'absence.
   Un coach ou un admin valide la demande **à la main**. Le rôle @Élite et une place sont alors redonnés.
 
@@ -246,6 +246,9 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
   flamme actuelle et record, meilleur mois (résultats validés par un coach, 0 € sinon) et tous ses résultats du mois.
   Jamais les captures, les vidéos, la niche ni les remarques.
 - **Devenir coach** : seulement après avoir terminé toute la formation (les coachs déjà nommés restent coachs).
+- **L'équipe participe au classement** : un coach (formation terminée) et l'admin (sans condition) ont l'espace
+  « mes posts, ma flamme, mes résultats ». Pas de coach ni de tickets pour eux. L'admin est le coach des coachs :
+  il valide leurs preuves, et les siennes. La règle d'absence ne s'applique pas à l'équipe : ils perdent juste leur flamme.
 - Le nombre d'élèves par niche n'est visible que dans l'Admin.
 
 ## Rangs

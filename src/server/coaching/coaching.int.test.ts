@@ -13,8 +13,9 @@ import {
   reportOutcome,
   sendFollowUps,
 } from "./tickets";
-import { addPost, getStreak, leaderboard, reviewRankProof, reviewViewProof, submitMonthlyProof, submitViewProof, updateCoachingProfile } from "./progress";
+import { addPost, getStreak, leaderboard, listPendingProofs, reviewRankProof, reviewViewProof, submitMonthlyProof, submitViewProof, updateCoachingProfile } from "./progress";
 import { addCoach, coachReport, listCoachCandidates, removeCoach } from "./admin";
+import { ensureTeamParticipation } from "./team";
 
 const H = 3_600_000;
 const D = 24 * H;
@@ -190,9 +191,9 @@ describe("Posts, streak, preuves et rangs", () => {
 describe("Absence et réactivation", () => {
   beforeEach(resetDb);
 
-  it("15 jours sans post : coaching révoqué ; demande de réactivation validée par un coach", async () => {
+  it("7 jours sans post : coaching révoqué ; demande de réactivation validée par un coach", async () => {
     const c = await coach("Coach");
-    const l = await learner("ines", c.id, new Date(Date.now() - 16 * D));
+    const l = await learner("ines", c.id, new Date(Date.now() - 8 * D));
     await prisma.auditLog.create({ data: { actorUserId: l.id, action: "COACHING_STARTED", entityType: "user", entityId: l.id, metadata: { coachId: c.id } } });
     expect(await processAbsences()).toBe(1);
     const revoked = await prisma.user.findUniqueOrThrow({ where: { id: l.id } });
@@ -204,10 +205,12 @@ describe("Absence et réactivation", () => {
     expect(await prisma.user.findUniqueOrThrow({ where: { id: l.id } })).toMatchObject({ coachingStatus: "ACTIVE", coachId: c.id });
   });
 
-  it("un élève actif depuis moins de 15 jours n'est pas révoqué", async () => {
+  it("un élève actif depuis moins de 7 jours n'est pas révoqué ; l'équipe ne l'est jamais", async () => {
     const c = await coach("Coach");
-    await learner("ines", c.id, new Date(Date.now() - 14 * D));
+    await learner("ines", c.id, new Date(Date.now() - 6 * D));
+    await prisma.user.update({ where: { id: c.id }, data: { coachingStatus: "ACTIVE", coachingStartedAt: new Date(Date.now() - 30 * D) } });
     expect(await processAbsences()).toBe(0);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: c.id } })).coachingStatus).toBe("ACTIVE");
   });
 });
 
@@ -229,5 +232,35 @@ describe("Équipe de coachs", () => {
     await expect(removeCoach(admin.id, first.id)).rejects.toThrow("suit encore 1 élève");
     await removeCoach(admin.id, u.id);
     expect(await prisma.user.findUniqueOrThrow({ where: { id: u.id } })).toMatchObject({ role: "LEARNER", coachOrder: null });
+  });
+});
+
+describe("L'équipe participe au classement", () => {
+  beforeEach(resetDb);
+
+  it("admin sans formation, coach seulement après la formation ; preuves validées par l'admin ; pas de ticket", async () => {
+    const admin = await prisma.user.create({ data: { displayName: "Admin", role: "ADMIN", tiktokUsername: "admin.tt", timezone: "Europe/Paris" } });
+    const newCoach = await prisma.user.create({ data: { displayName: "Coach neuf", role: "COACH", coachOrder: 1 } });
+    const formed = await prisma.user.create({ data: { displayName: "Coach formé", role: "COACH", coachOrder: 2, learnCompletedAt: new Date(), tiktokUsername: "coach.tt", timezone: "Europe/Paris" } });
+    expect(await ensureTeamParticipation(admin)).toBe(true);
+    expect(await ensureTeamParticipation(newCoach)).toBe(false);
+    expect(await ensureTeamParticipation(formed)).toBe(true);
+    expect((await leaderboard()).map((r) => r.displayName).sort()).toEqual(["Admin", "Coach formé"]);
+
+    const today = new Date(Date.now() - 60_000);
+    const post = await addPost(formed.id, `https://www.tiktok.com/@coach.tt/video/${idFor(today)}`);
+    await submitViewProof(formed.id, post.id, { views: 12000, likes: 300, comments: 20 }, img(formed.id));
+    expect((await listPendingProofs(admin)).views).toHaveLength(1);
+    expect((await listPendingProofs(formed)).views).toHaveLength(0);
+    expect(await prisma.notification.count({ where: { userId: admin.id, kind: "coach.proof" } })).toBe(1);
+
+    await expect(openLearnerTicket(formed.id, { subject: "Aide", body: "Question", imageKeys: [] })).rejects.toThrow("pas de tickets");
+  });
+
+  it("un coach qui termine la formation n'a pas de coach attribué", async () => {
+    await coach("Coach 1");
+    const c2 = await prisma.user.create({ data: { displayName: "Coach 2", role: "COACH", coachOrder: 2 } });
+    expect(await startCoaching(c2.id)).toBeNull();
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: c2.id } })).toMatchObject({ coachingStatus: "ACTIVE", coachId: null });
   });
 });

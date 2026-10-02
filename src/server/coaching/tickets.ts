@@ -34,6 +34,7 @@ function cleanImages(ownerId: string, keys: string[]) {
 async function activeLearner(learnerId: string) {
   const l = await prisma.user.findUnique({ where: { id: learnerId } });
   if (!l || l.coachingStatus !== "ACTIVE") throw new CoachingError("Ton espace coaching n'est pas actif.");
+  if (l.role !== "LEARNER") throw new CoachingError("Les coachs et les admins n'ont pas de tickets coaching.");
   if (!l.coachId) throw new CoachingError("Aucun coach ne t'est encore attribué. L'équipe s'en occupe.");
   return l as typeof l & { coachId: string };
 }

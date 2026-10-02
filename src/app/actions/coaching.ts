@@ -28,6 +28,8 @@ type Result = { ok: true; id?: string } | { ok: false; error: string };
 const id = z.string().min(1).max(64);
 const images = z.array(z.string().max(200)).max(4).default([]);
 const COACHES = ["COACH", "ADMIN"] as const;
+// Posts, preuves et profil TikTok : élèves en coaching et équipe (le service vérifie que l'espace est actif).
+const PARTICIPANTS = ["LEARNER", "COACH", "ADMIN"] as const;
 
 async function run<S extends z.ZodTypeAny>(
   roles: readonly ("LEARNER" | "COACH" | "ADMIN")[] | null,
@@ -54,9 +56,9 @@ async function run<S extends z.ZodTypeAny>(
 // ---------- Élève ----------
 
 export const saveProfileAction = async (raw: unknown) =>
-  run(["LEARNER"], z.object({ tiktokUsername: z.string().max(40), timezone: z.string().max(60) }), raw, (u, d) => updateCoachingProfile(u.id, d));
+  run(PARTICIPANTS, z.object({ tiktokUsername: z.string().max(40), timezone: z.string().max(60) }), raw, (u, d) => updateCoachingProfile(u.id, d));
 
-export const addPostAction = async (raw: unknown) => run(["LEARNER"], z.object({ url: z.string().max(500) }), raw, (u, d) => addPost(u.id, d.url));
+export const addPostAction = async (raw: unknown) => run(PARTICIPANTS, z.object({ url: z.string().max(500) }), raw, (u, d) => addPost(u.id, d.url));
 
 export const openTicketAction = async (raw: unknown) =>
   run(["LEARNER"], z.object({ subject: z.string().max(200), body: z.string().max(5000), imageKeys: images }), raw, (u, d) => openLearnerTicket(u.id, d));
@@ -73,17 +75,17 @@ export const rateTicketAction = async (raw: unknown) =>
 
 export const viewProofAction = async (raw: unknown) =>
   run(
-    ["LEARNER"],
+    PARTICIPANTS,
     z.object({ postId: id, views: z.number().int(), likes: z.number().int(), comments: z.number().int(), imageKey: z.string().max(200) }),
     raw,
     (u, d) => submitViewProof(u.id, d.postId, { views: d.views, likes: d.likes, comments: d.comments }, d.imageKey),
   );
 
 export const followersProofAction = async (raw: unknown) =>
-  run(["LEARNER"], z.object({ followers: z.number().int(), imageKey: z.string().max(200) }), raw, (u, d) => submitFollowersProof(u.id, d.followers, d.imageKey));
+  run(PARTICIPANTS, z.object({ followers: z.number().int(), imageKey: z.string().max(200) }), raw, (u, d) => submitFollowersProof(u.id, d.followers, d.imageKey));
 
 export const monthlyProofAction = async (raw: unknown) =>
-  run(["LEARNER"], z.object({ amountEur: z.number().int(), videoUrls: z.array(z.string().max(500)).max(10), imageKey: z.string().max(200) }), raw, (u, d) =>
+  run(PARTICIPANTS, z.object({ amountEur: z.number().int(), videoUrls: z.array(z.string().max(500)).max(10), imageKey: z.string().max(200) }), raw, (u, d) =>
     submitMonthlyProof(u.id, d.amountEur, d.videoUrls, d.imageKey),
   );
 

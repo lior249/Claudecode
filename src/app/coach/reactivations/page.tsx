@@ -9,7 +9,7 @@ export default async function CoachReactivations() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Demandes de retour</h1>
-        <p className="mt-1 text-sm text-muted">Élèves en pause après 15 jours sans post qui demandent à reprendre leur coaching.</p>
+        <p className="mt-1 text-sm text-muted">Élèves en pause après 7 jours sans post qui demandent à reprendre leur coaching.</p>
       </div>
       {requests.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Aucune demande.</p>}
       {requests.map((r) => (

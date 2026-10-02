@@ -82,6 +82,7 @@ export type MyProfile = Awaited<ReturnType<typeof myProfile>>;
 
 // Vues accessibles selon le rôle (menu « Changer de vue »).
 export function viewsFor(u: { role: string; coachingStatus: string }) {
+  // Vue élève : le coaching pour un élève qui y est, sinon la formation (l'équipe y trouve le bouton « Coaching »).
   const views: { href: string; label: string }[] = [{ href: u.role === "LEARNER" && u.coachingStatus !== "NONE" ? "/coaching" : "/learn", label: "Élève" }];
   if (u.role === "COACH" || u.role === "ADMIN") views.push({ href: "/coach", label: "Coach" });
   if (u.role === "ADMIN") views.push({ href: "/admin", label: "Admin" });

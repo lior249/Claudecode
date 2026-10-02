@@ -6,6 +6,7 @@ import { botConfigured, botRemoveRole } from "@/server/discord/api";
 import { getEnv } from "@/server/env";
 import { markReminder } from "@/server/notifications/service";
 import { ABSENCE_DAYS, ABSENCE_WARNING_DAYS } from "./rules";
+import { isTeam } from "./team";
 
 export class CoachingError extends Error {}
 
@@ -34,6 +35,13 @@ export function pickCoachByStars(coaches: { id: string; coachStars: number; coac
 
 // Entrée en coaching (après la validation du lancement, ou une réactivation acceptée).
 export async function startCoaching(learnerId: string, preferredCoachId?: string | null) {
+  const who = await prisma.user.findUniqueOrThrow({ where: { id: learnerId }, select: { role: true } });
+  if (isTeam(who)) {
+    // Un coach ou un admin qui termine la formation : pas de coach, juste son espace posts / résultats.
+    await prisma.user.update({ where: { id: learnerId }, data: { coachingStatus: "ACTIVE", coachingStartedAt: new Date(), coachingEndedAt: null, coachId: null } });
+    await enqueue("discord.grantElite", { userId: learnerId }, new Date(), 8);
+    return null;
+  }
   const coaches = await listCoachesWithLoad();
   const preferred = preferredCoachId ? coaches.find((c) => c.id === preferredCoachId && c.free > 0) : undefined;
   const coachId = preferred?.id ?? pickCoachByStars(coaches);
@@ -66,7 +74,7 @@ async function lastActivity(learnerId: string, startedAt: Date) {
   return last && last.createdAt > startedAt ? last.createdAt : startedAt;
 }
 
-// Tâche quotidienne : rappels à J+7 et J+12 sans post, révocation à J+15.
+// Tâche quotidienne (élèves seulement) : rappels à J+4 et J+6 sans post, révocation à J+7.
 export async function processAbsences(now = new Date()) {
   const learners = await prisma.user.findMany({
     where: { coachingStatus: "ACTIVE", role: "LEARNER" },

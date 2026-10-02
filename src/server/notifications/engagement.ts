@@ -62,7 +62,7 @@ async function learnNudges(now: Date, count: Counter) {
 // Élèves en coaching : flamme en danger, dernière chance, gel utilisé, classement de la semaine, résultats du mois.
 async function coachingNudges(now: Date, count: Counter) {
   const learners = await prisma.user.findMany({
-    where: { role: "LEARNER", status: "ACTIVE", coachingStatus: "ACTIVE", tiktokUsername: { not: null } },
+    where: { status: "ACTIVE", coachingStatus: "ACTIVE", tiktokUsername: { not: null } },
     select: { id: true, timezone: true, reminderHour: true },
   });
   let board: Awaited<ReturnType<typeof leaderboard>> | null = null;

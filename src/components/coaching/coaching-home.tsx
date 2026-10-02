@@ -59,6 +59,7 @@ export function CoachingHome({
   canOpenTicket,
   maxTickets,
   account,
+  team,
 }: {
   name: string;
   dashboard: CoachingDashboard;
@@ -66,6 +67,7 @@ export function CoachingHome({
   canOpenTicket: boolean;
   maxTickets: number;
   account: { user: MenuUser; unread: number };
+  team: "ADMIN" | "COACH" | null;
 }) {
   return (
     <>
@@ -86,7 +88,7 @@ export function CoachingHome({
           <RankBadge rank={d.rank} size={56} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-lg font-semibold">{name}</p>
-            <p className="text-sm text-muted">Coach : {d.coachName ?? "en cours d'attribution"}</p>
+            <p className="text-sm text-muted">{team === "ADMIN" ? "Équipe Creato · tu valides tes propres preuves" : team ? "Équipe Creato · tes preuves sont validées par l'admin" : `Coach : ${d.coachName ?? "en cours d'attribution"}`}</p>
           </div>
           <Flame level={d.streak.flame} days={d.streak.current} />
         </div>
@@ -119,6 +121,7 @@ export function CoachingHome({
             <TodayPost todayDone={d.streak.todayDone} username={d.tiktokUsername} />
           )}
 
+          {!team && (
           <section className={card}>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-semibold">Mes échanges avec mon coach</h2>
@@ -150,6 +153,7 @@ export function CoachingHome({
               ))}
             </ul>
           </section>
+          )}
 
           <Videos posts={d.posts} />
           <Ranks dashboard={d} />
@@ -429,7 +433,7 @@ function Reactivation({ pending: alreadyPending }: { pending: boolean }) {
   return (
     <section className={`${card} mt-4 border-danger/50`}>
       <h2 className="font-semibold">Ton coaching est en pause</h2>
-      <p className="mt-1 text-sm text-muted">Tu n&apos;as pas posté pendant 15 jours : ta place et le rôle @Élite ont été retirés.</p>
+      <p className="mt-1 text-sm text-muted">Tu n&apos;as pas posté pendant 7 jours : ta place et le rôle @Élite ont été retirés.</p>
       {alreadyPending ? (
         <p className="mt-3 text-sm text-gold">Ta demande de réactivation est en cours d&apos;examen.</p>
       ) : (

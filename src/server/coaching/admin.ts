@@ -91,7 +91,8 @@ export async function addCoach(adminId: string, userId: string) {
   const last = await prisma.user.aggregate({ _max: { coachOrder: true } });
   await prisma.user.update({
     where: { id: userId },
-    data: { role: u.role === "ADMIN" ? "ADMIN" : "COACH", coachOrder: (last._max.coachOrder ?? 0) + 1, coachStars: 3, coachFastAnswers: 0 },
+    // Un coach n'a plus de coach : il garde seulement son espace posts / résultats.
+    data: { role: u.role === "ADMIN" ? "ADMIN" : "COACH", coachOrder: (last._max.coachOrder ?? 0) + 1, coachStars: 3, coachFastAnswers: 0, coachId: null },
   });
   await prisma.auditLog.create({ data: { actorUserId: adminId, action: "COACH_ADDED", entityType: "user", entityId: userId } });
   await notify(userId, { kind: "coach.added", href: "/coach", text: "🎓 Tu es maintenant coach sur Creato ! Ton espace coach t'attend (3 étoiles pour commencer)." });

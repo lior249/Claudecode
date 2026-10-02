@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/server/db";
-import { notify } from "@/server/notifications/service";
+import { notify, notifyAdmins } from "@/server/notifications/service";
 import { STREAK_MILESTONES, streakMilestone } from "@/server/notifications/rules";
 import { fileUrl } from "@/server/decisions/service";
 import { USER_IMAGE_KEY } from "@/server/storage/images";
@@ -19,6 +19,7 @@ import {
   viewPoints,
   type AnyRank,
 } from "./rules";
+import { leaderboardWhere } from "./team";
 
 const tzOf = (u: { timezone: string | null }) => (u.timezone && isValidTimezone(u.timezone) ? u.timezone : "UTC");
 
@@ -148,8 +149,10 @@ async function assertNoPending(learnerId: string, kind: "FOLLOWERS_10K" | "MONTH
 }
 
 async function notifyCoach(learnerId: string, message: string) {
-  const l = await prisma.user.findUniqueOrThrow({ where: { id: learnerId }, select: { coachId: true, displayName: true } });
+  const l = await prisma.user.findUniqueOrThrow({ where: { id: learnerId }, select: { coachId: true, displayName: true, role: true } });
   if (l.coachId) await notify(l.coachId, { kind: "coach.proof", href: "/coach/proofs", text: `${message} (${l.displayName})` });
+  // Preuve d'un coach : c'est l'admin qui valide (l'admin valide aussi les siennes).
+  else if (l.role === "COACH") await notifyAdmins({ kind: "coach.proof", href: "/coach/proofs", text: `${message} (${l.displayName}, coach)` });
 }
 
 async function assertCoachOf(reviewer: { id: string; role: string }, learnerId: string) {
@@ -205,12 +208,13 @@ export async function reviewRankProof(reviewer: { id: string; role: string }, pr
     await prisma.auditLog.create({ data: { actorUserId: reviewer.id, action: "RANK_GRANTED", entityType: "user", entityId: learner.id, metadata: { rank: best } } });
     await notify(learner.id, { kind: "rank.up", href: "/coaching", text: `🏅 Nouveau rang : ${best} !` });
   }
-  if (best === "SSS" && learner.coachingStatus === "ACTIVE") await completeCoaching(learner.id);
+  if (best === "SSS" && learner.coachingStatus === "ACTIVE" && learner.role === "LEARNER") await completeCoaching(learner.id);
 }
 
 export async function listPendingProofs(coach: { id: string; role: string }) {
   const where = coach.role === "ADMIN" ? {} : { coachId: coach.id };
-  const learnerIds = (await prisma.user.findMany({ where: { ...where, role: "LEARNER" }, select: { id: true } })).map((u) => u.id);
+  // L'admin valide aussi les preuves de l'équipe (coachs et les siennes) ; un coach, celles de ses élèves.
+  const learnerIds = (await prisma.user.findMany({ where: coach.role === "ADMIN" ? {} : { ...where, role: "LEARNER" }, select: { id: true } })).map((u) => u.id);
   const [views, ranks] = [
     await prisma.viewProof.findMany({
       where: { status: "PENDING", post: { learnerId: { in: learnerIds } } },
@@ -258,7 +262,7 @@ export async function qualityPoints(learnerId: string) {
 
 export async function leaderboard(now = new Date()) {
   const learners = await prisma.user.findMany({
-    where: { role: "LEARNER", coachingStatus: { in: ["ACTIVE", "COMPLETED"] } },
+    where: leaderboardWhere,
     select: { id: true, displayName: true, avatarUrl: true, photoKey: true, tiktokUsername: true, manualRank: true },
   });
   const rows = [];
