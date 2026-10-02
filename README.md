@@ -39,4 +39,5 @@ npm run worker              # dans un 2e terminal : analyse des exercices (ffmpe
 - [x] **Bloc 6b** : espace coaching (tickets avec images et liens, délai de 12 h et étoiles des coachs, questions de suivi, « conseil reçu » et 👍/👎, notes 😞😐🙂, streak avec gel, points de vues, classement avec podium, résultats du mois et rangs S/SS/SSS, révocation après 15 jours et réactivation, rapport des coachs pour l'Admin).
 - [x] **Preuves** : vues + j'aime + commentaires, liens des vidéos pour les résultats du mois, case « tout concorde » obligatoire pour le coach.
 - [x] **Notifications façon Duolingo** : cloche pour tous (élève, coach, admin), messages privés Discord avec heures calmes et plafond, heure de rappel au choix, relances des absents (1, 2, 3, 5, 7, 14 jours puis silence), flamme en danger et dernière chance, paliers de streak, gel utilisé, classement du lundi, résultats du mois, fins de module et de niveau, résumé du matin des coachs et des admins, étoiles gagnées ou perdues.
-- [ ] Bloc 7 : mise en ligne sur le serveur.
+- [x] **Kit de mise en ligne** : Docker (site + worker + base + HTTPS Caddy), installation en une commande, sauvegardes chaque nuit, restauration, mise à jour. Guide : `docs/MISE-EN-LIGNE.md`.
+- [ ] Bloc 7 : mise en ligne sur creatoskills.site et premier vrai test.

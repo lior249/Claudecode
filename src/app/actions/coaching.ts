@@ -22,7 +22,7 @@ import {
   submitViewProof,
   updateCoachingProfile,
 } from "@/server/coaching/progress";
-import { setCoachCapacity } from "@/server/coaching/admin";
+import { addCoach, removeCoach, setCoachCapacity } from "@/server/coaching/admin";
 
 type Result = { ok: true; id?: string } | { ok: false; error: string };
 const id = z.string().min(1).max(64);
@@ -130,3 +130,7 @@ export const reactivationDecisionAction = async (raw: unknown) =>
 
 export const capacityAction = async (raw: unknown) =>
   run(["ADMIN"], z.object({ coachId: id, capacity: z.number().int() }), raw, (u, d) => setCoachCapacity(u.id, d.coachId, d.capacity));
+
+export const addCoachAction = async (raw: unknown) => run(["ADMIN"], z.object({ userId: id }), raw, (u, d) => addCoach(u.id, d.userId));
+
+export const removeCoachAction = async (raw: unknown) => run(["ADMIN"], z.object({ coachId: id }), raw, (u, d) => removeCoach(u.id, d.coachId));

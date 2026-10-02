@@ -1,6 +1,7 @@
 // Parcours de départ (contenus provisoires) + comptes de démonstration.
-// Usage : npm run db:seed            → ne fait rien si un parcours existe déjà
-//         npm run db:seed -- --reset → efface tout et recrée
+// Usage : npm run db:seed                 → ne fait rien si un parcours existe déjà
+//         npm run db:seed -- --reset      → efface tout et recrée (refusé en production)
+//         npm run db:seed -- --production → parcours seulement, sans comptes de démonstration
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
@@ -133,7 +134,11 @@ async function reset() {
 }
 
 async function main() {
-  if (process.argv.includes("--reset")) await reset();
+  const production = process.argv.includes("--production") || process.env.NODE_ENV === "production";
+  if (process.argv.includes("--reset")) {
+    if (production) throw new Error("--reset est interdit en production (il effacerait les élèves).");
+    await reset();
+  }
   if ((await prisma.level.count()) > 0) {
     console.log("Un parcours existe déjà : rien à faire (utilise --reset pour repartir de zéro).");
     return;
@@ -167,6 +172,12 @@ async function main() {
         if (lesson.type === "UNDERSTANDING") await seedPlaceholderQuiz(lessonRow.id);
       }
     }
+  }
+
+  if (production) {
+    // Le premier admin devient coach n° 1 à sa première connexion Discord.
+    console.log("Parcours de départ créé (3 niveaux, 8 modules, 12 leçons).");
+    return;
   }
 
   const coach = await prisma.user.create({

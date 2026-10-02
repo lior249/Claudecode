@@ -1,0 +1,81 @@
+# Mise en ligne : base de données, site, worker et HTTPS automatique (Caddy).
+# Les réglages et secrets sont dans le fichier .env à côté de ce fichier (jamais sur GitHub).
+name: creato
+
+x-app: &app
+  image: creato-app
+  build: .
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql://creato:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}@db:5432/creato
+    STORAGE_DIR: /data/storage
+    TZ: ${APP_TIMEZONE:-Europe/Paris}
+  volumes:
+    - storage:/data/storage
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: creato
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}
+      POSTGRES_DB: creato
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U creato -d creato"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Met la base à jour (migrations) puis crée le parcours de départ s'il n'existe pas. S'arrête ensuite.
+  migrate:
+    <<: *app
+    command: sh -c "npx prisma migrate deploy && npm run db:seed -- --production"
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    <<: *app
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    <<: *app
+    command: npm run worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN manquant dans .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  storage:
+  caddy_data:
+  caddy_config:

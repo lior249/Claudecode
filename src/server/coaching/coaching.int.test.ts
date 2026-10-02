@@ -14,7 +14,7 @@ import {
   sendFollowUps,
 } from "./tickets";
 import { addPost, getStreak, leaderboard, reviewRankProof, reviewViewProof, submitMonthlyProof, submitViewProof, updateCoachingProfile } from "./progress";
-import { coachReport } from "./admin";
+import { addCoach, coachReport, listCoachCandidates, removeCoach } from "./admin";
 
 const H = 3_600_000;
 const D = 24 * H;
@@ -208,5 +208,24 @@ describe("Absence et réactivation", () => {
     const c = await coach("Coach");
     await learner("ines", c.id, new Date(Date.now() - 14 * D));
     expect(await processAbsences()).toBe(0);
+  });
+});
+
+describe("Équipe de coachs", () => {
+  beforeEach(resetDb);
+
+  it("ajoute un coach à la suite, refuse de retirer un coach qui suit des élèves", async () => {
+    const first = await coach("Coach 1");
+    const u = await prisma.user.create({ data: { displayName: "Sam", role: "LEARNER" } });
+    const admin = await prisma.user.create({ data: { displayName: "Admin", role: "ADMIN" } });
+    expect((await listCoachCandidates()).map((c) => c.displayName)).toEqual(["Admin", "Sam"]);
+    await addCoach(admin.id, u.id);
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: u.id } })).toMatchObject({ role: "COACH", coachOrder: 2, coachStars: 3 });
+    await expect(addCoach(admin.id, u.id)).rejects.toThrow(CoachingError);
+
+    await learner("Lea", first.id);
+    await expect(removeCoach(admin.id, first.id)).rejects.toThrow("suit encore 1 élève");
+    await removeCoach(admin.id, u.id);
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: u.id } })).toMatchObject({ role: "LEARNER", coachOrder: null });
   });
 });

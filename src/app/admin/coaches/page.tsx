@@ -1,18 +1,24 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
-import { coachReport } from "@/server/coaching/admin";
+import { coachReport, listCoachCandidates } from "@/server/coaching/admin";
+import { AddCoach, RemoveCoach } from "@/components/coaching/coach-team";
 import { CapacityEditor } from "@/components/coaching/capacity-editor";
 
 const EMOJI = { GOOD: "🙂", NEUTRAL: "😐", BAD: "😞" } as const;
 
 export default async function AdminCoaches() {
   const coaches = await coachReport();
+  const candidates = (await listCoachCandidates()).map((u) => ({
+    id: u.id,
+    label: `${u.displayName}${u.discordUsername ? ` (@${u.discordUsername})` : ""}${u.role === "ADMIN" ? " · admin" : ""}`,
+  }));
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Coachs</h1>
         <p className="mt-1 text-sm text-muted">Étoiles de 1 à 6 : +1 toutes les 10 réponses en moins d&apos;1 h, −1 toutes les 5 réponses en retard dans la semaine.</p>
       </div>
+      <AddCoach candidates={candidates} />
       {coaches.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Aucun coach.</p>}
       {coaches.map((c) => (
         <section key={c.id} className={`rounded-3xl border bg-card p-4 ${c.coachStars <= 2 ? "border-danger/50" : "border-line"}`}>
@@ -55,6 +61,9 @@ export default async function AdminCoaches() {
               </ul>
             </div>
           )}
+          <div className="mt-3 flex justify-end">
+            <RemoveCoach coachId={c.id} name={c.displayName} />
+          </div>
           {c.starEvents.length > 0 && (
             <p className="mt-3 text-xs text-muted">
               Dernier changement d&apos;étoiles : {c.starEvents[0].delta > 0 ? "+" : ""}

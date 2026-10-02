@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/server/db";
 import { isoWeek } from "./rules";
 import { CoachingError, listCoachesWithLoad } from "./lifecycle";
+import { notify } from "@/server/notifications/service";
 
 // Rapport des coachs pour l'Admin : étoiles, charge, délais, avis des élèves.
 export async function coachReport(now = new Date()) {
@@ -70,4 +71,36 @@ export async function listReactivationRequests(viewer: { id: string; role: strin
     if ((lastStart?.metadata as { coachId?: string } | null)?.coachId === viewer.id) mine.push(r);
   }
   return mine;
+}
+
+// ---------- Équipe de coachs ----------
+
+// Personnes qui peuvent devenir coach : connectées au moins une fois, pas déjà coach, pas en coaching.
+export function listCoachCandidates() {
+  return prisma.user.findMany({
+    where: { status: "ACTIVE", coachOrder: null, role: { in: ["LEARNER", "ADMIN"] }, coachingStatus: { not: "ACTIVE" } },
+    select: { id: true, displayName: true, discordUsername: true, role: true },
+    orderBy: { displayName: "asc" },
+  });
+}
+
+export async function addCoach(adminId: string, userId: string) {
+  const u = await prisma.user.findUnique({ where: { id: userId } });
+  if (!u || u.status !== "ACTIVE" || u.coachOrder !== null || u.coachingStatus === "ACTIVE") throw new CoachingError("Cette personne ne peut pas devenir coach.");
+  const last = await prisma.user.aggregate({ _max: { coachOrder: true } });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: u.role === "ADMIN" ? "ADMIN" : "COACH", coachOrder: (last._max.coachOrder ?? 0) + 1, coachStars: 3, coachFastAnswers: 0 },
+  });
+  await prisma.auditLog.create({ data: { actorUserId: adminId, action: "COACH_ADDED", entityType: "user", entityId: userId } });
+  await notify(userId, { kind: "coach.added", href: "/coach", text: "🎓 Tu es maintenant coach sur Creato ! Ton espace coach t'attend (3 étoiles pour commencer)." });
+}
+
+export async function removeCoach(adminId: string, coachId: string) {
+  const c = await prisma.user.findUnique({ where: { id: coachId } });
+  if (!c || c.coachOrder === null) throw new CoachingError("Coach introuvable.");
+  const learners = await prisma.user.count({ where: { coachId, coachingStatus: "ACTIVE" } });
+  if (learners > 0) throw new CoachingError(`Ce coach suit encore ${learners} élève(s) : il doit les terminer avant d'être retiré.`);
+  await prisma.user.update({ where: { id: coachId }, data: { role: c.role === "ADMIN" ? "ADMIN" : "LEARNER", coachOrder: null } });
+  await prisma.auditLog.create({ data: { actorUserId: adminId, action: "COACH_REMOVED", entityType: "user", entityId: coachId } });
 }
