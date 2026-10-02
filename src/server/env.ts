@@ -16,6 +16,12 @@ const schema = z.object({
   DISCORD_ROLE_ELITE_ID: optional,
   DISCORD_BOT_TOKEN: optional,
   ADMIN_DISCORD_IDS: z.string().default(""),
+  // Fichiers envoyés (disque du serveur).
+  STORAGE_DIR: z.string().default("./storage"),
+  // IA : "gemini" en production, "mock" (IA simulée) en développement.
+  AI_PROVIDER: z.enum(["gemini", "mock"]).default("mock"),
+  GEMINI_API_KEY: optional,
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
   // Pour les tests uniquement : faux serveur Discord.
   DISCORD_API_BASE: z.string().url().default("https://discord.com"),
 });
@@ -38,6 +44,10 @@ export function getEnv(): Env {
     parsed.DISCORD_CLIENT_ID && parsed.DISCORD_CLIENT_SECRET && parsed.DISCORD_GUILD_ID && parsed.DISCORD_ROLE_TIKTOK_ID,
   );
   const adminDiscordIds = parsed.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
+  if (parsed.NODE_ENV === "production" && parsed.AI_PROVIDER !== "gemini") {
+    throw new Error("En production, AI_PROVIDER doit valoir \"gemini\" (l'IA simulée est réservée au développement).");
+  }
+  if (parsed.AI_PROVIDER === "gemini" && !parsed.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY manquant.");
   cached = { ...parsed, devLoginEnabled, discordLoginEnabled, adminDiscordIds };
   return cached;
 }

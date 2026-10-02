@@ -3,7 +3,7 @@ import type { LessonType } from "@/generated/prisma/enums";
 
 export async function resetDb() {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "QuizAnswer", "QuizAttempt", "QuizQuestion", "AuditLog", "Session", "LessonProgress", "Lesson", "Module", "Level", "User" CASCADE',
+    'TRUNCATE "Job", "Asset", "Submission", "QuizAnswer", "QuizAttempt", "QuizQuestion", "AuditLog", "Session", "LessonProgress", "Lesson", "Module", "Level", "User" CASCADE',
   );
 }
 

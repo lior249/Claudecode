@@ -323,9 +323,9 @@ function LessonSheet({
 
         {isCurrent && (
           <div className="mt-5 space-y-2">
-            {lesson.type === "UNDERSTANDING" ? (
+            {lesson.type === "UNDERSTANDING" || lesson.type === "PRACTICE_AI" ? (
               <Link
-                href={`/learn/quiz/${lesson.id}`}
+                href={lesson.type === "UNDERSTANDING" ? `/learn/quiz/${lesson.id}` : `/learn/practice/${lesson.id}`}
                 className="block w-full rounded-2xl bg-text py-4 text-center font-semibold text-black"
               >
                 {t.action}

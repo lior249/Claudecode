@@ -71,6 +71,8 @@ model User {
   sessions     Session[]
   progress     LessonProgress[]
   quizAttempts QuizAttempt[]
+  submissions  Submission[]
+  assets       Asset[]
   auditLogs    AuditLog[]
 
   @@index([coachId])
@@ -130,6 +132,8 @@ model Lesson {
   progress      LessonProgress[]
   quizQuestions QuizQuestion[]
   quizAttempts  QuizAttempt[]
+  submissions   Submission[]
+  assets        Asset[]
 
   @@index([moduleId, position])
 }
@@ -219,4 +223,102 @@ model QuizAnswer {
   answeredAt     DateTime    @default(now())
 
   @@unique([attemptId, position])
+}
+
+// --- Pratique (soumissions) ---
+
+enum AssetKind {
+  VIDEO
+  AUDIO
+  IMAGE
+}
+
+enum SubmissionStatus {
+  PROCESSING // en file d'attente / en cours d'analyse
+  PASSED // note >= seuil
+  FAILED // note < seuil
+  ERROR // panne technique (IA, analyse) : peut être relancée
+  PENDING_HUMAN // l'élève a fait appel à un humain
+  HUMAN_APPROVED
+  HUMAN_REJECTED
+}
+
+// Fichier envoyé. Supprimer le fichier (deletedAt) ne supprime jamais la ligne : le hash et les métadonnées restent.
+model Asset {
+  id              String      @id @default(cuid())
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId        String
+  lesson          Lesson      @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+  submissionId    String?
+  submission      Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  kind            AssetKind
+  storageKey      String      @unique
+  originalName    String
+  mimeType        String
+  sizeBytes       Int
+  sha256          String
+  durationSeconds Float?
+  width           Int?
+  height          Int?
+  hasAudio        Boolean?
+  createdAt       DateTime    @default(now())
+  deletedAt       DateTime?
+
+  @@index([userId, lessonId])
+  @@index([sha256])
+}
+
+model Submission {
+  id                String           @id @default(cuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId          String
+  lesson            Lesson           @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+  attemptNumber     Int
+  status            SubmissionStatus @default(PROCESSING)
+  text              String?
+  textSha256        String?
+  score             Float?
+  threshold         Float
+  criteria          Json? // [{ name, maxPoints, pointsLost, comment, source: "MEASURE" | "AI" }]
+  feedback          String?
+  measurements      Json?
+  aiModel           String?
+  technicalFailures Int              @default(0)
+  lastError         String? // détail technique (jamais montré à l'élève)
+  createdAt         DateTime         @default(now())
+  processedAt       DateTime?
+  reviewedAt        DateTime?
+  reviewedById      String?
+  reviewComment     String?
+  assets            Asset[]
+
+  @@unique([userId, lessonId, attemptNumber])
+  @@index([lessonId, status])
+}
+
+// --- File de tâches (traitées par le worker, jamais dans une requête HTTP) ---
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  status      JobStatus @default(PENDING)
+  runAt       DateTime  @default(now())
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  lockedAt    DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@index([status, runAt])
 }
