@@ -20,18 +20,20 @@ Le secret OAuth et le token du bot ont été envoyés dans la conversation : on 
 5. Sur ton serveur Discord : **Paramètres du serveur → Rôles** → fais glisser le rôle du bot **au-dessus** de @Élite,
    et vérifie qu'il a la permission **Gérer les rôles**. Sinon il ne pourra pas donner/retirer @Élite.
 
-## Étape 1 — Louer le serveur (10 min, ~5,50 €/mois)
+## Étape 1 — Louer le serveur chez OVHcloud (10 min, ~6 à 8 €/mois)
 
-Recommandé : **Hetzner Cloud** (<https://www.hetzner.com/cloud>), fiable et pas cher.
+1. Va sur <https://www.ovhcloud.com/fr/vps/> → choisis l'offre **VPS** d'entrée de gamme (au moins **2 vCore, 4 Go de mémoire, 40 Go de disque**).
+2. Pendant la commande :
+   - **Localisation** : France (Gravelines, Strasbourg ou Roubaix).
+   - **Système** : **Ubuntu 24.04** (sans application préinstallée).
+   - **Option « Sauvegarde automatisée »** : ✅ recommandée (quelques euros/mois) → OVH garde une copie complète du serveur chaque jour, en plus de nos sauvegardes.
+   - Clé SSH : tu peux laisser vide.
+3. Paie. Quelques minutes plus tard, tu reçois un e-mail avec l'**adresse IP** du serveur (ex. `51.75.12.34`)
+   et le moyen de récupérer le **mot de passe** de l'utilisateur **`ubuntu`** (lien vers ton espace client OVH).
+   Tu retrouves aussi l'IP dans l'espace client : **Bare Metal Cloud → VPS → ton VPS**.
 
-1. Crée un compte, puis **New Project** → **Add Server**.
-2. Choix :
-   - **Location** : Falkenstein ou Nuremberg (Allemagne).
-   - **Image** : **Ubuntu 24.04**.
-   - **Type** : **CX22** (2 processeurs, 4 Go de mémoire, 40 Go de disque).
-   - **Backups** : ✅ coche (≈ +1 €/mois) → Hetzner garde une copie complète du serveur chaque jour, en plus de nos sauvegardes.
-   - **SSH key** : laisse vide → le mot de passe *root* arrive par e-mail.
-3. **Create & Buy**. Note l'**adresse IP** du serveur (ex. `91.98.12.34`).
+> Chez OVH, on ne se connecte pas en `root` mais avec l'utilisateur **`ubuntu`**. C'est pour ça que les commandes
+> ci-dessous commencent par `sudo` (= « faire en tant qu'administrateur »).
 
 ## Étape 2 — Brancher le domaine (5 min + attente)
 
@@ -60,23 +62,23 @@ Le dépôt GitHub est privé : le serveur a besoin d'un « jeton de lecture ».
    - Mac : **Terminal**.
 2. Connecte-toi au serveur (remplace par ton IP) :
    ```
-   ssh root@91.98.12.34
+   ssh ubuntu@51.75.12.34
    ```
-   Tape `yes`, puis le mot de passe reçu par e-mail (rien ne s'affiche quand tu tapes, c'est normal).
-   Le serveur te demande d'en choisir un nouveau : choisis-en un long et garde-le dans un gestionnaire de mots de passe.
+   Tape `yes`, puis le mot de passe OVH (rien ne s'affiche quand tu tapes, c'est normal).
+   S'il ne te demande pas d'en changer, fais-le tout de suite avec `passwd` : choisis-en un long et garde-le dans un gestionnaire de mots de passe.
 3. Récupère le code :
    ```
-   git clone -b claude/nifty-bell-8c7abw https://github.com/lior249/Claudecode.git /opt/creato
+   sudo git clone -b claude/nifty-bell-8c7abw https://github.com/lior249/Claudecode.git /opt/creato
    ```
    *Username* : ton nom GitHub. *Password* : **le jeton de l'étape 3** (pas ton mot de passe GitHub).
 4. Lance l'installation :
    ```
-   cd /opt/creato && ./deploy/install.sh
+   cd /opt/creato && sudo ./deploy/install.sh
    ```
    La première fois, il prépare tout puis s'arrête en disant qu'il manque 3 valeurs. C'est normal.
 5. Ouvre le fichier de réglages :
    ```
-   nano /opt/creato/.env
+   sudo nano /opt/creato/.env
    ```
    Colle entre les guillemets :
    - `DISCORD_CLIENT_SECRET="…"` → le **nouveau** secret (étape 0)
@@ -86,7 +88,7 @@ Le dépôt GitHub est privé : le serveur a besoin d'un « jeton de lecture ».
    Enregistre : **Ctrl+O**, **Entrée**, puis quitte : **Ctrl+X**.
 6. Relance :
    ```
-   ./deploy/install.sh
+   sudo ./deploy/install.sh
    ```
    Après quelques minutes : **✅ Creato tourne**. Ouvre <https://creatoskills.site>.
 
@@ -115,20 +117,27 @@ Si quelque chose cloche, note ce que tu as fait et ce qui s'est affiché, et env
 ## Sauvegardes (déjà actives)
 
 - **Chaque nuit à 3 h 30** : copie de la base (14 jours gardés) et des fichiers (7 jours) dans `/var/backups/creato`.
-- **Hetzner Backups** : copie complète du serveur chaque jour (si coché à l'étape 1).
-- Sauvegarde à la main : `/opt/creato/deploy/backup.sh`
-- Une fois par mois, garde une copie chez toi (depuis ton ordinateur, pas le serveur) :
-  ```
-  scp "root@91.98.12.34:/var/backups/creato/db-*.dump" .
-  ```
-- Restaurer (en cas de souci) : `/opt/creato/deploy/restore.sh /var/backups/creato/db-AAAA-MM-JJ-HHMM.dump`
+- **Sauvegarde automatisée OVH** : copie complète du serveur chaque jour (si choisie à l'étape 1).
+  Avant une grosse modification, tu peux aussi faire un **snapshot** dans l'espace client OVH (VPS → Snapshot).
+- Sauvegarde à la main : `sudo /opt/creato/deploy/backup.sh`
+- Une fois par mois, garde une copie chez toi :
+  1. Sur le serveur :
+     ```
+     sudo cp /var/backups/creato/db-*.dump /home/ubuntu/ && sudo chown ubuntu /home/ubuntu/db-*.dump
+     ```
+  2. Depuis ton ordinateur (nouvelle fenêtre PowerShell / Terminal) :
+     ```
+     scp "ubuntu@51.75.12.34:db-*.dump" .
+     ```
+  3. De retour sur le serveur : `rm /home/ubuntu/db-*.dump`
+- Restaurer (en cas de souci) : `sudo /opt/creato/deploy/restore.sh /var/backups/creato/db-AAAA-MM-JJ-HHMM.dump`
 
 ## Mises à jour
 
 Quand je te dis qu'une nouvelle version est prête :
 ```
-ssh root@91.98.12.34
-cd /opt/creato && ./deploy/update.sh
+ssh ubuntu@51.75.12.34
+cd /opt/creato && sudo ./deploy/update.sh
 ```
 (Le script fait une sauvegarde avant, puis met le site à jour.)
 
@@ -136,16 +145,16 @@ cd /opt/creato && ./deploy/update.sh
 
 | Besoin | Commande (dans `/opt/creato`) |
 |--------|------------------------------|
-| État des services | `docker compose ps` |
-| Messages du site | `docker compose logs app --tail 50` |
-| Messages du worker (IA, rappels) | `docker compose logs worker --tail 50` |
-| Redémarrer | `docker compose restart` |
-| Modifier un réglage | `nano .env` puis `docker compose up -d` |
+| État des services | `sudo docker compose ps` |
+| Messages du site | `sudo docker compose logs app --tail 50` |
+| Messages du worker (IA, rappels) | `sudo docker compose logs worker --tail 50` |
+| Redémarrer | `sudo docker compose restart` |
+| Modifier un réglage | `sudo nano .env` puis `sudo docker compose up -d` |
 
 ## Coûts mensuels
 
 | Poste | Prix |
 |-------|------|
-| Serveur Hetzner CX22 + Backups | ≈ 5,50 € |
+| VPS OVHcloud + sauvegarde automatisée | ≈ 6 à 10 € selon l'offre (voir ta facture) |
 | Domaine (LWS) | déjà payé |
 | Gemini | ≤ 20 $ (alerte de budget) |
