@@ -66,11 +66,42 @@ Le dépôt GitHub est privé : le serveur a besoin d'un « jeton de lecture ».
 2. Nom : `serveur creato`. Expiration : 1 an. **Repository access** : *Only select repositories* → `lior249/Claudecode`.
 3. **Permissions** → *Repository permissions* → **Contents : Read-only**. → **Generate token** → copie-le.
 
+## Étape 3 bis — Préparer ton ordinateur (5 à 15 min)
+
+Pour parler au serveur, ton ordinateur utilise un petit outil appelé **ssh**, qu'on tape dans une fenêtre de commandes
+(un « terminal »). Sur un PC fraîchement réinstallé, il faut parfois l'activer.
+
+### Sur Windows
+
+1. **Ouvre une fenêtre de commandes** — essaie dans cet ordre, le premier qui marche suffit :
+   - Clic droit sur le bouton **Démarrer** → **Terminal** (ou **Windows PowerShell**).
+   - Touche **Windows** → tape `powershell` → **Entrée**.
+   - Touches **Windows + R** → tape `powershell` → **OK**.
+   - Si PowerShell refuse toujours de s'ouvrir : touches **Windows + R** → tape `cmd` → **OK**.
+     C'est l'« Invite de commandes » : elle fait aussi bien l'affaire pour tout ce guide.
+2. **Vérifie que ssh est là** : dans la fenêtre, tape puis **Entrée** :
+   ```
+   ssh -V
+   ```
+   - ✅ Une ligne qui commence par `OpenSSH_…` s'affiche → c'est bon, passe à l'étape 4.
+   - ❌ Message du genre *« ssh n'est pas reconnu… »* → installe-le :
+     1. **Démarrer** → **Paramètres** → **Système** → **Fonctionnalités facultatives**
+        (sur Windows 10 : **Applications** → **Fonctionnalités facultatives**).
+     2. **Afficher les fonctionnalités** / **Ajouter une fonctionnalité** → cherche **Client OpenSSH** → coche → **Installer**.
+     3. Redémarre le PC, rouvre la fenêtre de commandes et retape `ssh -V`.
+3. **Toujours bloqué ?** Le PC vient d'être réinstallé : fais d'abord toutes les **mises à jour Windows**
+   (**Paramètres** → **Windows Update** → **Rechercher des mises à jour**, puis redémarrer), et recommence le point 1.
+   Si rien ne marche, envoie-moi une capture du message d'erreur (sans mot de passe).
+
+> Astuce : dans la fenêtre de commandes, **clic droit** = coller. Pour copier un texte affiché, sélectionne-le à la souris puis **clic droit**.
+
+### Sur Mac
+
+Ouvre **Terminal** (**Cmd + Espace** → tape `Terminal` → **Entrée**). ssh est déjà installé ; tu peux vérifier avec `ssh -V`.
+
 ## Étape 4 — Installer (20 min, presque tout est automatique)
 
-1. Ouvre un terminal :
-   - Windows : touche Windows → tape **PowerShell** → Entrée.
-   - Mac : **Terminal**.
+1. Ouvre la fenêtre de commandes de l'étape 3 bis (PowerShell, Terminal ou Invite de commandes).
 2. Connecte-toi au serveur (remplace par ton IP) :
    ```
    ssh root@198.54.12.34
@@ -130,7 +161,7 @@ Si quelque chose cloche, note ce que tu as fait et ce qui s'est affiché, et env
 - **Chaque nuit à 3 h 30** : copie de la base (14 jours gardés) et des fichiers (7 jours) dans `/var/backups/creato`.
 - **Sauvegarde Namecheap du serveur** : seulement si tu as pris l'option à l'étape 1.
 - Nos sauvegardes sont **sur le même serveur** : si le serveur disparaît, elles disparaissent avec.
-  Donc **une fois par mois**, garde une copie chez toi, depuis ton ordinateur (PowerShell / Terminal, pas le serveur) :
+  Donc **une fois par mois**, garde une copie chez toi, depuis ton ordinateur (la fenêtre de commandes de l'étape 3 bis, pas le serveur) :
   ```
   scp "root@198.54.12.34:/var/backups/creato/db-*.dump" .
   ```
