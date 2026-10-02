@@ -1,26 +1,62 @@
-import type { Measurements } from "@/server/practice/checks";
-import type { CriterionResult } from "@/server/practice/scoring";
+import type { PracticeCriterion } from "@/server/practice/config";
+import type { MediaMeasurements, TextMeasurements } from "@/server/practice/analysis";
 
-// Contrat d'un correcteur IA. Il renvoie des critères (points perdus + commentaire), jamais un statut.
-export interface AIEvaluationInput {
-  lessonTitle: string;
-  instructions: string; // consigne affichée à l'élève
-  rubric: string; // barème en texte libre (Admin)
-  measuredCriteria: CriterionResult[]; // déjà évalués par le serveur : l'IA ne les recompte pas
-  measurements: Measurements;
-  text: string | null;
-  media: { path: string; mimeType: string; originalName: string }[];
+// Deux rôles distincts :
+// 1. l'ANALYSTE décrit objectivement la réalisation (ce qu'on voit, entend, à quels moments) — il ne juge pas ;
+// 2. le CORRECTEUR lit la consigne, les critères et le rapport, et compte les erreurs par critère — il ne calcule pas la note.
+
+export interface MediaInput {
+  path: string;
+  mimeType: string;
+  originalName: string;
 }
 
-export interface AIEvaluation {
-  criteria: { name: string; maxPoints: number; pointsLost: number; comment: string }[];
+export interface AIAnalysis {
+  summary: string;
+  transcript: { start: number; end: number; text: string }[];
+  shots: { start: number; end: number; description: string }[];
+  soundEvents: { time: number; description: string }[];
+  onScreenText: { time: number; text: string }[];
+  comparisonWithReference: string;
+  model: string;
+}
+
+export interface AnalysisReport {
+  media: MediaMeasurements | null; // mesures exactes (ffmpeg)
+  text: TextMeasurements | null; // mesures exactes (comparaison de texte)
+  ai: AIAnalysis | null; // description par l'analyste
+}
+
+export interface AnalyzeInput {
+  lessonTitle: string;
+  agentInstructions: string;
+  criteria: PracticeCriterion[];
+  media: MediaInput;
+  reference: MediaInput | null;
+  measurements: MediaMeasurements;
+}
+
+export interface GradeInput {
+  lessonTitle: string;
+  learnerInstructions: string;
+  agentInstructions: string;
+  criteria: PracticeCriterion[];
+  report: AnalysisReport;
+  text: string | null;
+  referenceText: string;
+}
+
+export interface Grading {
+  criteria: { criterionId: string; misses: number; evidence: { time: number | null; detail: string }[]; comment: string }[];
   feedback: string;
   model: string;
-  raw: unknown;
 }
 
-export interface AIProvider {
-  evaluate(input: AIEvaluationInput): Promise<AIEvaluation>;
+export interface Analyst {
+  analyze(input: AnalyzeInput): Promise<AIAnalysis>;
+}
+export interface Grader {
+  grade(input: GradeInput): Promise<Grading>;
 }
 
 export class AIError extends Error {}

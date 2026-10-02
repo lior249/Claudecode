@@ -13,20 +13,13 @@ type LessonSeed = { title: string; type: LessonType; summary: string; config?: R
 type ModuleSeed = { title: string; description: string; lessons: LessonSeed[] };
 type LevelSeed = { title: string; description: string; modules: ModuleSeed[] };
 
-const practice = (title: string, summary: string, config: Record<string, unknown>): LessonSeed => ({
+// Exercices de pratique : aucun critère prédéfini, l'Admin les écrit lui-même (Admin → exercice).
+const practice = (title: string, summary: string, accept: string[]): LessonSeed => ({
   title,
   type: "PRACTICE_AI",
   summary,
-  config: { threshold: 8, placeholder: true, ...config },
+  config: { threshold: 8, accept, agentInstructions: "", criteria: [], referenceText: "", referenceAssetId: null },
 });
-
-// Textes d'exemple (à remplacer par les vrais scripts dans l'Admin).
-const EXAMPLE_SCRIPT =
-  "Il est impossible pour un pilote de survivre à un barrel roll sans entraînement. " +
-  "Pourtant, certains pilotes de chasse en enchaînent plusieurs par vol. " +
-  "Leur secret tient en trois choses : la respiration, la combinaison anti-g et des années de pratique. " +
-  "Sans elles, le sang quitte le cerveau et le pilote perd connaissance en quelques secondes.";
-const EXAMPLE_HOOK = "Il est impossible pour un pilote de survivre à un barrel roll sans entraînement.";
 
 const curriculum: LevelSeed[] = [
   {
@@ -49,80 +42,25 @@ const curriculum: LevelSeed[] = [
         title: "Montage",
         description: "Cuts, voix off et illustrations en rythme.",
         lessons: [
-          practice(
-            "Les cuts",
-            "Monte la vidéo fournie en plaçant tes cuts exactement aux bons moments. Exporte-la sans le son.",
-            { accept: ["video"], checks: [{ type: "noAudio" }, { type: "cuts", expected: [3, 5, 8, 13], tolerance: 0.5, penaltyPerMiss: 2 }] },
-          ),
-          practice(
-            "La voix off",
-            "Coupe tous les silences de la voix off fournie. Aucun temps mort.",
-            { accept: ["audio"], checks: [{ type: "silences", minSilence: 0.5, penaltyPerSilence: 1 }] },
-          ),
-          practice(
-            "Les illustrations en rythme",
-            "Ajoute une illustration par bout de phrase, en rythme avec la voix off. Vidéo de 30 secondes.",
-            {
-              accept: ["video"],
-              checks: [
-                { type: "duration", target: 30, tolerance: 1, penalty: 2 },
-                { type: "maxShotLength", max: 3, penaltyPerShot: 1, maxPenalty: 3 },
-                { type: "silences", minSilence: 0.5, penaltyPerSilence: 1, maxPenalty: 3 },
-              ],
-              rubric:
-                "Script de référence, une ligne = une illustration :\nIl est impossible pour un pilote\nde survivre à un barrel roll\nsans entraînement.\n\n" +
-                "1. Chaque illustration change sur un bout de phrase (pas une illustration par phrase entière) — 3 points, −1 par changement mal placé.\n" +
-                "2. Un effet sonore accompagne chaque transition — 2 points, −1 par transition sans effet sonore.",
-            },
-          ),
+          practice("Les cuts", "Monte la vidéo fournie en plaçant tes cuts exactement aux bons moments. Exporte-la sans le son.", ["video"]),
+          practice("La voix off", "Coupe tous les silences de la voix off fournie. Aucun temps mort.", ["audio"]),
+          practice("Les illustrations en rythme", "Ajoute une illustration par bout de phrase, en rythme avec la voix off. Vidéo de 30 secondes.", ["video"]),
         ],
       },
       {
         title: "Scripting",
         description: "Transcrire, réduire, ajouter un CTA.",
         lessons: [
-          practice(
-            "La transcription",
-            "Écoute la voix off fournie sur Whop et écris son script, mot pour mot.",
-            { accept: ["text"], checks: [{ type: "textSimilarity", reference: EXAMPLE_SCRIPT, min: 0.96 }] },
-          ),
-          practice(
-            "Réduire un script",
-            "Raccourcis le script fourni sans toucher au hook (la première phrase).",
-            {
-              accept: ["text"],
-              checks: [{ type: "hookUnchanged", hook: EXAMPLE_HOOK, penalty: 5 }, { type: "shorterThan", reference: EXAMPLE_SCRIPT, penalty: 3 }],
-              rubric: `Script d'origine :\n${EXAMPLE_SCRIPT}\n\n1. Aucune information importante n'est perdue (3 points, −1 par idée clé supprimée).`,
-            },
-          ),
-          practice(
-            "Ajouter un CTA",
-            "Place un CTA naturel dans le script fourni.",
-            {
-              accept: ["text"],
-              rubric:
-                `Script d'origine :\n${EXAMPLE_SCRIPT}\n\nEmplacements possibles du CTA : après la 2e phrase, ou à la fin.\n\n` +
-                "1. Un CTA est présent (4 points).\n2. Il est placé à un des emplacements possibles (3 points).\n3. Il s'enchaîne naturellement avec la phrase d'avant (3 points).",
-            },
-          ),
+          practice("La transcription", "Écoute la voix off fournie sur Whop et écris son script, mot pour mot.", ["text"]),
+          practice("Réduire un script", "Raccourcis le script fourni sans toucher au hook (la première phrase).", ["text"]),
+          practice("Ajouter un CTA", "Place un CTA naturel dans le script fourni.", ["text"]),
         ],
       },
       {
         title: "Test",
         description: "Ta première vidéo complète.",
         lessons: [
-          practice(
-            "La vidéo complète",
-            "Réalise une vidéo complète à partir du script fourni : script, voix off, montage.",
-            {
-              accept: ["video", "text"],
-              checks: [{ type: "silences", minSilence: 0.5, penaltyPerSilence: 1, maxPenalty: 3 }, { type: "hookUnchanged", hook: EXAMPLE_HOOK, penalty: 3 }],
-              rubric:
-                "Le texte envoyé est le script utilisé dans la vidéo.\n" +
-                "1. Le script est réduit sans perte d'idée clé (2 points).\n2. Le CTA est placé naturellement (2 points).\n" +
-                "3. Illustrations rythmées sur les bouts de phrase, 3 s maximum (2 points).\n4. Effets sonores sur les transitions (1 point).",
-            },
-          ),
+          practice("La vidéo complète", "Réalise une vidéo complète à partir du script fourni : script, voix off, montage.", ["video", "text"]),
         ],
       },
     ],

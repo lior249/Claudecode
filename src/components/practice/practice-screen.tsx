@@ -10,6 +10,7 @@ import { TypeBadge } from "@/components/learn/badges";
 import { UploadDropzone, type UploadedAsset } from "./upload-dropzone";
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+const formatTime = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 type Sub = PracticeView["submissions"][number];
 
 export function PracticeScreen({ view, moduleTitle, whopUrl }: { view: PracticeView; moduleTitle: string; whopUrl: string | null }) {
@@ -39,18 +40,21 @@ export function PracticeScreen({ view, moduleTitle, whopUrl }: { view: PracticeV
 
       <section className="rounded-3xl border border-line bg-card p-5">
         <p className="text-sm leading-relaxed">{view.summary}</p>
-        {(view.measuredCriteria.length > 0 || view.rubric) && (
-          <details className="mt-4 rounded-2xl bg-card-2 p-4 text-sm" open={!latest}>
-            <summary className="cursor-pointer font-medium">Critères de validation · {fmt(view.threshold)}/10 minimum</summary>
-            {view.measuredCriteria.length > 0 && (
-              <ul className="mt-3 space-y-1 text-muted">
-                {view.measuredCriteria.map((c) => (
-                  <li key={c}>• {c}</li>
-                ))}
-              </ul>
-            )}
-            {view.rubric && <p className="mt-3 whitespace-pre-line text-muted">{view.rubric}</p>}
-          </details>
+        {view.criteria.length > 0 && (
+          <div className="mt-4 rounded-2xl bg-card-2 p-4 text-sm">
+            <p className="font-medium">Critères de validation · {fmt(view.threshold)}/10 minimum</p>
+            <ul className="mt-3 space-y-3">
+              {view.criteria.map((c, i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-card text-xs font-semibold">{i + 1}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block whitespace-pre-line text-text/90">{c.instruction}</span>
+                    <span className="mt-0.5 block text-xs text-danger">−{fmt(c.pointsPerMiss)} point{c.pointsPerMiss > 1 ? "s" : ""} à chaque erreur</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {whopUrl && (
           <a href={whopUrl} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-card-2 py-3 text-sm font-medium">
@@ -62,6 +66,9 @@ export function PracticeScreen({ view, moduleTitle, whopUrl }: { view: PracticeV
       <div className="mt-4 space-y-4">
         {view.status === "PASSED" && <PassedCard score={passedSub?.score ?? null} />}
         {view.status === "PROCESSING" && <ProcessingCard />}
+        {view.status === "NOT_READY" && (
+          <StatusCard title="Cet exercice n'est pas encore prêt" text="Les critères de correction arrivent bientôt. Reviens un peu plus tard." />
+        )}
         {view.status === "PENDING_HUMAN" && (
           <StatusCard title="Un coach examine ta réalisation" text="Tu recevras sa réponse sur Discord. Tu n'as rien d'autre à faire pour l'instant." />
         )}
@@ -166,18 +173,31 @@ function ResultCard({ sub, threshold }: { sub: Sub; threshold: number }) {
         <p className={`text-2xl font-bold ${passed ? "text-success" : "text-danger"}`}>{sub.score !== null ? fmt(sub.score) : "–"}/10</p>
       </div>
       {!passed && <p className="mt-1 text-sm text-muted">Il te faut {fmt(threshold)}/10. Corrige les points ci-dessous et renvoie une nouvelle réalisation.</p>}
-      <ul className="mt-4 space-y-3">
+      <ul className="mt-4 space-y-4">
         {sub.criteria.map((c, i) => (
           <li key={i} className="flex gap-3 text-sm">
-            <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${c.pointsLost > 0 ? "bg-danger text-white" : "bg-success text-black"}`}>
-              {c.pointsLost > 0 ? <X size={12} strokeWidth={3} /> : <Check size={12} strokeWidth={3} />}
+            <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${c.misses > 0 ? "bg-danger text-white" : "bg-success text-black"}`}>
+              {c.misses > 0 ? <X size={12} strokeWidth={3} /> : <Check size={12} strokeWidth={3} />}
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex justify-between gap-2 font-medium">
-                {c.name}
+                <span className="whitespace-pre-line">{c.instruction}</span>
                 {c.pointsLost > 0 && <span className="shrink-0 text-danger">−{fmt(c.pointsLost)}</span>}
               </span>
-              <span className="block text-muted">{c.comment}</span>
+              <span className="mt-0.5 block text-xs text-muted">
+                {c.misses === 0 ? "Respecté" : `${c.misses} erreur${c.misses > 1 ? "s" : ""} × ${fmt(c.pointsPerMiss)} point${c.pointsPerMiss > 1 ? "s" : ""}`}
+              </span>
+              {c.evidence.length > 0 && (
+                <ul className="mt-1.5 space-y-1">
+                  {c.evidence.map((e, j) => (
+                    <li key={j} className="text-muted">
+                      {e.time !== null && <span className="mr-1.5 rounded bg-card-2 px-1.5 py-0.5 text-xs font-medium text-text">{formatTime(e.time)}</span>}
+                      {e.detail}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {c.comment && <span className="mt-1.5 block text-text/90">{c.comment}</span>}
             </span>
           </li>
         ))}

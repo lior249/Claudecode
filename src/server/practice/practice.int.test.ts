@@ -6,11 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/server/db";
 import { getLearnerProgression } from "@/server/learn/service";
 import { exists, filePath } from "@/server/storage/storage";
-import { setAIProviderForTests } from "@/server/ai";
-import { AIError } from "@/server/ai/types";
+import { setAIForTests } from "@/server/ai";
+import { AIError, type GradeInput } from "@/server/ai/types";
 import { pruneOldSubmissionFiles } from "@/server/retention/service";
 import { resetDb, seedCourse } from "../../../tests/db";
-import { getPracticeView, PracticeError, processSubmission, registerUpload, requestHumanReview, retrySubmission, submitPractice } from "./service";
+import { getPracticeView, PracticeError, processSubmission, registerReferenceUpload, registerUpload, requestHumanReview, retrySubmission, submitPractice } from "./service";
 
 const fx = (f: string) => path.resolve(import.meta.dirname, "../../../tests/fixtures", f);
 const upload = (userId: string, lessonId: string, file: string, name = file) =>
@@ -22,14 +22,36 @@ async function course(config: object, extra = 1) {
   return c;
 }
 
+const crit = (id: string, instruction: string, pointsPerMiss: number) => ({ id, instruction, pointsPerMiss });
 const CUTS = {
   accept: ["video"],
-  checks: [{ type: "noAudio" }, { type: "cuts", expected: [3, 5, 8, 13], tolerance: 0.5, penaltyPerMiss: 2 }],
+  agentInstructions: "Exercice des cuts : 4 cuts attendus à 3 s, 5 s, 8 s et 13 s, tolérance ± 0,5 s. La vidéo ne doit pas avoir de son.",
+  criteria: [crit("cuts", "Chaque cut est placé au bon moment (± 0,5 s).", 2), crit("son", "La vidéo n'a aucune piste audio.", 10)],
+};
+
+// Correcteur de test qui applique la consigne des cuts à partir des mesures exactes (comme le ferait l'agent).
+const cutsGrader = {
+  grade: async (input: GradeInput) => {
+    const expected = [3, 5, 8, 13];
+    const cuts = input.report.media!.cuts;
+    const missed = expected.filter((t) => !cuts.some((c) => Math.abs(c - t) <= 0.5));
+    return {
+      criteria: [
+        { criterionId: "cuts", misses: missed.length, evidence: missed.map((t) => ({ time: t, detail: "cut absent" })), comment: "" },
+        { criterionId: "son", misses: input.report.media!.hasAudio ? 1 : 0, evidence: [], comment: "" },
+      ],
+      feedback: "ok",
+      model: "test-grader",
+    };
+  },
 };
 
 describe("Pratique : envoi, analyse, note", () => {
-  beforeEach(resetDb);
-  afterEach(() => setAIProviderForTests(null));
+  beforeEach(async () => {
+    await resetDb();
+    setAIForTests({ grader: cutsGrader });
+  });
+  afterEach(() => setAIForTests({}));
 
   it("exercice Cuts réussi : 10/10, leçon validée, suite débloquée", async () => {
     const { lessons, learner } = await course(CUTS);
@@ -52,8 +74,12 @@ describe("Pratique : envoi, analyse, note", () => {
     await processSubmission(sub.id);
     const done = await prisma.submission.findUniqueOrThrow({ where: { id: sub.id } });
     expect(done).toMatchObject({ status: "FAILED", score: 0 });
-    const criteria = done.criteria as { name: string; pointsLost: number; comment: string }[];
-    expect(criteria.find((c) => c.name === "Cuts au bon moment")).toMatchObject({ pointsLost: 4 });
+    const criteria = done.criteria as { criterionId: string; misses: number; pointsLost: number }[];
+    expect(criteria.find((c) => c.criterionId === "cuts")).toMatchObject({ misses: 2, pointsLost: 4 });
+    expect(criteria.find((c) => c.criterionId === "son")).toMatchObject({ misses: 1, pointsLost: 10 });
+    const analysis = done.analysis as { media: { cuts: number[]; hasAudio: boolean }; ai: { model: string } };
+    expect(analysis.media.cuts).toEqual([3, 6.5, 8, 14]);
+    expect(analysis.ai.model).toBe("mock-analyst");
 
     const again = await upload(learner.id, lessons[0].id, "cuts-ko.mp4", "copie.mp4");
     await expect(submitPractice(learner.id, lessons[0].id, { assetIds: [again.id], text: null })).rejects.toThrow("identique");
@@ -63,12 +89,35 @@ describe("Pratique : envoi, analyse, note", () => {
     expect(view.submissions).toHaveLength(1);
   });
 
-  it("voix off : 2 silences trop longs = 8/10, encore validé", async () => {
-    const { lessons, learner } = await course({ accept: ["audio"], checks: [{ type: "silences", minSilence: 0.5, penaltyPerSilence: 1 }] });
+  it("voix off : les silences exacts sont transmis au correcteur, 2 silences × −1 = 8/10", async () => {
+    setAIForTests({
+      grader: {
+        grade: async (input: GradeInput) => ({
+          criteria: [{ criterionId: "silences", misses: input.report.media!.silences.filter((x) => x.duration >= 0.5).length, evidence: [], comment: "" }],
+          feedback: "",
+          model: "test",
+        }),
+      },
+    });
+    const { lessons, learner } = await course({ accept: ["audio"], agentInstructions: "Couper les silences.", criteria: [crit("silences", "Aucun silence de 0,5 s ou plus.", 1)] });
     const asset = await upload(learner.id, lessons[0].id, "voix-ko.mp3");
     const sub = await submitPractice(learner.id, lessons[0].id, { assetIds: [asset.id], text: null });
     await processSubmission(sub.id);
     expect(await prisma.submission.findUniqueOrThrow({ where: { id: sub.id } })).toMatchObject({ status: "PASSED", score: 8 });
+  });
+
+  it("exercice pas prêt (pas de consigne ou pas de critère) : envoi refusé", async () => {
+    const { lessons, learner } = await course({ accept: ["text"], criteria: [] });
+    expect((await getPracticeView(learner.id, lessons[0].id)).status).toBe("NOT_READY");
+    await expect(submitPractice(learner.id, lessons[0].id, { assetIds: [], text: "x" })).rejects.toThrow("pas encore prêt");
+  });
+
+  it("critères visibles par l'élève, consigne et référence cachées", async () => {
+    const { lessons, learner } = await course({ ...CUTS, referenceText: "SCRIPT SECRET" });
+    const view = await getPracticeView(learner.id, lessons[0].id);
+    expect(view.criteria).toEqual([{ instruction: "Chaque cut est placé au bon moment (± 0,5 s).", pointsPerMiss: 2 }, { instruction: "La vidéo n'a aucune piste audio.", pointsPerMiss: 10 }]);
+    expect(JSON.stringify(view)).not.toContain("SCRIPT SECRET");
+    expect(JSON.stringify(view)).not.toContain("4 cuts attendus");
   });
 
   it("refuse les mauvais formats, les faux fichiers et les leçons verrouillées", async () => {
@@ -88,20 +137,62 @@ describe("Pratique : envoi, analyse, note", () => {
     await expect(submitPractice(intruder.id, a.lessons[0].id, { assetIds: [asset.id], text: null })).rejects.toThrow(PracticeError);
   });
 
-  it("transcription (texte) : 96 % de ressemblance minimum", async () => {
+  it("transcription : le pourcentage exact de ressemblance est calculé par le serveur et donné au correcteur", async () => {
     const reference = "Il est impossible pour un pilote de survivre à un barrel roll sans entraînement.";
-    const { lessons, learner } = await course({ accept: ["text"], checks: [{ type: "textSimilarity", reference, min: 0.96 }] });
+    let seen: GradeInput | null = null;
+    setAIForTests({
+      grader: {
+        grade: async (input: GradeInput) => {
+          seen = input;
+          return { criteria: [{ criterionId: "t", misses: input.report.text!.reference!.similarityPercent >= 96 ? 0 : 1, evidence: [], comment: "" }], feedback: "", model: "test" };
+        },
+      },
+    });
+    const { lessons, learner } = await course({ accept: ["text"], agentInstructions: "Transcrire.", referenceText: reference, criteria: [crit("t", "Le texte correspond au script à 96 % minimum.", 10)] });
     const ko = await submitPractice(learner.id, lessons[0].id, { assetIds: [], text: "Un pilote ne survit pas." });
     await processSubmission(ko.id);
     expect((await prisma.submission.findUniqueOrThrow({ where: { id: ko.id } })).status).toBe("FAILED");
+    expect(seen!.report.ai).toBeNull(); // pas d'analyste pour un texte
     const ok = await submitPractice(learner.id, lessons[0].id, { assetIds: [], text: reference.toUpperCase() });
     await processSubmission(ok.id);
     expect((await prisma.submission.findUniqueOrThrow({ where: { id: ok.id } })).status).toBe("PASSED");
+    expect(seen!.report.text!.reference!.similarityPercent).toBe(100);
+  });
+
+  it("fichier de référence de l'Admin transmis à l'analyste, jamais supprimé comme orphelin", async () => {
+    const { lessons, learner } = await course(CUTS);
+    const admin = await prisma.user.create({ data: { displayName: "Admin", role: "ADMIN" } });
+    const ref = await registerReferenceUpload({ adminId: admin.id, lessonId: lessons[0].id, originalName: "exemple.mp4", body: createReadStream(fx("cuts-ok.mp4")) });
+    await prisma.lesson.update({ where: { id: lessons[0].id }, data: { config: { ...CUTS, referenceAssetId: ref.id } } });
+    let referenceName: string | null = null;
+    setAIForTests({
+      grader: cutsGrader,
+      analyst: {
+        analyze: async (input) => {
+          referenceName = input.reference?.originalName ?? null;
+          return { summary: "", transcript: [], shots: [], soundEvents: [], onScreenText: [], comparisonWithReference: "", model: "t" };
+        },
+      },
+    });
+    const asset = await upload(learner.id, lessons[0].id, "cuts-ok.mp4", "moi.mp4");
+    const sub = await submitPractice(learner.id, lessons[0].id, { assetIds: [asset.id], text: null });
+    await processSubmission(sub.id);
+    expect(referenceName).toBe("exemple.mp4");
+    const { cleanupOrphanAssets } = await import("@/server/retention/service");
+    await cleanupOrphanAssets(0);
+    expect((await prisma.asset.findUniqueOrThrow({ where: { id: ref.id } })).deletedAt).toBeNull();
+  });
+
+  it("l'élève ne peut pas soumettre le fichier de référence", async () => {
+    const { lessons, learner } = await course(CUTS);
+    const admin = await prisma.user.create({ data: { displayName: "Admin", role: "ADMIN" } });
+    const ref = await registerReferenceUpload({ adminId: admin.id, lessonId: lessons[0].id, originalName: "exemple.mp4", body: createReadStream(fx("cuts-ok.mp4")) });
+    await expect(submitPractice(learner.id, lessons[0].id, { assetIds: [ref.id], text: null })).rejects.toThrow(PracticeError);
   });
 
   it("panne de l'IA : relance possible, puis « faire appel à un humain » après 3 échecs", async () => {
-    setAIProviderForTests({ evaluate: async () => { throw new AIError("timeout"); } });
-    const { lessons, learner } = await course({ accept: ["text"], rubric: "Le CTA est naturel (3 points)." });
+    setAIForTests({ grader: { grade: async () => { throw new AIError("timeout"); } } });
+    const { lessons, learner } = await course({ accept: ["text"], agentInstructions: "CTA naturel.", criteria: [crit("cta", "Le CTA est naturel.", 3)] });
     const sub = await submitPractice(learner.id, lessons[0].id, { assetIds: [], text: "Mon script avec un CTA." });
     await processSubmission(sub.id);
     await expect(requestHumanReview(learner.id, sub.id)).rejects.toThrow("après 3 essais");
@@ -116,14 +207,42 @@ describe("Pratique : envoi, analyse, note", () => {
     expect((await getPracticeView(learner.id, lessons[0].id)).status).toBe("PENDING_HUMAN");
   });
 
-  it("l'IA ne décide pas : la note est recalculée par le serveur (8/10 requis)", async () => {
-    setAIProviderForTests({
-      evaluate: async () => ({ criteria: [{ name: "Nuance", maxPoints: 3, pointsLost: 2.5, comment: "" }], feedback: "ok", model: "fake", raw: {} }),
+  it("l'IA ne décide pas : points = erreurs × points du critère, note et statut calculés par le serveur", async () => {
+    setAIForTests({
+      grader: {
+        grade: async () => ({
+          criteria: [
+            { criterionId: "a", misses: 1, evidence: [], comment: "" },
+            { criterionId: "b", misses: 2.9, evidence: [], comment: "" }, // demi-erreur arrondie à l'entier inférieur
+          ],
+          feedback: "ok",
+          model: "fake",
+        }),
+      },
     });
-    const { lessons, learner } = await course({ accept: ["text"], rubric: "Nuance (3 points)." });
+    const { lessons, learner } = await course({ accept: ["text"], agentInstructions: "x", criteria: [crit("a", "A", 1.5), crit("b", "B", 0.5)] });
     const sub = await submitPractice(learner.id, lessons[0].id, { assetIds: [], text: "Texte" });
     await processSubmission(sub.id);
     expect(await prisma.submission.findUniqueOrThrow({ where: { id: sub.id } })).toMatchObject({ score: 7.5, status: "FAILED" });
+  });
+
+  it("un critère oublié par le correcteur = panne (relançable), jamais un 10/10 par défaut", async () => {
+    setAIForTests({ grader: { grade: async () => ({ criteria: [], feedback: "", model: "fake" }) } });
+    const { lessons, learner } = await course({ accept: ["text"], agentInstructions: "x", criteria: [crit("a", "A", 2)] });
+    const sub = await submitPractice(learner.id, lessons[0].id, { assetIds: [], text: "Texte" });
+    await processSubmission(sub.id);
+    expect((await prisma.submission.findUniqueOrThrow({ where: { id: sub.id } })).status).toBe("ERROR");
+  });
+
+  it("les critères au moment de l'envoi sont conservés si l'Admin les change ensuite", async () => {
+    const { lessons, learner } = await course({ accept: ["text"], agentInstructions: "x", criteria: [crit("a", "Ancien critère", 2)] });
+    setAIForTests({ grader: { grade: async () => ({ criteria: [{ criterionId: "a", misses: 1, evidence: [], comment: "" }], feedback: "", model: "f" }) } });
+    const sub = await submitPractice(learner.id, lessons[0].id, { assetIds: [], text: "Texte" });
+    await prisma.lesson.update({ where: { id: lessons[0].id }, data: { config: { accept: ["text"], agentInstructions: "x", criteria: [crit("a", "Nouveau", 5)] } } });
+    await processSubmission(sub.id);
+    const done = await prisma.submission.findUniqueOrThrow({ where: { id: sub.id } });
+    expect(done.score).toBe(8);
+    expect((done.criteria as { instruction: string }[])[0].instruction).toBe("Ancien critère");
   });
 
   it("ne garde que les fichiers des 5 dernières tentatives", async () => {

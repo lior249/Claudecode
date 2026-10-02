@@ -1,69 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { evaluateCheck } from "./checks";
-import { parsePracticeConfig } from "./config";
-import { computeScore } from "./scoring";
+import { measureText, shotsFromCuts } from "./analysis";
+import { isPracticeReady, parsePracticeConfig } from "./config";
+import { computeScore, pointsLost } from "./scoring";
 import { firstSentence, textSimilarity } from "./text";
 
-const cutsCheck = parsePracticeConfig({ checks: [{ type: "cuts", expected: [3, 5, 8, 13] }] }).checks[0];
-const silencesCheck = parsePracticeConfig({ checks: [{ type: "silences" }] }).checks[0];
-
-describe("note sur 10", () => {
-  it("8/10 = réussite, 7,9/10 = échec", () => {
-    const c = (lost: number) => [{ name: "x", maxPoints: 10, pointsLost: lost, comment: "", source: "AI" as const }];
-    expect(computeScore(c(2), 8)).toEqual({ score: 8, passed: true });
-    expect(computeScore(c(2.1), 8)).toEqual({ score: 7.9, passed: false });
-    expect(computeScore(c(15), 8)).toEqual({ score: 0, passed: false });
+describe("note sur 10 (calculée par le serveur)", () => {
+  it("points retirés = nombre d'erreurs × points par erreur, sans plafond", () => {
+    expect(pointsLost(3, 2)).toBe(6);
+    expect(pointsLost(6, 2)).toBe(12);
+    expect(pointsLost(-1, 2)).toBe(0);
+    expect(pointsLost(1.7, 2)).toBe(2); // l'agent ne peut pas renvoyer de demi-erreur
   });
-  it("une IA qui retire plus que le maximum d'un critère est plafonnée", () => {
-    expect(computeScore([{ name: "x", maxPoints: 1, pointsLost: 9, comment: "", source: "AI" }], 8).score).toBe(9);
-  });
-});
-
-describe("exercice Cuts (3 s, 5 s, 8 s, 13 s ± 0,5 s, −2 par cut raté)", () => {
-  it("4 cuts justes : 0 point perdu", () => {
-    expect(evaluateCheck(cutsCheck, { cuts: [3.1, 4.6, 8.4, 13] }, null).pointsLost).toBe(0);
-  });
-  it("1 cut raté = 8/10 (validé), 2 ratés = 6/10", () => {
-    const one = evaluateCheck(cutsCheck, { cuts: [3, 5, 8, 14] }, null);
-    expect(one.pointsLost).toBe(2);
-    expect(one.comment).toContain("13 s");
-    expect(evaluateCheck(cutsCheck, { cuts: [3, 6, 8, 14] }, null).pointsLost).toBe(4);
-  });
-  it("0,5 s pile reste dans la tolérance", () => {
-    expect(evaluateCheck(cutsCheck, { cuts: [2.5, 5.5, 8, 13] }, null).pointsLost).toBe(0);
-  });
-  it("vidéo avec du son : pénalité", () => {
-    const noAudio = parsePracticeConfig({ checks: [{ type: "noAudio" }] }).checks[0];
-    expect(evaluateCheck(noAudio, { hasAudio: true }, null).pointsLost).toBe(10);
-    expect(evaluateCheck(noAudio, { hasAudio: false }, null).pointsLost).toBe(0);
+  it("8/10 = réussite, 7,5/10 = échec, jamais sous 0", () => {
+    expect(computeScore([{ pointsLost: 2 }], 8)).toEqual({ score: 8, passed: true });
+    expect(computeScore([{ pointsLost: 1 }, { pointsLost: 1.5 }], 8)).toEqual({ score: 7.5, passed: false });
+    expect(computeScore([{ pointsLost: 12 }], 8)).toEqual({ score: 0, passed: false });
   });
 });
 
-describe("exercice Voix off (−1 par silence de 0,5 s ou plus)", () => {
-  it("0,49 s toléré, 0,5 s compté", () => {
-    const r = evaluateCheck(silencesCheck, { silences: [{ start: 1, end: 1.49, duration: 0.49 }, { start: 4, end: 4.5, duration: 0.5 }, { start: 9, end: 10.2, duration: 1.2 }] }, null);
-    expect(r.pointsLost).toBe(2);
+describe("configuration d'un exercice", () => {
+  it("prêt seulement avec une consigne pour l'agent et au moins un critère", () => {
+    expect(isPracticeReady(parsePracticeConfig({}))).toBe(false);
+    expect(isPracticeReady(parsePracticeConfig({ agentInstructions: "x" }))).toBe(false);
+    expect(isPracticeReady(parsePracticeConfig({ agentInstructions: "x", criteria: [{ id: "a", instruction: "y", pointsPerMiss: 2 }] }))).toBe(true);
+  });
+  it("4 critères maximum ; une ancienne configuration devient « pas prêt »", () => {
+    const c = { id: "a", instruction: "y", pointsPerMiss: 1 };
+    expect(isPracticeReady(parsePracticeConfig({ agentInstructions: "x", criteria: [c, c, c, c, c] }))).toBe(false);
+    expect(parsePracticeConfig({ rubric: "ancien format", checks: [{ type: "cuts" }] }).criteria).toEqual([]);
   });
 });
 
-describe("textes", () => {
-  it("ressemblance insensible à la casse, aux accents et à la ponctuation", () => {
+describe("mesures exactes", () => {
+  it("plans calculés à partir des cuts", () => {
+    expect(shotsFromCuts([3, 5], 9)).toEqual([
+      { start: 0, end: 3, duration: 3 },
+      { start: 3, end: 5, duration: 2 },
+      { start: 5, end: 9, duration: 4 },
+    ]);
+  });
+  it("ressemblance de texte et première phrase (transcription, hook)", () => {
     expect(textSimilarity("Il est IMPOSSIBLE, pour un pilote !", "il est impossible pour un pilote")).toBe(1);
-    expect(textSimilarity("un deux trois quatre", "un deux trois cinq")).toBe(0.75);
-  });
-  it("transcription : 96 % minimum", () => {
-    const ref = Array.from({ length: 50 }, (_, i) => `mot${i}`).join(" ");
-    const check = parsePracticeConfig({ checks: [{ type: "textSimilarity", reference: ref }] }).checks[0];
-    const twoErrors = ref.replace("mot1 ", "x ").replace("mot2 ", "y ");
-    const threeErrors = twoErrors.replace("mot3 ", "z ");
-    expect(evaluateCheck(check, {}, twoErrors).pointsLost).toBe(0); // 96 %
-    expect(evaluateCheck(check, {}, threeErrors).pointsLost).toBe(10); // 94 %
-  });
-  it("hook intact et script réduit", () => {
-    const hook = "Il est impossible pour un pilote de survivre à un barrel roll.";
-    expect(firstSentence(`${hook} Et pourtant.`)).toBe(hook);
-    const hookCheck = parsePracticeConfig({ checks: [{ type: "hookUnchanged", hook }] }).checks[0];
-    expect(evaluateCheck(hookCheck, {}, `${hook} Court.`).pointsLost).toBe(0);
-    expect(evaluateCheck(hookCheck, {}, `Un pilote ne survit pas. Court.`).pointsLost).toBe(5);
+    const ref = "Il est impossible pour un pilote de survivre. Pourtant certains y arrivent tous les jours.";
+    const m = measureText("Il est impossible pour un pilote de survivre. Certains y arrivent.", ref);
+    expect(m.reference).toMatchObject({ firstSentenceIdentical: true, wordCount: 15 });
+    expect(m.reference!.similarityPercent).toBeLessThan(96);
+    expect(firstSentence("Phrase un. Phrase deux.")).toBe("Phrase un.");
+    expect(measureText("abc", "")).toEqual({ wordCount: 1 });
   });
 });

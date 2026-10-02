@@ -21,7 +21,11 @@ const schema = z.object({
   // IA : "gemini" en production, "mock" (IA simulée) en développement.
   AI_PROVIDER: z.enum(["gemini", "mock"]).default("mock"),
   GEMINI_API_KEY: optional,
-  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  // Analyste (regarde la vidéo) et correcteur (compte les erreurs) : les modèles les plus précis.
+  GEMINI_ANALYST_MODEL: z.string().default("gemini-2.5-pro"),
+  GEMINI_GRADER_MODEL: z.string().default("gemini-2.5-pro"),
+  // Images analysées par seconde de vidéo (plus = plus précis sur les timings, mais plus cher).
+  GEMINI_VIDEO_FPS: z.coerce.number().min(0.1).max(24).default(2),
   // Pour les tests uniquement : faux serveur Discord.
   DISCORD_API_BASE: z.string().url().default("https://discord.com"),
 });

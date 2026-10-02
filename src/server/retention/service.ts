@@ -31,7 +31,7 @@ export async function pruneOldSubmissionFiles(userId: string, lessonId: string) 
 // Fichiers envoyés mais jamais soumis (élève parti en cours de route).
 export async function cleanupOrphanAssets(olderThanMs = 24 * 60 * 60 * 1000) {
   const orphans = await prisma.asset.findMany({
-    where: { submissionId: null, deletedAt: null, createdAt: { lt: new Date(Date.now() - olderThanMs) } },
+    where: { submissionId: null, deletedAt: null, isReference: false, createdAt: { lt: new Date(Date.now() - olderThanMs) } },
     select: { id: true, storageKey: true },
   });
   await deleteAssetFiles(orphans, "orphan");

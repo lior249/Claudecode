@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { prisma } from "@/server/db";
 import { LESSON_TYPES, TypeBadge } from "@/components/learn/badges";
 import { QUIZ_QUESTION_COUNT } from "@/server/quizzes/rules";
+import { isPracticeReady, parsePracticeConfig } from "@/server/practice/config";
 
 export default async function AdminHome() {
   const levels = await prisma.level.findMany({
@@ -19,7 +20,7 @@ export default async function AdminHome() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold">Parcours</h1>
-        <p className="mt-1 text-sm text-muted">L&apos;éditeur complet (modules, leçons, ordre) arrive au bloc 6. Ici : la saisie des QCM.</p>
+        <p className="mt-1 text-sm text-muted">L&apos;éditeur complet (modules, leçons, ordre) arrive au bloc 6. Ici : les QCM et la correction des exercices.</p>
       </div>
       {levels.map((level) => (
         <section key={level.id}>
@@ -34,7 +35,10 @@ export default async function AdminHome() {
                 <ul className="mt-2 divide-y divide-line">
                   {mod.lessons.map((lesson) => {
                     const isQuiz = lesson.type === "UNDERSTANDING";
+                    const isPractice = lesson.type === "PRACTICE_AI";
                     const count = lesson._count.quizQuestions;
+                    const practice = isPractice ? parsePracticeConfig(lesson.config) : null;
+                    const href = isQuiz ? `/admin/quiz/${lesson.id}` : isPractice ? `/admin/practice/${lesson.id}` : null;
                     const row = (
                       <>
                         <TypeBadge type={lesson.type} size={30} />
@@ -48,14 +52,20 @@ export default async function AdminHome() {
                                 · {count}/{QUIZ_QUESTION_COUNT} questions
                               </span>
                             )}
+                            {practice && (
+                              <span className={isPracticeReady(practice) ? "text-success" : "text-gold"}>
+                                {" "}
+                                · {isPracticeReady(practice) ? `${practice.criteria.length} critère${practice.criteria.length > 1 ? "s" : ""}` : "à configurer"}
+                              </span>
+                            )}
                           </span>
                         </span>
                       </>
                     );
                     return (
                       <li key={lesson.id}>
-                        {isQuiz ? (
-                          <Link href={`/admin/quiz/${lesson.id}`} className="flex items-center gap-3 py-3">
+                        {href ? (
+                          <Link href={href} className="flex items-center gap-3 py-3">
                             {row}
                             <ChevronRight size={16} className="text-muted" />
                           </Link>

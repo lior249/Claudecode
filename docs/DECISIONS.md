@@ -73,7 +73,7 @@ Un seul module, une seule leçon :
 |---|---|---|
 | **Compréhension** | U | QCM de 20 questions saisies à la main, 16/20 minimum |
 | **Décision** | D | Choix d'une fiche dans un catalogue (niches, pays, méthodes…) |
-| **Pratique IA** | P | Corrigée par l'IA à partir d'un **barème en texte libre** écrit par l'Admin, et des fichiers de référence de l'exercice (audio, script, vidéo d'exemple) |
+| **Pratique IA** | P | Corrigée par l'IA : consigne pour l'agent + 1 à 4 critères (consigne + points retirés à chaque erreur) + références |
 | **Pratique humaine** | P | Validée par le coach. Prévue, mais pas prioritaire |
 | **Validation par code** | — | Phrase et code secret (niveau 3) |
 
@@ -87,18 +87,27 @@ Un seul module, une seule leçon :
 
 ## Correction automatique (Pratique IA)
 
-- Les mesures précises sont faites **par le serveur**, pas par l'IA :
-  - positions des cuts (détection des changements de scène) ;
-  - présence ou absence d'audio ;
-  - durée de chaque silence ;
-  - durée totale ;
-  - pourcentage de ressemblance d'un texte avec le script de référence.
-- Ces mesures, le barème en texte libre et les fichiers sont transmis à **Gemini**. Il rend un retour **critère par critère** avec les points perdus.
-  Seuls les critères qui demandent du jugement passent par Gemini : la nuance, le CTA naturel, le rythme des illustrations, les effets sonores.
-- La note et le statut validé ou refusé sont calculés par le serveur. **8/10 minimum.**
+**Configuration par l'Admin, exercice par exercice. Rien n'est prédéfini.**
+- **Consigne pour l'agent** : grand texte libre (exercice, script, timings, tolérances, exemples). Jamais montrée à l'élève.
+- **Critères de notation : 1 à 4**, chacun avec deux champs séparés :
+  - la **consigne du critère** (ce que l'agent vérifie), visible par l'élève avant l'envoi ;
+  - les **points retirés à chaque fois** que le critère n'est pas respecté. **Pas de plafond** : la note ne descend jamais sous 0.
+- **Éléments de référence** (jamais montrés à l'élève) :
+  - un **texte de référence**, comparé exactement par le serveur (pourcentage de ressemblance, première phrase identique ou non) ;
+  - un **fichier d'exemple** (vidéo ou audio), comparé par l'analyste.
+- Un exercice sans consigne pour l'agent ou sans critère n'est pas encore ouvert aux élèves.
+
+**Correction en deux temps, par deux IA :**
+1. **Mesures exactes** (serveur, ffmpeg) : instants des cuts, plans, silences (dès 0,25 s), son présent ou non, durée.
+2. **Analyste** (Gemini, multimodal) : décrit objectivement la vidéo ou l'audio. Il produit la transcription horodatée, les plans, les textes à l'écran, les effets sonores et la comparaison avec la référence. Il ne juge pas.
+3. **Correcteur** (agent) : lit la consigne, les critères et le rapport. Il **compte les erreurs** par critère, avec les instants précis et un commentaire.
+4. **Serveur** : points retirés = erreurs × points du critère ; note = 10 − total ; **8/10 minimum**.
+
+- L'IA ne calcule jamais la note. Un critère oublié par le correcteur compte comme une panne (relançable), jamais comme un 10/10.
+- Les critères sont figés au moment de l'envoi : une modification par l'Admin ne change pas une correction en cours ou passée.
+- Fournisseur d'IA interchangeable par réglage. Modèles (`GEMINI_ANALYST_MODEL`, `GEMINI_GRADER_MODEL`) et précision (`GEMINI_VIDEO_FPS`, images par seconde) configurables. Budget IA *(à confirmer)*.
 - Si l'IA tombe en panne : « Ta demande n'a pas pu être traitée ». **Après 3 échecs techniques**, un bouton **« Faire appel à un humain »** apparaît.
-  La soumission part alors chez le coach.
-- Formats : vidéos exportées de **CapCut** en MP4, audios en MP3 ou M4A.
+- Formats : vidéos exportées de CapCut en MP4, audios en MP3 ou M4A.
 
 ## Délais : remarques sans pénalité
 
@@ -171,4 +180,4 @@ Un seul module, une seule leçon :
 
 - Le porteur de projet n'a jamais codé. Il reçoit des résumés non techniques, des captures et des démos **bloc par bloc**.
 - Objectif : une première version utilisable en **2 à 3 jours**.
-- Les contenus réels (QCM, barèmes, fiches) ne sont pas encore prêts : le parcours est créé avec des **contenus provisoires**.
+- Les contenus réels (QCM, critères, fiches) ne sont pas encore prêts : le parcours est créé avec des **contenus provisoires**. Les exercices de pratique n'ont aucun critère prédéfini.

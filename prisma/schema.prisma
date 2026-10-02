@@ -262,6 +262,8 @@ model Asset {
   width           Int?
   height          Int?
   hasAudio        Boolean?
+  // Fichier de référence d'un exercice (envoyé par l'Admin), jamais supprimé par le ménage.
+  isReference     Boolean     @default(false)
   createdAt       DateTime    @default(now())
   deletedAt       DateTime?
 
@@ -281,10 +283,12 @@ model Submission {
   textSha256        String?
   score             Float?
   threshold         Float
-  criteria          Json? // [{ name, maxPoints, pointsLost, comment, source: "MEASURE" | "AI" }]
+  criteria          Json? // CriterionResult[] : erreurs comptées par critère, points retirés calculés par le serveur
+  // Critères tels qu'ils étaient au moment de l'envoi (l'Admin peut les modifier ensuite).
+  criteriaSnapshot  Json?
+  analysis          Json? // rapport d'analyse complet (mesures + description de l'analyste)
   feedback          String?
-  measurements      Json?
-  aiModel           String?
+  aiModel           String? // modèles utilisés (analyste / correcteur)
   technicalFailures Int              @default(0)
   lastError         String? // détail technique (jamais montré à l'élève)
   createdAt         DateTime         @default(now())
