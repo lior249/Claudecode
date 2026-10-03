@@ -5,6 +5,7 @@ import { prisma } from "@/server/db";
 import type { Catalog } from "@/generated/prisma/enums";
 import { CATALOGS, parseKeys, parseLinks } from "@/server/decisions/catalog";
 import { fileUrl } from "@/server/decisions/service";
+import { listCriteria } from "@/server/decisions/criteria";
 import { CatalogItemEditor } from "@/components/admin/catalog-item-editor";
 
 export default async function AdminCatalogItem({ params, searchParams }: PageProps<"/admin/catalogs/[id]">) {
@@ -13,9 +14,9 @@ export default async function AdminCatalogItem({ params, searchParams }: PagePro
   let initial;
   if (id === "new") {
     const catalog: Catalog = typeof c === "string" && c in CATALOGS ? (c as Catalog) : "NICHE";
-    initial = { id: null, catalog, title: "", summary: "", body: "", competition: null, equipment: null, thumbnail: null, images: [], links: [], isPublished: true, chosenBy: 0 };
+    initial = { id: null, catalog, title: "", summary: "", body: "", optionIds: [] as string[], thumbnail: null, images: [], links: [], isPublished: true, chosenBy: 0 };
   } else {
-    const item = await prisma.catalogItem.findUnique({ where: { id }, include: { _count: { select: { choices: true } } } });
+    const item = await prisma.catalogItem.findUnique({ where: { id }, include: { _count: { select: { choices: true } }, options: { select: { optionId: true } } } });
     if (!item) notFound();
     initial = {
       id: item.id,
@@ -23,8 +24,7 @@ export default async function AdminCatalogItem({ params, searchParams }: PagePro
       title: item.title,
       summary: item.summary,
       body: item.body,
-      competition: item.competition,
-      equipment: item.equipment,
+      optionIds: item.options.map((o) => o.optionId),
       thumbnail: item.thumbnailKey ? { key: item.thumbnailKey, url: fileUrl(item.thumbnailKey) } : null,
       images: parseKeys(item.imageKeys).map((key) => ({ key, url: fileUrl(key) })),
       links: parseLinks(item.links),
@@ -38,7 +38,7 @@ export default async function AdminCatalogItem({ params, searchParams }: PagePro
         <ArrowLeft size={16} /> {CATALOGS[initial.catalog].plural}
       </Link>
       <h1 className="text-2xl font-semibold">{initial.id ? initial.title : CATALOGS[initial.catalog].add}</h1>
-      <CatalogItemEditor initial={initial} />
+      <CatalogItemEditor initial={initial} criteria={await listCriteria(initial.catalog)} />
     </div>
   );
 }

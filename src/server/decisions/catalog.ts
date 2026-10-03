@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Catalog, Competition, Equipment } from "@/generated/prisma/enums";
+import type { Catalog } from "@/generated/prisma/enums";
 
 // Libellés et règles des catalogues (purs, partagés serveur/navigateur).
 
@@ -16,8 +16,24 @@ export const CATALOGS: Record<Catalog, { label: string; plural: string; one: str
   },
 };
 
-export const COMPETITION_LABELS: Record<Competition, string> = { LOW: "Faible", MEDIUM: "Moyenne", HIGH: "Forte" };
-export const EQUIPMENT_LABELS: Record<Equipment, string> = { PC: "PC", PHONE: "Téléphone", BOTH: "PC et téléphone" };
+// Couleurs possibles d'une option de critère (pastille dans la liste et la fiche).
+export const OPTION_COLORS = ["gray", "green", "yellow", "red", "blue", "purple"] as const;
+export type OptionColor = (typeof OPTION_COLORS)[number];
+export const OPTION_COLOR_LABELS: Record<OptionColor, string> = { gray: "Gris", green: "Vert", yellow: "Jaune", red: "Rouge", blue: "Bleu", purple: "Violet" };
+export const asOptionColor = (c: string): OptionColor => ((OPTION_COLORS as readonly string[]).includes(c) ? (c as OptionColor) : "gray");
+
+/** Une pastille de fiche : l'option retenue pour un critère. */
+export interface CatalogTag {
+  criterion: string;
+  label: string;
+  color: OptionColor;
+}
+
+// Une seule option par critère : garde la première option de chaque critère.
+export function onePerCriterion<T extends { criterionId: string }>(options: T[]) {
+  const seen = new Set<string>();
+  return options.filter((o) => (seen.has(o.criterionId) ? false : (seen.add(o.criterionId), true)));
+}
 
 // Catalogue d'une leçon Décision, à partir de Lesson.config.catalog.
 export function catalogOfLesson(config: unknown): Catalog | null {

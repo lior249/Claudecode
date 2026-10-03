@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Check, ChevronRight, ExternalLink } from "lucide-react";
 import type { getDecisionView } from "@/server/decisions/service";
 import { CATALOGS } from "@/server/decisions/catalog";
-import { ChooseButton, CompetitionBadge, DecisionHeader, EquipmentBadge } from "./parts";
+import { ChooseButton, DecisionHeader, TagList } from "./parts";
 
 type View = Awaited<ReturnType<typeof getDecisionView>>;
 
@@ -58,8 +58,7 @@ export function DecisionList({ view, moduleTitle, whopUrl }: { view: View; modul
                   </span>
                   {item.summary && <span className="mt-0.5 line-clamp-2 block text-xs text-muted">{item.summary}</span>}
                   <span className="mt-2 flex flex-wrap gap-1.5">
-                    <CompetitionBadge value={item.competition} />
-                    <EquipmentBadge value={item.equipment} />
+                    <TagList tags={item.tags} />
                   </span>
                 </span>
                 <ChevronRight size={18} className="mt-1 shrink-0 text-muted" />

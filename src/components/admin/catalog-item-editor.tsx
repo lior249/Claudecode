@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { ImagePlus, Plus, Trash2, X } from "lucide-react";
-import type { Catalog, Competition, Equipment } from "@/generated/prisma/enums";
-import { CATALOGS, COMPETITION_LABELS, EQUIPMENT_LABELS } from "@/server/decisions/catalog";
+import type { Catalog } from "@/generated/prisma/enums";
+import { CATALOGS } from "@/server/decisions/catalog";
+import type { CriterionView } from "@/server/decisions/criteria";
 import { deleteCatalogItemAction, saveCatalogItemAction } from "@/app/actions/admin-catalog";
 
 interface Img {
@@ -17,8 +18,7 @@ interface Initial {
   title: string;
   summary: string;
   body: string;
-  competition: Competition | null;
-  equipment: Equipment | null;
+  optionIds: string[];
   thumbnail: Img | null;
   images: Img[];
   links: { label: string; url: string }[];
@@ -45,14 +45,16 @@ function uploadImage(file: File): Promise<Img> {
   });
 }
 
-export function CatalogItemEditor({ initial }: { initial: Initial }) {
+export function CatalogItemEditor({ initial, criteria }: { initial: Initial; criteria: CriterionView[] }) {
   const router = useRouter();
   const c = CATALOGS[initial.catalog];
   const [title, setTitle] = useState(initial.title);
   const [summary, setSummary] = useState(initial.summary);
   const [body, setBody] = useState(initial.body);
-  const [competition, setCompetition] = useState<Competition | null>(initial.competition);
-  const [equipment, setEquipment] = useState<Equipment | null>(initial.equipment);
+  // Option retenue pour chaque critère (id du critère → id de l'option).
+  const [picked, setPicked] = useState<Record<string, string | null>>(() =>
+    Object.fromEntries(criteria.map((c) => [c.id, c.options.find((o) => initial.optionIds.includes(o.id))?.id ?? null])),
+  );
   const [thumbnail, setThumbnail] = useState<Img | null>(initial.thumbnail);
   const [images, setImages] = useState<Img[]>(initial.images);
   const [links, setLinks] = useState(initial.links);
@@ -89,8 +91,7 @@ export function CatalogItemEditor({ initial }: { initial: Initial }) {
         title,
         summary,
         body,
-        competition,
-        equipment,
+        optionIds: Object.values(picked).filter((v): v is string => !!v),
         thumbnailKey: thumbnail?.key ?? null,
         imageKeys: images.map((i) => i.key),
         links: links.filter((l) => l.label.trim() || l.url.trim()),
@@ -121,18 +122,13 @@ export function CatalogItemEditor({ initial }: { initial: Initial }) {
           Résumé en une phrase
           <input value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={300} className={`${field} mt-1`} />
         </label>
-        <p className="mt-4 text-xs text-muted">Niveau de concurrence</p>
-        <Choices
-          options={(Object.keys(COMPETITION_LABELS) as Competition[]).map((k) => ({ value: k, label: COMPETITION_LABELS[k] }))}
-          value={competition}
-          onChange={setCompetition}
-        />
-        <p className="mt-4 text-xs text-muted">Matériel nécessaire pour se lancer</p>
-        <Choices
-          options={(Object.keys(EQUIPMENT_LABELS) as Equipment[]).map((k) => ({ value: k, label: EQUIPMENT_LABELS[k] }))}
-          value={equipment}
-          onChange={setEquipment}
-        />
+        {criteria.map((c) => (
+          <div key={c.id}>
+            <p className="mt-4 text-xs text-muted">{c.label}</p>
+            <Choices options={c.options.map((o) => ({ value: o.id, label: o.label }))} value={picked[c.id] ?? null} onChange={(v) => setPicked((p) => ({ ...p, [c.id]: v }))} />
+          </div>
+        ))}
+        {criteria.length === 0 && <p className="mt-4 text-xs text-muted">Aucun critère pour ce catalogue : ajoute-les depuis la page Catalogues.</p>}
         <p className="mt-4 text-xs text-muted">Miniature</p>
         <div className="mt-1 flex items-center gap-3">
           {thumbnail ? (

@@ -3,8 +3,10 @@ import { ChevronRight, EyeOff, Plus } from "lucide-react";
 import { prisma } from "@/server/db";
 import type { Catalog } from "@/generated/prisma/enums";
 import { CATALOGS } from "@/server/decisions/catalog";
-import { fileUrl } from "@/server/decisions/service";
-import { CompetitionBadge, EquipmentBadge } from "@/components/decision/parts";
+import { fileUrl, ITEM_TAGS, itemTags } from "@/server/decisions/service";
+import { listCriteria } from "@/server/decisions/criteria";
+import { CatalogCriteriaEditor } from "@/components/admin/catalog-criteria-editor";
+import { TagList } from "@/components/decision/parts";
 import { MascotState } from "@/components/mascot";
 
 export default async function AdminCatalogs({ searchParams }: PageProps<"/admin/catalogs">) {
@@ -13,8 +15,9 @@ export default async function AdminCatalogs({ searchParams }: PageProps<"/admin/
   const items = await prisma.catalogItem.findMany({
     where: { catalog },
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-    include: { _count: { select: { choices: true } } },
+    include: { _count: { select: { choices: true } }, ...ITEM_TAGS },
   });
+  const criteria = await listCriteria(catalog);
 
   return (
     <div className="space-y-5">
@@ -30,6 +33,7 @@ export default async function AdminCatalogs({ searchParams }: PageProps<"/admin/
           </Link>
         ))}
       </nav>
+      <CatalogCriteriaEditor catalog={catalog} criteria={criteria} />
       <Link href={`/admin/catalogs/new?c=${catalog}`} className="flex items-center justify-center gap-2 rounded-2xl bg-text py-4 font-semibold text-black">
         <Plus size={18} /> {CATALOGS[catalog].add}
       </Link>
@@ -53,8 +57,7 @@ export default async function AdminCatalogs({ searchParams }: PageProps<"/admin/
                 {!item.isPublished && <EyeOff size={14} className="shrink-0 text-muted" aria-label="Masquée" />}
               </span>
               <span className="mt-1.5 flex flex-wrap gap-1.5">
-                <CompetitionBadge value={item.competition} />
-                <EquipmentBadge value={item.equipment} />
+                <TagList tags={itemTags(item.options)} />
                 <span className="rounded-full bg-card-2 px-2.5 py-1 text-xs text-muted">
                   {item._count.choices} élève{item._count.choices > 1 ? "s" : ""}
                 </span>

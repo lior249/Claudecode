@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/server/db";
 import { assertCanStartLesson, completeLesson, LessonLockedError } from "@/server/learn/service";
 import type { Catalog } from "@/generated/prisma/enums";
-import { catalogOfLesson, parseKeys, parseLinks } from "./catalog";
+import { asOptionColor, catalogOfLesson, parseKeys, parseLinks, type CatalogTag } from "./catalog";
 
 export class DecisionError extends Error {}
 
@@ -14,13 +14,24 @@ async function loadDecisionLesson(lessonId: string) {
   return { lesson, catalog };
 }
 
+// À inclure dans les requêtes de fiches : les options retenues et leur critère.
+export const ITEM_TAGS = { options: { include: { option: { include: { criterion: true } } } } } as const;
+
+type TaggedOption = { option: { label: string; color: string; position: number; criterion: { label: string; position: number } } };
+
+// Pastilles d'une fiche, dans l'ordre des critères puis des options.
+export function itemTags(options: TaggedOption[]): CatalogTag[] {
+  return [...options]
+    .sort((a, b) => a.option.criterion.position - b.option.criterion.position || a.option.position - b.option.position)
+    .map(({ option: o }) => ({ criterion: o.criterion.label, label: o.label, color: asOptionColor(o.color) }));
+}
+
 export function toItemView(item: {
   id: string;
   title: string;
   summary: string;
   body: string;
-  competition: string | null;
-  equipment: string | null;
+  options: TaggedOption[];
   thumbnailKey: string | null;
   imageKeys: unknown;
   links: unknown;
@@ -30,8 +41,7 @@ export function toItemView(item: {
     title: item.title,
     summary: item.summary,
     body: item.body,
-    competition: item.competition as "LOW" | "MEDIUM" | "HIGH" | null,
-    equipment: item.equipment as "PC" | "PHONE" | "BOTH" | null,
+    tags: itemTags(item.options),
     thumbnailUrl: item.thumbnailKey ? fileUrl(item.thumbnailKey) : null,
     imageUrls: parseKeys(item.imageKeys).map(fileUrl),
     links: parseLinks(item.links),
@@ -47,7 +57,7 @@ export function fileUrl(key: string) {
 export async function getDecisionView(userId: string, lessonId: string) {
   const { lesson, catalog } = await loadDecisionLesson(lessonId);
   const [items, choice] = [
-    await prisma.catalogItem.findMany({ where: { catalog, isPublished: true }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
+    await prisma.catalogItem.findMany({ where: { catalog, isPublished: true }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], include: ITEM_TAGS }),
     await prisma.decisionResponse.findUnique({ where: { userId_lessonId: { userId, lessonId } } }),
   ];
   return {
@@ -62,7 +72,7 @@ export async function getDecisionView(userId: string, lessonId: string) {
 
 export async function getCatalogItemForLesson(lessonId: string, itemId: string) {
   const { catalog } = await loadDecisionLesson(lessonId);
-  const item = await prisma.catalogItem.findFirst({ where: { id: itemId, catalog, isPublished: true } });
+  const item = await prisma.catalogItem.findFirst({ where: { id: itemId, catalog, isPublished: true }, include: ITEM_TAGS });
   return item ? toItemView(item) : null;
 }
 

@@ -4,7 +4,7 @@ import { Check, ExternalLink } from "lucide-react";
 import type { Catalog } from "@/generated/prisma/enums";
 import type { CatalogItemView } from "@/server/decisions/service";
 import { CATALOGS } from "@/server/decisions/catalog";
-import { ChooseButton, CompetitionBadge, DecisionHeader, EquipmentBadge } from "./parts";
+import { ChooseButton, DecisionHeader, TagList } from "./parts";
 
 export function CatalogItemPage({
   item,
@@ -26,8 +26,7 @@ export function CatalogItemPage({
       )}
       <h2 className="mt-5 text-2xl font-semibold">{item.title}</h2>
       <div className="mt-3 flex flex-wrap gap-2">
-        <CompetitionBadge value={item.competition} />
-        <EquipmentBadge value={item.equipment} />
+        <TagList tags={item.tags} />
       </div>
       {item.summary && <p className="mt-4 text-text/90">{item.summary}</p>}
       {item.body && <div className="mt-4 whitespace-pre-line text-sm leading-relaxed text-text/90">{item.body}</div>}

@@ -374,26 +374,12 @@ enum Catalog {
   METHOD_10K
 }
 
-enum Competition {
-  LOW
-  MEDIUM
-  HIGH
-}
-
-enum Equipment {
-  PC
-  PHONE
-  BOTH
-}
-
 model CatalogItem {
   id           String             @id @default(cuid())
   catalog      Catalog
   title        String
   summary      String             @default("") // phrase d'accroche affichée dans la liste
   body         String             @default("") // contenu complet de la fiche
-  competition  Competition?
-  equipment    Equipment?
   thumbnailKey String? // image (clé de stockage)
   imageKeys    Json               @default("[]") // photos de la fiche
   links        Json               @default("[]") // [{ label, url }]
@@ -402,8 +388,44 @@ model CatalogItem {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   choices      DecisionResponse[]
+  options      CatalogItemOption[]
 
   @@index([catalog, position])
+}
+
+// Critères d'un catalogue (ex. « Concurrence ») et leurs options (ex. « Faible »), définis par l'admin.
+model CatalogCriterion {
+  id        String          @id @default(cuid())
+  catalog   Catalog
+  label     String
+  position  Int             @default(0)
+  createdAt DateTime        @default(now())
+  options   CatalogOption[]
+
+  @@index([catalog, position])
+}
+
+model CatalogOption {
+  id          String              @id @default(cuid())
+  criterionId String
+  criterion   CatalogCriterion    @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  label       String
+  color       String              @default("gray") // gray, green, yellow, red, blue, purple
+  position    Int                 @default(0)
+  items       CatalogItemOption[]
+
+  @@index([criterionId, position])
+}
+
+// Option retenue pour une fiche (une par critère au maximum).
+model CatalogItemOption {
+  itemId   String
+  item     CatalogItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  optionId String
+  option   CatalogOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, optionId])
+  @@index([optionId])
 }
 
 // Choix d'un élève pour une leçon Décision : un seul, définitif.

@@ -3,12 +3,15 @@ import { prisma } from "@/server/db";
 import { getLearnerProgression } from "@/server/learn/service";
 import { resetDb, seedCourse } from "../../../tests/db";
 import { chooseCatalogItem, DecisionError, getDecisionView } from "./service";
-import { deleteCatalogItem } from "./admin";
+import { deleteCatalogItem, saveCatalogItem } from "./admin";
+import { createCriterion, createOption, deleteCriterion, listCriteria } from "./criteria";
 import { checkLaunchKey, getLaunchView, grantEliteRole, LaunchError, submitLaunch } from "@/server/launch/service";
 
 async function niche(title: string, extra: object = {}) {
-  return prisma.catalogItem.create({ data: { catalog: "NICHE", title, competition: "LOW", equipment: "PHONE", ...extra } });
+  return prisma.catalogItem.create({ data: { catalog: "NICHE", title, ...extra } });
 }
+
+const blank = { summary: "", body: "", thumbnailKey: null, imageKeys: [], links: [], isPublished: true };
 
 describe("Décisions (catalogues)", () => {
   beforeEach(resetDb);
@@ -16,11 +19,13 @@ describe("Décisions (catalogues)", () => {
   it("l'élève voit les fiches publiées, en choisit une seule, la leçon est validée", async () => {
     const { lessons, learner } = await seedCourse(["DECISION", "DECISION"]);
     await prisma.lesson.update({ where: { id: lessons[0].id }, data: { config: { catalog: "niches" } } });
-    const a = await niche("Aviation");
+    const comp = await createCriterion(learner.id, "NICHE", "Concurrence");
+    const low = await createOption(learner.id, comp.id, { label: "Faible", color: "green" });
+    const a = await saveCatalogItem(learner.id, { id: null, catalog: "NICHE", title: "Aviation", optionIds: [low.id], ...blank });
     await niche("Cachée", { isPublished: false });
     const view = await getDecisionView(learner.id, lessons[0].id);
     expect(view.items.map((i) => i.title)).toEqual(["Aviation"]);
-    expect(view.items[0]).toMatchObject({ competition: "LOW", equipment: "PHONE" });
+    expect(view.items[0].tags).toEqual([{ criterion: "Concurrence", label: "Faible", color: "green" }]);
 
     await chooseCatalogItem(learner.id, lessons[0].id, a.id);
     expect((await getDecisionView(learner.id, lessons[0].id)).chosen?.title).toBe("Aviation");
@@ -89,5 +94,27 @@ describe("Lancement (phrase + code + ressenti)", () => {
     // Sans bot Discord configuré (tests) : la tâche ne plante pas et n'invente pas d'attribution.
     await grantEliteRole(learner.id);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: learner.id } })).eliteGrantedAt).toBeNull();
+  });
+
+  it("critères libres : une option par critère, seulement celles du catalogue, supprimées avec leur critère", async () => {
+    const { learner: admin } = await seedCourse(["DECISION"]);
+    const comp = await createCriterion(admin.id, "NICHE", "Concurrence");
+    const low = await createOption(admin.id, comp.id, { label: "Faible", color: "green" });
+    const high = await createOption(admin.id, comp.id, { label: "Forte", color: "red" });
+    const budget = await createCriterion(admin.id, "NICHE", "Budget");
+    const zero = await createOption(admin.id, budget.id, { label: "0 €", color: "gray" });
+    const lang = await createCriterion(admin.id, "COUNTRY", "Langue");
+    const fr = await createOption(admin.id, lang.id, { label: "Français", color: "blue" });
+
+    const item = await saveCatalogItem(admin.id, { id: null, catalog: "NICHE", title: "Cuisine", optionIds: [low.id, high.id, zero.id, fr.id], ...blank });
+    const saved = await prisma.catalogItemOption.findMany({ where: { itemId: item.id } });
+    expect(saved.map((o) => o.optionId).sort()).toEqual([low.id, zero.id].sort());
+
+    expect((await listCriteria("NICHE")).map((c) => [c.label, c.options.map((o) => `${o.label}:${o.used}`)])).toEqual([
+      ["Concurrence", ["Faible:1", "Forte:0"]],
+      ["Budget", ["0 €:1"]],
+    ]);
+    await deleteCriterion(admin.id, comp.id);
+    expect(await prisma.catalogItemOption.count({ where: { itemId: item.id } })).toBe(1);
   });
 });

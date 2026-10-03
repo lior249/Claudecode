@@ -3,31 +3,37 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ArrowLeft, Laptop, Smartphone } from "lucide-react";
-import type { Catalog, Competition, Equipment } from "@/generated/prisma/enums";
-import { CATALOGS, COMPETITION_LABELS, EQUIPMENT_LABELS } from "@/server/decisions/catalog";
+import { ArrowLeft } from "lucide-react";
+import type { Catalog } from "@/generated/prisma/enums";
+import { CATALOGS, type CatalogTag, type OptionColor } from "@/server/decisions/catalog";
 import { chooseItemAction } from "@/app/actions/decision";
 import { TypeBadge } from "@/components/learn/badges";
 
-const COMPETITION_STYLE: Record<Competition, string> = {
-  LOW: "bg-success/15 text-success",
-  MEDIUM: "bg-gold/15 text-gold",
-  HIGH: "bg-danger/15 text-danger",
+const TAG_STYLE: Record<OptionColor, string> = {
+  gray: "bg-card-2 text-text/90",
+  green: "bg-success/15 text-success",
+  yellow: "bg-gold/15 text-gold",
+  red: "bg-danger/15 text-danger",
+  blue: "bg-sky-400/15 text-sky-300",
+  purple: "bg-violet-400/15 text-violet-300",
 };
 
-export function CompetitionBadge({ value }: { value: Competition | null }) {
-  if (!value) return null;
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${COMPETITION_STYLE[value]}`}>Concurrence {COMPETITION_LABELS[value].toLowerCase()}</span>;
+// Pastille d'une option de critère (ex. « Concurrence : Faible »).
+export function TagBadge({ tag, bare = false }: { tag: CatalogTag; bare?: boolean }) {
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${TAG_STYLE[tag.color]}`} title={tag.criterion}>
+      {bare ? tag.label : `${tag.criterion} : ${tag.label}`}
+    </span>
+  );
 }
 
-export function EquipmentBadge({ value }: { value: Equipment | null }) {
-  if (!value) return null;
+export function TagList({ tags }: { tags: CatalogTag[] }) {
   return (
-    <span className="flex items-center gap-1.5 rounded-full bg-card-2 px-2.5 py-1 text-xs font-medium text-text/90">
-      {(value === "PC" || value === "BOTH") && <Laptop size={13} />}
-      {(value === "PHONE" || value === "BOTH") && <Smartphone size={13} />}
-      {EQUIPMENT_LABELS[value]}
-    </span>
+    <>
+      {tags.map((t) => (
+        <TagBadge key={`${t.criterion}-${t.label}`} tag={t} />
+      ))}
+    </>
   );
 }
 

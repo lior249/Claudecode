@@ -133,6 +133,23 @@ async function reset() {
   if (tables.length) await prisma.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} CASCADE`);
 }
 
+// Critères de départ des catalogues (modifiables ensuite dans l'admin), mêmes identifiants que la migration catalog_criteria.
+async function seedCatalogCriteria() {
+  if ((await prisma.catalogCriterion.count()) > 0) return;
+  const defaults = [
+    { key: "comp", label: "Concurrence", options: [["LOW", "Faible", "green"], ["MEDIUM", "Moyenne", "yellow"], ["HIGH", "Forte", "red"]] },
+    { key: "equip", label: "Matériel", options: [["PHONE", "Téléphone", "gray"], ["PC", "PC", "gray"], ["BOTH", "PC et téléphone", "gray"]] },
+  ];
+  for (const catalog of ["NICHE", "COUNTRY", "METHOD_10K"] as const) {
+    for (const [ci, c] of defaults.entries()) {
+      const criterion = await prisma.catalogCriterion.create({ data: { id: `crit_${c.key}_${catalog}`, catalog, label: c.label, position: ci + 1 } });
+      for (const [oi, [k, label, color]] of c.options.entries()) {
+        await prisma.catalogOption.create({ data: { id: `opt_${c.key}_${k}_${catalog}`, criterionId: criterion.id, label, color, position: oi + 1 } });
+      }
+    }
+  }
+}
+
 async function main() {
   const production = process.argv.includes("--production") || process.env.NODE_ENV === "production";
   if (process.argv.includes("--reset")) {
@@ -143,6 +160,8 @@ async function main() {
     console.log("Un parcours existe déjà : rien à faire (utilise --reset pour repartir de zéro).");
     return;
   }
+  // Seulement à la première installation : si l'admin supprime tous les critères, ils ne reviennent pas à la mise à jour suivante.
+  await seedCatalogCriteria();
 
   for (const [li, level] of curriculum.entries()) {
     const levelRow = await prisma.level.create({

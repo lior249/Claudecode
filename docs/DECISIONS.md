@@ -279,6 +279,17 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
 - Côté élève : bouton **« Mon coach »** en bas à droite avec ses échanges (tickets) et les disponibilités du coach.
 - Les badges (succès) sont mis de côté pour l'instant.
 
+## Critères des catalogues
+
+- Chaque catalogue (Niches, Pays, Méthodes 10K) a ses **propres critères**, définis par l'admin dans « Catalogues » :
+  un critère (ex. « Concurrence ») a des options (ex. « Faible », « Moyenne », « Forte »), chacune avec une couleur
+  (gris, vert, jaune, rouge, bleu, violet).
+- L'admin ajoute, renomme, réordonne et supprime critères et options. Supprimer un critère ou une option le retire des fiches
+  (avec confirmation indiquant le nombre de fiches concernées).
+- Sur chaque fiche, l'admin choisit **une option par critère** (ou aucune). Les élèves voient les pastilles
+  « Critère : option » dans la liste et sur la fiche.
+- Au départ, chaque catalogue reprend les anciens critères fixes « Concurrence » et « Matériel », désormais modifiables.
+
 ## Rangs
 
 | Rang | Condition | Calcul |
