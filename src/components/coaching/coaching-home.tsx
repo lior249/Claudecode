@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { ChevronRight, ExternalLink, ImagePlus, Lock, MessageCircle, Plus, Snowflake, Trophy } from "lucide-react";
+import { ChevronRight, ExternalLink, ImagePlus, Lock, MessageCircle, Plus, Snowflake } from "lucide-react";
 import type { CoachingDashboard } from "@/server/coaching/progress";
 import {
   addPostAction,
@@ -18,6 +18,7 @@ import { AccountBar } from "@/components/profile/account-bar";
 import type { MenuUser } from "@/components/profile/user-menu";
 import { Flame } from "./flame";
 import { uploadImage } from "./image-upload";
+import { FlameIcon, TrophyIcon } from "@/components/ui/icons";
 
 interface TicketRow {
   id: string;
@@ -77,7 +78,7 @@ export function CoachingHome({
         </Link>
         <div className="flex items-center gap-2">
           <Link href="/classement" className="rounded-full bg-card p-2" aria-label="Classement">
-            <Trophy size={16} className="text-gold" />
+            <TrophyIcon size={20} />
           </Link>
           <AccountBar user={account.user} unread={account.unread} />
         </div>
@@ -87,7 +88,7 @@ export function CoachingHome({
         <div className="flex items-center gap-4">
           <RankBadge rank={d.rank} size={56} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-semibold">{name}</p>
+            <p className="line-clamp-2 break-words text-lg font-semibold leading-tight">{name}</p>
             <p className="text-sm text-muted">{team === "ADMIN" ? "Équipe Creato · tu valides tes propres preuves" : team ? "Équipe Creato · tes preuves sont validées par l'admin" : `Coach : ${d.coachName ?? "en cours d'attribution"}`}</p>
           </div>
           <Flame level={d.streak.flame} days={d.streak.current} />
@@ -107,7 +108,7 @@ export function CoachingHome({
       {d.status === "REVOKED" && <Reactivation pending={d.reactivation?.status === "PENDING"} />}
       {d.status === "COMPLETED" && (
         <section className={`${card} mt-4 border-gold/50 text-center`}>
-          <p className="text-4xl">🏆</p>
+          <TrophyIcon size={52} className="mx-auto" />
           <p className="mt-2 text-lg font-semibold">Coaching terminé : rang SSS !</p>
           <p className="text-sm text-muted">Tu as atteint 1 000 € en un mois. Bravo !</p>
         </section>
@@ -140,7 +141,7 @@ export function CoachingHome({
                   <Link href={`/coaching/tickets/${t.id}`} className="flex items-center gap-3 py-3">
                     {t.status === "OPEN" ? <MessageCircle size={18} className={t.origin === "COACH" ? "text-gold" : "text-text"} /> : <Lock size={16} className="text-muted" />}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{t.subject}</span>
+                      <span className="line-clamp-2 break-words leading-snug text-sm font-medium">{t.subject}</span>
                       <span className="block text-xs text-muted">
                         {t.origin === "COACH" ? "Question de ton coach" : "Ta demande"}
                         {t.status === "CLOSED" ? " · clôturé" : t.waitingCoach ? " · en attente du coach" : " · le coach a répondu"}
@@ -166,7 +167,7 @@ export function CoachingHome({
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-2xl bg-card-2 p-3">
-      <p className="text-lg font-bold">{value}</p>
+      <p className="text-2xl font-bold tabular-nums">{value}</p>
       <p className="text-xs text-muted">{label}</p>
     </div>
   );
@@ -201,7 +202,9 @@ function TodayPost({ todayDone, username }: { todayDone: boolean; username: stri
   const [url, setUrl] = useState("");
   return (
     <section className={`${card} ${todayDone ? "border-success/40" : "border-orange-500/50"}`}>
-      <h2 className="font-semibold">{todayDone ? "🔥 Post du jour validé" : "🔥 Ton post du jour"}</h2>
+      <h2 className="flex items-center gap-1.5 text-lg font-semibold">
+        <FlameIcon size={22} level={1} /> {todayDone ? "Post du jour validé" : "Ton post du jour"}
+      </h2>
       <p className="mt-1 text-sm text-muted">
         {todayDone ? "Ta chaîne continue. Tu peux ajouter d'autres posts." : "Au moins 1 post par jour pour garder ta flamme. Colle le lien de ta vidéo."}
       </p>
@@ -402,7 +405,7 @@ function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
             {amount && (
               <p className="text-xs text-muted">
                 Total généré avec ce mois : <b className="text-text">{(pastTotal + Number(amount)).toLocaleString("fr-FR")} €</b>
-                {Number(amount) > pastBest ? " · 🏆 ce serait ton meilleur mois !" : ` · ton meilleur mois reste ${pastBest.toLocaleString("fr-FR")} €`}
+                {Number(amount) > pastBest ? " · ce serait ton meilleur mois !" : ` · ton meilleur mois reste ${pastBest.toLocaleString("fr-FR")} €`}
               </p>
             )}
             <textarea value={story} onChange={(e) => setStory(e.target.value)} rows={3} maxLength={1500} placeholder="Raconte ton mois : ce que tu ressens, ce qui a marché…" className={field} />

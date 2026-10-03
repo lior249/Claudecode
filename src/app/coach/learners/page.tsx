@@ -43,7 +43,7 @@ export default async function CoachLearners({ searchParams }: PageProps<"/coach/
             <Link href={`/coach/learners?u=${l.id}`} scroll={false} className="flex items-center gap-3 rounded-3xl border border-line bg-card p-4">
               <RankBadge rank={d.rank} size={40} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold">{l.displayName}</span>
+                <span className="line-clamp-2 break-words leading-snug font-semibold">{l.displayName}</span>
                 <span className="block text-xs text-muted">
                   {STATUS[l.coachingStatus]} · {d.points.total} pts{l.tiktokUsername ? ` · @${l.tiktokUsername}` : ""}
                 </span>

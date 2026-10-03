@@ -304,6 +304,23 @@ Les montants se comptent **sur un seul mois**. Un rang atteint reste acquis.
   - touches dorées (couronne).
 - Ambiance **RPG** portée par les rangs.
 - Logo provisoire : « Creato » en Helvetica gras, lettres serrées (−100 dans Photoshop, soit environ −0,1 em).
+- **Revue du design (octobre 2026)**, choix validés :
+  - ambiance **jeu + premium** : base noire et or sobre, récompenses (rangs, flammes, podium) colorées et brillantes ;
+  - rangs en **métaux**, sous forme de blasons : E bois, D bronze, C argent, B or, A platine, S diamant bleu, SS rubis,
+    SSS légendaire (dégradé arc-en-ciel) ; S, SS et SSS brillent ;
+  - **icônes colorées pleines**, toutes dessinées dans le même style (flamme, couronne, trophée) ; plus d'émojis dans l'interface
+    (les réactions 🔥🚀😡😢 et les textes des notifications les gardent) ;
+  - **titres et chiffres plus gros** ; les petits textes grossissent un peu (aucun texte sous 13 px) ;
+  - leçons : une icône par type (livre = compréhension, clap = pratique, boussole = décision, drapeau = validation) ;
+  - modules : anneau doré qui se remplit, coche verte quand terminé, cadenas si verrouillé ;
+  - grille de régularité : posté = orange flamme, gel = bleu glace, manqué = rouge sombre ;
+  - podium : marches de hauteurs différentes or / argent / bronze, couronne pour le 1er ; colonnes titrées dans la liste ;
+  - fiche d'un membre : rangée de 3 cases (points, flamme, meilleur mois) ;
+  - « Mon profil » sans doublons ; compte TikTok et rappels dans une page **Réglages** (menu du compte) ;
+  - onglets coach / admin : onglet actif en or, fondu à droite quand on peut faire défiler ;
+  - bouton « Mon coach » : rond compact (photo du coach) pour cacher le moins de contenu possible ;
+  - noms et titres longs passent sur deux lignes au lieu d'être coupés ;
+  - page de connexion : mascotte au centre (fichier `public/mascotte.png`, fournie par l'admin).
 
 ## Hébergement et budget
 

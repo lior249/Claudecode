@@ -8,7 +8,7 @@ export const monthItems = (months: { id: string; month: string; amountEur: numbe
     title: `${monthLabel(m.month).replace(/^./, (c) => c.toUpperCase())} · ${eur(m.amountEur)}`,
     body: m.description,
     imageUrl: m.imageUrl,
-    tag: m.isBest ? "🏆 Meilleur mois" : null,
+    tag: m.isBest ? "Meilleur mois" : null,
     status: "APPROVED",
   }));
 

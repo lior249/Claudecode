@@ -40,7 +40,7 @@ export function DecisionHeader({ title, subtitle, back }: { title: string; subti
       <TypeBadge type="DECISION" size={32} />
       <div className="min-w-0">
         <p className="text-xs text-muted">{subtitle}</p>
-        <h1 className="truncate font-semibold">{title}</h1>
+        <h1 className="line-clamp-2 break-words leading-snug font-semibold">{title}</h1>
       </div>
     </header>
   );

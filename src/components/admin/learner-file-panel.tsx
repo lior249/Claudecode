@@ -15,7 +15,7 @@ export function LearnerFilePanel({ file, closeHref, extra }: { file: LearnerFile
         <div className="flex items-start gap-4">
           <RankBadge rank={file.rank} size={52} />
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-xl font-semibold">{u.displayName}</h2>
+            <h2 className="line-clamp-2 break-words leading-snug text-xl font-semibold">{u.displayName}</h2>
             <p className="text-sm text-muted">
               {u.discordUsername ? `@${u.discordUsername} · ` : ""}Rang {file.rank} · coach : {u.coachName ?? "—"}
             </p>

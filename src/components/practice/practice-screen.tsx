@@ -35,7 +35,7 @@ export function PracticeScreen({ view, moduleTitle, whopUrl }: { view: PracticeV
         <TypeBadge type="PRACTICE_AI" size={32} />
         <div className="min-w-0">
           <p className="text-xs text-muted">{moduleTitle} · Pratique</p>
-          <h1 className="truncate font-semibold">{view.title}</h1>
+          <h1 className="line-clamp-2 break-words leading-snug font-semibold">{view.title}</h1>
         </div>
       </header>
 

@@ -28,6 +28,24 @@
   --color-type-d: #7c7cff;
   --color-type-v: #30d158;
   --font-sans: var(--font-poppins), system-ui, sans-serif;
+
+  /* Échelle de texte agrandie (lecture sur téléphone) : petits textes plus lisibles, titres et chiffres plus gros. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.1875rem;
+  --text-lg--line-height: 1.4;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.3;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 2.125rem;
+  --text-3xl--line-height: 1.15;
+  --text-4xl: 2.625rem;
+  --text-4xl--line-height: 1.1;
 }
 
 html {

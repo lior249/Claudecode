@@ -21,7 +21,7 @@ export function QuizPlayer({ state, moduleTitle, whopUrl }: { state: QuizState; 
         <TypeBadge type="UNDERSTANDING" size={32} />
         <div className="min-w-0">
           <p className="text-xs text-muted">{moduleTitle} · Compréhension</p>
-          <h1 className="truncate font-semibold">{state.lessonTitle}</h1>
+          <h1 className="line-clamp-2 break-words leading-snug font-semibold">{state.lessonTitle}</h1>
         </div>
       </header>
       {state.status === "IN_PROGRESS" ? (

@@ -29,7 +29,7 @@ export default async function CoachingLayout({ children }: LayoutProps<"/coachin
     };
   }
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 pb-24">
+    <main className="mx-auto min-h-dvh max-w-md px-4 pb-28">
       {children}
       {dock && <CoachDock data={dock} />}
     </main>

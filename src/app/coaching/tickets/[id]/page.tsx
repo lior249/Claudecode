@@ -24,7 +24,7 @@ export default async function LearnerTicketPage({ params }: PageProps<"/coaching
         </Link>
         <div className="min-w-0">
           <p className="text-xs text-muted">{ticket.origin === "COACH" ? "Question de ton coach" : "Ta demande"} · {ticket.coach.displayName}</p>
-          <h1 className="truncate font-semibold">{ticket.subject}</h1>
+          <h1 className="line-clamp-2 break-words leading-snug font-semibold">{ticket.subject}</h1>
         </div>
       </header>
       <TicketChat ticket={ticket} />

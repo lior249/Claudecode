@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { BadgeCheck, ExternalLink, X } from "lucide-react";
 import { reactAction } from "@/app/actions/results";
+import { TrophyIcon } from "@/components/ui/icons";
 
 export type ReactionKey = "FIRE" | "ROCKET" | "ANGRY" | "CRY";
 const EMOJI: Record<ReactionKey, string> = { FIRE: "🔥", ROCKET: "🚀", ANGRY: "😡", CRY: "😢" };
@@ -14,7 +15,7 @@ export interface GalleryItem {
   body: string;
   imageUrl: string;
   link?: string | null;
-  tag?: string | null; // ex. « 🏆 Meilleur mois »
+  tag?: string | null; // ex. « Meilleur mois » (affiché avec un trophée)
   status?: "PENDING" | "APPROVED" | "REJECTED";
   reviewComment?: string | null;
   counts?: Record<ReactionKey, number>; // présent = post réagissable
@@ -48,21 +49,25 @@ export function PostGallery({ title, items, empty }: { title: string; items: Gal
                     <img src={it.imageUrl} alt="" loading="lazy" className="block h-full w-full object-cover object-top" />
                     <span className="absolute inset-0 bg-gradient-to-b from-transparent from-45% to-card-2" />
                     {it.status && it.status !== "APPROVED" && (
-                      <span className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${it.status === "PENDING" ? "bg-gold text-black" : "bg-danger text-white"}`}>
+                      <span className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold ${it.status === "PENDING" ? "bg-gold text-black" : "bg-danger text-white"}`}>
                         {it.status === "PENDING" ? "En validation" : "Refusé"}
                       </span>
                     )}
                   </span>
                   <span className="grid gap-1 px-2.5 pb-2.5 pt-1.5">
-                    <span className="flex items-start gap-1 text-[13px] font-semibold leading-tight">
+                    <span className="flex items-start gap-1 text-sm font-semibold leading-tight">
                       <span className="min-w-0">{it.title}</span>
                       {it.status === "APPROVED" && <BadgeCheck size={15} className="mt-px shrink-0 text-success" aria-label="Validé" />}
                     </span>
-                    {it.tag && <span className="text-[11px] font-semibold text-gold">{it.tag}</span>}
-                    {it.body && <span className="line-clamp-2 text-[11.5px] leading-snug text-muted">{it.body}</span>}
-                    <span className="text-[11.5px] font-semibold">Voir plus</span>
+                    {it.tag && (
+                      <span className="flex items-center gap-1 text-xs font-semibold text-gold">
+                        <TrophyIcon size={14} /> {it.tag}
+                      </span>
+                    )}
+                    {it.body && <span className="line-clamp-2 text-xs leading-snug text-muted">{it.body}</span>}
+                    <span className="text-xs font-semibold">Voir plus</span>
                     {it.counts && (
-                      <span className="flex flex-wrap gap-1.5 text-[11px] text-muted">
+                      <span className="flex flex-wrap gap-1.5 text-xs text-muted">
                         {KEYS.filter((k) => it.counts![k]).map((k) => (
                           <span key={k}>
                             {EMOJI[k]} {it.counts![k]}
@@ -115,10 +120,14 @@ function PostDialog({ item, onClose, onChange }: { item: GalleryItem; onClose: (
           <span>{item.title}</span>
           {item.status === "APPROVED" && <BadgeCheck size={20} className="mt-1 shrink-0 text-success" aria-label="Validé" />}
         </h3>
-        {item.tag && <p className="mt-1 text-sm font-semibold text-gold">{item.tag}</p>}
+        {item.tag && (
+          <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-gold">
+            <TrophyIcon size={16} /> {item.tag}
+          </p>
+        )}
         {item.status === "PENDING" && <p className="mt-2 text-xs text-gold">En attente de validation : visible seulement par toi.</p>}
         {item.status === "REJECTED" && <p className="mt-2 text-xs text-danger">Refusé : {item.reviewComment}</p>}
-        {item.body && <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-text/85">{item.body}</p>}
+        {item.body && <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-text/85">{item.body}</p>}
         {item.link && (
           <a href={item.link} target="_blank" rel="noopener noreferrer" className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-card py-3 text-sm font-semibold">
             Voir la vidéo <ExternalLink size={14} />

@@ -9,6 +9,7 @@ import type { LessonType } from "@/generated/prisma/enums";
 import type { Rank, Status } from "@/server/learn/progression";
 import { devCompleteLesson } from "@/app/actions/learn";
 import { LESSON_TYPES, RankBadge, TypeBadge } from "./badges";
+import { CrownIcon } from "@/components/ui/icons";
 import { Countdown } from "./countdown";
 import { LocalTime } from "@/components/local-time";
 
@@ -92,11 +93,11 @@ export function LearnView({ data }: { data: LearnViewData }) {
         <div className="flex items-center gap-4">
           <RankBadge rank={data.rank} size={56} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-semibold">{data.displayName}</p>
+            <p className="line-clamp-2 break-words text-lg font-semibold leading-tight">{data.displayName}</p>
             <p className="text-sm text-muted">Rang {data.rank}</p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold">{data.percent}%</p>
+            <p className="text-3xl font-bold tabular-nums">{data.percent}%</p>
             <p className="text-xs text-muted">
               {data.completedLessons}/{data.totalLessons} leçons
             </p>
@@ -110,7 +111,7 @@ export function LearnView({ data }: { data: LearnViewData }) {
       {/* Leçon en cours */}
       {current ? (
         <section className="mt-4">
-          <h2 className="mb-2 px-1 text-sm font-medium text-muted">À faire maintenant</h2>
+          <h2 className="mb-2 px-1 text-sm font-semibold uppercase tracking-wide text-muted">À faire maintenant</h2>
           <button
             onClick={() => setOpenLesson({ lesson: current.lesson, mod: current.mod })}
             className="flex w-full items-center gap-4 rounded-3xl border border-gold/40 bg-card-2 p-4 text-left"
@@ -120,7 +121,7 @@ export function LearnView({ data }: { data: LearnViewData }) {
               <p className="text-xs text-muted">
                 Niveau {current.level.position} · {current.mod.title}
               </p>
-              <p className="truncate font-semibold">{current.lesson.title}</p>
+              <p className="line-clamp-2 text-lg font-semibold leading-snug">{current.lesson.title}</p>
               {current.lesson.deadlineAt && (
                 <p className="mt-1 text-xs">
                   <Countdown deadlineAt={current.lesson.deadlineAt} />
@@ -132,7 +133,7 @@ export function LearnView({ data }: { data: LearnViewData }) {
         </section>
       ) : data.learnCompleted ? (
         <section className="mt-4 rounded-3xl border border-gold/40 bg-card-2 p-5 text-center">
-          <p className="text-3xl">👑</p>
+          <CrownIcon size={48} className="mx-auto" />
           <p className="mt-2 text-lg font-semibold">Bravo, tu as terminé ton parcours Learn !</p>
           <p className="mt-1 text-sm text-muted">Ton accès au coaching est débloqué.</p>
         </section>
@@ -143,7 +144,7 @@ export function LearnView({ data }: { data: LearnViewData }) {
         {levels.map((level) => (
           <section key={level.id}>
             <div className="mb-3 flex items-baseline justify-between px-1">
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-xl font-bold">
                 <span className="text-muted">Niveau {level.position} · </span>
                 {level.title}
               </h2>
@@ -177,6 +178,23 @@ export function LearnView({ data }: { data: LearnViewData }) {
   );
 }
 
+// Anneau doré qui se remplit au fil des leçons validées du module.
+function ProgressRing({ done, total }: { done: number; total: number }) {
+  const r = 19;
+  const len = 2 * Math.PI * r;
+  return (
+    <span className="relative flex h-11 w-11 shrink-0 items-center justify-center" role="img" aria-label={`${done} leçon(s) validée(s) sur ${total}`}>
+      <svg width="44" height="44" viewBox="0 0 44 44" className="absolute inset-0 -rotate-90">
+        <circle cx="22" cy="22" r={r} fill="none" stroke="var(--card-2)" strokeWidth="4" />
+        {done > 0 && <circle cx="22" cy="22" r={r} fill="none" stroke="var(--gold)" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(len * done) / Math.max(total, 1)} ${len}`} />}
+      </svg>
+      <span className="text-xs font-bold tabular-nums">
+        {done}/{total}
+      </span>
+    </span>
+  );
+}
+
 function ModuleCard({
   mod,
   opacity,
@@ -199,15 +217,19 @@ function ModuleCard({
         onClick={() => setExpanded((v) => !v)}
         className="flex w-full items-center gap-3 p-4 text-left"
       >
-        <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
-            mod.status === "COMPLETED" ? "bg-success/15 text-success" : locked ? "bg-card-2 text-muted" : "bg-gold/15 text-gold"
-          }`}
-        >
-          {mod.status === "COMPLETED" ? <Check size={20} /> : locked ? <Lock size={18} /> : <span className="font-bold">{done}</span>}
-        </span>
+        {mod.status === "COMPLETED" ? (
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success text-black">
+            <Check size={22} strokeWidth={3} />
+          </span>
+        ) : locked ? (
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card-2 text-muted">
+            <Lock size={18} />
+          </span>
+        ) : (
+          <ProgressRing done={done} total={mod.lessons.length} />
+        )}
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{mod.title}</p>
+          <p className="line-clamp-2 text-lg font-semibold leading-tight">{mod.title}</p>
           <p className="truncate text-xs text-muted">
             {mod.status === "COMPLETED" ? "Terminé" : locked ? "Verrouillé" : `En cours · ${done}/${mod.lessons.length}`}
           </p>
@@ -248,7 +270,7 @@ function ModuleCard({
                       )}
                     </span>
                     <span className={`min-w-0 flex-1 ${isLocked ? "text-muted" : ""}`}>
-                      <span className="block truncate text-sm font-medium">{lesson.title}</span>
+                      <span className="block font-medium leading-snug">{lesson.title}</span>
                       <span className="block text-xs text-muted">
                         {LESSON_TYPES[lesson.type].label}
                         {isCurrent && <span className="text-gold"> · En cours</span>}

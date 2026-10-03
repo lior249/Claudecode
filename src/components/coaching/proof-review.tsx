@@ -51,7 +51,7 @@ export function ProofReview(props: Props) {
           {props.declared.map((d) => (
             <div key={d.label} className="rounded-2xl bg-card-2 p-2">
               <p className="text-sm font-bold">{d.value}</p>
-              <p className="text-[11px] text-muted">{d.label}</p>
+              <p className="text-xs text-muted">{d.label}</p>
             </div>
           ))}
         </div>

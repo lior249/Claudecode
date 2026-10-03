@@ -7,6 +7,7 @@ import { ArrowLeft, ExternalLink, KeyRound } from "lucide-react";
 import type { getLaunchView } from "@/server/launch/service";
 import { checkLaunchKeyAction, submitLaunchAction } from "@/app/actions/launch";
 import { TypeBadge } from "@/components/learn/badges";
+import { CrownIcon } from "@/components/ui/icons";
 
 type View = Awaited<ReturnType<typeof getLaunchView>>;
 
@@ -30,7 +31,7 @@ export function LaunchFlow({ view, moduleTitle, whopUrl }: { view: View; moduleT
       <TypeBadge type="CODE_VALIDATION" size={32} />
       <div className="min-w-0">
         <p className="text-xs text-muted">{moduleTitle} · Validation</p>
-        <h1 className="truncate font-semibold">{view.title}</h1>
+        <h1 className="line-clamp-2 break-words leading-snug font-semibold">{view.title}</h1>
       </div>
     </header>
   );
@@ -41,7 +42,7 @@ export function LaunchFlow({ view, moduleTitle, whopUrl }: { view: View; moduleT
         {header}
         <section className="space-y-3">
           <div className="rounded-3xl border border-gold/50 bg-card p-6 text-center">
-            <p className="text-5xl">👑</p>
+            <CrownIcon size={64} className="mx-auto" />
             <p className="mt-3 text-xl font-semibold">Félicitations !</p>
             <p className="mt-1 text-sm text-muted">Tu as terminé ton parcours Learn. Ton accès au coaching est débloqué.</p>
             <p className="mt-3 text-sm">

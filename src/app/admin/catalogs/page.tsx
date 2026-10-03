@@ -44,7 +44,7 @@ export default async function AdminCatalogs({ searchParams }: PageProps<"/admin/
             )}
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 font-semibold">
-                <span className="truncate">{item.title}</span>
+                <span className="line-clamp-2 break-words leading-snug">{item.title}</span>
                 {!item.isPublished && <EyeOff size={14} className="shrink-0 text-muted" aria-label="Masquée" />}
               </span>
               <span className="mt-1.5 flex flex-wrap gap-1.5">

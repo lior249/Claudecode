@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, LogOut, Trophy, User } from "lucide-react";
+import { Check, LogOut, Settings, Trophy, User } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { Avatar } from "./avatar";
 
@@ -41,12 +41,15 @@ export function UserMenu({ user }: { user: MenuUser }) {
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-60 rounded-2xl border border-line bg-card p-1.5 shadow-2xl shadow-black/60" role="menu">
-          <p className="truncate px-3 pb-2 pt-1.5 text-sm font-semibold">{user.name}</p>
+          <p className="line-clamp-2 break-words leading-snug px-3 pb-2 pt-1.5 text-sm font-semibold">{user.name}</p>
           <Link href="/profil" className={item} onClick={() => setOpen(false)} role="menuitem">
             <User size={16} className="text-muted" /> Mon profil
           </Link>
           <Link href="/classement" className={item} onClick={() => setOpen(false)} role="menuitem">
             <Trophy size={16} className="text-muted" /> Classement
+          </Link>
+          <Link href="/reglages" className={item} onClick={() => setOpen(false)} role="menuitem">
+            <Settings size={16} className="text-muted" /> Réglages
           </Link>
           {user.views.length > 1 && (
             <div className="my-1 border-y border-line py-1">

@@ -53,7 +53,7 @@ export function DecisionList({ view, moduleTitle, whopUrl }: { view: View; modul
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2 font-semibold">
-                    <span className="truncate">{item.title}</span>
+                    <span className="line-clamp-2 break-words leading-snug">{item.title}</span>
                     {isChosen && <Check size={16} className="shrink-0 text-success" />}
                   </span>
                   {item.summary && <span className="mt-0.5 line-clamp-2 block text-xs text-muted">{item.summary}</span>}

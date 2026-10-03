@@ -28,19 +28,22 @@ export function CoachDock({ data }: { data: DockData }) {
     <>
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-5 right-4 z-40 flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-1.5 pr-4 shadow-2xl shadow-black/60"
+        className="fixed bottom-5 right-4 z-40 rounded-full border-2 border-gold bg-card p-0.5 shadow-2xl shadow-black/70"
         aria-expanded={open}
         aria-label="Mon coach"
+        title="Mon coach"
       >
-        <Avatar name={data.coach.name} url={data.coach.avatarUrl} size={36} />
-        <span className="text-sm font-semibold">Mon coach</span>
+        <Avatar name={data.coach.name} url={data.coach.avatarUrl} size={48} />
+        <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-bg bg-gold text-black">
+          {open ? <X size={12} strokeWidth={3} /> : <MessageCircle size={12} strokeWidth={3} />}
+        </span>
       </button>
       {open && (
-        <div className="fixed bottom-20 right-4 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-3xl border border-line bg-bg p-3 shadow-2xl shadow-black/70" role="dialog" aria-label="Mon coach">
+        <div className="fixed bottom-24 right-4 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-3xl border border-line bg-bg p-3 shadow-2xl shadow-black/70" role="dialog" aria-label="Mon coach">
           <div className="flex items-center gap-3 px-1 pb-3">
             <Avatar name={data.coach.name} url={data.coach.avatarUrl} size={40} />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold">{data.coach.name}</p>
+              <p className="line-clamp-2 break-words leading-snug font-semibold">{data.coach.name}</p>
               <p className="text-xs text-muted">Ton coach</p>
             </div>
             <button onClick={() => setOpen(false)} className="rounded-full bg-card p-2 text-muted" aria-label="Fermer">
@@ -64,7 +67,7 @@ export function CoachDock({ data }: { data: DockData }) {
                     <Link href={`/coaching/tickets/${t.id}`} onClick={() => setOpen(false)} className="flex items-center gap-3 px-2 py-3">
                       {t.open ? <MessageCircle size={16} /> : <Lock size={14} className="text-muted" />}
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm">{t.subject}</span>
+                        <span className="line-clamp-2 break-words leading-snug text-sm">{t.subject}</span>
                         <span className="block text-xs text-muted">{!t.open ? "Clôturé" : t.waitingCoach ? "En attente du coach" : "Le coach a répondu"}</span>
                       </span>
                       <ChevronRight size={14} className="text-muted" />

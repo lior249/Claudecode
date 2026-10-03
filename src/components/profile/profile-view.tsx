@@ -4,11 +4,9 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Camera } from "lucide-react";
 import type { MyProfile } from "@/server/profile/service";
-import { resetPhotoAction, tiktokAction } from "@/app/actions/profile";
+import { resetPhotoAction } from "@/app/actions/profile";
 import { RankBadge } from "@/components/learn/badges";
-import { Flame } from "@/components/coaching/flame";
 import { LocalTime } from "@/components/local-time";
-import { ReminderSettings } from "@/components/notifications/notification-center";
 import { Avatar } from "./avatar";
 import { Revenue, StatTile } from "./member-stats";
 import { PostGallery } from "@/components/results/post-gallery";
@@ -22,11 +20,11 @@ export function ProfileView({ profile: p }: { profile: MyProfile }) {
     <div className="space-y-4">
       <section className="rounded-3xl border border-line bg-card p-5 text-center">
         <Photo name={p.displayName} url={p.avatarUrl} custom={p.hasCustomPhoto} />
-        <p className="mt-3 text-xl font-semibold">{p.displayName}</p>
+        <p className="mt-3 break-words text-2xl font-bold">{p.displayName}</p>
         {p.discordUsername && <p className="text-sm text-muted">@{p.discordUsername} · nom Discord</p>}
-        <div className="mt-3 flex items-center justify-center gap-3">
-          <RankBadge rank={p.rank} size={40} />
-          {c && <Flame level={c.streak.flame} days={c.streak.current} />}
+        <div className="mt-3 flex items-center justify-center gap-2">
+          <RankBadge rank={p.rank} size={44} />
+          <span className="text-sm font-semibold">Rang {p.rank}</span>
         </div>
         <p className="mt-3 text-xs text-muted">
           Membre depuis le <LocalTime iso={p.joinedAt} date />
@@ -42,8 +40,6 @@ export function ProfileView({ profile: p }: { profile: MyProfile }) {
       <section className="grid grid-cols-2 gap-2">
         <StatTile label="Parcours" value={`${p.percent} %`} />
         <StatTile label="Points" value={c ? c.points : "—"} />
-        <StatTile label="Flamme actuelle" value={c ? `${c.streak.current} j` : "—"} />
-        <StatTile label="Record de flamme" value={c ? `${c.streak.best} j` : "—"} />
       </section>
       {!c && <p className="text-center text-xs text-muted">Flamme, points et résultats démarrent après la formation, avec le coaching.</p>}
       {c && <ActivityGrid grid={c.activity} current={c.streak.current} best={c.streak.best} />}
@@ -52,8 +48,6 @@ export function ProfileView({ profile: p }: { profile: MyProfile }) {
       {c && <Revenue lastMonthEur={c.lastMonthEur} bestMonthEur={c.bestMonthEur} totalEur={c.totalEur} />}
       {c && <PostGallery title="Résultats du mois" items={monthItems(c.months)} empty="Aucun résultat du mois validé pour l'instant." />}
 
-      <Tiktok initial={p.tiktokUsername} />
-      <ReminderSettings reminderHour={p.reminderHour} dmEnabled={p.dmEnabled} />
     </div>
   );
 }
@@ -105,32 +99,5 @@ function Photo({ name, url, custom }: { name: string; url: string | null; custom
       )}
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>
-  );
-}
-
-function Tiktok({ initial }: { initial: string | null }) {
-  const [value, setValue] = useState(initial ?? "");
-  const [pending, start] = useTransition();
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  return (
-    <section className="rounded-3xl border border-line bg-card p-5">
-      <h2 className="font-semibold">Mon compte TikTok</h2>
-      <div className="mt-3 flex gap-2">
-        <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="@ton_compte" className="min-w-0 flex-1 rounded-2xl border border-line bg-bg p-3 text-sm outline-none focus:border-gold" />
-        <button
-          disabled={pending || !value.trim() || value === initial}
-          onClick={() =>
-            start(async () => {
-              const res = await tiktokAction(value);
-              setMsg(res.ok ? { ok: true, text: "Enregistré." } : { ok: false, text: res.error });
-            })
-          }
-          className="shrink-0 rounded-2xl bg-text px-4 text-sm font-semibold text-black disabled:opacity-40"
-        >
-          Enregistrer
-        </button>
-      </div>
-      {msg && <p className={`mt-2 text-xs ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>}
-    </section>
   );
 }

@@ -54,7 +54,7 @@ export function NotificationCenter({ items }: { items: NotificationRow[] }) {
           })}
         </ul>
       )}
-      <Link href="/profil#rappels" className="mt-6 block text-center text-sm text-muted underline">
+      <Link href="/reglages" className="mt-6 block text-center text-sm text-muted underline">
         Régler mes rappels
       </Link>
     </>

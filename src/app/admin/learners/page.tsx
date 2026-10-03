@@ -19,7 +19,7 @@ export default async function AdminLearners({ searchParams }: PageProps<"/admin/
             <Link href={`/admin/learners?u=${l.id}`} scroll={false} className="flex items-center gap-3 rounded-3xl border border-line bg-card p-4">
               <RankBadge rank={l.rank} size={40} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold">{l.displayName}</span>
+                <span className="line-clamp-2 break-words leading-snug font-semibold">{l.displayName}</span>
                 <span className="block truncate text-xs text-muted">
                   {l.learnCompleted ? "Learn terminé" : l.currentLesson ? `En cours : ${l.currentLesson}` : "Pas commencé"}
                   {l.status === "REVOKED" && <span className="text-danger"> · accès retiré</span>}

@@ -22,6 +22,6 @@ export async function tiktokAction(raw: unknown): Promise<Result> {
   const username = parsed.success ? normalizeTikTokUsername(parsed.data) : "";
   if (!/^[\w.]{2,24}$/.test(username)) return { ok: false, error: "Nom d'utilisateur TikTok invalide." };
   await prisma.user.update({ where: { id: user.id }, data: { tiktokUsername: username } });
-  revalidatePath("/profil");
+  revalidatePath("/reglages");
   return { ok: true };
 }

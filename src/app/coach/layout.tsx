@@ -3,11 +3,12 @@ import { Star } from "lucide-react";
 import { requireUser } from "@/server/auth/session";
 import { accountBarData } from "@/server/profile/menu";
 import { AccountBar } from "@/components/profile/account-bar";
+import { TabNav } from "@/components/tab-nav";
 import { TimezoneSync } from "@/components/notifications/timezone-sync";
 
 export default async function CoachLayout({ children }: LayoutProps<"/coach">) {
   const user = await requireUser(["COACH", "ADMIN"]);
-  const tabs = [
+  const tabs: [string, string][] = [
     ["/coach", "Demandes"],
     ["/coach/learners", "Élèves"],
     ["/coach/proofs", "Preuves"],
@@ -32,13 +33,7 @@ export default async function CoachLayout({ children }: LayoutProps<"/coach">) {
           <AccountBar {...await accountBarData(user)} />
         </div>
       </header>
-      <nav className="mb-6 flex gap-1 overflow-x-auto rounded-2xl bg-card p-1 text-sm">
-        {tabs.map(([href, label]) => (
-          <Link key={href} href={href} className="flex-1 whitespace-nowrap rounded-xl px-3 py-2.5 text-center">
-            {label}
-          </Link>
-        ))}
-      </nav>
+      <TabNav tabs={tabs} />
       {children}
     </div>
   );
