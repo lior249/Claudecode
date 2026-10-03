@@ -11,7 +11,7 @@ type View = Awaited<ReturnType<typeof getDecisionView>>;
 export function DecisionList({ view, moduleTitle, whopUrl }: { view: View; moduleTitle: string; whopUrl: string | null }) {
   const c = CATALOGS[view.catalog];
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 pb-16">
+    <main className="mx-auto min-h-dvh max-w-md lg:max-w-2xl lg:pt-6 px-4 pb-16">
       <DecisionHeader title={view.title} subtitle={`${moduleTitle} · Décision`} back="/learn" />
 
       {view.chosen ? (

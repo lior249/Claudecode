@@ -75,9 +75,9 @@ export function LearnView({ data }: { data: LearnViewData }) {
     .filter((l) => l.modules.length > 0);
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 pb-24">
-      {/* En-tête */}
-      <header className="flex items-center justify-between py-5">
+    <main className="mx-auto min-h-dvh max-w-md px-4 pb-24 lg:max-w-6xl lg:px-10 lg:pt-10">
+      {/* En-tête (téléphone ; sur PC, le menu de gauche le remplace) */}
+      <header className="flex items-center justify-between py-5 lg:hidden">
         <Logo />
         <div className="flex items-center gap-2">
         {data.inCoaching && (
@@ -89,6 +89,10 @@ export function LearnView({ data }: { data: LearnViewData }) {
         </div>
       </header>
 
+      <h1 className="mb-6 hidden text-3xl font-bold lg:block">Mon parcours</h1>
+      <div className="lg:grid lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start lg:gap-10">
+      {/* Colonne de gauche sur PC : carte joueur et leçon du moment */}
+      <div className="lg:sticky lg:top-10">
       {/* Carte joueur */}
       <section className="rounded-3xl border border-line bg-card p-5">
         <div className="flex items-center gap-4">
@@ -140,8 +144,10 @@ export function LearnView({ data }: { data: LearnViewData }) {
         </section>
       ) : null}
 
+      </div>
+
       {/* Parcours vertical */}
-      <div className="mt-8 space-y-8">
+      <div className="mt-8 space-y-8 lg:mt-0">
         {levels.map((level) => (
           <section key={level.id}>
             <div className="mb-3 flex items-baseline justify-between px-1">
@@ -164,6 +170,7 @@ export function LearnView({ data }: { data: LearnViewData }) {
             </div>
           </section>
         ))}
+      </div>
       </div>
 
       {openLesson && (

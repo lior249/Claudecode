@@ -14,7 +14,7 @@ const PASS = 16;
 
 export function QuizPlayer({ state, moduleTitle, whopUrl }: { state: QuizState; moduleTitle: string; whopUrl: string | null }) {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-10">
+    <main className="mx-auto flex min-h-dvh max-w-md lg:max-w-2xl lg:pt-6 flex-col px-4 pb-10">
       <header className="flex items-center gap-3 py-5">
         <Link href="/learn" className="rounded-full bg-card p-2 text-muted" aria-label="Retour à ma progression">
           <ArrowLeft size={18} />

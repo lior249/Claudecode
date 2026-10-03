@@ -320,6 +320,14 @@ Les montants se comptent **sur un seul mois**. Un rang atteint reste acquis.
   - onglets coach / admin : onglet actif en or, fondu à droite quand on peut faire défiler ;
   - bouton « Mon coach » : rond compact (photo du coach) pour cacher le moins de contenu possible ;
   - noms et titres longs passent sur deux lignes au lieu d'être coupés ;
+- **Version PC** (écran large, à partir de 1024 px ; le téléphone ne change pas) :
+  - barre latérale à gauche : logo, changement de vue (Élève / Coach / Admin), menu de la vue avec icônes, étoiles du coach,
+    puis notifications, réglages, photo et déconnexion en bas. Les pages communes (profil, classement…) gardent le menu
+    de la dernière vue utilisée ;
+  - pages élève en deux colonnes : parcours (carte joueur et leçon du moment à gauche, niveaux à droite), coaching,
+    profil (identité à gauche, régularité et résultats à droite), classement (podium à gauche, liste à droite) ;
+  - exercices (QCM, pratique, choix, lancement, échanges avec le coach) : une colonne centrée, pour rester concentré ;
+  - admin et coach en pleine largeur ; validation des preuves sur deux colonnes (preuve / décision).
 - **Mascotte** (fournie par l'admin, images dans `public/mascotte/`) :
   - la mascotte blanche est le **logo** : en tête de chaque espace, en grand sur la page de connexion, et icône de l'onglet ;
   - 12 expressions : amour, sérieux, effort, doute, wow, perdu, motivé, KO, content, triste, clin d'œil, neutre ;

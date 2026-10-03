@@ -44,8 +44,8 @@ export function LeaderboardView({ rows, cards, meId }: { rows: Row[]; cards: Mem
     );
   const podium = [rows[1], rows[0], rows[2]]; // 2e, 1er, 3e
   return (
-    <>
-      <div className="mb-6 grid grid-cols-3 items-end gap-2 pt-6">
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] lg:items-start lg:gap-10">
+      <div className="mb-6 grid grid-cols-3 items-end gap-2 pt-6 lg:sticky lg:top-10 lg:mb-0">
         {podium.map((r, i) => {
           const place = i === 1 ? 1 : i === 0 ? 2 : 3;
           const m = MEDALS[place - 1];
@@ -75,6 +75,7 @@ export function LeaderboardView({ rows, cards, meId }: { rows: Row[]; cards: Mem
           );
         })}
       </div>
+      <div>
       <div className="flex items-center gap-3 px-3 pb-1 text-xs text-muted">
         <span className="w-6 text-center">#</span>
         <span className="flex-1">Membre</span>
@@ -105,8 +106,9 @@ export function LeaderboardView({ rows, cards, meId }: { rows: Row[]; cards: Mem
           </li>
         ))}
       </ul>
+      </div>
       {card && <MemberPopup card={card} position={rows.findIndex((r) => r.id === card.id) + 1} onClose={() => setOpenId(null)} />}
-    </>
+    </div>
   );
 }
 

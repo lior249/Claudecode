@@ -17,7 +17,7 @@ export default async function CoachTicketPage({ params }: PageProps<"/coach/tick
     throw e;
   }
   return (
-    <div className="mx-auto max-w-md">
+    <div className="mx-auto max-w-md lg:max-w-2xl">
       <header className="mb-4 flex items-center gap-3">
         <Link href="/coach" className="rounded-full bg-card p-2 text-muted" aria-label="Retour">
           <ArrowLeft size={18} />

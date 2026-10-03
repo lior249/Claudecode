@@ -14,7 +14,7 @@ export function TabNav({ tabs }: { tabs: [href: string, label: string][] }) {
     if (el && nav.current) nav.current.scrollLeft = el.offsetLeft - (nav.current.clientWidth - el.clientWidth) / 2;
   }, [active]);
   return (
-    <div className="relative mb-6">
+    <div className="relative mb-6 lg:hidden">
       <nav ref={nav} className="flex gap-1 overflow-x-auto rounded-2xl bg-card p-1 text-sm [scrollbar-width:none]">
         {tabs.map(([href, label]) => (
           <Link

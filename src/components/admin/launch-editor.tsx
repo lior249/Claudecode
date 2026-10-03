@@ -78,8 +78,8 @@ export function LaunchEditor({
         <textarea value={afterMessage} onChange={(e) => setAfterMessage(e.target.value)} rows={3} className={field} />
       </Section>
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-card-2/95 p-4 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center gap-3">
+      <div className="fixed inset-x-0 bottom-0 lg:left-64 z-10 border-t border-line bg-card-2/95 p-4 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 lg:max-w-6xl lg:px-6">
           <p className={`flex-1 text-sm ${message ? (message.ok ? "text-success" : "text-danger") : "text-muted"}`}>{message?.text ?? ""}</p>
           <button onClick={save} disabled={pending} className="rounded-2xl bg-text px-6 py-3 text-sm font-semibold text-black disabled:opacity-40">
             {pending ? "Enregistrement…" : "Enregistrer"}

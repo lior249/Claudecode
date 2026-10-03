@@ -20,7 +20,7 @@ export default async function AdminTicketPage({ params }: PageProps<"/admin/tick
   // L'admin qui est aussi le coach de ce ticket le voit en lecture seule ici.
   const readOnly = { ...ticket, viewerIs: "ADMIN" as const };
   return (
-    <div className="mx-auto max-w-md">
+    <div className="mx-auto max-w-md lg:max-w-2xl">
       <Link href="/admin/coaches" className="mb-4 inline-flex items-center gap-2 text-sm text-muted">
         <ArrowLeft size={16} /> Coachs
       </Link>

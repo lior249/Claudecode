@@ -277,7 +277,7 @@ function LessonRow({ lesson, first, last }: { lesson: LessonNode; first: boolean
     <li className={`py-3 ${lesson.isPublished ? "" : "opacity-60"}`}>
       <div className="flex items-start gap-3">
         <TypeBadge type={lesson.type} size={28} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 lg:flex lg:items-center lg:justify-between lg:gap-4">
           {editing ? (
             <div className="flex gap-2">
               <input value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
@@ -286,7 +286,7 @@ function LessonRow({ lesson, first, last }: { lesson: LessonNode; first: boolean
               </button>
             </div>
           ) : (
-            <>
+            <div className="min-w-0">
               <p className="text-sm font-medium">{lesson.title}</p>
               <p className="text-xs text-muted">
                 {LESSON_TYPES[lesson.type].label}
@@ -294,9 +294,9 @@ function LessonRow({ lesson, first, last }: { lesson: LessonNode; first: boolean
                 {!lesson.isPublished && <span className="text-gold"> · masquée</span>}
                 {lesson.learners > 0 && <span> · {lesson.learners} élève{lesson.learners > 1 ? "s" : ""}</span>}
               </p>
-            </>
+            </div>
           )}
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2 lg:mt-0 lg:shrink-0">
             {lesson.setup.href && (
               <Link href={lesson.setup.href} className="flex items-center gap-1 rounded-lg bg-card-2 px-2.5 py-1.5 text-xs">
                 <Settings2 size={13} /> Configurer

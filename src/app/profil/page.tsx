@@ -10,15 +10,17 @@ export default async function ProfilePage() {
   const user = await requireUser();
   const profile = await myProfile(user.id);
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 pb-16">
+    <main className="mx-auto min-h-dvh max-w-md px-4 pb-16 lg:max-w-6xl lg:px-10 lg:pt-5">
       <header className="flex items-center justify-between py-5">
         <div className="flex items-center gap-3">
-          <Link href={viewsFor(user)[0].href} className="rounded-full bg-card p-2 text-muted" aria-label="Retour">
+          <Link href={viewsFor(user)[0].href} className="rounded-full bg-card p-2 text-muted lg:hidden" aria-label="Retour">
             <ArrowLeft size={18} />
           </Link>
-          <h1 className="text-2xl font-semibold">Mon profil</h1>
+          <h1 className="text-2xl font-semibold lg:text-3xl lg:font-bold">Mon profil</h1>
         </div>
-        <AccountBar {...await accountBarData(user)} />
+        <div className="lg:hidden">
+          <AccountBar {...await accountBarData(user)} />
+        </div>
       </header>
       <ProfileView profile={profile} />
     </main>

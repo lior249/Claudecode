@@ -18,7 +18,7 @@ export function CatalogItemPage({
   chosen: { itemId: string; title: string } | null;
 }) {
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 pb-32">
+    <main className="mx-auto min-h-dvh max-w-md lg:max-w-2xl lg:pt-6 px-4 pb-32">
       <DecisionHeader title={item.title} subtitle={CATALOGS[catalog].label} back={`/learn/decision/${lessonId}`} />
       {item.thumbnailUrl && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -55,8 +55,8 @@ export function CatalogItemPage({
         </section>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-line bg-bg/95 p-4 backdrop-blur">
-        <div className="mx-auto max-w-md">
+      <div className="fixed inset-x-0 bottom-0 lg:left-64 border-t border-line bg-bg/95 p-4 backdrop-blur">
+        <div className="mx-auto max-w-md lg:max-w-2xl">
           {chosen ? (
             <p className="flex items-center justify-center gap-2 py-3 text-sm text-muted">
               {chosen.itemId === item.id ? (

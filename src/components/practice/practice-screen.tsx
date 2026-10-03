@@ -28,7 +28,7 @@ export function PracticeScreen({ view, moduleTitle, whopUrl }: { view: PracticeV
   }, [view.status, router]);
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 pb-16">
+    <main className="mx-auto min-h-dvh max-w-md lg:max-w-2xl lg:pt-6 px-4 pb-16">
       <header className="flex items-center gap-3 py-5">
         <Link href="/learn" className="rounded-full bg-card p-2 text-muted" aria-label="Retour à ma progression">
           <ArrowLeft size={18} />

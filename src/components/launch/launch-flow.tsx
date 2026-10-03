@@ -38,7 +38,7 @@ export function LaunchFlow({ view, moduleTitle, whopUrl }: { view: View; moduleT
 
   if (view.done) {
     return (
-      <main className="mx-auto min-h-dvh max-w-md px-4 pb-16">
+      <main className="mx-auto min-h-dvh max-w-md lg:max-w-2xl lg:pt-6 px-4 pb-16">
         {header}
         <section className="space-y-3">
           <div className="rounded-3xl border border-gold/50 bg-card p-6 text-center">
@@ -63,7 +63,7 @@ export function LaunchFlow({ view, moduleTitle, whopUrl }: { view: View; moduleT
 
   if (!view.ready) {
     return (
-      <main className="mx-auto min-h-dvh max-w-md px-4 pb-16">
+      <main className="mx-auto min-h-dvh max-w-md lg:max-w-2xl lg:pt-6 px-4 pb-16">
         {header}
         <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Cette étape n&apos;est pas encore prête. Reviens un peu plus tard.</p>
       </main>
@@ -89,7 +89,7 @@ export function LaunchFlow({ view, moduleTitle, whopUrl }: { view: View; moduleT
   const filled = answers.filter((a) => a.trim().length >= view.minAnswerChars).length;
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 pb-16">
+    <main className="mx-auto min-h-dvh max-w-md lg:max-w-2xl lg:pt-6 px-4 pb-16">
       {header}
       <section className="rounded-3xl border border-line bg-card p-5">
         <p className="text-sm leading-relaxed">{view.summary}</p>

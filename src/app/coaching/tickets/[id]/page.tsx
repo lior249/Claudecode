@@ -17,7 +17,7 @@ export default async function LearnerTicketPage({ params }: PageProps<"/coaching
     throw e;
   }
   return (
-    <>
+    <div className="lg:mx-auto lg:max-w-2xl">
       <header className="flex items-center gap-3 py-5">
         <Link href="/coaching" className="rounded-full bg-card p-2 text-muted" aria-label="Retour">
           <ArrowLeft size={18} />
@@ -28,6 +28,6 @@ export default async function LearnerTicketPage({ params }: PageProps<"/coaching
         </div>
       </header>
       <TicketChat ticket={ticket} />
-    </>
+    </div>
   );
 }

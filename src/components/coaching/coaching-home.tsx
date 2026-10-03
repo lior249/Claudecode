@@ -74,7 +74,7 @@ export function CoachingHome({
 }) {
   return (
     <>
-      <header className="flex items-center justify-between py-5">
+      <header className="flex items-center justify-between py-5 lg:hidden">
         <Link href="/learn" aria-label="Creato">
           <Logo />
         </Link>
@@ -117,7 +117,7 @@ export function CoachingHome({
       )}
 
       {d.status === "ACTIVE" && (
-        <div className="mt-4 space-y-4">
+        <div className="mt-4 space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
           {!d.tiktokUsername || !d.timezone ? (
             <Profile username={d.tiktokUsername} />
           ) : (

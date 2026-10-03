@@ -14,15 +14,17 @@ export default async function LeaderboardPage() {
   const cards = [];
   for (const r of rows) cards.push(await memberCard(r.id, new Date(), user.id));
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 pb-16">
+    <main className="mx-auto min-h-dvh max-w-md px-4 pb-16 lg:max-w-6xl lg:px-10 lg:pt-5">
       <header className="flex items-center justify-between py-5">
         <div className="flex items-center gap-3">
-          <Link href={viewsFor(user)[0].href} className="rounded-full bg-card p-2 text-muted" aria-label="Retour">
+          <Link href={viewsFor(user)[0].href} className="rounded-full bg-card p-2 text-muted lg:hidden" aria-label="Retour">
             <ArrowLeft size={18} />
           </Link>
-          <h1 className="text-2xl font-semibold">Classement</h1>
+          <h1 className="text-2xl font-semibold lg:text-3xl lg:font-bold">Classement</h1>
         </div>
-        <AccountBar {...await accountBarData(user)} />
+        <div className="lg:hidden">
+          <AccountBar {...await accountBarData(user)} />
+        </div>
       </header>
       <p className="mb-6 text-sm text-muted">Points = streak (régularité) + vues validées (qualité). Touche un membre pour voir sa fiche.</p>
       <LeaderboardView rows={rows} cards={cards} meId={user.id} />

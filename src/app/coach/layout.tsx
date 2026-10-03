@@ -18,9 +18,9 @@ export default async function CoachLayout({ children }: LayoutProps<"/coach">) {
     ["/coach/availability", "Dispos"],
   ];
   return (
-    <div className="mx-auto min-h-dvh max-w-3xl px-4 pb-16">
+    <div className="mx-auto min-h-dvh max-w-3xl px-4 pb-16 lg:max-w-6xl lg:px-10 lg:pt-10">
       <TimezoneSync known={!!user.timezone} />
-      <header className="flex items-center justify-between py-5">
+      <header className="flex items-center justify-between py-5 lg:hidden">
         <Link href="/coach" className="flex items-baseline gap-2">
           <Logo />
           <span className="text-sm font-medium text-gold">Coach</span>

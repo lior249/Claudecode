@@ -17,7 +17,9 @@ import { ActivityGrid } from "@/components/coaching/activity-grid";
 export function ProfileView({ profile: p }: { profile: MyProfile }) {
   const c = p.coaching;
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start lg:gap-6">
+      {/* PC : identité à gauche (fixe), régularité et résultats à droite. Téléphone : une seule colonne. */}
+      <div className="contents lg:sticky lg:top-10 lg:flex lg:flex-col lg:gap-4">
       <section className="rounded-3xl border border-line bg-card p-5 text-center">
         <Photo name={p.displayName} url={p.avatarUrl} custom={p.hasCustomPhoto} />
         <p className="mt-3 break-words text-2xl font-bold">{p.displayName}</p>
@@ -42,11 +44,14 @@ export function ProfileView({ profile: p }: { profile: MyProfile }) {
         <StatTile label="Points" value={c ? c.points : "—"} />
       </section>
       {!c && <p className="text-center text-xs text-muted">Flamme, points et résultats démarrent après la formation, avec le coaching.</p>}
+      </div>
+      <div className="contents lg:flex lg:flex-col lg:gap-4">
       {c && <ActivityGrid grid={c.activity} current={c.streak.current} best={c.streak.best} />}
       {c && <NewResultPost autoApproved={p.autoApprovedPosts} />}
       {c && <PostGallery title="Mes résultats" items={c.posts} empty="Publie ton premier résultat : vues, tableau de bord, RPM…" />}
       {c && <Revenue lastMonthEur={c.lastMonthEur} bestMonthEur={c.bestMonthEur} totalEur={c.totalEur} />}
       {c && <PostGallery title="Résultats du mois" items={monthItems(c.months)} empty="Aucun résultat du mois validé pour l'instant." />}
+      </div>
 
     </div>
   );

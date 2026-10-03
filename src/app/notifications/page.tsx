@@ -11,13 +11,13 @@ export default async function NotificationsPage() {
   const items = await listNotifications(user.id);
   const back = user.role === "LEARNER" ? (user.coachingStatus === "NONE" ? "/learn" : "/coaching") : "/coach";
   return (
-    <main className="mx-auto min-h-dvh max-w-md px-4 pb-16">
+    <main className="mx-auto min-h-dvh max-w-md px-4 pb-16 lg:max-w-2xl lg:pt-5">
       <TimezoneSync known={!!user.timezone} />
       <header className="flex items-center gap-3 py-5">
-        <Link href={back} className="rounded-full bg-card p-2 text-muted" aria-label="Retour">
+        <Link href={back} className="rounded-full bg-card p-2 text-muted lg:hidden" aria-label="Retour">
           <ArrowLeft size={18} />
         </Link>
-        <h1 className="text-2xl font-semibold">Notifications</h1>
+        <h1 className="text-2xl font-semibold lg:text-3xl lg:font-bold">Notifications</h1>
       </header>
       <NotificationCenter
         items={items.map((n) => ({ id: n.id, text: stripLeadingEmoji(n.text), href: n.href, mood: isMood(n.mood) ? n.mood : "neutre", createdAt: n.createdAt.toISOString(), unread: !n.readAt }))}

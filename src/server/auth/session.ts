@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
@@ -31,7 +32,8 @@ export async function destroySession() {
   store.delete(COOKIE);
 }
 
-export async function getCurrentUser() {
+// Mis en cache pour la requête : le layout (barre latérale) et la page lisent la même session.
+export const getCurrentUser = cache(async function getCurrentUser() {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const session = await prisma.session.findUnique({ where: { id: hash(token) }, include: { user: true } });
@@ -44,7 +46,7 @@ export async function getCurrentUser() {
     session.user.lastSeenAt = now;
   }
   return session.user;
-}
+});
 
 // À appeler en tête de chaque page et de chaque action serveur protégée.
 export async function requireUser(roles?: Role[]) {

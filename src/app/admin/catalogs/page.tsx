@@ -33,7 +33,7 @@ export default async function AdminCatalogs({ searchParams }: PageProps<"/admin/
       <Link href={`/admin/catalogs/new?c=${catalog}`} className="flex items-center justify-center gap-2 rounded-2xl bg-text py-4 font-semibold text-black">
         <Plus size={18} /> {CATALOGS[catalog].add}
       </Link>
-      <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
         {items.length === 0 && (
         <MascotState mood="neutre">
           Aucune fiche pour l&apos;instant.

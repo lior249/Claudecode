@@ -41,7 +41,9 @@ export function ProofReview(props: Props) {
       else setError(res.error);
     });
   return (
-    <section className="rounded-3xl border border-line bg-card p-4">
+    <section className="rounded-3xl border border-line bg-card p-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:p-6">
+      {/* PC : la preuve à gauche, la décision à droite. */}
+      <div>
       <p className="text-sm text-muted">{props.learner}</p>
       <p className="font-semibold">{props.title}</p>
       <p className="text-xs text-muted">{props.hint}</p>
@@ -71,8 +73,10 @@ export function ProofReview(props: Props) {
 
       <a href={props.imageUrl} target="_blank" rel="noopener noreferrer">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={props.imageUrl} alt="Capture envoyée" className="mt-3 max-h-80 w-full rounded-2xl bg-black object-contain" />
+        <img src={props.imageUrl} alt="Capture envoyée" className="mt-3 max-h-80 w-full rounded-2xl bg-black object-contain lg:max-h-[28rem]" />
       </a>
+      </div>
+      <div className="lg:flex lg:flex-col lg:justify-end">
       {props.kind === "views" && (
         <label className="mt-3 block text-xs text-muted">
           Vues réelles (corrige si besoin)
@@ -93,6 +97,7 @@ export function ProofReview(props: Props) {
         </button>
       </div>
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      </div>
     </section>
   );
 }
