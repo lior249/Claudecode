@@ -247,6 +247,9 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
   validés par un coach, 0 € sinon) et l'**album des captures de résultats du mois validées** (2 par ligne, même
   largeur, hauteur libre, agrandissables). Jamais les captures de vues ou de profil, les vidéos, la niche ni les remarques.
   L'élève est prévenu à l'envoi que sa capture sera visible par tous (cacher ses infos personnelles).
+- **Grille de régularité** (style GitHub) : 18 dernières semaines, une case par jour (posté, gel, manqué), % de jours
+  postés depuis le début du coaching, flamme actuelle avec les jours de la semaine, record. Visible sur Mon profil,
+  la fiche d'un membre du classement et la fiche d'un élève côté coach.
 - **Devenir coach** : seulement après avoir terminé toute la formation (les coachs déjà nommés restent coachs).
 - **L'équipe participe au classement** : un coach (formation terminée) et l'admin (sans condition) ont l'espace
   « mes posts, ma flamme, mes résultats ». Pas de coach ni de tickets pour eux. L'admin est le coach des coachs :

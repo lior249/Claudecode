@@ -11,6 +11,7 @@ import { LocalTime } from "@/components/local-time";
 import { ReminderSettings } from "@/components/notifications/notification-center";
 import { Avatar } from "./avatar";
 import { ResultsAlbum, Revenue, StatTile } from "./member-stats";
+import { ActivityGrid } from "@/components/coaching/activity-grid";
 
 export function ProfileView({ profile: p }: { profile: MyProfile }) {
   const c = p.coaching;
@@ -42,6 +43,7 @@ export function ProfileView({ profile: p }: { profile: MyProfile }) {
         <StatTile label="Record de flamme" value={c ? `${c.streak.best} j` : "—"} />
       </section>
       {!c && <p className="text-center text-xs text-muted">Flamme, points et résultats démarrent après la formation, avec le coaching.</p>}
+      {c && <ActivityGrid grid={c.activity} current={c.streak.current} best={c.streak.best} />}
       {c && <Revenue lastMonthEur={c.lastMonthEur} bestMonthEur={c.bestMonthEur} totalEur={c.totalEur} />}
       {c && <ResultsAlbum months={c.months} />}
 

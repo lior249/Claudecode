@@ -5,5 +5,7 @@ cd "$(dirname "$0")/.."
 ./deploy/backup.sh
 git pull --ff-only
 docker compose up -d --build
-docker image prune -f >/dev/null
+# Libère l'espace disque : anciennes images et cache de construction (plusieurs Go à chaque mise à jour).
+docker image prune -af >/dev/null
+docker builder prune -af >/dev/null
 docker compose ps

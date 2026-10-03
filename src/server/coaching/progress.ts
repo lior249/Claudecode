@@ -15,6 +15,7 @@ import {
   monthlyWindow,
   normalizeTikTokUsername,
   parseTikTokUrl,
+  activityGrid,
   rankFromMonthlyAmount,
   viewPoints,
   type AnyRank,
@@ -70,6 +71,17 @@ export async function addPost(learnerId: string, url: string, now = new Date()) 
     });
   }
   return post;
+}
+
+// Grille de régularité des 18 dernières semaines (jours postés, gels, jours manqués).
+export async function getActivity(learnerId: string, now = new Date()) {
+  const l = await prisma.user.findUniqueOrThrow({ where: { id: learnerId } });
+  const tz = tzOf(l);
+  const today = localDate(now, tz);
+  const start = l.coachingStartedAt ? localDate(l.coachingStartedAt, tz) : today;
+  const posts = (await prisma.post.findMany({ where: { learnerId }, select: { localDate: true } })).map((p) => p.localDate);
+  const streak = computeStreak(posts, start, today);
+  return activityGrid(posts, streak.frozenDays, start, today);
 }
 
 export async function getStreak(learnerId: string, now = new Date()) {
@@ -301,6 +313,7 @@ export async function getCoachingDashboard(learnerId: string, now = new Date()) 
     timezone: l.timezone,
     rank: (l.manualRank ?? "B") as AnyRank,
     streak,
+    activity: await getActivity(learnerId, now),
     points: { streak: streak.points, quality, total: streak.points + quality },
     posts: posts.map((p) => ({
       id: p.id,

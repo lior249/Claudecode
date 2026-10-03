@@ -7,6 +7,7 @@ import { getCoachingDashboard } from "@/server/coaching/progress";
 import { LearnerFilePanel } from "@/components/admin/learner-file-panel";
 import { RankBadge } from "@/components/learn/badges";
 import { Flame } from "@/components/coaching/flame";
+import { ActivityGrid } from "@/components/coaching/activity-grid";
 
 const STATUS: Record<string, string> = { ACTIVE: "En coaching", REVOKED: "En pause (absence)", COMPLETED: "Terminé (SSS)", NONE: "Learn" };
 
@@ -76,6 +77,9 @@ export default async function CoachLearners({ searchParams }: PageProps<"/coach/
                 Statut : {STATUS[selected.l.coachingStatus]} · rang {selected.d.rank}
                 {selected.d.proofs.filter((p) => p.status === "APPROVED" && p.kind === "MONTHLY").map((p) => ` · ${p.month} : ${p.amountEur} €`)}
               </p>
+              <div className="mt-3">
+                <ActivityGrid grid={selected.d.activity} current={selected.d.streak.current} best={selected.d.streak.best} />
+              </div>
             </section>
           }
         />

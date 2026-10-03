@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  activityGrid,
   computeStreak,
   isoWeek,
   localDate,
@@ -75,5 +76,24 @@ describe("points, rangs et fenêtres", () => {
   it("semaine ISO pour compter les retards", () => {
     expect(isoWeek(new Date("2026-10-05T10:00:00Z"))).toBe("2026-W41");
     expect(isoWeek(new Date("2026-10-04T23:00:00Z"))).toBe("2026-W40");
+  });
+});
+
+describe("grille de régularité", () => {
+  it("place les jours en colonnes de semaines et calcule le pourcentage", () => {
+    // 2026-10-07 = mercredi ; coaching commencé le lundi 05.
+    const g = activityGrid(["2026-10-05", "2026-10-07"], ["2026-10-06"], "2026-10-05", "2026-10-07", 2);
+    expect(g.weeks).toHaveLength(2);
+    expect(g.weeks[0][0].day).toBe("2026-09-28"); // lundi
+    expect(g.weeks[1].map((c) => c.state)).toEqual(["posted", "frozen", "posted", "future", "future", "future", "future"]);
+    expect(g.weeks[0].every((c) => c.state === "before")).toBe(true);
+    expect(g.percent).toBe(67); // 2 postés sur 3 jours (le gel compte comme non posté)
+    expect(g.thisWeek[2]).toBe("posted");
+  });
+
+  it("aujourd'hui non posté ne fait pas baisser le pourcentage", () => {
+    const g = activityGrid(["2026-10-05"], [], "2026-10-05", "2026-10-06", 1);
+    expect(g.percent).toBe(100);
+    expect(g.weeks[0][1].state).toBe("missed");
   });
 });

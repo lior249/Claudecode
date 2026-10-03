@@ -9,6 +9,7 @@ import { Flame } from "@/components/coaching/flame";
 import { LocalTime } from "@/components/local-time";
 import { Avatar } from "./avatar";
 import { ResultsAlbum, Revenue, StatTile } from "./member-stats";
+import { ActivityGrid } from "@/components/coaching/activity-grid";
 
 interface Row {
   id: string;
@@ -101,13 +102,12 @@ function MemberPopup({ card: c, position, onClose }: { card: MemberCard; positio
           )}
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <StatTile label="Points" value={c.points} />
-          <StatTile label="Flamme actuelle" value={`${c.streak.current} j`} />
           <div className="col-span-2">
-            <StatTile label="Record de flamme" value={`${c.streak.best} j`} />
+            <StatTile label="Points" value={c.points} />
           </div>
         </div>
         <div className="mt-4 grid gap-3">
+          <ActivityGrid grid={c.activity} current={c.streak.current} best={c.streak.best} />
           <Revenue lastMonthEur={c.lastMonthEur} bestMonthEur={c.bestMonthEur} totalEur={c.totalEur} />
           <ResultsAlbum months={c.months} />
         </div>

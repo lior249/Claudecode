@@ -107,6 +107,43 @@ export function computeStreak(postDays: Iterable<string>, startDay: string, toda
   return { current, best, points, frozenDays, todayDone: posted.has(today), flame: flameLevel(current) };
 }
 
+// ---------- Grille de régularité (style GitHub) ----------
+
+export type DayState = "posted" | "frozen" | "missed" | "before" | "future";
+export interface ActivityGrid {
+  weeks: { day: string; state: DayState }[][]; // colonnes = semaines (lundi → dimanche)
+  percent: number; // jours postés / jours écoulés depuis le début du coaching (sur la période affichée)
+  thisWeek: DayState[]; // lundi → dimanche de la semaine en cours
+}
+
+const weekday = (day: string) => (new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7; // 0 = lundi
+
+export function activityGrid(postDays: Iterable<string>, frozenDays: Iterable<string>, startDay: string, today: string, weeks = 18): ActivityGrid {
+  const posted = new Set(postDays);
+  const frozen = new Set(frozenDays);
+  const firstMonday = addDays(addDays(today, -weekday(today)), -7 * (weeks - 1));
+  const state = (day: string): DayState =>
+    day > today ? "future" : day < startDay ? "before" : posted.has(day) ? "posted" : frozen.has(day) ? "frozen" : "missed";
+  const cols: { day: string; state: DayState }[][] = [];
+  let done = 0;
+  let elapsed = 0;
+  for (let w = 0; w < weeks; w++) {
+    const col = [];
+    for (let d = 0; d < 7; d++) {
+      const day = addDays(firstMonday, w * 7 + d);
+      const st = state(day);
+      // Aujourd'hui compte seulement s'il est déjà posté (la journée n'est pas finie).
+      if (st === "posted") {
+        done++;
+        elapsed++;
+      } else if (st === "frozen" || (st === "missed" && day !== today)) elapsed++;
+      col.push({ day, state: st });
+    }
+    cols.push(col);
+  }
+  return { weeks: cols, percent: elapsed ? Math.round((done / elapsed) * 100) : 0, thisWeek: cols[cols.length - 1].map((c) => c.state) };
+}
+
 // ---------- Qualité : points par vidéo selon les vues ----------
 
 export function viewPoints(views: number) {

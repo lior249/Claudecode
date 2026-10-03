@@ -3,7 +3,7 @@ import { Readable } from "node:stream";
 import { prisma } from "@/server/db";
 import { fileUrl } from "@/server/decisions/service";
 import { getLearnerProgression } from "@/server/learn/service";
-import { getStreak, qualityPoints } from "@/server/coaching/progress";
+import { getActivity, getStreak, qualityPoints } from "@/server/coaching/progress";
 import { localDate, type AnyRank } from "@/server/coaching/rules";
 import { userTimezone } from "@/server/notifications/service";
 import { storeAvatarImage } from "@/server/storage/images";
@@ -59,6 +59,7 @@ export async function memberCard(userId: string, now = new Date()) {
     points: streak.points + quality,
     coachingSince: u.coachingStartedAt?.toISOString() ?? null,
     streak: { current: streak.current, best: streak.best, flame: streak.flame },
+    activity: await getActivity(userId, now),
     lastMonthEur: months.find((x) => x.month === previousMonth(localDate(now, userTimezone(u))))?.amountEur ?? 0,
     bestMonthEur: bestOf(months),
     totalEur: months.reduce((sum, x) => sum + x.amountEur, 0),
