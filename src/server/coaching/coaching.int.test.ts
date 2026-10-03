@@ -180,7 +180,7 @@ describe("Posts, streak, preuves et rangs", () => {
     expect((await prisma.rankProof.findFirstOrThrow()).videoUrls).toEqual([video]);
     await reviewRankProof({ id: c.id, role: "COACH" }, (await prisma.rankProof.findFirstOrThrow()).id, true, "", true);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: l.id } })).manualRank).toBe("S");
-    await submitMonthlyProof(l.id, 1200, [video], img(l.id), new Date("2026-12-02T12:00:00Z"));
+    await submitMonthlyProof(l.id, 1200, [video], img(l.id), new Date("2026-11-30T12:00:00Z"));
     await reviewRankProof({ id: c.id, role: "COACH" }, (await prisma.rankProof.findFirstOrThrow({ where: { status: "PENDING" } })).id, true, "", true);
     const done = await prisma.user.findUniqueOrThrow({ where: { id: l.id } });
     expect(done).toMatchObject({ manualRank: "SSS", coachingStatus: "COMPLETED" });

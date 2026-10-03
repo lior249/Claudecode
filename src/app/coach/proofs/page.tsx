@@ -1,16 +1,19 @@
 import { requireUser } from "@/server/auth/session";
 import { listPendingProofs } from "@/server/coaching/progress";
 import { ProofReview } from "@/components/coaching/proof-review";
+import { listPendingResultPosts } from "@/server/results/service";
+import { ResultPostReview } from "@/components/results/result-post-review";
 
 const fr = (n: number | null) => (n === null ? "—" : n.toLocaleString("fr-FR"));
 
 export default async function CoachProofs() {
   const user = await requireUser(["COACH", "ADMIN"]);
   const { views, ranks } = await listPendingProofs(user);
+  const posts = await listPendingResultPosts(user);
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Preuves à valider</h1>
-      {views.length + ranks.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Rien à valider. 🎉</p>}
+      {views.length + ranks.length + posts.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Rien à valider. 🎉</p>}
       {ranks.map((r) => (
         <ProofReview
           key={r.id}
@@ -51,6 +54,9 @@ export default async function CoachProofs() {
           links={[{ label: "Ouvrir la vidéo", url: v.url }]}
           views={v.views}
         />
+      ))}
+      {posts.map((p) => (
+        <ResultPostReview key={p.id} id={p.id} author={`${p.author}${p.authorRole === "COACH" ? " (coach)" : ""}`} title={p.title} body={p.body} link={p.link} imageUrl={p.imageUrl} />
       ))}
     </div>
   );

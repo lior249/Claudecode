@@ -8,6 +8,8 @@ import { LearnerFilePanel } from "@/components/admin/learner-file-panel";
 import { RankBadge } from "@/components/learn/badges";
 import { Flame } from "@/components/coaching/flame";
 import { ActivityGrid } from "@/components/coaching/activity-grid";
+import { PostGallery } from "@/components/results/post-gallery";
+import { listResultPosts } from "@/server/results/service";
 
 const STATUS: Record<string, string> = { ACTIVE: "En coaching", REVOKED: "En pause (absence)", COMPLETED: "Terminé (SSS)", NONE: "Learn" };
 
@@ -79,6 +81,9 @@ export default async function CoachLearners({ searchParams }: PageProps<"/coach/
               </p>
               <div className="mt-3">
                 <ActivityGrid grid={selected.d.activity} current={selected.d.streak.current} best={selected.d.streak.best} />
+              </div>
+              <div className="mt-3">
+                <PostGallery title="Ses résultats" items={await listResultPosts(selected.l.id, user.id)} empty="Aucun post de résultat pour l'instant." />
               </div>
             </section>
           }

@@ -66,11 +66,10 @@ describe("points, rangs et fenêtres", () => {
     expect(maxRank("B", "S")).toBe("S");
     expect(maxRank("SS", "A")).toBe("SS");
   });
-  it("résultats du mois : du dernier jour au 5 du mois suivant", () => {
+  it("résultats du mois : uniquement le dernier jour du mois", () => {
     expect(monthlyWindow("2026-10-31")).toEqual({ open: true, month: "2026-10" });
-    expect(monthlyWindow("2026-11-05")).toEqual({ open: true, month: "2026-10" });
-    expect(monthlyWindow("2026-01-03")).toEqual({ open: true, month: "2025-12" });
-    expect(monthlyWindow("2026-11-06")).toEqual({ open: false, month: null });
+    expect(monthlyWindow("2026-11-01")).toEqual({ open: false, month: null });
+    expect(monthlyWindow("2026-10-30")).toEqual({ open: false, month: null });
     expect(monthlyWindow("2028-02-29")).toEqual({ open: true, month: "2028-02" });
   });
   it("semaine ISO pour compter les retards", () => {

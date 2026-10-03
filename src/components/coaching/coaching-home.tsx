@@ -360,6 +360,10 @@ function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
   const monthly = useAction();
   const [followersCount, setFollowersCount] = useState("");
   const [amount, setAmount] = useState("");
+  const [story, setStory] = useState("");
+  const approvedMonths = d.proofs.filter((p) => p.kind === "MONTHLY" && p.status === "APPROVED").map((p) => p.amountEur ?? 0);
+  const pastTotal = approvedMonths.reduce((a, b) => a + b, 0);
+  const pastBest = Math.max(0, ...approvedMonths);
   const [fImg, setFImg] = useState<{ key: string; url: string } | null>(null);
   const [mImg, setMImg] = useState<{ key: string; url: string } | null>(null);
   const [links, setLinks] = useState<string[]>([""]);
@@ -394,13 +398,20 @@ function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
             <p className="text-xs text-muted">
               Mois de {d.monthlyWindow.month} : envoie ce que tu as gagné, la capture de ton tableau de bord et les liens des vidéos. Ton coach vérifie que tout concorde avant de valider.
             </p>
-            <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Montant gagné (€)" className={field} />
+            <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Montant exact gagné ce mois-ci (€)" className={field} />
+            {amount && (
+              <p className="text-xs text-muted">
+                Total généré avec ce mois : <b className="text-text">{(pastTotal + Number(amount)).toLocaleString("fr-FR")} €</b>
+                {Number(amount) > pastBest ? " · 🏆 ce serait ton meilleur mois !" : ` · ton meilleur mois reste ${pastBest.toLocaleString("fr-FR")} €`}
+              </p>
+            )}
+            <textarea value={story} onChange={(e) => setStory(e.target.value)} rows={3} maxLength={1500} placeholder="Raconte ton mois : ce que tu ressens, ce qui a marché…" className={field} />
             <ImagePicker value={mImg} onChange={setMImg} label="Capture du tableau de bord" />
             <VideoLinks value={links} onChange={setLinks} username={d.tiktokUsername} />
             <p className="text-xs text-muted">Une fois validés, tes résultats et ta capture du tableau de bord sont visibles par tous les membres dans le classement. Cache tes infos personnelles (nom complet, banque…) avant de l&apos;envoyer.</p>
             <button
               disabled={monthly.pending || !amount || !mImg || filledLinks.length === 0}
-              onClick={() => monthly.run(() => monthlyProofAction({ amountEur: Number(amount), videoUrls: filledLinks, imageKey: mImg!.key }), "Résultats envoyés.")}
+              onClick={() => monthly.run(() => monthlyProofAction({ amountEur: Number(amount), videoUrls: filledLinks, imageKey: mImg!.key, description: story }), "Résultats envoyés.")}
               className="w-full rounded-xl bg-gold py-2.5 text-sm font-semibold text-black disabled:opacity-40"
             >
               Envoyer mes résultats
@@ -408,7 +419,7 @@ function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
             {monthly.error && <p className="text-xs text-danger">{monthly.error}</p>}
           </>
         ) : (
-          <p className="text-xs text-muted">{d.monthlyAlreadySent ? "Résultats du mois envoyés." : "Disponible du dernier jour du mois au 5 du mois suivant."}</p>
+          <p className="text-xs text-muted">{d.monthlyAlreadySent ? "Résultats du mois envoyés." : "À envoyer uniquement le dernier jour du mois."}</p>
         )}
       </div>
 

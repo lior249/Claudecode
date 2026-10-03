@@ -142,17 +142,18 @@ function ownVideoUrls(username: string | null, urls: string[]) {
   });
 }
 
-export async function submitMonthlyProof(learnerId: string, amountEur: number, videoUrls: string[], imageKey: string, now = new Date()) {
+export async function submitMonthlyProof(learnerId: string, amountEur: number, videoUrls: string[], imageKey: string, now = new Date(), description = "") {
   const l = await coachingLearner(learnerId);
   assertOwnImage(learnerId, imageKey);
   const links = ownVideoUrls(l.tiktokUsername, videoUrls);
   const window = monthlyWindow(localDate(now, tzOf(l)));
-  if (!window.open || !window.month) throw new CoachingError("Les résultats du mois s'envoient du dernier jour du mois au 5 du mois suivant.");
+  if (!window.open || !window.month) throw new CoachingError("Les résultats du mois s'envoient uniquement le dernier jour du mois.");
   if (!Number.isInteger(amountEur) || amountEur < 0 || amountEur > 1_000_000) throw new CoachingError("Montant invalide.");
   if (await prisma.rankProof.findFirst({ where: { learnerId, kind: "MONTHLY", month: window.month, status: { in: ["PENDING", "APPROVED"] } } })) {
     throw new CoachingError("Tes résultats de ce mois sont déjà envoyés.");
   }
-  await prisma.rankProof.create({ data: { learnerId, kind: "MONTHLY", month: window.month, amountEur, videoUrls: links, imageKey } });
+  const text = description.trim().slice(0, 1500);
+  await prisma.rankProof.create({ data: { learnerId, kind: "MONTHLY", month: window.month, amountEur, videoUrls: links, imageKey, description: text || null } });
   await notifyCoach(learnerId, `💶 Résultats du mois ${window.month} à valider.`);
 }
 

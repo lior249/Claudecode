@@ -176,16 +176,11 @@ export function rankFromMonthlyAmount(eur: number): "S" | "SS" | "SSS" | null {
 
 export const FOLLOWERS_FOR_A = 10_000;
 
-// Fenêtre des résultats du mois : du dernier jour du mois au 5 du mois suivant (dates locales).
+// Fenêtre des résultats du mois : uniquement le dernier jour du mois (date locale de l'élève).
 export function monthlyWindow(today: string): { open: boolean; month: string | null } {
   const [y, m, d] = today.split("-").map(Number);
   const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  if (d === lastDay) return { open: true, month: today.slice(0, 7) };
-  if (d <= 5) {
-    const prev = new Date(Date.UTC(y, m - 2, 1));
-    return { open: true, month: prev.toISOString().slice(0, 7) };
-  }
-  return { open: false, month: null };
+  return d === lastDay ? { open: true, month: today.slice(0, 7) } : { open: false, month: null };
 }
 
 // ---------- Étoiles des coachs ----------

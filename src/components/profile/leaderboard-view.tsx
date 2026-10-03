@@ -8,7 +8,9 @@ import { RankBadge } from "@/components/learn/badges";
 import { Flame } from "@/components/coaching/flame";
 import { LocalTime } from "@/components/local-time";
 import { Avatar } from "./avatar";
-import { ResultsAlbum, Revenue, StatTile } from "./member-stats";
+import { Revenue, StatTile } from "./member-stats";
+import { PostGallery } from "@/components/results/post-gallery";
+import { monthItems } from "@/components/results/gallery-items";
 import { ActivityGrid } from "@/components/coaching/activity-grid";
 
 interface Row {
@@ -108,8 +110,9 @@ function MemberPopup({ card: c, position, onClose }: { card: MemberCard; positio
         </div>
         <div className="mt-4 grid gap-3">
           <ActivityGrid grid={c.activity} current={c.streak.current} best={c.streak.best} />
+          <PostGallery title="Ses résultats" items={c.posts} empty="Aucun post de résultat pour l'instant." />
           <Revenue lastMonthEur={c.lastMonthEur} bestMonthEur={c.bestMonthEur} totalEur={c.totalEur} />
-          <ResultsAlbum months={c.months} />
+          <PostGallery title="Résultats du mois" items={monthItems(c.months)} empty="Aucun résultat du mois validé pour l'instant." />
         </div>
       </div>
     </div>

@@ -87,6 +87,9 @@ model User {
   dmEnabled    Boolean   @default(true)
   lastSeenAt   DateTime?
 
+  // Coach : dernière mise à jour de ses disponibilités de la semaine.
+  availabilityUpdatedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -105,6 +108,9 @@ model User {
   reactivations    ReactivationRequest[] @relation("ReactivationLearner")
   auditLogs        AuditLog[]
   notifications    Notification[]
+  resultPosts      ResultPost[]          @relation("ResultAuthor")
+  postReactions    PostReaction[]
+  availability     CoachAvailability[]
 
   @@index([coachId])
 }
@@ -612,6 +618,7 @@ model RankProof {
   amountEur     Int?
   followers     Int?
   videoUrls     Json          @default("[]") // liens des vidéos concernées (vérifiés par le coach)
+  description   String? // résultats du mois : le petit texte de l'élève (ressenti)
   imageKey      String
   status        ProofStatus   @default(PENDING)
   reviewComment String?
@@ -632,3 +639,60 @@ model ReactivationRequest {
   decidedById String?
   createdAt   DateTime    @default(now())
 }
+
+// --- Posts de résultats (mur des réussites) ---
+
+// Post libre : titre, capture, texte, lien. Validé par le coach de l'élève, par l'admin pour un coach ;
+// les posts de l'admin sont validés d'office. N'entre pas dans les revenus du mois.
+model ResultPost {
+  id            String         @id @default(cuid())
+  authorId      String
+  author        User           @relation("ResultAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  title         String
+  body          String         @default("")
+  imageKey      String
+  link          String?
+  status        ProofStatus    @default(PENDING)
+  reviewComment String?
+  reviewedAt    DateTime?
+  reviewedById  String?
+  createdAt     DateTime       @default(now())
+  reactions     PostReaction[]
+
+  @@index([authorId, createdAt])
+  @@index([status, createdAt])
+}
+
+enum ReactionKind {
+  FIRE // 🔥
+  ROCKET // 🚀
+  ANGRY // 😡
+  CRY // 😢
+}
+
+// Une seule réaction par membre et par post (modifiable).
+model PostReaction {
+  id        String       @id @default(cuid())
+  postId    String
+  post      ResultPost   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      ReactionKind
+  createdAt DateTime     @default(now())
+
+  @@unique([postId, userId])
+}
+
+// --- Disponibilités des coachs (hebdomadaires, dans le fuseau du coach) ---
+
+model CoachAvailability {
+  id      String @id @default(cuid())
+  coachId String
+  coach   User   @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  weekday Int // 0 = lundi … 6 = dimanche
+  start   String // "21:00"
+  end     String // "23:00"
+
+  @@index([coachId])
+}
+

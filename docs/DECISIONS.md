@@ -258,6 +258,27 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
 - Le nombre d'élèves par niche n'est visible que dans l'Admin.
 - La page de connexion n'affiche que « Se connecter avec Discord » (les comptes de test sont sur une page à part, inexistante en ligne).
 
+## Posts de résultats (mur des réussites)
+
+- Tout membre qui participe (élèves en coaching, coachs, admin) peut publier : **titre** (ex. « 1 500 € en une seule
+  vidéo 🔥 »), **capture**, **petit texte** (ressenti), **lien** facultatif. **2 posts par jour** au maximum.
+- Validation avant publication : élève → son coach ; coach → l'admin ; admin → publié d'office. Refus = explication.
+- Affichage sous la grille de régularité (Mon profil, fiche du classement, fiche élève côté coach) : galerie de 2,
+  aperçu de la capture fondu vers le bas, titre + ✓, 2 lignes de texte, « Voir plus » → fenêtre avec l'image en
+  entier, le texte complet, le lien et les réactions.
+- Réactions : 🔥 🚀 😡 😢, **une seule par membre et par post** (modifiable, retirable).
+- Les posts **ne comptent pas** dans les revenus. Les **résultats du mois** restent à part : montant exact + capture
+  + liens + petit texte, envoyés **uniquement le dernier jour du mois**, validés par le coach, additionnés (total
+  généré) et marqués « 🏆 Meilleur mois » quand c'est le record.
+
+## Disponibilités des coachs
+
+- Chaque coach indique ses créneaux de la semaine (jours + heures, dans son fuseau) dans « Coach → Dispos ».
+- Rappel le **dimanche à 18 h** (heure du coach) s'il ne les a pas mis à jour depuis 5 jours.
+- À l'enregistrement, chaque élève reçoit les créneaux en message privé, **convertis dans son fuseau**.
+- Côté élève : bouton **« Mon coach »** en bas à droite avec ses échanges (tickets) et les disponibilités du coach.
+- Les badges (succès) sont mis de côté pour l'instant.
+
 ## Rangs
 
 | Rang | Condition | Calcul |

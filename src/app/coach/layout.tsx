@@ -13,6 +13,7 @@ export default async function CoachLayout({ children }: LayoutProps<"/coach">) {
     ["/coach/proofs", "Preuves"],
     ["/coach/follow-ups", "Suivi"],
     ["/coach/reactivations", "Retours"],
+    ["/coach/availability", "Dispos"],
   ];
   return (
     <div className="mx-auto min-h-dvh max-w-3xl px-4 pb-16">

@@ -4,6 +4,8 @@ import { getLearnerProgression } from "@/server/learn/service";
 import { getStreak, leaderboard } from "@/server/coaching/progress";
 import { daysBetween, localDate, monthlyWindow } from "@/server/coaching/rules";
 import { listReactivationRequests } from "@/server/coaching/admin";
+
+const AVAILABILITY_HOUR = 18;
 import { notify, userTimezone } from "./service";
 import {
   DIGEST_HOUR,
@@ -95,15 +97,14 @@ async function coachingNudges(now: Date, count: Counter) {
         count(await notify(l.id, { kind: "leaderboard.weekly", href: "/classement", onceKey: `weekly:${today}`, text }));
       }
     }
+    // Résultats du mois : seulement le dernier jour du mois (rappel le matin, dernière chance le soir).
     const win = monthlyWindow(today);
-    if (awake && win.open && win.month) {
+    if (win.open && win.month && hour >= 10 && hour < QUIET_START_HOUR) {
       const sent = await prisma.rankProof.count({ where: { learnerId: l.id, kind: "MONTHLY", month: win.month } });
       if (!sent) {
-        const day = Number(today.slice(8, 10));
-        if (day > 5) {
-          count(await notify(l.id, { kind: "monthly.open", href: "/coaching", onceKey: `monthly-open:${win.month}`, text: "💰 C'est le dernier jour du mois : envoie tes résultats (montant, capture et liens des vidéos) jusqu'au 5." }));
-        } else if (day >= 4) {
-          count(await notify(l.id, { kind: "monthly.last", href: "/coaching", onceKey: `monthly-last:${win.month}`, text: `⏳ Plus que ${6 - day} jour${6 - day > 1 ? "s" : ""} pour envoyer tes résultats du mois.` }));
+        count(await notify(l.id, { kind: "monthly.open", href: "/coaching", onceKey: `monthly-open:${win.month}`, text: "💰 C'est le dernier jour du mois : envoie tes résultats aujourd'hui (montant exact, capture et liens des vidéos)." }));
+        if (hour >= STREAK_LAST_CHANCE_HOUR) {
+          count(await notify(l.id, { kind: "monthly.last", href: "/coaching", onceKey: `monthly-last:${win.month}`, text: "⏳ Dernière chance : tes résultats du mois s'envoient jusqu'à minuit." }));
         }
       }
     }
@@ -114,7 +115,7 @@ async function coachingNudges(now: Date, count: Counter) {
 async function staffDigests(now: Date, count: Counter) {
   const staff = await prisma.user.findMany({
     where: { role: { in: ["COACH", "ADMIN"] }, status: "ACTIVE" },
-    select: { id: true, role: true, timezone: true },
+    select: { id: true, role: true, timezone: true, coachOrder: true, availabilityUpdatedAt: true },
   });
   for (const s of staff) {
     const tz = userTimezone(s);
@@ -125,10 +126,16 @@ async function staffDigests(now: Date, count: Counter) {
       late: await prisma.responseWait.count({ where: { coachId: s.id, answeredAt: null, dueAt: { lt: now } } }),
       proofs:
         (await prisma.viewProof.count({ where: { status: "PENDING", post: { learner: { coachId: s.id } } } })) +
-        (await prisma.rankProof.count({ where: { status: "PENDING", learner: { coachId: s.id } } })),
+        (await prisma.rankProof.count({ where: { status: "PENDING", learner: { coachId: s.id } } })) +
+        (await prisma.resultPost.count({ where: { status: "PENDING", author: s.role === "ADMIN" ? { role: { not: "LEARNER" } } : { coachId: s.id, role: "LEARNER" } } })),
       reactivations: s.role === "ADMIN" ? 0 : (await listReactivationRequests(s)).length,
     });
     if (coachText) count(await notify(s.id, { kind: "coach.digest", href: "/coach", onceKey: `coach-digest:${today}`, text: coachText }));
+    // Dimanche soir : rappel de remplir les disponibilités de la semaine (si pas fait depuis 5 jours).
+    if (s.coachOrder !== null && localWeekday(now, tz) === 7 && localHour(now, tz) >= AVAILABILITY_HOUR) {
+      const fresh = s.availabilityUpdatedAt && now.getTime() - s.availabilityUpdatedAt.getTime() < 5 * 86_400_000;
+      if (!fresh) count(await notify(s.id, { kind: "coach.availabilityReminder", href: "/coach/availability", onceKey: `availability:${today}`, text: "📅 Dimanche soir : indique tes disponibilités de coaching pour la semaine. Tes élèves les recevront tout de suite." }));
+    }
     if (s.role !== "ADMIN") continue;
     const adminText = adminDigest({
       reviews: await prisma.submission.count({ where: { status: "PENDING_HUMAN" } }),

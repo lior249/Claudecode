@@ -44,7 +44,7 @@ export function ActivityGrid({ grid, current, best }: { grid: Grid; current?: nu
           <div>
             <p className="text-xs text-muted">Flamme actuelle</p>
             <p className="text-xl font-semibold">
-              🔥 {current} <span className="text-sm font-normal text-muted">jours</span>
+              🔥 {current} <span className="text-sm font-normal text-muted">{current > 1 ? "jours" : "jour"}</span>
             </p>
             <div className="mt-2 flex gap-1.5" aria-label="Cette semaine">
               {grid.thisWeek.map((s, i) => (
@@ -57,7 +57,7 @@ export function ActivityGrid({ grid, current, best }: { grid: Grid; current?: nu
           <div>
             <p className="text-xs text-muted">Record</p>
             <p className="text-xl font-semibold">
-              🔥 {best} <span className="text-sm font-normal text-muted">jours</span>
+              🔥 {best} <span className="text-sm font-normal text-muted">{(best ?? 0) > 1 ? "jours" : "jour"}</span>
             </p>
           </div>
         </div>

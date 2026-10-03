@@ -21,6 +21,8 @@ Référence produit : `docs/DECISIONS.md` (prioritaire) puis `docs/SPEC.md`. Int
 9. Notifications : toujours `notify()` (`src/server/notifications/service.ts`), jamais Discord directement. La notification
    va dans la cloche ; le worker envoie le message privé (heures calmes 22 h–8 h, 3 par jour, sauf `urgent`). Les relances
    programmées vivent dans `engagement.ts` avec une `onceKey` (pas de doublon). Textes et règles pures dans `rules.ts`.
+10. Posts de résultats : `src/server/results/service.ts` (validation coach / admin, 2 par jour, réactions). Disponibilités
+   des coachs : règles pures (fuseaux) dans `coaching/availability-rules.ts`, service dans `coaching/availability.ts`.
 
 ## Pièges
 - Next.js 16 : `proxy.ts` (pas `middleware.ts`), `params`/`cookies()` sont des Promises. Lire `node_modules/next/dist/docs/`.

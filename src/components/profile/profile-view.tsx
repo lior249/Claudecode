@@ -10,7 +10,10 @@ import { Flame } from "@/components/coaching/flame";
 import { LocalTime } from "@/components/local-time";
 import { ReminderSettings } from "@/components/notifications/notification-center";
 import { Avatar } from "./avatar";
-import { ResultsAlbum, Revenue, StatTile } from "./member-stats";
+import { Revenue, StatTile } from "./member-stats";
+import { PostGallery } from "@/components/results/post-gallery";
+import { NewResultPost } from "@/components/results/new-result-post";
+import { monthItems } from "@/components/results/gallery-items";
 import { ActivityGrid } from "@/components/coaching/activity-grid";
 
 export function ProfileView({ profile: p }: { profile: MyProfile }) {
@@ -44,8 +47,10 @@ export function ProfileView({ profile: p }: { profile: MyProfile }) {
       </section>
       {!c && <p className="text-center text-xs text-muted">Flamme, points et résultats démarrent après la formation, avec le coaching.</p>}
       {c && <ActivityGrid grid={c.activity} current={c.streak.current} best={c.streak.best} />}
+      {c && <NewResultPost autoApproved={p.autoApprovedPosts} />}
+      {c && <PostGallery title="Mes résultats" items={c.posts} empty="Publie ton premier résultat : vues, tableau de bord, RPM…" />}
       {c && <Revenue lastMonthEur={c.lastMonthEur} bestMonthEur={c.bestMonthEur} totalEur={c.totalEur} />}
-      {c && <ResultsAlbum months={c.months} />}
+      {c && <PostGallery title="Résultats du mois" items={monthItems(c.months)} empty="Aucun résultat du mois validé pour l'instant." />}
 
       <Tiktok initial={p.tiktokUsername} />
       <ReminderSettings reminderHour={p.reminderHour} dmEnabled={p.dmEnabled} />

@@ -23,6 +23,7 @@ import {
   updateCoachingProfile,
 } from "@/server/coaching/progress";
 import { addCoach, NeedsForceError, removeCoach, setCoachCapacity } from "@/server/coaching/admin";
+import { setAvailability } from "@/server/coaching/availability";
 
 type Result = { ok: true; id?: string } | { ok: false; error: string };
 const id = z.string().min(1).max(64);
@@ -85,8 +86,8 @@ export const followersProofAction = async (raw: unknown) =>
   run(PARTICIPANTS, z.object({ followers: z.number().int(), imageKey: z.string().max(200) }), raw, (u, d) => submitFollowersProof(u.id, d.followers, d.imageKey));
 
 export const monthlyProofAction = async (raw: unknown) =>
-  run(PARTICIPANTS, z.object({ amountEur: z.number().int(), videoUrls: z.array(z.string().max(500)).max(10), imageKey: z.string().max(200) }), raw, (u, d) =>
-    submitMonthlyProof(u.id, d.amountEur, d.videoUrls, d.imageKey),
+  run(PARTICIPANTS, z.object({ amountEur: z.number().int(), videoUrls: z.array(z.string().max(500)).max(10), imageKey: z.string().max(200), description: z.string().max(1500).default("") }), raw, (u, d) =>
+    submitMonthlyProof(u.id, d.amountEur, d.videoUrls, d.imageKey, new Date(), d.description),
   );
 
 export const reactivationAction = async (raw: unknown) => run(["LEARNER"], z.object({ reason: z.string().max(2000) }), raw, (u, d) => requestReactivation(u.id, d.reason));
@@ -150,3 +151,8 @@ export async function addCoachAction(raw: unknown): Promise<Result | { ok: false
 }
 
 export const removeCoachAction = async (raw: unknown) => run(["ADMIN"], z.object({ coachId: id }), raw, (u, d) => removeCoach(u.id, d.coachId));
+
+const slotSchema = z.object({ weekday: z.number().int(), start: z.string().max(5), end: z.string().max(5) });
+
+export const availabilityAction = async (raw: unknown) =>
+  run(COACHES, z.object({ slots: z.array(slotSchema).max(21) }), raw, (u, d) => setAvailability(u.id, d.slots));

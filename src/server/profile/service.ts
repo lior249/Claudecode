@@ -8,6 +8,7 @@ import { localDate, type AnyRank } from "@/server/coaching/rules";
 import { userTimezone } from "@/server/notifications/service";
 import { storeAvatarImage } from "@/server/storage/images";
 import { deleteAvatarFile } from "@/server/retention/service";
+import { listResultPosts } from "@/server/results/service";
 
 // Photo affichée : celle choisie sur Creato, sinon celle de Discord.
 export const avatarOf = (u: { photoKey: string | null; avatarUrl: string | null }) => (u.photoKey ? fileUrl(u.photoKey) : u.avatarUrl);
@@ -30,10 +31,18 @@ export async function resetProfilePhoto(userId: string) {
 async function validatedMonths(userId: string) {
   const rows = await prisma.rankProof.findMany({
     where: { learnerId: userId, kind: "MONTHLY", status: "APPROVED" },
-    select: { id: true, month: true, amountEur: true, imageKey: true },
+    select: { id: true, month: true, amountEur: true, imageKey: true, description: true },
     orderBy: { month: "desc" },
   });
-  return rows.map((r) => ({ id: r.id, month: r.month!, amountEur: r.amountEur ?? 0, imageUrl: fileUrl(r.imageKey) }));
+  const best = rows.reduce((m, r) => Math.max(m, r.amountEur ?? 0), 0);
+  return rows.map((r) => ({
+    id: r.id,
+    month: r.month!,
+    amountEur: r.amountEur ?? 0,
+    imageUrl: fileUrl(r.imageKey),
+    description: r.description ?? "",
+    isBest: best > 0 && (r.amountEur ?? 0) === best,
+  }));
 }
 
 const bestOf = (months: { amountEur: number }[]) => months.reduce((m, r) => Math.max(m, r.amountEur), 0);
@@ -46,7 +55,7 @@ export function previousMonth(today: string) {
 }
 
 // Fiche publique d'un membre du classement (pas de captures, pas de remarques, pas de niche).
-export async function memberCard(userId: string, now = new Date()) {
+export async function memberCard(userId: string, now = new Date(), viewerId: string = userId) {
   const u = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   const streak = await getStreak(userId, now);
   const quality = await qualityPoints(userId);
@@ -64,6 +73,7 @@ export async function memberCard(userId: string, now = new Date()) {
     bestMonthEur: bestOf(months),
     totalEur: months.reduce((sum, x) => sum + x.amountEur, 0),
     months,
+    posts: await listResultPosts(userId, viewerId),
   };
 }
 export type MemberCard = Awaited<ReturnType<typeof memberCard>>;
@@ -73,7 +83,7 @@ export async function myProfile(userId: string, now = new Date()) {
   const u = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   const { progression } = await getLearnerProgression(userId, now, { startClock: false });
   const inCoaching = u.coachingStatus !== "NONE";
-  const card = inCoaching ? await memberCard(userId, now) : null;
+  const card = inCoaching ? await memberCard(userId, now, userId) : null;
   return {
     displayName: u.displayName,
     avatarUrl: avatarOf(u),
@@ -85,6 +95,7 @@ export async function myProfile(userId: string, now = new Date()) {
     inCoaching,
     coaching: card,
     tiktokUsername: u.tiktokUsername,
+    autoApprovedPosts: u.role === "ADMIN",
     reminderHour: u.reminderHour,
     dmEnabled: u.dmEnabled,
   };

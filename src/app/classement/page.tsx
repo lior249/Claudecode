@@ -12,7 +12,7 @@ export default async function LeaderboardPage() {
   const user = await requireUser();
   const rows = await leaderboard();
   const cards = [];
-  for (const r of rows) cards.push(await memberCard(r.id));
+  for (const r of rows) cards.push(await memberCard(r.id, new Date(), user.id));
   return (
     <main className="mx-auto min-h-dvh max-w-md px-4 pb-16">
       <header className="flex items-center justify-between py-5">
