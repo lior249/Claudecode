@@ -10,7 +10,7 @@ import { Flame } from "@/components/coaching/flame";
 import { LocalTime } from "@/components/local-time";
 import { ReminderSettings } from "@/components/notifications/notification-center";
 import { Avatar } from "./avatar";
-import { MonthResults, StatTile, eur } from "./member-stats";
+import { ResultsAlbum, Revenue, StatTile } from "./member-stats";
 
 export function ProfileView({ profile: p }: { profile: MyProfile }) {
   const c = p.coaching;
@@ -40,12 +40,10 @@ export function ProfileView({ profile: p }: { profile: MyProfile }) {
         <StatTile label="Points" value={c ? c.points : "—"} />
         <StatTile label="Flamme actuelle" value={c ? `${c.streak.current} j` : "—"} />
         <StatTile label="Record de flamme" value={c ? `${c.streak.best} j` : "—"} />
-        <div className="col-span-2">
-          <StatTile label="Meilleur mois" value={c ? eur(c.bestMonthEur) : "—"} gold />
-        </div>
       </section>
       {!c && <p className="text-center text-xs text-muted">Flamme, points et résultats démarrent après la formation, avec le coaching.</p>}
-      {c && <MonthResults months={c.months} />}
+      {c && <Revenue lastMonthEur={c.lastMonthEur} bestMonthEur={c.bestMonthEur} totalEur={c.totalEur} />}
+      {c && <ResultsAlbum months={c.months} />}
 
       <Tiktok initial={p.tiktokUsername} />
       <ReminderSettings reminderHour={p.reminderHour} dmEnabled={p.dmEnabled} />

@@ -1,12 +1,11 @@
 import { redirect } from "next/navigation";
 import { getEnv } from "@/server/env";
 import { getCurrentUser } from "@/server/auth/session";
-import { devLogin } from "@/app/actions/auth";
 import { ACCESS_ERRORS } from "@/server/discord/access";
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect("/learn");
-  const { devLoginEnabled, discordLoginEnabled } = getEnv();
+  const { discordLoginEnabled } = getEnv();
   const code = (await searchParams).erreur;
   const error = typeof code === "string" ? (Object.hasOwn(ACCESS_ERRORS, code) ? ACCESS_ERRORS[code] : ACCESS_ERRORS.DISCORD) : null;
 
@@ -40,22 +39,6 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         )}
         <p className="text-center text-xs text-muted">Réservé aux membres du Discord qui ont le rôle @TikTok.</p>
 
-        {devLoginEnabled && (
-          <form action={devLogin} className="mt-8 space-y-2 rounded-2xl border border-line p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted">Démo</p>
-            <div className="grid grid-cols-3 gap-2">
-              <button name="as" value="learner" className="rounded-xl bg-card-2 py-3 text-sm font-medium">
-                Élève
-              </button>
-              <button name="as" value="coaching" className="rounded-xl bg-card-2 py-3 text-sm font-medium">
-                En coaching
-              </button>
-              <button name="as" value="coach" className="rounded-xl bg-card-2 py-3 text-sm font-medium">
-                Coach
-              </button>
-            </div>
-          </form>
-        )}
       </div>
     </main>
   );

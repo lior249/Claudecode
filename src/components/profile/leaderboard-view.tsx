@@ -8,7 +8,7 @@ import { RankBadge } from "@/components/learn/badges";
 import { Flame } from "@/components/coaching/flame";
 import { LocalTime } from "@/components/local-time";
 import { Avatar } from "./avatar";
-import { MonthResults, StatTile, eur } from "./member-stats";
+import { ResultsAlbum, Revenue, StatTile } from "./member-stats";
 
 interface Row {
   id: string;
@@ -102,12 +102,14 @@ function MemberPopup({ card: c, position, onClose }: { card: MemberCard; positio
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
           <StatTile label="Points" value={c.points} />
-          <StatTile label="Meilleur mois" value={eur(c.bestMonthEur)} gold />
           <StatTile label="Flamme actuelle" value={`${c.streak.current} j`} />
-          <StatTile label="Record de flamme" value={`${c.streak.best} j`} />
+          <div className="col-span-2">
+            <StatTile label="Record de flamme" value={`${c.streak.best} j`} />
+          </div>
         </div>
-        <div className="mt-4">
-          <MonthResults months={c.months} />
+        <div className="mt-4 grid gap-3">
+          <Revenue lastMonthEur={c.lastMonthEur} bestMonthEur={c.bestMonthEur} totalEur={c.totalEur} />
+          <ResultsAlbum months={c.months} />
         </div>
       </div>
     </div>

@@ -4,7 +4,8 @@ import { prisma } from "@/server/db";
 import { fileUrl } from "@/server/decisions/service";
 import { getLearnerProgression } from "@/server/learn/service";
 import { getStreak, qualityPoints } from "@/server/coaching/progress";
-import type { AnyRank } from "@/server/coaching/rules";
+import { localDate, type AnyRank } from "@/server/coaching/rules";
+import { userTimezone } from "@/server/notifications/service";
 import { storeAvatarImage } from "@/server/storage/images";
 import { deleteAvatarFile } from "@/server/retention/service";
 
@@ -25,17 +26,24 @@ export async function resetProfilePhoto(userId: string) {
   await deleteAvatarFile(before.photoKey);
 }
 
-// Résultats du mois validés par un coach, du plus récent au plus ancien.
+// Résultats du mois validés par un coach (avec leur capture), du plus récent au plus ancien.
 async function validatedMonths(userId: string) {
   const rows = await prisma.rankProof.findMany({
     where: { learnerId: userId, kind: "MONTHLY", status: "APPROVED" },
-    select: { month: true, amountEur: true },
+    select: { id: true, month: true, amountEur: true, imageKey: true },
     orderBy: { month: "desc" },
   });
-  return rows.map((r) => ({ month: r.month!, amountEur: r.amountEur ?? 0 }));
+  return rows.map((r) => ({ id: r.id, month: r.month!, amountEur: r.amountEur ?? 0, imageUrl: fileUrl(r.imageKey) }));
 }
 
 const bestOf = (months: { amountEur: number }[]) => months.reduce((m, r) => Math.max(m, r.amountEur), 0);
+
+// Mois civil précédent (AAAA-MM) dans le fuseau de la personne.
+export function previousMonth(today: string) {
+  const [y, m] = today.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 2, 1));
+  return d.toISOString().slice(0, 7);
+}
 
 // Fiche publique d'un membre du classement (pas de captures, pas de remarques, pas de niche).
 export async function memberCard(userId: string, now = new Date()) {
@@ -51,7 +59,9 @@ export async function memberCard(userId: string, now = new Date()) {
     points: streak.points + quality,
     coachingSince: u.coachingStartedAt?.toISOString() ?? null,
     streak: { current: streak.current, best: streak.best, flame: streak.flame },
+    lastMonthEur: months.find((x) => x.month === previousMonth(localDate(now, userTimezone(u))))?.amountEur ?? 0,
     bestMonthEur: bestOf(months),
+    totalEur: months.reduce((sum, x) => sum + x.amountEur, 0),
     months,
   };
 }

@@ -243,13 +243,16 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
   Les remarques rouges (retards) restent réservées aux coachs et aux admins.
 - **Classement** : visible par tous les membres connectés. Y figurent ceux qui ont fini la formation (en coaching).
   Un clic ouvre une **fenêtre** avec la fiche du membre : photo, nom, rang, points, date d'entrée en coaching,
-  flamme actuelle et record, meilleur mois (résultats validés par un coach, 0 € sinon) et tous ses résultats du mois.
-  Jamais les captures, les vidéos, la niche ni les remarques.
+  flamme actuelle et record, puis **Revenus** en 3 lignes (mois dernier, meilleur mois, total généré — résultats
+  validés par un coach, 0 € sinon) et l'**album des captures de résultats du mois validées** (2 par ligne, même
+  largeur, hauteur libre, agrandissables). Jamais les captures de vues ou de profil, les vidéos, la niche ni les remarques.
+  L'élève est prévenu à l'envoi que sa capture sera visible par tous (cacher ses infos personnelles).
 - **Devenir coach** : seulement après avoir terminé toute la formation (les coachs déjà nommés restent coachs).
 - **L'équipe participe au classement** : un coach (formation terminée) et l'admin (sans condition) ont l'espace
   « mes posts, ma flamme, mes résultats ». Pas de coach ni de tickets pour eux. L'admin est le coach des coachs :
   il valide leurs preuves, et les siennes. La règle d'absence ne s'applique pas à l'équipe : ils perdent juste leur flamme.
 - Le nombre d'élèves par niche n'est visible que dans l'Admin.
+- La page de connexion n'affiche que « Se connecter avec Discord » (les comptes de test sont sur une page à part, inexistante en ligne).
 
 ## Rangs
 

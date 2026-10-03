@@ -3,9 +3,9 @@ import { Readable } from "node:stream";
 import { getCurrentUser } from "@/server/auth/session";
 import { filePath, readStream } from "@/server/storage/storage";
 import { AVATAR_KEY, MIME_BY_EXT, USER_IMAGE_KEY } from "@/server/storage/images";
-import { canSeeUpload } from "@/server/coaching/access";
+import { canSeeUpload, isPublicProofImage } from "@/server/coaching/access";
 
-// Images : catalogue et photos de profil (toute personne connectée) et images privées des tickets / preuves (élève, son coach, admins).
+// Images : catalogue, photos de profil et captures de résultats du mois validées (toute personne connectée) et images privées des tickets / preuves (élève, son coach, admins).
 // Les vidéos et audios des élèves ne passent jamais par ici.
 export async function GET(_request: Request, ctx: RouteContext<"/api/files/[...key]">) {
   const user = await getCurrentUser();
@@ -16,7 +16,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/files/[...k
   const upload = key.match(USER_IMAGE_KEY);
   const match = catalog ?? key.match(AVATAR_KEY) ?? upload;
   if (!match) return new Response("Introuvable", { status: 404 });
-  if (upload && !(await canSeeUpload(user, upload[1]))) return new Response("Introuvable", { status: 404 });
+  if (upload && !(await canSeeUpload(user, upload[1])) && !(await isPublicProofImage(key))) return new Response("Introuvable", { status: 404 });
   try {
     const info = await stat(filePath(key));
     return new Response(Readable.toWeb(readStream(key)) as ReadableStream, {

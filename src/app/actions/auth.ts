@@ -13,7 +13,7 @@ export async function devLogin(formData: FormData) {
     where: as === "coach" ? { role: "ADMIN" } : as === "coaching" ? { role: "LEARNER", coachingStatus: "ACTIVE" } : { role: "LEARNER", coachingStatus: "NONE" },
     orderBy: { createdAt: "asc" },
   });
-  if (!user) redirect("/login?erreur=demo");
+  if (!user) redirect("/login/demo");
   await createSession(user.id);
   await prisma.auditLog.create({ data: { actorUserId: user.id, action: "USER_LOGIN", metadata: { method: "dev" } } });
   redirect(as === "coaching" ? "/coaching" : "/learn");

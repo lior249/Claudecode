@@ -397,7 +397,7 @@ function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
             <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Montant gagné (€)" className={field} />
             <ImagePicker value={mImg} onChange={setMImg} label="Capture du tableau de bord" />
             <VideoLinks value={links} onChange={setLinks} username={d.tiktokUsername} />
-            <p className="text-xs text-muted">Une fois validés, tes résultats du mois et ton meilleur mois sont visibles par tous les membres dans le classement (jamais tes captures ni tes vidéos).</p>
+            <p className="text-xs text-muted">Une fois validés, tes résultats et ta capture du tableau de bord sont visibles par tous les membres dans le classement. Cache tes infos personnelles (nom complet, banque…) avant de l&apos;envoyer.</p>
             <button
               disabled={monthly.pending || !amount || !mImg || filledLinks.length === 0}
               onClick={() => monthly.run(() => monthlyProofAction({ amountEur: Number(amount), videoUrls: filledLinks, imageKey: mImg!.key }), "Résultats envoyés.")}
