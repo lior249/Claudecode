@@ -25,7 +25,8 @@ Référence produit : `docs/DECISIONS.md` (prioritaire) puis `docs/SPEC.md`. Int
 ## Pièges
 - Next.js 16 : `proxy.ts` (pas `middleware.ts`), `params`/`cookies()` sont des Promises. Lire `node_modules/next/dist/docs/`.
 - `getEnv()` ne doit jamais être appelé au chargement d'un module (la compilation de production n'a pas les secrets) ;
-  la configuration est vérifiée au démarrage par `src/instrumentation.ts` et par le worker.
+  la configuration est vérifiée au démarrage par `src/instrumentation.ts` et par le worker. Une page qui lit `getEnv()` sans
+  autre donnée de requête doit appeler `await connection()`. Avant de pousser : `next build` sans `.env` doit passer.
 - Prisma 7 : client généré dans `src/generated/prisma` (ignoré par git) ; config dans `prisma.config.ts`.
 - Pas de `Promise.all` de requêtes Prisma dans une transaction.
 - Les modules `server-only` s'exécutent hors Next grâce à `tsx --conditions=react-server` (worker) et à un alias dans vitest.

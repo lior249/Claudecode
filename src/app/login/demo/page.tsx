@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { getEnv } from "@/server/env";
 import { devLogin } from "@/app/actions/auth";
 
 // Connexion de test, hors de la page de connexion : seulement en développement (introuvable en ligne).
-export default function DemoLoginPage() {
+export default async function DemoLoginPage() {
+  await connection(); // lu à chaque visite, jamais pendant la compilation (pas de secrets à ce moment-là)
   if (!getEnv().devLoginEnabled) notFound();
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-12">
