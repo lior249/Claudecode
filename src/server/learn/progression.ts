@@ -36,6 +36,8 @@ export interface ProgressionInput {
   completions: { lessonId: string; completedAt: Date }[];
   learnStartedAt: Date | null;
   manualRank?: Exclude<Rank, "E" | "D" | "C" | "B"> | null;
+  // Rang plancher (coachs et admins : au moins le rang de fin de formation).
+  minRank?: Rank;
   now: Date;
 }
 
@@ -166,7 +168,7 @@ export function computeProgression(input: ProgressionInput): Progression {
     completedLessons: done,
     percent: total === 0 ? 0 : Math.floor((done / total) * 100),
     completedLevels,
-    rank: input.manualRank ?? autoRank,
+    rank: input.manualRank ?? (input.minRank && AUTO_RANKS.indexOf(input.minRank) > AUTO_RANKS.indexOf(autoRank) ? input.minRank : autoRank),
     learnCompleted: total > 0 && done === total,
     lateRemarks,
   };

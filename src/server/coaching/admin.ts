@@ -75,26 +75,30 @@ export async function listReactivationRequests(viewer: { id: string; role: strin
 
 // ---------- Équipe de coachs ----------
 
-// Personnes qui peuvent devenir coach : formation terminée, pas déjà coach.
+// Personnes qui peuvent devenir coach (pas déjà coach). Sans formation terminée, l'admin doit forcer.
 export function listCoachCandidates() {
   return prisma.user.findMany({
-    where: { status: "ACTIVE", coachOrder: null, role: { in: ["LEARNER", "ADMIN"] }, learnCompletedAt: { not: null } },
-    select: { id: true, displayName: true, discordUsername: true, role: true },
+    where: { status: "ACTIVE", coachOrder: null, role: { in: ["LEARNER", "ADMIN"] } },
+    select: { id: true, displayName: true, discordUsername: true, role: true, learnCompletedAt: true },
     orderBy: { displayName: "asc" },
   });
 }
 
-export async function addCoach(adminId: string, userId: string) {
+export class NeedsForceError extends CoachingError {}
+
+export async function addCoach(adminId: string, userId: string, force = false) {
   const u = await prisma.user.findUnique({ where: { id: userId } });
   if (!u || u.status !== "ACTIVE" || u.coachOrder !== null) throw new CoachingError("Cette personne ne peut pas devenir coach.");
-  if (!u.learnCompletedAt) throw new CoachingError("Il faut avoir terminé toute la formation pour devenir coach.");
+  if (!u.learnCompletedAt && !force) throw new NeedsForceError(`${u.displayName} n'a pas terminé la formation.`);
   const last = await prisma.user.aggregate({ _max: { coachOrder: true } });
   await prisma.user.update({
     where: { id: userId },
     // Un coach n'a plus de coach : il garde seulement son espace posts / résultats.
     data: { role: u.role === "ADMIN" ? "ADMIN" : "COACH", coachOrder: (last._max.coachOrder ?? 0) + 1, coachStars: 3, coachFastAnswers: 0, coachId: null },
   });
-  await prisma.auditLog.create({ data: { actorUserId: adminId, action: "COACH_ADDED", entityType: "user", entityId: userId } });
+  await prisma.auditLog.create({ data: { actorUserId: adminId, action: "COACH_ADDED", entityType: "user", entityId: userId, metadata: { forced: !u.learnCompletedAt } } });
+  // Rang minimum de fin de formation (B) et accès au classement : son espace « mes posts, mes résultats » s'ouvre.
+  await prisma.user.updateMany({ where: { id: userId, coachingStatus: "NONE" }, data: { coachingStatus: "ACTIVE", coachingStartedAt: new Date() } });
   await notify(userId, { kind: "coach.added", href: "/coach", text: "🎓 Tu es maintenant coach sur Creato ! Ton espace coach t'attend (3 étoiles pour commencer)." });
 }
 

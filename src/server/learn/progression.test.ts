@@ -85,6 +85,11 @@ describe("computeProgression", () => {
     expect(statuses(p)).toEqual({ a: "AVAILABLE", b: "COMPLETED", c: "LOCKED", d: "LOCKED" });
   });
 
+  it("coach ou admin : rang plancher B même sans formation terminée", () => {
+    expect(computeProgression({ levels, completions: [], learnStartedAt: t0, minRank: "B", now: at(1) }).rank).toBe("B");
+    expect(computeProgression({ levels, completions: [], learnStartedAt: t0, minRank: "B", manualRank: "A", now: at(1) }).rank).toBe("A");
+  });
+
   it("le rang manuel (A–SSS) prime sur le rang calculé", () => {
     const p = computeProgression({ levels, completions: [], learnStartedAt: t0, manualRank: "S", now: at(1) });
     expect(p.rank).toBe("S");

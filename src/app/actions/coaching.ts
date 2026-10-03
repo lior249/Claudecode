@@ -22,7 +22,7 @@ import {
   submitViewProof,
   updateCoachingProfile,
 } from "@/server/coaching/progress";
-import { addCoach, removeCoach, setCoachCapacity } from "@/server/coaching/admin";
+import { addCoach, NeedsForceError, removeCoach, setCoachCapacity } from "@/server/coaching/admin";
 
 type Result = { ok: true; id?: string } | { ok: false; error: string };
 const id = z.string().min(1).max(64);
@@ -133,6 +133,20 @@ export const reactivationDecisionAction = async (raw: unknown) =>
 export const capacityAction = async (raw: unknown) =>
   run(["ADMIN"], z.object({ coachId: id, capacity: z.number().int() }), raw, (u, d) => setCoachCapacity(u.id, d.coachId, d.capacity));
 
-export const addCoachAction = async (raw: unknown) => run(["ADMIN"], z.object({ userId: id }), raw, (u, d) => addCoach(u.id, d.userId));
+// Nommer un coach. Sans formation terminée : on renvoie needsForce, l'admin confirme puis on rappelle avec force.
+export async function addCoachAction(raw: unknown): Promise<Result | { ok: false; error: string; needsForce: true }> {
+  const user = await requireUser(["ADMIN"]);
+  const parsed = z.object({ userId: id, force: z.boolean().default(false) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, error: "Formulaire invalide." };
+  try {
+    await addCoach(user.id, parsed.data.userId, parsed.data.force);
+  } catch (e) {
+    if (e instanceof NeedsForceError) return { ok: false, error: e.message, needsForce: true };
+    if (e instanceof CoachingError) return { ok: false, error: e.message };
+    throw e;
+  }
+  revalidatePath("/admin", "layout");
+  return { ok: true };
+}
 
 export const removeCoachAction = async (raw: unknown) => run(["ADMIN"], z.object({ coachId: id }), raw, (u, d) => removeCoach(u.id, d.coachId));

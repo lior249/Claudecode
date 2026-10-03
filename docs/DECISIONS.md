@@ -250,7 +250,8 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
 - **Grille de régularité** (style GitHub) : 18 dernières semaines, une case par jour (posté, gel, manqué), % de jours
   postés depuis le début du coaching, flamme actuelle avec les jours de la semaine, record. Visible sur Mon profil,
   la fiche d'un membre du classement et la fiche d'un élève côté coach.
-- **Devenir coach** : seulement après avoir terminé toute la formation (les coachs déjà nommés restent coachs).
+- **Devenir coach** : normalement après avoir terminé toute la formation. L'admin peut **forcer** la nomination
+  (confirmation demandée). Tout coach et l'admin ont au minimum le rang B (fin de formation) et participent au classement.
 - **L'équipe participe au classement** : un coach (formation terminée) et l'admin (sans condition) ont l'espace
   « mes posts, ma flamme, mes résultats ». Pas de coach ni de tickets pour eux. L'admin est le coach des coachs :
   il valide leurs preuves, et les siennes. La règle d'absence ne s'applique pas à l'équipe : ils perdent juste leur flamme.

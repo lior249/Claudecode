@@ -14,7 +14,7 @@ import {
   sendFollowUps,
 } from "./tickets";
 import { addPost, getStreak, leaderboard, listPendingProofs, reviewRankProof, reviewViewProof, submitMonthlyProof, submitViewProof, updateCoachingProfile } from "./progress";
-import { addCoach, coachReport, listCoachCandidates, removeCoach } from "./admin";
+import { addCoach, coachReport, listCoachCandidates, NeedsForceError, removeCoach } from "./admin";
 import { ensureTeamParticipation } from "./team";
 
 const H = 3_600_000;
@@ -222,10 +222,12 @@ describe("Équipe de coachs", () => {
     const u = await prisma.user.create({ data: { displayName: "Sam", role: "LEARNER", learnCompletedAt: new Date() } });
     const admin = await prisma.user.create({ data: { displayName: "Admin", role: "ADMIN" } });
     const fresh = await prisma.user.create({ data: { displayName: "Nouveau", role: "LEARNER" } });
-    expect((await listCoachCandidates()).map((c) => c.displayName)).toEqual(["Sam"]);
-    await expect(addCoach(admin.id, fresh.id)).rejects.toThrow("terminé toute la formation");
+    expect((await listCoachCandidates()).map((c) => c.displayName)).toEqual(["Admin", "Nouveau", "Sam"]);
+    await expect(addCoach(admin.id, fresh.id)).rejects.toThrow(NeedsForceError);
+    await addCoach(admin.id, fresh.id, true); // forcé par l'admin
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: fresh.id } })).toMatchObject({ role: "COACH", coachingStatus: "ACTIVE" });
     await addCoach(admin.id, u.id);
-    expect(await prisma.user.findUniqueOrThrow({ where: { id: u.id } })).toMatchObject({ role: "COACH", coachOrder: 2, coachStars: 3 });
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: u.id } })).toMatchObject({ role: "COACH", coachOrder: 3, coachStars: 3 });
     await expect(addCoach(admin.id, u.id)).rejects.toThrow(CoachingError);
 
     await learner("Lea", first.id);
@@ -238,14 +240,14 @@ describe("Équipe de coachs", () => {
 describe("L'équipe participe au classement", () => {
   beforeEach(resetDb);
 
-  it("admin sans formation, coach seulement après la formation ; preuves validées par l'admin ; pas de ticket", async () => {
+  it("admin et coachs participent ; preuves validées par l'admin ; pas de ticket", async () => {
     const admin = await prisma.user.create({ data: { displayName: "Admin", role: "ADMIN", tiktokUsername: "admin.tt", timezone: "Europe/Paris" } });
     const newCoach = await prisma.user.create({ data: { displayName: "Coach neuf", role: "COACH", coachOrder: 1 } });
     const formed = await prisma.user.create({ data: { displayName: "Coach formé", role: "COACH", coachOrder: 2, learnCompletedAt: new Date(), tiktokUsername: "coach.tt", timezone: "Europe/Paris" } });
     expect(await ensureTeamParticipation(admin)).toBe(true);
-    expect(await ensureTeamParticipation(newCoach)).toBe(false);
+    expect(await ensureTeamParticipation(newCoach)).toBe(true); // nommé (forcé) : participe aussi
     expect(await ensureTeamParticipation(formed)).toBe(true);
-    expect((await leaderboard()).map((r) => r.displayName).sort()).toEqual(["Admin", "Coach formé"]);
+    expect((await leaderboard()).map((r) => r.displayName).sort()).toEqual(["Admin", "Coach formé", "Coach neuf"]);
 
     const today = new Date(Date.now() - 60_000);
     const post = await addPost(formed.id, `https://www.tiktok.com/@coach.tt/video/${idFor(today)}`);

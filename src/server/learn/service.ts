@@ -53,6 +53,8 @@ export async function getLearnerProgression(userId: string, now = new Date(), op
     completions: completions.map((c) => ({ lessonId: c.lessonId, completedAt: c.completedAt! })),
     learnStartedAt: user.learnStartedAt,
     manualRank: user.manualRank as ManualRank | null,
+    // Un coach ou un admin a au moins le rang de fin de formation (B), même s'il ne l'a pas terminée.
+    minRank: user.role === "LEARNER" ? undefined : "B",
     now,
   });
 

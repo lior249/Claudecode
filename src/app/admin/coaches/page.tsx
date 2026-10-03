@@ -10,7 +10,7 @@ export default async function AdminCoaches() {
   const coaches = await coachReport();
   const candidates = (await listCoachCandidates()).map((u) => ({
     id: u.id,
-    label: `${u.displayName}${u.discordUsername ? ` (@${u.discordUsername})` : ""}${u.role === "ADMIN" ? " · admin" : ""}`,
+    label: `${u.displayName}${u.discordUsername ? ` (@${u.discordUsername})` : ""}${u.role === "ADMIN" ? " · admin" : ""}${u.learnCompletedAt ? "" : " · formation non terminée"}`,
   }));
   return (
     <div className="space-y-4">
