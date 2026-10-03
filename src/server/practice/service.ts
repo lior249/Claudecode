@@ -318,7 +318,7 @@ export async function processSubmission(submissionId: string) {
       await prisma.lessonProgress.update({ where: { id: progress.id }, data: { bestScore: score } });
     }
     if (passed) await completeLesson(submission.userId, submission.lessonId, score);
-    await notify(submission.userId, { kind: "learn.result", href: `/learn/practice/${submission.lessonId}`, text: passed
+    await notify(submission.userId, { kind: "learn.result", href: `/learn/practice/${submission.lessonId}`, mood: passed ? "content" : "ko", text: passed
         ? `✅ « ${submission.lesson.title} » validé avec ${fmtScore(score)}/10. La suite est débloquée !`
         : `❌ « ${submission.lesson.title} » : ${fmtScore(score)}/10. Il faut ${fmtScore(submission.threshold)}/10. Regarde la correction sur Creato et renvoie une nouvelle réalisation.` });
   } catch (e) {

@@ -13,6 +13,7 @@ import { Revenue, StatTile, eur } from "./member-stats";
 import { PostGallery } from "@/components/results/post-gallery";
 import { monthItems } from "@/components/results/gallery-items";
 import { ActivityGrid } from "@/components/coaching/activity-grid";
+import { MascotState } from "@/components/mascot";
 
 // Podium : or, argent, bronze (contour de la photo, points, marche).
 const MEDALS = [
@@ -35,7 +36,12 @@ interface Row {
 export function LeaderboardView({ rows, cards, meId }: { rows: Row[]; cards: MemberCard[]; meId: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const card = cards.find((c) => c.id === openId) ?? null;
-  if (rows.length === 0) return <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Le classement démarre avec les premiers membres qui ont fini la formation.</p>;
+  if (rows.length === 0)
+    return (
+      <MascotState mood="neutre" title="Classement vide">
+        Le classement démarre avec les premiers membres qui ont fini la formation.
+      </MascotState>
+    );
   const podium = [rows[1], rows[0], rows[2]]; // 2e, 1er, 3e
   return (
     <>

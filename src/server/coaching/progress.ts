@@ -196,7 +196,7 @@ export async function reviewViewProof(
   if (approve && views > (proof.post.validatedViews ?? 0)) {
     await prisma.post.update({ where: { id: proof.postId }, data: { validatedViews: views } });
   }
-  await notify(proof.post.learnerId, { kind: "proof.views", href: "/coaching", text: approve ? `📊 Capture validée : ${views.toLocaleString("fr-FR")} vues.` : `Capture refusée : ${comment || "illisible ou non conforme."}` });
+  await notify(proof.post.learnerId, { kind: "proof.views", href: "/coaching", mood: approve ? "content" : "triste", text: approve ? `📊 Capture validée : ${views.toLocaleString("fr-FR")} vues.` : `Capture refusée : ${comment || "illisible ou non conforme."}` });
 }
 
 export async function reviewRankProof(reviewer: { id: string; role: string }, proofId: string, approve: boolean, comment = "", verified = false) {

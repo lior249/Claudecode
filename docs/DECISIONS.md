@@ -320,7 +320,14 @@ Les montants se comptent **sur un seul mois**. Un rang atteint reste acquis.
   - onglets coach / admin : onglet actif en or, fondu à droite quand on peut faire défiler ;
   - bouton « Mon coach » : rond compact (photo du coach) pour cacher le moins de contenu possible ;
   - noms et titres longs passent sur deux lignes au lieu d'être coupés ;
-  - page de connexion : mascotte au centre (fichier `public/mascotte.png`, fournie par l'admin).
+- **Mascotte** (fournie par l'admin, images dans `public/mascotte/`) :
+  - la mascotte blanche est le **logo** : en tête de chaque espace, en grand sur la page de connexion, et icône de l'onglet ;
+  - 12 expressions : amour, sérieux, effort, doute, wow, perdu, motivé, KO, content, triste, clin d'œil, neutre ;
+  - **notifications** : chaque notification a son expression (choisie selon le type, et selon le résultat : validé = content,
+    refusé = triste, échec = KO). Elle s'affiche dans la cloche et en vignette dans le message privé Discord ;
+  - **états** : QCM ou exercice validé = amour, échec = KO, analyse en cours = effort, panne = perdu, coach qui examine = sérieux,
+    parcours terminé / lancement validé = wow, coaching terminé = amour, coaching en pause = triste,
+    post du jour à faire = motivé / fait = content, listes vides = neutre ou content (« tout est à jour »).
 
 ## Hébergement et budget
 

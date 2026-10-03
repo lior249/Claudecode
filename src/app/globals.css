@@ -63,3 +63,19 @@ body {
   font-weight: 700;
   letter-spacing: -0.1em;
 }
+
+/* La mascotte flotte doucement (page de connexion). */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[float_4s_ease-in-out_infinite\] {
+    animation: none;
+  }
+}

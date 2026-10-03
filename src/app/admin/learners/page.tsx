@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronRight } from "lucide-react";
 import { getLearnerFile, listLearners } from "@/server/admin/learner-file";
 import { RankBadge } from "@/components/learn/badges";
 import { LearnerFilePanel } from "@/components/admin/learner-file-panel";
+import { MascotState } from "@/components/mascot";
 
 export default async function AdminLearners({ searchParams }: PageProps<"/admin/learners">) {
   const u = (await searchParams).u;
@@ -12,7 +13,11 @@ export default async function AdminLearners({ searchParams }: PageProps<"/admin/
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Élèves</h1>
-      {learners.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Aucun élève pour l&apos;instant.</p>}
+      {learners.length === 0 && (
+        <MascotState mood="neutre">
+          Aucun élève pour l&apos;instant.
+        </MascotState>
+      )}
       <ul className="space-y-2">
         {learners.map((l) => (
           <li key={l.id}>

@@ -74,7 +74,7 @@ export async function decideReview(adminId: string, id: string, decision: "APPRO
     data: { actorUserId: adminId, action: decision === "APPROVE" ? "SUBMISSION_APPROVED" : "SUBMISSION_REJECTED", entityType: "submission", entityId: id },
   });
   if (decision === "APPROVE") await completeLesson(s.userId, s.lessonId, null);
-  await notify(s.userId, { kind: "learn.review", href: "/learn", text: decision === "APPROVE"
+  await notify(s.userId, { kind: "learn.review", href: "/learn", mood: decision === "APPROVE" ? "content" : "triste", text: decision === "APPROVE"
       ? `✅ Un coach a validé « ${s.lesson.title} ». La suite est débloquée !`
       : `❌ Un coach a examiné « ${s.lesson.title} » : ${comment.trim()} Renvoie une nouvelle réalisation sur Creato.` });
 }

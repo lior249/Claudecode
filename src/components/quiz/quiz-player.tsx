@@ -7,6 +7,7 @@ import { ArrowLeft, Check, ExternalLink, X } from "lucide-react";
 import type { QuizState, QuizQuestionView } from "@/server/quizzes/service";
 import { answerQuestion, startQuiz } from "@/app/actions/quiz";
 import { TypeBadge } from "@/components/learn/badges";
+import { Mascot } from "@/components/mascot";
 
 const CHOICES = ["A", "B", "C", "D"] as const;
 const PASS = 16;
@@ -184,7 +185,7 @@ function Playing({ state }: { state: QuizState }) {
 function Passed({ score, attempts }: { score: number; attempts: number }) {
   return (
     <Card
-      icon={<span className="text-4xl">🎉</span>}
+      icon={<Mascot mood="amour" size={112} />}
       title={`QCM validé : ${score}/20`}
       text={`Bravo ! La leçon suivante est débloquée. (${attempts} tentative${attempts > 1 ? "s" : ""})`}
     />
@@ -209,8 +210,9 @@ function Failed({
   const left = useTimeLeft(until);
   return (
     <div className="mt-6 space-y-4">
-      <div className="rounded-3xl border border-danger/40 bg-card p-6 text-center">
-        <p className="text-4xl font-bold">{score}/20</p>
+      <div className="flex flex-col items-center rounded-3xl border border-danger/40 bg-card p-6 text-center">
+        <Mascot mood="ko" size={96} />
+        <p className="mt-3 text-4xl font-bold">{score}/20</p>
         <p className="mt-2 font-semibold">Il te faut {PASS}/20 pour valider.</p>
         <p className="mt-2 text-sm text-muted">Retourne revoir le module sur Whop, puis réessaie.</p>
       </div>

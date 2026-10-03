@@ -4,6 +4,7 @@ import { requireUser } from "@/server/auth/session";
 import { listNotifications } from "@/server/notifications/service";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { TimezoneSync } from "@/components/notifications/timezone-sync";
+import { isMood } from "@/server/notifications/rules";
 
 export default async function NotificationsPage() {
   const user = await requireUser();
@@ -19,7 +20,7 @@ export default async function NotificationsPage() {
         <h1 className="text-2xl font-semibold">Notifications</h1>
       </header>
       <NotificationCenter
-        items={items.map((n) => ({ id: n.id, text: n.text, href: n.href, createdAt: n.createdAt.toISOString(), unread: !n.readAt }))}
+        items={items.map((n) => ({ id: n.id, text: n.text, href: n.href, mood: isMood(n.mood) ? n.mood : "neutre", createdAt: n.createdAt.toISOString(), unread: !n.readAt }))}
       />
     </main>
   );

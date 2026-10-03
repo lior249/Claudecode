@@ -1,9 +1,8 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { redirect } from "next/navigation";
 import { getEnv } from "@/server/env";
 import { getCurrentUser } from "@/server/auth/session";
 import { ACCESS_ERRORS } from "@/server/discord/access";
+import { Mascot } from "@/components/mascot";
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getCurrentUser()) redirect("/learn");
@@ -11,25 +10,18 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const code = (await searchParams).erreur;
   const error = typeof code === "string" ? (Object.hasOwn(ACCESS_ERRORS, code) ? ACCESS_ERRORS[code] : ACCESS_ERRORS.DISCORD) : null;
 
-  // Mascotte : affichée dès que le fichier public/mascotte.png existe.
-  const mascot = existsSync(join(process.cwd(), "public", "mascotte.png"));
-
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col px-6 py-12">
-      <div className="pt-6">
-        <h1 className="logo text-6xl">Creato</h1>
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <div className="animate-[float_4s_ease-in-out_infinite]">
+          <Mascot mood="logo" size={168} label="La mascotte Creato" className="drop-shadow-[0_0_40px_rgba(255,255,255,0.18)]" />
+        </div>
+        <h1 className="logo mt-6 text-6xl">Creato</h1>
         <p className="mt-4 text-lg text-muted">
           Apprends les bases. Fais tes choix.
           <br />
           Débloque ton coaching.
         </p>
-      </div>
-
-      <div className="flex flex-1 items-center justify-center py-8">
-        {mascot && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src="/mascotte.png" alt="La mascotte Creato" className="max-h-[38dvh] w-auto max-w-full object-contain drop-shadow-[0_0_40px_rgba(245,179,1,0.25)]" />
-        )}
       </div>
 
       <div className="space-y-3">

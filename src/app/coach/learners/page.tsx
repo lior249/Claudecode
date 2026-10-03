@@ -10,6 +10,7 @@ import { Flame } from "@/components/coaching/flame";
 import { ActivityGrid } from "@/components/coaching/activity-grid";
 import { PostGallery } from "@/components/results/post-gallery";
 import { listResultPosts } from "@/server/results/service";
+import { MascotState } from "@/components/mascot";
 
 const STATUS: Record<string, string> = { ACTIVE: "En coaching", REVOKED: "En pause (absence)", COMPLETED: "Terminé (SSS)", NONE: "Learn" };
 
@@ -36,7 +37,11 @@ export default async function CoachLearners({ searchParams }: PageProps<"/coach/
           {active}/{user.coachCapacity} places occupées
         </p>
       </div>
-      {rows.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Aucun élève pour l&apos;instant.</p>}
+      {rows.length === 0 && (
+        <MascotState mood="neutre">
+          Aucun élève pour l&apos;instant.
+        </MascotState>
+      )}
       <ul className="space-y-2">
         {rows.map(({ l, d }) => (
           <li key={l.id}>

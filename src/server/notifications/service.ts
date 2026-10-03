@@ -3,7 +3,7 @@ import { prisma } from "@/server/db";
 import { getEnv } from "@/server/env";
 import { botConfigured, botSendDirectMessage } from "@/server/discord/api";
 import { isValidTimezone, localDate } from "@/server/coaching/rules";
-import { clampReminderHour, dmDecision, localHour } from "./rules";
+import { clampReminderHour, dmDecision, localHour, moodForKind, type Mood } from "./rules";
 
 export interface NotifyInput {
   kind: string;
@@ -15,6 +15,8 @@ export interface NotifyInput {
   dm?: boolean;
   /** Clé unique par utilisateur : la notification n'est créée qu'une fois. */
   onceKey?: string;
+  /** Expression de la mascotte ; par défaut, celle du type de notification. */
+  mood?: Mood;
 }
 
 // Enregistre un envoi unique : renvoie false s'il a déjà eu lieu.
@@ -45,6 +47,7 @@ export async function notify(userId: string, input: NotifyInput) {
         kind: input.kind,
         text: input.text,
         href: input.href ?? null,
+        mood: input.mood ?? moodForKind(input.kind),
         urgent: input.urgent ?? false,
         dmStatus: input.dm === false ? "SKIPPED" : "PENDING",
       },
@@ -99,7 +102,9 @@ export async function deliverPendingDms(now = new Date()) {
       continue;
     }
     try {
-      await botSendDirectMessage(u.discordUserId!, n.href ? `${n.text}\n${appUrl}${n.href}` : n.text);
+      // La mascotte accompagne le message (image publique servie par l'application, donc seulement en https).
+      const mascot = appUrl.startsWith("https://") ? `${appUrl}/mascotte/${n.mood}.png` : null;
+      await botSendDirectMessage(u.discordUserId!, n.href ? `${n.text}\n${appUrl}${n.href}` : n.text, mascot);
       await prisma.notification.update({ where: { id: n.id }, data: { dmStatus: "SENT", dmSentAt: now } });
       sent++;
     } catch (e) {

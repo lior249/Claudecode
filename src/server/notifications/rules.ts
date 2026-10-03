@@ -108,3 +108,46 @@ export function adminDigest(c: { reviews: number; reactivations: number; without
   ].filter(Boolean);
   return parts.length ? `🛠️ Résumé admin : ${parts.join(", ")}.` : null;
 }
+
+// ---------- Mascotte ----------
+
+/** Expressions de la mascotte (fichiers public/mascotte/<mood>.png). */
+export const MOODS = ["amour", "serieux", "effort", "doute", "wow", "perdu", "motive", "ko", "content", "triste", "clin-oeil", "neutre"] as const;
+export type Mood = (typeof MOODS)[number];
+export const isMood = (v: unknown): v is Mood => typeof v === "string" && (MOODS as readonly string[]).includes(v);
+
+// Expression par défaut selon le type de notification (les résultats bons / mauvais la précisent à l'envoi).
+const KIND_MOODS: Record<string, Mood> = {
+  "learn.nudge": "motive",
+  "learn.deadline": "effort",
+  "learn.module": "content",
+  "learn.level": "wow",
+  "learn.completed": "amour",
+  "learn.result": "content",
+  "learn.review": "content",
+  "streak.risk": "motive",
+  "streak.milestone": "wow",
+  "streak.freeze": "doute",
+  "rank.up": "wow",
+  "rank.sss": "amour",
+  "proof.views": "content",
+  "proof.refused": "triste",
+  "monthly.open": "motive",
+  "monthly.last": "effort",
+  "leaderboard.weekly": "clin-oeil",
+  "coaching.absence": "triste",
+  "coaching.revoked": "ko",
+  "coaching.reactivated": "content",
+  "ticket.reply": "clin-oeil",
+  "ticket.closed": "content",
+  "coach.availability": "clin-oeil",
+  "coach.added": "wow",
+  "coach.deadline": "effort",
+  "coach.digest": "serieux",
+  "admin.digest": "serieux",
+  "coach.proof": "serieux",
+  "coach.reactivation": "doute",
+  "coach.outcome": "content",
+  "coach.stars": "wow",
+};
+export const moodForKind = (kind: string): Mood => KIND_MOODS[kind] ?? "neutre";

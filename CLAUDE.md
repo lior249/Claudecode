@@ -20,7 +20,8 @@ Référence produit : `docs/DECISIONS.md` (prioritaire) puis `docs/SPEC.md`. Int
    qu'à ses élèves (sinon « introuvable »). Les dates affichées côté navigateur passent par `LocalTime` (fuseau du lecteur).
 9. Notifications : toujours `notify()` (`src/server/notifications/service.ts`), jamais Discord directement. La notification
    va dans la cloche ; le worker envoie le message privé (heures calmes 22 h–8 h, 3 par jour, sauf `urgent`). Les relances
-   programmées vivent dans `engagement.ts` avec une `onceKey` (pas de doublon). Textes et règles pures dans `rules.ts`.
+   programmées vivent dans `engagement.ts` avec une `onceKey` (pas de doublon). Textes et règles pures dans `rules.ts`,
+   dont l'expression de la mascotte (`mood`, images `public/mascotte/`).
 10. Posts de résultats : `src/server/results/service.ts` (validation coach / admin, 2 par jour, réactions). Disponibilités
    des coachs : règles pures (fuseaux) dans `coaching/availability-rules.ts`, service dans `coaching/availability.ts`.
 

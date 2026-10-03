@@ -1,6 +1,7 @@
 import { requireUser } from "@/server/auth/session";
 import { listReactivationRequests } from "@/server/coaching/admin";
 import { ReactivationDecision } from "@/components/coaching/reactivation-decision";
+import { MascotState } from "@/components/mascot";
 
 export default async function CoachReactivations() {
   const user = await requireUser(["COACH", "ADMIN"]);
@@ -11,7 +12,11 @@ export default async function CoachReactivations() {
         <h1 className="text-2xl font-semibold">Demandes de retour</h1>
         <p className="mt-1 text-sm text-muted">Élèves en pause après 7 jours sans post qui demandent à reprendre leur coaching.</p>
       </div>
-      {requests.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Aucune demande.</p>}
+      {requests.length === 0 && (
+        <MascotState mood="content">
+          Aucune demande.
+        </MascotState>
+      )}
       {requests.map((r) => (
         <section key={r.id} className="rounded-3xl border border-line bg-card p-4">
           <p className="font-semibold">{r.learner.displayName}</p>

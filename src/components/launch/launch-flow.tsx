@@ -7,7 +7,7 @@ import { ArrowLeft, ExternalLink, KeyRound } from "lucide-react";
 import type { getLaunchView } from "@/server/launch/service";
 import { checkLaunchKeyAction, submitLaunchAction } from "@/app/actions/launch";
 import { TypeBadge } from "@/components/learn/badges";
-import { CrownIcon } from "@/components/ui/icons";
+import { Mascot } from "@/components/mascot";
 
 type View = Awaited<ReturnType<typeof getLaunchView>>;
 
@@ -42,7 +42,7 @@ export function LaunchFlow({ view, moduleTitle, whopUrl }: { view: View; moduleT
         {header}
         <section className="space-y-3">
           <div className="rounded-3xl border border-gold/50 bg-card p-6 text-center">
-            <CrownIcon size={64} className="mx-auto" />
+            <Mascot mood="wow" size={120} className="mx-auto" />
             <p className="mt-3 text-xl font-semibold">Félicitations !</p>
             <p className="mt-1 text-sm text-muted">Tu as terminé ton parcours Learn. Ton accès au coaching est débloqué.</p>
             <p className="mt-3 text-sm">

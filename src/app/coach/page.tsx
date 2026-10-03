@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { requireUser } from "@/server/auth/session";
 import { coachInbox } from "@/server/coaching/tickets";
+import { MascotState } from "@/components/mascot";
 
 function dueLabel(left: number | null) {
   if (left === null) return { text: "Réponse envoyée", tone: "text-muted" };
@@ -23,7 +24,11 @@ export default async function CoachInbox() {
           {waiting} en attente de ta réponse. Tu as 12 h pour répondre ; en moins d&apos;1 h, tu gagnes des étoiles.
         </p>
       </div>
-      {tickets.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Aucune demande ouverte. 🎉</p>}
+      {tickets.length === 0 && (
+        <MascotState mood="content" title="Tout est à jour">
+          Aucune demande ouverte.
+        </MascotState>
+      )}
       <ul className="space-y-2">
         {tickets.map((t) => {
           const due = dueLabel(t.msLeft);

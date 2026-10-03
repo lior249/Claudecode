@@ -18,7 +18,9 @@ import { AccountBar } from "@/components/profile/account-bar";
 import type { MenuUser } from "@/components/profile/user-menu";
 import { Flame } from "./flame";
 import { uploadImage } from "./image-upload";
-import { FlameIcon, TrophyIcon } from "@/components/ui/icons";
+import { TrophyIcon } from "@/components/ui/icons";
+import { Logo } from "@/components/mascot";
+import { Mascot } from "@/components/mascot";
 
 interface TicketRow {
   id: string;
@@ -73,8 +75,8 @@ export function CoachingHome({
   return (
     <>
       <header className="flex items-center justify-between py-5">
-        <Link href="/learn" className="logo text-3xl">
-          Creato
+        <Link href="/learn" aria-label="Creato">
+          <Logo />
         </Link>
         <div className="flex items-center gap-2">
           <Link href="/classement" className="rounded-full bg-card p-2" aria-label="Classement">
@@ -108,7 +110,7 @@ export function CoachingHome({
       {d.status === "REVOKED" && <Reactivation pending={d.reactivation?.status === "PENDING"} />}
       {d.status === "COMPLETED" && (
         <section className={`${card} mt-4 border-gold/50 text-center`}>
-          <TrophyIcon size={52} className="mx-auto" />
+          <Mascot mood="amour" size={112} className="mx-auto" />
           <p className="mt-2 text-lg font-semibold">Coaching terminé : rang SSS !</p>
           <p className="text-sm text-muted">Tu as atteint 1 000 € en un mois. Bravo !</p>
         </section>
@@ -134,7 +136,11 @@ export function CoachingHome({
                 <span className="text-xs text-muted">{maxTickets} demandes en cours (max.)</span>
               )}
             </div>
-            {tickets.length === 0 && <p className="text-sm text-muted">Aucun échange pour l&apos;instant.</p>}
+            {tickets.length === 0 && (
+              <p className="flex items-center gap-3 text-sm text-muted">
+                <Mascot mood="clin-oeil" size={40} /> Aucun échange pour l&apos;instant.
+              </p>
+            )}
             <ul className="divide-y divide-line">
               {tickets.map((t) => (
                 <li key={t.id}>
@@ -203,7 +209,7 @@ function TodayPost({ todayDone, username }: { todayDone: boolean; username: stri
   return (
     <section className={`${card} ${todayDone ? "border-success/40" : "border-orange-500/50"}`}>
       <h2 className="flex items-center gap-1.5 text-lg font-semibold">
-        <FlameIcon size={22} level={1} /> {todayDone ? "Post du jour validé" : "Ton post du jour"}
+        <Mascot mood={todayDone ? "content" : "motive"} size={40} /> {todayDone ? "Post du jour validé" : "Ton post du jour"}
       </h2>
       <p className="mt-1 text-sm text-muted">
         {todayDone ? "Ta chaîne continue. Tu peux ajouter d'autres posts." : "Au moins 1 post par jour pour garder ta flamme. Colle le lien de ta vidéo."}
@@ -446,7 +452,8 @@ function Reactivation({ pending: alreadyPending }: { pending: boolean }) {
   const [reason, setReason] = useState("");
   return (
     <section className={`${card} mt-4 border-danger/50`}>
-      <h2 className="font-semibold">Ton coaching est en pause</h2>
+      <Mascot mood="triste" size={72} />
+      <h2 className="mt-2 font-semibold">Ton coaching est en pause</h2>
       <p className="mt-1 text-sm text-muted">Tu n&apos;as pas posté pendant 7 jours : ta place et le rôle @Élite ont été retirés.</p>
       {alreadyPending ? (
         <p className="mt-3 text-sm text-gold">Ta demande de réactivation est en cours d&apos;examen.</p>

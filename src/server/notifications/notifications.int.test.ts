@@ -41,9 +41,9 @@ describe("Notifications : cloche et messages privés", () => {
     await prisma.notification.create({ data: { userId: u.id, kind: "t", text: "calme", createdAt: night } });
     await prisma.notification.create({ data: { userId: u.id, kind: "t", text: "urgent", urgent: true, createdAt: night } });
     expect(await deliverPendingDms(night)).toBe(1);
-    expect(send).toHaveBeenCalledWith(u.discordUserId, "urgent");
+    expect(send).toHaveBeenCalledWith(u.discordUserId, "urgent", null); // pas d'image de mascotte hors https
     expect(await deliverPendingDms(paris("08:05", "2026-10-08"))).toBe(1);
-    expect(send).toHaveBeenLastCalledWith(u.discordUserId, "calme");
+    expect(send).toHaveBeenLastCalledWith(u.discordUserId, "calme", null);
   });
 
   it("3 messages non urgents par jour au maximum, le reste dans la cloche ; lien ajouté", async () => {
@@ -51,7 +51,7 @@ describe("Notifications : cloche et messages privés", () => {
     const t = paris("12:00");
     for (let i = 0; i < 5; i++) await prisma.notification.create({ data: { userId: u.id, kind: "t", text: `n${i}`, href: "/learn", createdAt: t } });
     expect(await deliverPendingDms(t)).toBe(3);
-    expect(send).toHaveBeenCalledWith(u.discordUserId, "n0\nhttp://localhost:3000/learn");
+    expect(send).toHaveBeenCalledWith(u.discordUserId, "n0\nhttp://localhost:3000/learn", null);
     expect(await prisma.notification.count({ where: { userId: u.id, dmStatus: "SKIPPED" } })).toBe(2);
   });
 

@@ -3,6 +3,7 @@ import { listPendingProofs } from "@/server/coaching/progress";
 import { ProofReview } from "@/components/coaching/proof-review";
 import { listPendingResultPosts } from "@/server/results/service";
 import { ResultPostReview } from "@/components/results/result-post-review";
+import { MascotState } from "@/components/mascot";
 
 const fr = (n: number | null) => (n === null ? "—" : n.toLocaleString("fr-FR"));
 
@@ -13,7 +14,11 @@ export default async function CoachProofs() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Preuves à valider</h1>
-      {views.length + ranks.length + posts.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Rien à valider. 🎉</p>}
+      {views.length + ranks.length + posts.length === 0 && (
+        <MascotState mood="content" title="Tout est à jour">
+          Rien à valider.
+        </MascotState>
+      )}
       {ranks.map((r) => (
         <ProofReview
           key={r.id}

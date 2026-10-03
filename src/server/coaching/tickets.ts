@@ -129,7 +129,7 @@ export async function reportOutcome(learnerId: string, messageId: string, worked
   });
   // Un 👎 relance le coach (nouveau délai de 12 h).
   if (!worked && m.ticket.origin === "LEARNER" && m.ticket.status === "OPEN") await openWait(m.ticketId, m.ticket.coachId, now);
-  await notify(m.ticket.coachId, { kind: "coach.outcome", href: `/coach/tickets/${m.ticket.id}`, text: `${worked ? "👍" : "👎"} Retour sur ton conseil dans « ${m.ticket.subject} ».` });
+  await notify(m.ticket.coachId, { kind: "coach.outcome", href: `/coach/tickets/${m.ticket.id}`, mood: worked ? "content" : "doute", text: `${worked ? "👍" : "👎"} Retour sur ton conseil dans « ${m.ticket.subject} ».` });
 }
 
 // Seul le coach clôture. L'élève note ensuite la réponse (😞 😐 🙂).
@@ -219,6 +219,7 @@ async function changeStars(coachId: string, delta: number, reason: string) {
   await notify(coachId, {
     kind: "coach.stars",
     href: "/coach",
+    mood: stars > coach.coachStars ? "wow" : "triste",
     text: stars > coach.coachStars ? `⭐ +1 étoile (${stars}/6) : ${reason}. Bravo !` : `⚠️ −1 étoile (${stars}/6) : ${reason}. Réponds dans les 12 h pour remonter.`,
   });
 }

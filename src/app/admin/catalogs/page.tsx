@@ -5,6 +5,7 @@ import type { Catalog } from "@/generated/prisma/enums";
 import { CATALOGS } from "@/server/decisions/catalog";
 import { fileUrl } from "@/server/decisions/service";
 import { CompetitionBadge, EquipmentBadge } from "@/components/decision/parts";
+import { MascotState } from "@/components/mascot";
 
 export default async function AdminCatalogs({ searchParams }: PageProps<"/admin/catalogs">) {
   const c = (await searchParams).c;
@@ -33,7 +34,11 @@ export default async function AdminCatalogs({ searchParams }: PageProps<"/admin/
         <Plus size={18} /> {CATALOGS[catalog].add}
       </Link>
       <div className="space-y-3">
-        {items.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Aucune fiche pour l&apos;instant.</p>}
+        {items.length === 0 && (
+        <MascotState mood="neutre">
+          Aucune fiche pour l&apos;instant.
+        </MascotState>
+      )}
         {items.map((item) => (
           <Link key={item.id} href={`/admin/catalogs/${item.id}`} className="flex items-center gap-4 rounded-3xl border border-line bg-card p-4">
             {item.thumbnailKey ? (

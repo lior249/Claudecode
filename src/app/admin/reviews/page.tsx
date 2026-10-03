@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { listPendingReviews } from "@/server/admin/reviews";
 import { TypeBadge } from "@/components/learn/badges";
+import { MascotState } from "@/components/mascot";
 
 const ago = (iso: string) => {
   const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -18,7 +19,11 @@ export default async function AdminReviews() {
         <h1 className="text-2xl font-semibold">Validations en attente</h1>
         <p className="mt-1 text-sm text-muted">Réalisations dont l&apos;analyse automatique a échoué 3 fois : l&apos;élève a fait appel à un humain.</p>
       </div>
-      {items.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Rien à valider. 🎉</p>}
+      {items.length === 0 && (
+        <MascotState mood="content" title="Tout est à jour">
+          Rien à valider.
+        </MascotState>
+      )}
       <ul className="space-y-2">
         {items.map((r) => (
           <li key={r.id}>

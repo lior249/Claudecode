@@ -3,6 +3,7 @@ import { Star } from "lucide-react";
 import { coachReport, listCoachCandidates } from "@/server/coaching/admin";
 import { AddCoach, RemoveCoach } from "@/components/coaching/coach-team";
 import { CapacityEditor } from "@/components/coaching/capacity-editor";
+import { MascotState } from "@/components/mascot";
 
 const EMOJI = { GOOD: "🙂", NEUTRAL: "😐", BAD: "😞" } as const;
 
@@ -19,7 +20,11 @@ export default async function AdminCoaches() {
         <p className="mt-1 text-sm text-muted">Étoiles de 1 à 6 : +1 toutes les 10 réponses en moins d&apos;1 h, −1 toutes les 5 réponses en retard dans la semaine.</p>
       </div>
       <AddCoach candidates={candidates} />
-      {coaches.length === 0 && <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Aucun coach.</p>}
+      {coaches.length === 0 && (
+        <MascotState mood="neutre">
+          Aucun coach.
+        </MascotState>
+      )}
       {coaches.map((c) => (
         <section key={c.id} className={`rounded-3xl border bg-card p-4 ${c.coachStars <= 2 ? "border-danger/50" : "border-line"}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">

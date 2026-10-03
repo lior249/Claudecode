@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { markAllReadAction, notificationSettingsAction } from "@/app/actions/notifications";
 import { LocalTime } from "@/components/local-time";
+import { Mascot, MascotState, type Mood } from "@/components/mascot";
 
 export interface NotificationRow {
   id: string;
   text: string;
   href: string | null;
+  mood: Mood;
   createdAt: string;
   unread: boolean;
 }
@@ -24,14 +26,19 @@ export function NotificationCenter({ items }: { items: NotificationRow[] }) {
   return (
     <>
       {items.length === 0 ? (
-        <p className="rounded-3xl bg-card p-6 text-center text-sm text-muted">Aucune notification pour l&apos;instant.</p>
+        <MascotState mood="neutre" title="Rien de neuf">
+          Aucune notification pour l&apos;instant.
+        </MascotState>
       ) : (
         <ul className="space-y-2">
           {items.map((n) => {
             const body = (
               <>
-                {n.unread && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-danger" aria-label="Non lue" />}
-                <span className="min-w-0 flex-1">
+                <span className="relative shrink-0">
+                  <Mascot mood={n.mood} size={44} />
+                  {n.unread && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card-2 bg-danger" aria-label="Non lue" />}
+                </span>
+                <span className="min-w-0 flex-1 self-center">
                   <span className="block text-sm">{n.text}</span>
                   <span className="mt-0.5 block text-xs text-muted">
                     <LocalTime iso={n.createdAt} />

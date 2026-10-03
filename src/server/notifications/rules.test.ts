@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { adminDigest, clampReminderHour, coachDigest, dmDecision, isQuietHour, learnNudge, localHour, localWeekday, pick } from "./rules";
+import { existsSync } from "node:fs";
+import { adminDigest, clampReminderHour, coachDigest, dmDecision, isMood, isQuietHour, learnNudge, localHour, localWeekday, moodForKind, MOODS, pick } from "./rules";
 
 describe("notifications : règles", () => {
   it("heures calmes de 22 h à 8 h", () => {
@@ -41,5 +42,18 @@ describe("notifications : règles", () => {
     expect(coachDigest({ waits: 0, late: 0, proofs: 0, reactivations: 0 })).toBeNull();
     expect(coachDigest({ waits: 2, late: 1, proofs: 1, reactivations: 0 })).toBe("☀️ Ta journée de coach : 2 réponses à donner (dont 1 en retard), 1 preuve à vérifier.");
     expect(adminDigest({ reviews: 0, reactivations: 0, withoutCoach: 1, lowStarCoaches: 0, failedJobs: 0 })).toBe("🛠️ Résumé admin : 1 élève sans coach.");
+  });
+});
+
+describe("mascotte", () => {
+  it("chaque expression a son image", () => {
+    for (const m of MOODS) expect(existsSync(`public/mascotte/${m}.png`), m).toBe(true);
+  });
+  it("expression par défaut selon le type de notification", () => {
+    expect(moodForKind("rank.up")).toBe("wow");
+    expect(moodForKind("coaching.revoked")).toBe("ko");
+    expect(moodForKind("inconnu")).toBe("neutre");
+    expect(isMood("triste")).toBe(true);
+    expect(isMood("logo")).toBe(false);
   });
 });

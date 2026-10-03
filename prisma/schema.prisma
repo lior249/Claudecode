@@ -452,6 +452,7 @@ model Notification {
   kind      String // ex. "streak.risk", "coach.digest"
   text      String
   href      String?
+  mood      String    @default("neutre") // expression de la mascotte (public/mascotte/<mood>.png)
   urgent    Boolean   @default(false) // ignore les heures calmes et le plafond quotidien
   dmStatus  DmStatus  @default(PENDING)
   dmSentAt  DateTime?

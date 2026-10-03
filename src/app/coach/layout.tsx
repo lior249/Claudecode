@@ -5,6 +5,7 @@ import { accountBarData } from "@/server/profile/menu";
 import { AccountBar } from "@/components/profile/account-bar";
 import { TabNav } from "@/components/tab-nav";
 import { TimezoneSync } from "@/components/notifications/timezone-sync";
+import { Logo } from "@/components/mascot";
 
 export default async function CoachLayout({ children }: LayoutProps<"/coach">) {
   const user = await requireUser(["COACH", "ADMIN"]);
@@ -21,7 +22,7 @@ export default async function CoachLayout({ children }: LayoutProps<"/coach">) {
       <TimezoneSync known={!!user.timezone} />
       <header className="flex items-center justify-between py-5">
         <Link href="/coach" className="flex items-baseline gap-2">
-          <span className="logo text-3xl">Creato</span>
+          <Logo />
           <span className="text-sm font-medium text-gold">Coach</span>
         </Link>
         <div className="flex items-center gap-2">

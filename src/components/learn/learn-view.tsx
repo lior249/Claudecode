@@ -9,9 +9,10 @@ import type { LessonType } from "@/generated/prisma/enums";
 import type { Rank, Status } from "@/server/learn/progression";
 import { devCompleteLesson } from "@/app/actions/learn";
 import { LESSON_TYPES, RankBadge, TypeBadge } from "./badges";
-import { CrownIcon } from "@/components/ui/icons";
 import { Countdown } from "./countdown";
 import { LocalTime } from "@/components/local-time";
+import { Logo } from "@/components/mascot";
+import { Mascot } from "@/components/mascot";
 
 export interface LessonView {
   id: string;
@@ -77,7 +78,7 @@ export function LearnView({ data }: { data: LearnViewData }) {
     <main className="mx-auto min-h-dvh max-w-md px-4 pb-24">
       {/* En-tête */}
       <header className="flex items-center justify-between py-5">
-        <span className="logo text-3xl">Creato</span>
+        <Logo />
         <div className="flex items-center gap-2">
         {data.inCoaching && (
           <Link href="/coaching" className="rounded-full bg-gold px-3 py-2 text-xs font-semibold text-black">
@@ -133,7 +134,7 @@ export function LearnView({ data }: { data: LearnViewData }) {
         </section>
       ) : data.learnCompleted ? (
         <section className="mt-4 rounded-3xl border border-gold/40 bg-card-2 p-5 text-center">
-          <CrownIcon size={48} className="mx-auto" />
+          <Mascot mood="wow" size={104} className="mx-auto" />
           <p className="mt-2 text-lg font-semibold">Bravo, tu as terminé ton parcours Learn !</p>
           <p className="mt-1 text-sm text-muted">Ton accès au coaching est débloqué.</p>
         </section>

@@ -112,7 +112,7 @@ export async function botRemoveRole(discordUserId: string, roleId: string) {
   if (!res.ok && res.status !== 404) throw new DiscordError(`remove role failed: ${res.status}`);
 }
 
-export async function botSendDirectMessage(discordUserId: string, content: string) {
+export async function botSendDirectMessage(discordUserId: string, content: string, thumbnailUrl: string | null = null) {
   const dm = await fetch(`${api()}/users/@me/channels`, {
     method: "POST",
     headers: botHeaders(),
@@ -123,7 +123,12 @@ export async function botSendDirectMessage(discordUserId: string, content: strin
   const res = await fetch(`${api()}/channels/${id}/messages`, {
     method: "POST",
     headers: botHeaders(),
-    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+    // Avec une image : le texte passe dans un encadré doré, la mascotte en vignette à droite.
+    body: JSON.stringify(
+      thumbnailUrl
+        ? { embeds: [{ description: content, color: 0xf5b301, thumbnail: { url: thumbnailUrl } }], allowed_mentions: { parse: [] } }
+        : { content, allowed_mentions: { parse: [] } },
+    ),
   });
   if (!res.ok) throw new DiscordError(`send DM failed: ${res.status}`);
 }

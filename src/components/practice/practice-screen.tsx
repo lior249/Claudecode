@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { ArrowLeft, Check, ExternalLink, Loader2, X } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, X } from "lucide-react";
 import type { PracticeView } from "@/server/practice/service";
 import { requestHumanAction, retrySubmissionAction, submitPracticeAction } from "@/app/actions/practice";
 import { TypeBadge } from "@/components/learn/badges";
 import { UploadDropzone, type UploadedAsset } from "./upload-dropzone";
 import { LocalTime } from "@/components/local-time";
+import { Mascot, type Mood } from "@/components/mascot";
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 const formatTime = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
@@ -68,15 +69,15 @@ export function PracticeScreen({ view, moduleTitle, whopUrl }: { view: PracticeV
         {view.status === "PASSED" && <PassedCard score={passedSub?.score ?? null} />}
         {view.status === "PROCESSING" && <ProcessingCard />}
         {view.status === "NOT_READY" && (
-          <StatusCard title="Cet exercice n'est pas encore prêt" text="Les critères de correction arrivent bientôt. Reviens un peu plus tard." />
+          <StatusCard mood="neutre" title="Cet exercice n'est pas encore prêt" text="Les critères de correction arrivent bientôt. Reviens un peu plus tard." />
         )}
         {view.status === "PENDING_HUMAN" && (
-          <StatusCard title="Un coach examine ta réalisation" text="Tu recevras sa réponse sur Discord. Tu n'as rien d'autre à faire pour l'instant." />
+          <StatusCard mood="serieux" title="Un coach examine ta réalisation" text="Tu recevras sa réponse sur Discord. Tu n'as rien d'autre à faire pour l'instant." />
         )}
         {latest?.status === "ERROR" && view.status === "OPEN" && <ErrorCard view={view} sub={latest} />}
         {latest?.status === "FAILED" && view.status === "OPEN" && <ResultCard sub={latest} threshold={view.threshold} />}
         {latest?.status === "HUMAN_REJECTED" && view.status === "OPEN" && (
-          <StatusCard title="Le coach a demandé une correction" text={latest.reviewComment ?? "Renvoie une nouvelle réalisation."} />
+          <StatusCard mood="doute" title="Le coach a demandé une correction" text={latest.reviewComment ?? "Renvoie une nouvelle réalisation."} />
         )}
         {view.status === "OPEN" && latest?.status !== "ERROR" && <SubmitForm view={view} />}
         {passedSub && passedSub.criteria.length > 0 && <ResultCard sub={passedSub} threshold={view.threshold} />}
@@ -135,7 +136,7 @@ function SubmitForm({ view }: { view: PracticeView }) {
 function ProcessingCard() {
   return (
     <section className="flex items-center gap-4 rounded-3xl border border-gold/40 bg-card p-5">
-      <Loader2 className="animate-spin text-gold" />
+      <Mascot mood="effort" size={56} className="animate-pulse" />
       <div>
         <p className="font-semibold">Analyse en cours…</p>
         <p className="text-sm text-muted">Ça prend en général moins d&apos;une minute. Tu peux fermer cette page.</p>
@@ -144,11 +145,14 @@ function ProcessingCard() {
   );
 }
 
-function StatusCard({ title, text }: { title: string; text: string }) {
+function StatusCard({ title, text, mood }: { title: string; text: string; mood: Mood }) {
   return (
-    <section className="rounded-3xl border border-line bg-card p-5">
-      <p className="font-semibold">{title}</p>
-      <p className="mt-1 text-sm text-muted">{text}</p>
+    <section className="flex items-center gap-4 rounded-3xl border border-line bg-card p-5">
+      <Mascot mood={mood} size={56} />
+      <div>
+        <p className="font-semibold">{title}</p>
+        <p className="mt-1 text-sm text-muted">{text}</p>
+      </div>
     </section>
   );
 }
@@ -156,8 +160,8 @@ function StatusCard({ title, text }: { title: string; text: string }) {
 function PassedCard({ score }: { score: number | null }) {
   return (
     <section className="space-y-3">
-      <div className="rounded-3xl border border-success/50 bg-card p-6 text-center">
-        <p className="text-4xl">🎉</p>
+      <div className="flex flex-col items-center rounded-3xl border border-success/50 bg-card p-6 text-center">
+        <Mascot mood="amour" size={112} />
         <p className="mt-2 text-xl font-semibold">Exercice validé{score !== null ? ` : ${fmt(score)}/10` : ""}</p>
         <p className="mt-1 text-sm text-muted">La suite de ton parcours est débloquée.</p>
       </div>
@@ -174,7 +178,8 @@ function ResultCard({ sub, threshold }: { sub: Sub; threshold: number }) {
     <section className={`rounded-3xl border bg-card p-5 ${passed ? "border-success/40" : "border-danger/50"}`}>
       <div className="flex items-baseline justify-between">
         <p className="font-semibold">{passed ? "Correction" : `Tentative ${sub.attemptNumber} : pas encore validé`}</p>
-        <p className={`text-2xl font-bold ${passed ? "text-success" : "text-danger"}`}>{sub.score !== null ? fmt(sub.score) : "–"}/10</p>
+        <p className={`flex items-center gap-2 text-2xl font-bold ${passed ? "text-success" : "text-danger"}`}>
+          {!passed && <Mascot mood="ko" size={40} />}{sub.score !== null ? fmt(sub.score) : "–"}/10</p>
       </div>
       {!passed && <p className="mt-1 text-sm text-muted">Il te faut {fmt(threshold)}/10. Corrige les points ci-dessous et renvoie une nouvelle réalisation.</p>}
       <ul className="mt-4 space-y-4">
@@ -224,7 +229,10 @@ function ErrorCard({ view, sub }: { view: PracticeView; sub: Sub }) {
     });
   return (
     <section className="space-y-3 rounded-3xl border border-danger/50 bg-card p-5">
-      <p className="font-semibold">Ta demande n&apos;a pas pu être traitée.</p>
+      <div className="flex items-center gap-3">
+        <Mascot mood="perdu" size={56} />
+        <p className="font-semibold">Ta demande n&apos;a pas pu être traitée.</p>
+      </div>
       <p className="text-sm text-muted">
         Ce n&apos;est pas ta faute : l&apos;analyse a rencontré un problème ({sub.technicalFailures} essai{sub.technicalFailures > 1 ? "s" : ""}).
         Réessaie dans un instant.
