@@ -104,7 +104,7 @@ describe("Relances façon Duolingo", () => {
     await prisma.responseWait.create({ data: { ticketId: t.id, coachId: coach.id, askedAt: paris("08:00"), dueAt: paris("20:00") } });
     await runEngagement(paris("09:40"));
     const n = await prisma.notification.findFirstOrThrow({ where: { userId: coach.id } });
-    expect(n.text).toBe("☀️ Ta journée de coach : 1 réponse à donner.");
+    expect(n.text).toBe("Ta journée de coach : 1 réponse à donner.");
   });
 
   it("fin de module fêtée une seule fois", async () => {

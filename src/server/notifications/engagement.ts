@@ -76,7 +76,7 @@ async function coachingNudges(now: Date, count: Counter) {
     const streak = await getStreak(l.id, now);
 
     if (streak.frozenDays.includes(yesterday)) {
-      count(await notify(l.id, { kind: "streak.freeze", href: "/coaching", onceKey: `freeze:${yesterday}`, text: "🧊 Ton gel a protégé ta flamme hier. Il te reste à poster aujourd'hui pour la garder !" }));
+      count(await notify(l.id, { kind: "streak.freeze", href: "/coaching", onceKey: `freeze:${yesterday}`, text: "Ton gel a protégé ta flamme hier. Il te reste à poster aujourd'hui pour la garder !" }));
     }
     const awake = hour >= l.reminderHour && hour < QUIET_START_HOUR;
     if (awake && !streak.todayDone) {
@@ -92,8 +92,8 @@ async function coachingNudges(now: Date, count: Counter) {
         const me = board[pos];
         const text =
           pos < 3
-            ? `${["🥇", "🥈", "🥉"][pos]} Tu es ${pos === 0 ? "1er" : `${pos + 1}e`} du classement avec ${me.points} points. Garde ta place cette semaine !`
-            : `🏆 Nouvelle semaine : tu es ${pos + 1}e avec ${me.points} points. Il te manque ${board[pos - 1].points - me.points + 1} point(s) pour passer devant.`;
+            ? `Tu es ${pos === 0 ? "1er" : `${pos + 1}e`} du classement avec ${me.points} points. Garde ta place cette semaine !`
+            : `Nouvelle semaine : tu es ${pos + 1}e avec ${me.points} points. Il te manque ${board[pos - 1].points - me.points + 1} point(s) pour passer devant.`;
         count(await notify(l.id, { kind: "leaderboard.weekly", href: "/classement", onceKey: `weekly:${today}`, text }));
       }
     }
@@ -102,9 +102,9 @@ async function coachingNudges(now: Date, count: Counter) {
     if (win.open && win.month && hour >= 10 && hour < QUIET_START_HOUR) {
       const sent = await prisma.rankProof.count({ where: { learnerId: l.id, kind: "MONTHLY", month: win.month } });
       if (!sent) {
-        count(await notify(l.id, { kind: "monthly.open", href: "/coaching", onceKey: `monthly-open:${win.month}`, text: "💰 C'est le dernier jour du mois : envoie tes résultats aujourd'hui (montant exact, capture et liens des vidéos)." }));
+        count(await notify(l.id, { kind: "monthly.open", href: "/coaching", onceKey: `monthly-open:${win.month}`, text: "C'est le dernier jour du mois : envoie tes résultats aujourd'hui (montant exact, capture et liens des vidéos)." }));
         if (hour >= STREAK_LAST_CHANCE_HOUR) {
-          count(await notify(l.id, { kind: "monthly.last", href: "/coaching", onceKey: `monthly-last:${win.month}`, text: "⏳ Dernière chance : tes résultats du mois s'envoient jusqu'à minuit." }));
+          count(await notify(l.id, { kind: "monthly.last", href: "/coaching", onceKey: `monthly-last:${win.month}`, text: "Dernière chance : tes résultats du mois s'envoient jusqu'à minuit." }));
         }
       }
     }
@@ -134,7 +134,7 @@ async function staffDigests(now: Date, count: Counter) {
     // Dimanche soir : rappel de remplir les disponibilités de la semaine (si pas fait depuis 5 jours).
     if (s.coachOrder !== null && localWeekday(now, tz) === 7 && localHour(now, tz) >= AVAILABILITY_HOUR) {
       const fresh = s.availabilityUpdatedAt && now.getTime() - s.availabilityUpdatedAt.getTime() < 5 * 86_400_000;
-      if (!fresh) count(await notify(s.id, { kind: "coach.availabilityReminder", href: "/coach/availability", onceKey: `availability:${today}`, text: "📅 Dimanche soir : indique tes disponibilités de coaching pour la semaine. Tes élèves les recevront tout de suite." }));
+      if (!fresh) count(await notify(s.id, { kind: "coach.availabilityReminder", href: "/coach/availability", onceKey: `availability:${today}`, text: "Dimanche soir : indique tes disponibilités de coaching pour la semaine. Tes élèves les recevront tout de suite." }));
     }
     if (s.role !== "ADMIN") continue;
     const adminText = adminDigest({

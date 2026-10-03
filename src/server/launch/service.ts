@@ -95,5 +95,5 @@ export async function grantEliteRole(userId: string) {
   await botAddRole(user.discordUserId, roleId); // lève une erreur → nouvel essai par la file
   await prisma.user.update({ where: { id: userId }, data: { eliteGrantedAt: new Date() } });
   await prisma.auditLog.create({ data: { actorUserId: userId, action: "ELITE_ROLE_GRANTED", entityType: "user", entityId: userId } });
-  await notify(userId, { kind: "learn.completed", href: "/coaching", text: "🏆 Bravo ! Tu as terminé ton parcours Learn. Le rôle @Élite est à toi : les salons de coaching sont ouverts." });
+  await notify(userId, { kind: "learn.completed", href: "/coaching", text: "Bravo ! Tu as terminé ton parcours Learn. Le rôle @Élite est à toi : les salons de coaching sont ouverts." });
 }

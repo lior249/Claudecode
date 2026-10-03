@@ -99,7 +99,7 @@ export async function addCoach(adminId: string, userId: string, force = false) {
   await prisma.auditLog.create({ data: { actorUserId: adminId, action: "COACH_ADDED", entityType: "user", entityId: userId, metadata: { forced: !u.learnCompletedAt } } });
   // Rang minimum de fin de formation (B) et accès au classement : son espace « mes posts, mes résultats » s'ouvre.
   await prisma.user.updateMany({ where: { id: userId, coachingStatus: "NONE" }, data: { coachingStatus: "ACTIVE", coachingStartedAt: new Date() } });
-  await notify(userId, { kind: "coach.added", href: "/coach", text: "🎓 Tu es maintenant coach sur Creato ! Ton espace coach t'attend (3 étoiles pour commencer)." });
+  await notify(userId, { kind: "coach.added", href: "/coach", text: "Tu es maintenant coach sur Creato ! Ton espace coach t'attend (3 étoiles pour commencer)." });
 }
 
 export async function removeCoach(adminId: string, coachId: string) {

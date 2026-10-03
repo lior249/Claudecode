@@ -48,7 +48,7 @@ export async function createResultPost(userId: string, input: { title: string; b
     data: { authorId: userId, title, body, imageKey: input.imageKey, link, createdAt: now, status: auto ? "APPROVED" : "PENDING", reviewedAt: auto ? now : null, reviewedById: auto ? userId : null },
   });
   if (!auto) {
-    const text = `📸 Nouveau post de résultat à valider : « ${title} » (${u.displayName})`;
+    const text = `Nouveau post de résultat à valider : « ${title} » (${u.displayName})`;
     if (u.role === "COACH") await notifyAdmins({ kind: "coach.resultPost", href: "/coach/proofs", text });
     else if (u.coachId) await notify(u.coachId, { kind: "coach.resultPost", href: "/coach/proofs", text });
     else await notifyAdmins({ kind: "coach.resultPost", href: "/coach/proofs", text });
@@ -75,7 +75,8 @@ export async function reviewResultPost(reviewer: { id: string; role: string }, p
   await notify(post.authorId, {
     kind: "resultPost.reviewed",
     href: "/profil",
-    text: approve ? `✅ Ton post « ${post.title} » est publié !` : `Ton post « ${post.title} » n'a pas été validé : ${comment.trim()}`,
+    mood: approve ? "content" : "triste",
+    text: approve ? `Ton post « ${post.title} » est publié !` : `Ton post « ${post.title} » n'a pas été validé : ${comment.trim()}`,
   });
 }
 

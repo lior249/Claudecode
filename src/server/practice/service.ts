@@ -319,8 +319,8 @@ export async function processSubmission(submissionId: string) {
     }
     if (passed) await completeLesson(submission.userId, submission.lessonId, score);
     await notify(submission.userId, { kind: "learn.result", href: `/learn/practice/${submission.lessonId}`, mood: passed ? "content" : "ko", text: passed
-        ? `✅ « ${submission.lesson.title} » validé avec ${fmtScore(score)}/10. La suite est débloquée !`
-        : `❌ « ${submission.lesson.title} » : ${fmtScore(score)}/10. Il faut ${fmtScore(submission.threshold)}/10. Regarde la correction sur Creato et renvoie une nouvelle réalisation.` });
+        ? `« ${submission.lesson.title} » validé avec ${fmtScore(score)}/10. La suite est débloquée !`
+        : `« ${submission.lesson.title} » : ${fmtScore(score)}/10. Il faut ${fmtScore(submission.threshold)}/10. Regarde la correction sur Creato et renvoie une nouvelle réalisation.` });
   } catch (e) {
     console.error(`[submission ${submissionId}] analyse impossible`, e);
     await prisma.submission.updateMany({
@@ -355,7 +355,7 @@ export async function requestHumanReview(userId: string, submissionId: string) {
   // Pendant le Learn, les corrections humaines sont traitées par les admins.
   const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
   for (const a of admins) {
-    await notify(a.id, { kind: "admin.humanReview", href: "/admin/reviews", text: `🙋 ${sub.user.displayName} demande une correction humaine pour « ${sub.lesson.title} ». Ouvre Creato pour l'examiner.` });
+    await notify(a.id, { kind: "admin.humanReview", href: "/admin/reviews", text: `${sub.user.displayName} demande une correction humaine pour « ${sub.lesson.title} ». Ouvre Creato pour l'examiner.` });
   }
 }
 

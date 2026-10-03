@@ -117,7 +117,7 @@ export async function submitViewProof(learnerId: string, postId: string, stats: 
   if (viewPoints(views) <= viewPoints(post.validatedViews ?? 0)) throw new CoachingError("Cette vidéo a déjà ses points pour ce palier.");
   if (await prisma.viewProof.findFirst({ where: { postId, status: "PENDING" } })) throw new CoachingError("Une capture est déjà en attente pour cette vidéo.");
   await prisma.viewProof.create({ data: { postId, views, likes, comments, imageKey } });
-  await notifyCoach(learnerId, "📊 Nouvelle capture de vues à valider.");
+  await notifyCoach(learnerId, "Nouvelle capture de vues à valider.");
 }
 
 export async function submitFollowersProof(learnerId: string, followers: number, imageKey: string) {
@@ -126,7 +126,7 @@ export async function submitFollowersProof(learnerId: string, followers: number,
   if (followers < FOLLOWERS_FOR_A) throw new CoachingError("Le rang A demande 10 000 abonnés.");
   await assertNoPending(learnerId, "FOLLOWERS_10K");
   await prisma.rankProof.create({ data: { learnerId, kind: "FOLLOWERS_10K", followers, imageKey } });
-  await notifyCoach(learnerId, "⭐ Nouvelle preuve « 10 000 abonnés » à valider.");
+  await notifyCoach(learnerId, "Nouvelle preuve « 10 000 abonnés » à valider.");
 }
 
 // Liens des vidéos : 1 à 10, sur le compte TikTok de l'élève.
@@ -154,7 +154,7 @@ export async function submitMonthlyProof(learnerId: string, amountEur: number, v
   }
   const text = description.trim().slice(0, 1500);
   await prisma.rankProof.create({ data: { learnerId, kind: "MONTHLY", month: window.month, amountEur, videoUrls: links, imageKey, description: text || null } });
-  await notifyCoach(learnerId, `💶 Résultats du mois ${window.month} à valider.`);
+  await notifyCoach(learnerId, `Résultats du mois ${window.month} à valider.`);
 }
 
 async function assertNoPending(learnerId: string, kind: "FOLLOWERS_10K" | "MONTHLY") {
@@ -196,7 +196,7 @@ export async function reviewViewProof(
   if (approve && views > (proof.post.validatedViews ?? 0)) {
     await prisma.post.update({ where: { id: proof.postId }, data: { validatedViews: views } });
   }
-  await notify(proof.post.learnerId, { kind: "proof.views", href: "/coaching", mood: approve ? "content" : "triste", text: approve ? `📊 Capture validée : ${views.toLocaleString("fr-FR")} vues.` : `Capture refusée : ${comment || "illisible ou non conforme."}` });
+  await notify(proof.post.learnerId, { kind: "proof.views", href: "/coaching", mood: approve ? "content" : "triste", text: approve ? `Capture validée : ${views.toLocaleString("fr-FR")} vues.` : `Capture refusée : ${comment || "illisible ou non conforme."}` });
 }
 
 export async function reviewRankProof(reviewer: { id: string; role: string }, proofId: string, approve: boolean, comment = "", verified = false) {
@@ -219,7 +219,7 @@ export async function reviewRankProof(reviewer: { id: string; role: string }, pr
   if (best && best !== learner.manualRank && ["A", "S", "SS", "SSS"].includes(best)) {
     await prisma.user.update({ where: { id: learner.id }, data: { manualRank: best as ManualRank } });
     await prisma.auditLog.create({ data: { actorUserId: reviewer.id, action: "RANK_GRANTED", entityType: "user", entityId: learner.id, metadata: { rank: best } } });
-    await notify(learner.id, { kind: "rank.up", href: "/coaching", text: `🏅 Nouveau rang : ${best} !` });
+    await notify(learner.id, { kind: "rank.up", href: "/coaching", text: `Nouveau rang : ${best} !` });
   }
   if (best === "SSS" && learner.coachingStatus === "ACTIVE" && learner.role === "LEARNER") await completeCoaching(learner.id);
 }

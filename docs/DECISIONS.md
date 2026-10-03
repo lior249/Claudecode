@@ -309,7 +309,7 @@ Les montants se comptent **sur un seul mois**. Un rang atteint reste acquis.
   - rangs en **métaux**, sous forme de blasons : E bois, D bronze, C argent, B or, A platine, S diamant bleu, SS rubis,
     SSS légendaire (dégradé arc-en-ciel) ; S, SS et SSS brillent ;
   - **icônes colorées pleines**, toutes dessinées dans le même style (flamme, couronne, trophée) ; plus d'émojis dans l'interface
-    (les réactions 🔥🚀😡😢 et les textes des notifications les gardent) ;
+    (seules les réactions 🔥🚀😡😢 les gardent) ;
   - **titres et chiffres plus gros** ; les petits textes grossissent un peu (aucun texte sous 13 px) ;
   - leçons : une icône par type (livre = compréhension, clap = pratique, boussole = décision, drapeau = validation) ;
   - modules : anneau doré qui se remplit, coche verte quand terminé, cadenas si verrouillé ;
@@ -325,6 +325,7 @@ Les montants se comptent **sur un seul mois**. Un rang atteint reste acquis.
   - 12 expressions : amour, sérieux, effort, doute, wow, perdu, motivé, KO, content, triste, clin d'œil, neutre ;
   - **notifications** : chaque notification a son expression (choisie selon le type, et selon le résultat : validé = content,
     refusé = triste, échec = KO). Elle s'affiche dans la cloche et en vignette dans le message privé Discord ;
+  - les textes des notifications n'ont **plus d'émoji** : la mascotte les remplace (cloche et Discord) ;
   - **états** : QCM ou exercice validé = amour, échec = KO, analyse en cours = effort, panne = perdu, coach qui examine = sérieux,
     parcours terminé / lancement validé = wow, coaching terminé = amour, coaching en pause = triste,
     post du jour à faire = motivé / fait = content, listes vides = neutre ou content (« tout est à jour »).

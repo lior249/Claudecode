@@ -64,7 +64,7 @@ export async function openLearnerTicket(learnerId: string, input: { subject: str
     await tx.responseWait.create({ data: { ticketId: t.id, coachId: l.coachId, askedAt: now, dueAt: new Date(now.getTime() + RESPONSE_DEADLINE_MS) } });
     return t;
   });
-  await notify(l.coachId, { kind: "coach.newTicket", href: `/coach/tickets/${ticket.id}`, urgent: true, text: `📩 Nouvelle demande de ${l.displayName} : « ${subject} ». Tu as 12 h pour répondre.` });
+  await notify(l.coachId, { kind: "coach.newTicket", href: `/coach/tickets/${ticket.id}`, urgent: true, text: `Nouvelle demande de ${l.displayName} : « ${subject} ». Tu as 12 h pour répondre.` });
   return ticket;
 }
 
@@ -82,12 +82,12 @@ export async function postMessage(viewer: Viewer, ticketId: string, input: { bod
   await prisma.ticketMessage.create({ data: { ticketId, authorId: viewer.id, body, imageKeys: images, followUpHours, createdAt: now } });
   if (fromCoach) {
     await answerWait(t.id, t.coachId, now);
-    await notify(t.learnerId, { kind: "ticket.reply", href: `/coaching/tickets/${t.id}`, text: `💬 Ton coach t'a répondu : « ${t.subject} ».` });
+    await notify(t.learnerId, { kind: "ticket.reply", href: `/coaching/tickets/${t.id}`, text: `Ton coach t'a répondu : « ${t.subject} ».` });
   } else if (t.origin === "LEARNER") {
     await openWait(t.id, t.coachId, now);
-    await notify(t.coachId, { kind: "coach.ticketMessage", href: `/coach/tickets/${t.id}`, urgent: true, text: `💬 Nouveau message dans « ${t.subject} ».` });
+    await notify(t.coachId, { kind: "coach.ticketMessage", href: `/coach/tickets/${t.id}`, urgent: true, text: `Nouveau message dans « ${t.subject} ».` });
   } else {
-    await notify(t.coachId, { kind: "coach.followUpReply", href: `/coach/tickets/${t.id}`, urgent: true, text: `💬 Réponse à ton suivi « ${t.subject} ».` });
+    await notify(t.coachId, { kind: "coach.followUpReply", href: `/coach/tickets/${t.id}`, urgent: true, text: `Réponse à ton suivi « ${t.subject} ».` });
   }
 }
 
@@ -129,7 +129,7 @@ export async function reportOutcome(learnerId: string, messageId: string, worked
   });
   // Un 👎 relance le coach (nouveau délai de 12 h).
   if (!worked && m.ticket.origin === "LEARNER" && m.ticket.status === "OPEN") await openWait(m.ticketId, m.ticket.coachId, now);
-  await notify(m.ticket.coachId, { kind: "coach.outcome", href: `/coach/tickets/${m.ticket.id}`, mood: worked ? "content" : "doute", text: `${worked ? "👍" : "👎"} Retour sur ton conseil dans « ${m.ticket.subject} ».` });
+  await notify(m.ticket.coachId, { kind: "coach.outcome", href: `/coach/tickets/${m.ticket.id}`, mood: worked ? "content" : "doute", text: `Retour sur ton conseil dans « ${m.ticket.subject} » : ${worked ? "ça a marché" : "ça n'a pas marché"}.` });
 }
 
 // Seul le coach clôture. L'élève note ensuite la réponse (😞 😐 🙂).
@@ -139,7 +139,7 @@ export async function closeTicket(viewer: Viewer, ticketId: string, now = new Da
   if (t.status === "CLOSED") return;
   await prisma.ticket.update({ where: { id: t.id }, data: { status: "CLOSED", closedAt: now } });
   await answerWait(t.id, t.coachId, now); // clôturer vaut réponse
-  if (t.origin === "LEARNER") await notify(t.learnerId, { kind: "ticket.closed", href: `/coaching/tickets/${t.id}`, text: `✅ Ta demande « ${t.subject} » est clôturée. Dis-nous ce que tu as pensé de la réponse.` });
+  if (t.origin === "LEARNER") await notify(t.learnerId, { kind: "ticket.closed", href: `/coaching/tickets/${t.id}`, text: `Ta demande « ${t.subject} » est clôturée. Dis-nous ce que tu as pensé de la réponse.` });
 }
 
 export async function rateTicket(learnerId: string, ticketId: string, rating: TicketRating, comment: string, now = new Date()) {
@@ -166,7 +166,7 @@ export async function sendFollowUps(coachId: string, templateKey: string, learne
         await tx.ticketMessage.create({ data: { ticketId: t.id, authorId: coachId, body: template.body, createdAt: now } });
       });
       sent++;
-      await notify(id, { kind: "ticket.followUp", href: "/coaching", text: `📝 Ton coach te pose une question : « ${template.subject} ». Réponds sur Creato.` });
+      await notify(id, { kind: "ticket.followUp", href: "/coaching", text: `Ton coach te pose une question : « ${template.subject} ». Réponds sur Creato.` });
     } catch (e) {
       // Un seul ticket de suivi ouvert par élève (index unique en base).
       if ((e as { code?: string }).code === "P2002") skipped.push(id);
@@ -220,7 +220,7 @@ async function changeStars(coachId: string, delta: number, reason: string) {
     kind: "coach.stars",
     href: "/coach",
     mood: stars > coach.coachStars ? "wow" : "triste",
-    text: stars > coach.coachStars ? `⭐ +1 étoile (${stars}/6) : ${reason}. Bravo !` : `⚠️ −1 étoile (${stars}/6) : ${reason}. Réponds dans les 12 h pour remonter.`,
+    text: stars > coach.coachStars ? `+1 étoile (${stars}/6) : ${reason}. Bravo !` : `−1 étoile (${stars}/6) : ${reason}. Réponds dans les 12 h pour remonter.`,
   });
 }
 
@@ -239,7 +239,7 @@ export async function processResponseWaits(now = new Date()) {
     }
     for (const threshold of COACH_REMINDERS_LEFT_MS) {
       if (left <= threshold && (await markReminder(w.coachId, `wait${threshold / 3_600_000}h:${w.id}`))) {
-        await notify(w.coachId, { kind: "coach.deadline", href: `/coach/tickets/${w.ticketId}`, urgent: true, text: `⏰ Plus que ${Math.ceil(left / 3_600_000)} h pour répondre à ${w.ticket.learner.displayName} (« ${w.ticket.subject} »).` });
+        await notify(w.coachId, { kind: "coach.deadline", href: `/coach/tickets/${w.ticketId}`, urgent: true, text: `Plus que ${Math.ceil(left / 3_600_000)} h pour répondre à ${w.ticket.learner.displayName} (« ${w.ticket.subject} »).` });
         reminded++;
         break;
       }
@@ -256,7 +256,7 @@ export async function processOutcomeReminders(now = new Date()) {
   });
   for (const m of due) {
     if (await markReminder(m.ticket.learnerId, `outcome:${m.id}`)) {
-      await notify(m.ticket.learnerId, { kind: "ticket.outcomeAsk", href: `/coaching/tickets/${m.ticket.id}`, text: `🔔 Alors, le conseil de ton coach a marché ? Donne ton retour dans « ${m.ticket.subject} ».` });
+      await notify(m.ticket.learnerId, { kind: "ticket.outcomeAsk", href: `/coaching/tickets/${m.ticket.id}`, text: `Alors, le conseil de ton coach a marché ? Donne ton retour dans « ${m.ticket.subject} ».` });
     }
   }
 }

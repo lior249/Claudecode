@@ -21,7 +21,7 @@ export async function sendDeadlineReminders(now = new Date()) {
     if (left <= 0 || left > DEADLINE_REMINDER_MS) continue;
     if (!(await markReminder(id, `deadline4h:${current.id}`))) continue;
     const hours = Math.max(1, Math.ceil(left / 3_600_000));
-    await notify(id, { kind: "learn.deadline", href: "/learn", urgent: true, text: `⏰ Il te reste moins de ${hours} h pour valider « ${current.title} ». Tu peux le faire !` });
+    await notify(id, { kind: "learn.deadline", href: "/learn", urgent: true, text: `Il te reste moins de ${hours} h pour valider « ${current.title} ». Tu peux le faire !` });
     sent++;
   }
   return sent;

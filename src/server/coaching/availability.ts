@@ -35,8 +35,8 @@ export async function setAvailability(coachId: string, slots: Slot[], now = new 
   for (const l of learners) {
     const { lines } = await availabilityFor(coachId, userTimezone(l), now);
     const text = lines.length
-      ? `📅 Disponibilités de ton coach ${coach.displayName} cette semaine :\n${lines.map((x) => `• ${x}`).join("\n")}\nPasse le voir quand tu es prêt !`
-      : `📅 Ton coach ${coach.displayName} n'a pas de créneau de coaching cette semaine.`;
+      ? `Disponibilités de ton coach ${coach.displayName} cette semaine :\n${lines.map((x) => `• ${x}`).join("\n")}\nPasse le voir quand tu es prêt !`
+      : `Ton coach ${coach.displayName} n'a pas de créneau de coaching cette semaine.`;
     await notify(l.id, { kind: "coach.availability", href: "/coaching", text });
   }
   return learners.length;

@@ -120,9 +120,9 @@ async function celebrate(userId: string, lessonId: string, progression: Awaited<
       kind: "learn.level",
       href: "/learn",
       onceKey: `level-done:${level.id}`,
-      text: `🏅 Niveau « ${level.title} » terminé ! ${progression.percent} % du parcours. Le niveau suivant est ouvert.`,
+      text: `Niveau « ${level.title} » terminé ! ${progression.percent} % du parcours. Le niveau suivant est ouvert.`,
     });
   } else if (mod.status === "COMPLETED") {
-    await notify(userId, { kind: "learn.module", href: "/learn", onceKey: `module-done:${mod.id}`, text: `🎉 Module « ${mod.title} » terminé ! Tu en es à ${progression.percent} %.` });
+    await notify(userId, { kind: "learn.module", href: "/learn", onceKey: `module-done:${mod.id}`, text: `Module « ${mod.title} » terminé ! Tu en es à ${progression.percent} %.` });
   }
 }

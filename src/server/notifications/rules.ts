@@ -52,41 +52,41 @@ export function learnNudge(daysAway: number, lesson: string | null, seed: string
   if (daysAway <= 1)
     return pick(
       [
-        `📚 ${l} t'attend. 10 minutes aujourd'hui, et tu avances !`,
-        `👀 Petit rappel : ${l} est prête pour toi.`,
-        `⚡ Un pas par jour : ${l} t'attend sur Creato.`,
+        `${l} t'attend. 10 minutes aujourd'hui, et tu avances !`,
+        `Petit rappel : ${l} est prête pour toi.`,
+        `Un pas par jour : ${l} t'attend sur Creato.`,
       ],
       seed,
     );
   if (daysAway <= 3)
     return pick(
-      [`😶 Ça fait ${daysAway} jours… ${l} t'attend toujours. On reprend ?`, `🔁 ${daysAway} jours sans te voir ! Reviens finir ${l}.`],
+      [`Ça fait ${daysAway} jours… ${l} t'attend toujours. On reprend ?`, `${daysAway} jours sans te voir ! Reviens finir ${l}.`],
       seed,
     );
-  if (daysAway <= 7) return `🥺 ${daysAway} jours sans toi. Ceux qui terminent le parcours sont ceux qui reviennent. ${l} t'attend.`;
-  return `👋 On ne t'a pas vu depuis ${daysAway} jours. Ta place est toujours là : reprends avec ${l} quand tu veux.`;
+  if (daysAway <= 7) return `${daysAway} jours sans toi. Ceux qui terminent le parcours sont ceux qui reviennent. ${l} t'attend.`;
+  return `On ne t'a pas vu depuis ${daysAway} jours. Ta place est toujours là : reprends avec ${l} quand tu veux.`;
 }
 
 export function streakRisk(current: number, seed: string) {
   if (current <= 0)
-    return pick(["🔥 Poste ta vidéo du jour pour allumer ta flamme !", "🎬 Une vidéo aujourd'hui = 1er jour de ta flamme. Go !"], seed);
+    return pick(["Poste ta vidéo du jour pour allumer ta flamme !", "Une vidéo aujourd'hui = 1er jour de ta flamme. Go !"], seed);
   return pick(
     [
-      `🔥 Ta flamme de ${current} jour${current > 1 ? "s" : ""} attend ton post du jour !`,
-      `⏳ N'oublie pas ton post : ta flamme est à ${current} jour${current > 1 ? "s" : ""}.`,
-      `🎬 Ajoute ta vidéo du jour pour garder tes ${current} jour${current > 1 ? "s" : ""} de suite.`,
+      `Ta flamme de ${current} jour${current > 1 ? "s" : ""} attend ton post du jour !`,
+      `N'oublie pas ton post : ta flamme est à ${current} jour${current > 1 ? "s" : ""}.`,
+      `Ajoute ta vidéo du jour pour garder tes ${current} jour${current > 1 ? "s" : ""} de suite.`,
     ],
     seed,
   );
 }
 
 export const streakLastChance = (current: number) =>
-  `🚨 Dernière chance : ta flamme de ${current} jour${current > 1 ? "s" : ""} s'éteint à minuit. Poste et ajoute le lien !`;
+  `Dernière chance : ta flamme de ${current} jour${current > 1 ? "s" : ""} s'éteint à minuit. Poste et ajoute le lien !`;
 
 export function streakMilestone(days: number) {
-  if (days >= 100) return `🏆 ${days} jours de suite ! Tu fais partie des plus réguliers. Respect.`;
-  if (days >= 30) return `💎 ${days} jours de suite ! Ta régularité paie : +3 points bonus à 30 jours.`;
-  return `🔥 ${days} jours de suite ! Continue comme ça.`;
+  if (days >= 100) return `${days} jours de suite ! Tu fais partie des plus réguliers. Respect.`;
+  if (days >= 30) return `${days} jours de suite ! Ta régularité paie : +3 points bonus à 30 jours.`;
+  return `${days} jours de suite ! Continue comme ça.`;
 }
 
 export function coachDigest(c: { waits: number; late: number; proofs: number; reactivations: number }) {
@@ -95,7 +95,7 @@ export function coachDigest(c: { waits: number; late: number; proofs: number; re
     c.proofs && `${c.proofs} preuve${c.proofs > 1 ? "s" : ""} à vérifier`,
     c.reactivations && `${c.reactivations} demande${c.reactivations > 1 ? "s" : ""} de réactivation`,
   ].filter(Boolean);
-  return parts.length ? `☀️ Ta journée de coach : ${parts.join(", ")}.` : null;
+  return parts.length ? `Ta journée de coach : ${parts.join(", ")}.` : null;
 }
 
 export function adminDigest(c: { reviews: number; reactivations: number; withoutCoach: number; lowStarCoaches: number; failedJobs: number }) {
@@ -106,7 +106,7 @@ export function adminDigest(c: { reviews: number; reactivations: number; without
     c.lowStarCoaches && `${c.lowStarCoaches} coach${c.lowStarCoaches > 1 ? "s" : ""} à 1–2 étoiles`,
     c.failedJobs && `${c.failedJobs} tâche${c.failedJobs > 1 ? "s" : ""} en échec`,
   ].filter(Boolean);
-  return parts.length ? `🛠️ Résumé admin : ${parts.join(", ")}.` : null;
+  return parts.length ? `Résumé admin : ${parts.join(", ")}.` : null;
 }
 
 // ---------- Mascotte ----------
@@ -149,5 +149,21 @@ const KIND_MOODS: Record<string, Mood> = {
   "coach.reactivation": "doute",
   "coach.outcome": "content",
   "coach.stars": "wow",
+  "coach.newTicket": "serieux",
+  "coach.ticketMessage": "clin-oeil",
+  "coach.followUpReply": "clin-oeil",
+  "coach.newLearner": "wow",
+  "coach.resultPost": "serieux",
+  "coach.availabilityReminder": "effort",
+  "admin.humanReview": "serieux",
+  "admin.noCoach": "effort",
+  "ticket.followUp": "doute",
+  "ticket.outcomeAsk": "doute",
+  "streak.lastChance": "effort",
+  "coaching.reactivationRefused": "triste",
+  "resultPost.reviewed": "content",
 };
+
+// Retire l'émoji en tête d'un texte (anciennes notifications : la mascotte le remplace).
+export const stripLeadingEmoji = (text: string) => text.replace(/^(?:\p{Extended_Pictographic}\uFE0F?\s*)+/u, "");
 export const moodForKind = (kind: string): Mood => KIND_MOODS[kind] ?? "neutre";
