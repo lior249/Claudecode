@@ -44,6 +44,7 @@ const NAV: Record<ViewName, (d: SidebarData) => Item[]> = {
     ["/coach", "Demandes", Inbox],
     ["/coach/learners", "Élèves", Users],
     ["/coach/proofs", "Résultats à vérifier", BadgeCheck],
+    ["/coach/exercises", "Exercices à corriger", ClipboardCheck],
     ["/coach/follow-ups", "Suivi", MessageSquareText],
     ["/coach/reactivations", "Retours", RotateCcw],
     ["/coach/availability", "Disponibilités", CalendarDays],
@@ -51,7 +52,7 @@ const NAV: Record<ViewName, (d: SidebarData) => Item[]> = {
   Admin: () => [
     ["/admin", "Parcours", ListTree],
     ["/admin/learners", "Élèves", Users],
-    ["/admin/reviews", "Validations", ClipboardCheck],
+    ["/admin/reviews", "Exercices à corriger", ClipboardCheck],
     ["/admin/catalogs", "Catalogues", LayoutGrid],
     ["/admin/results", "Types de résultats", Images],
     ["/admin/coaches", "Coachs", GraduationCap],

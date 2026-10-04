@@ -1,8 +1,7 @@
-// Worker : traite la file de tâches (analyse des soumissions), les relances, les messages privés et le ménage périodique.
+// Worker : traite la file de tâches (lecture des captures de résultats, rôle Discord), les relances, les messages privés et le ménage périodique.
 // Lancement : npm run worker (un processus séparé du site, avec ffmpeg installé).
 import "dotenv/config";
 import { claimNextJob, completeJob, failJob, releaseStuckJobs } from "@/server/jobs/queue";
-import { processSubmission } from "@/server/practice/service";
 import { processResultRead } from "@/server/results/service";
 import { cleanupOrphanAssets } from "@/server/retention/service";
 import { grantEliteRole } from "@/server/launch/service";
@@ -22,8 +21,6 @@ let stopping = false;
 
 async function handle(type: string, payload: Record<string, unknown>) {
   switch (type) {
-    case "submission.process":
-      return processSubmission(String(payload.submissionId));
     case "result.read":
       return processResultRead(String(payload.postId));
     case "discord.grantElite":
@@ -35,11 +32,6 @@ async function handle(type: string, payload: Record<string, unknown>) {
 
 async function housekeeping() {
   const released = await releaseStuckJobs();
-  // Soumissions restées « en analyse » sans tâche active (worker arrêté) : remises en erreur, l'élève peut relancer.
-  const stuck = await prisma.submission.updateMany({
-    where: { status: "PROCESSING", createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) } },
-    data: { status: "ERROR", technicalFailures: { increment: 1 }, lastError: "analyse bloquée" },
-  });
   // Résultats restés « en lecture » sans tâche active : passés en vérification à la main.
   const unread = await prisma.resultPost.updateMany({
     where: { status: "ANALYZING", createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) } },
@@ -50,7 +42,7 @@ async function housekeeping() {
   const revoked = await processAbsences();
   await pruneNotifications();
   if (revoked) console.log(`[worker] ${revoked} coaching(s) révoqué(s) pour absence`);
-  if (released || stuck.count || orphans) console.log(`[worker] ménage : ${released} tâches relancées, ${stuck.count} soumissions débloquées, ${orphans} fichiers orphelins supprimés`);
+  if (released || orphans) console.log(`[worker] ménage : ${released} tâches relancées, ${orphans} fichiers orphelins supprimés`);
 }
 
 async function main() {

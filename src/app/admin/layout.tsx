@@ -20,7 +20,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         tabs={[
           ["/admin", "Parcours"],
           ["/admin/learners", "Élèves"],
-          ["/admin/reviews", "Validations"],
+          ["/admin/reviews", "Exercices"],
           ["/admin/catalogs", "Catalogues"],
           ["/admin/results", "Résultats"],
           ["/admin/coaches", "Coachs"],

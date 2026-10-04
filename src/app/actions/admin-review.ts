@@ -3,21 +3,27 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/server/auth/session";
-import { decideReview, ReviewError } from "@/server/admin/reviews";
+import { gradeSubmission, ReviewError } from "@/server/admin/reviews";
 
-const input = z.object({ id: z.string().min(1).max(64), decision: z.enum(["APPROVE", "REJECT"]), comment: z.string().max(4000) });
+const input = z.object({
+  id: z.string().min(1).max(64),
+  grades: z.array(z.object({ criterionId: z.string().max(40), misses: z.number().int(), comment: z.string().max(2000) })).max(10),
+  feedback: z.string().max(4000),
+});
 
-export async function decideReviewAction(raw: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
-  const admin = await requireUser(["ADMIN"]);
+// Correction d'un exercice pratique (admin ou coach).
+export async function gradeSubmissionAction(raw: unknown): Promise<{ ok: true; passed: boolean; score: number } | { ok: false; error: string }> {
+  const grader = await requireUser(["ADMIN", "COACH"]);
   const parsed = input.safeParse(raw);
   if (!parsed.success) return { ok: false, error: "Formulaire invalide." };
   try {
-    await decideReview(admin.id, parsed.data.id, parsed.data.decision, parsed.data.comment);
+    const r = await gradeSubmission(grader, parsed.data.id, parsed.data.grades, parsed.data.feedback);
+    revalidatePath("/admin/reviews");
+    revalidatePath("/coach/exercises");
+    return { ok: true, ...r };
   } catch (e) {
     if (e instanceof ReviewError) return { ok: false, error: e.message };
     console.error("[review]", e);
     return { ok: false, error: "Action impossible. Réessaie." };
   }
-  revalidatePath("/admin/reviews");
-  return { ok: true };
 }

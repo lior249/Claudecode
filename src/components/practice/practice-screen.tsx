@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { ArrowLeft, Check, ExternalLink, X } from "lucide-react";
 import type { PracticeView } from "@/server/practice/service";
-import { requestHumanAction, retrySubmissionAction, submitPracticeAction } from "@/app/actions/practice";
+import { submitPracticeAction } from "@/app/actions/practice";
 import { TypeBadge } from "@/components/learn/badges";
 import { UploadDropzone, type UploadedAsset } from "./upload-dropzone";
 import { LocalTime } from "@/components/local-time";
@@ -16,16 +16,8 @@ const formatTime = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).p
 type Sub = PracticeView["submissions"][number];
 
 export function PracticeScreen({ view, moduleTitle, whopUrl }: { view: PracticeView; moduleTitle: string; whopUrl: string | null }) {
-  const router = useRouter();
   const latest = view.submissions[0];
   const passedSub = view.status === "PASSED" ? view.submissions.find((s) => s.status === "PASSED") : undefined;
-
-  // Pendant l'analyse, on rafraîchit toutes les 3 secondes.
-  useEffect(() => {
-    if (view.status !== "PROCESSING") return;
-    const id = setInterval(() => router.refresh(), 3000);
-    return () => clearInterval(id);
-  }, [view.status, router]);
 
   return (
     <main className="mx-auto min-h-dvh max-w-md lg:max-w-2xl lg:pt-6 px-4 pb-16">
@@ -67,19 +59,17 @@ export function PracticeScreen({ view, moduleTitle, whopUrl }: { view: PracticeV
 
       <div className="mt-4 space-y-4">
         {view.status === "PASSED" && <PassedCard score={passedSub?.score ?? null} />}
-        {view.status === "PROCESSING" && <ProcessingCard />}
         {view.status === "NOT_READY" && (
           <StatusCard mood="neutre" title="Cet exercice n'est pas encore prêt" text="Les critères de correction arrivent bientôt. Reviens un peu plus tard." />
         )}
         {view.status === "PENDING_HUMAN" && (
-          <StatusCard mood="serieux" title="Un coach examine ta réalisation" text="Tu recevras sa réponse sur Discord. Tu n'as rien d'autre à faire pour l'instant." />
+          <StatusCard mood="serieux" title="Un coach corrige ta réalisation" text="Tu reçois une notification dès que ta note est prête. Tu n'as rien d'autre à faire pour l'instant." />
         )}
-        {latest?.status === "ERROR" && view.status === "OPEN" && <ErrorCard view={view} sub={latest} />}
         {latest?.status === "FAILED" && view.status === "OPEN" && <ResultCard sub={latest} threshold={view.threshold} />}
         {latest?.status === "HUMAN_REJECTED" && view.status === "OPEN" && (
           <StatusCard mood="doute" title="Le coach a demandé une correction" text={latest.reviewComment ?? "Renvoie une nouvelle réalisation."} />
         )}
-        {view.status === "OPEN" && latest?.status !== "ERROR" && <SubmitForm view={view} />}
+        {view.status === "OPEN" && <SubmitForm view={view} />}
         {passedSub && passedSub.criteria.length > 0 && <ResultCard sub={passedSub} threshold={view.threshold} />}
         {view.submissions.length > 0 && <History submissions={view.submissions} />}
       </div>
@@ -129,18 +119,6 @@ function SubmitForm({ view }: { view: PracticeView }) {
         {pending ? "Envoi…" : "Envoyer pour correction"}
       </button>
       {error && <p className="text-center text-sm text-danger">{error}</p>}
-    </section>
-  );
-}
-
-function ProcessingCard() {
-  return (
-    <section className="flex items-center gap-4 rounded-3xl border border-gold/40 bg-card p-5">
-      <Mascot mood="effort" size={56} className="animate-pulse" />
-      <div>
-        <p className="font-semibold">Analyse en cours…</p>
-        <p className="text-sm text-muted">Ça prend en général moins d&apos;une minute. Tu peux fermer cette page.</p>
-      </div>
     </section>
   );
 }
@@ -216,46 +194,12 @@ function ResultCard({ sub, threshold }: { sub: Sub; threshold: number }) {
   );
 }
 
-function ErrorCard({ view, sub }: { view: PracticeView; sub: Sub }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
-    start(async () => {
-      setError(null);
-      const res = await fn();
-      if (res.ok) router.refresh();
-      else setError(res.error ?? "Une erreur est survenue.");
-    });
-  return (
-    <section className="space-y-3 rounded-3xl border border-danger/50 bg-card p-5">
-      <div className="flex items-center gap-3">
-        <Mascot mood="perdu" size={56} />
-        <p className="font-semibold">Ta demande n&apos;a pas pu être traitée.</p>
-      </div>
-      <p className="text-sm text-muted">
-        Ce n&apos;est pas ta faute : l&apos;analyse a rencontré un problème ({sub.technicalFailures} essai{sub.technicalFailures > 1 ? "s" : ""}).
-        Réessaie dans un instant.
-      </p>
-      <button disabled={pending} onClick={() => run(() => retrySubmissionAction(view.lessonId, sub.id))} className="w-full rounded-2xl bg-text py-4 font-semibold text-black disabled:opacity-40">
-        Réessayer l&apos;analyse
-      </button>
-      {view.canAskHuman && (
-        <button disabled={pending} onClick={() => run(() => requestHumanAction(view.lessonId, sub.id))} className="w-full rounded-2xl border border-gold/60 py-4 font-semibold text-gold disabled:opacity-40">
-          Faire appel à un humain
-        </button>
-      )}
-      {error && <p className="text-center text-sm text-danger">{error}</p>}
-    </section>
-  );
-}
-
 const STATUS_LABEL: Record<string, string> = {
   PROCESSING: "En analyse",
   PASSED: "Validé",
   FAILED: "Non validé",
   ERROR: "Erreur technique",
-  PENDING_HUMAN: "Chez le coach",
+  PENDING_HUMAN: "En correction",
   HUMAN_APPROVED: "Validé par le coach",
   HUMAN_REJECTED: "Refusé par le coach",
 };

@@ -40,7 +40,7 @@ if [ ! -f .env ]; then
 fi
 
 missing=()
-for key in DISCORD_CLIENT_SECRET DISCORD_BOT_TOKEN GEMINI_API_KEY; do
+for key in DISCORD_CLIENT_SECRET DISCORD_BOT_TOKEN ANTHROPIC_API_KEY; do
   grep -Eq "^$key=\"[^\"]+\"" .env || missing+=("$key")
 done
 if [ ${#missing[@]} -gt 0 ]; then

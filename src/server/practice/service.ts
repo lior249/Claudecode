@@ -3,16 +3,12 @@ import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { prisma } from "@/server/db";
-import { assertCanStartLesson, completeLesson, LessonLockedError } from "@/server/learn/service";
-import { enqueue } from "@/server/jobs/queue";
+import { assertCanStartLesson, LessonLockedError } from "@/server/learn/service";
 import { deleteFile, filePath, FileTooLargeError, writeStream } from "@/server/storage/storage";
-import { detectCuts, detectSilences, MediaError, probe } from "@/server/media/ffmpeg";
-import { getAnalyst, getGrader } from "@/server/ai";
-import { AIError, type AnalysisReport } from "@/server/ai/types";
+import { MediaError, probe } from "@/server/media/ffmpeg";
 import { pruneOldSubmissionFiles } from "@/server/retention/service";
 import { notify } from "@/server/notifications/service";
 import type { Prisma } from "@/generated/prisma/client";
-import { measureText, shotsFromCuts, type MediaMeasurements } from "./analysis";
 import {
   ACCEPTED_EXTENSIONS,
   isPracticeReady,
@@ -20,16 +16,13 @@ import {
   MAX_MEDIA_SECONDS,
   parsePracticeConfig,
   type PracticeConfig,
-  type PracticeCriterion,
 } from "./config";
-import { computeScore, pointsLost, type CriterionResult } from "./scoring";
-
-export const HUMAN_HELP_AFTER_FAILURES = 3;
+import type { CriterionResult } from "./scoring";
 
 // Erreur montrée telle quelle à l'élève (français, sans détail technique).
 export class PracticeError extends Error {}
 
-const PRACTICE_TYPES = ["PRACTICE_AI"] as const;
+export const PRACTICE_TYPES = ["PRACTICE_AI", "PRACTICE_HUMAN"] as const;
 
 async function loadPracticeLesson(lessonId: string) {
   const lesson = await prisma.lesson.findUnique({ where: { id: lessonId } });
@@ -127,19 +120,6 @@ export async function registerUpload(input: { userId: string; lessonId: string; 
   });
 }
 
-// Fichier de référence envoyé par l'Admin (vidéo ou audio d'exemple).
-export async function registerReferenceUpload(input: { adminId: string; lessonId: string; originalName: string; body: Readable }) {
-  await loadPracticeLesson(input.lessonId);
-  return storeMedia({
-    ownerId: input.adminId,
-    lessonId: input.lessonId,
-    originalName: input.originalName,
-    body: input.body,
-    allowed: ["video", "audio"],
-    isReference: true,
-  });
-}
-
 function audioMime(ext: string) {
   return ext === ".mp3" ? "audio/mpeg" : ext === ".wav" ? "audio/wav" : "audio/mp4";
 }
@@ -173,7 +153,6 @@ export async function submitPractice(userId: string, lessonId: string, input: { 
     where: { userId, lessonId },
     select: { status: true, textSha256: true, assets: { select: { sha256: true } } },
   });
-  if (previous.some((s) => s.status === "PROCESSING")) throw new PracticeError("Ta réalisation précédente est encore en cours d'analyse.");
   if (previous.some((s) => s.status === "PASSED" || s.status === "HUMAN_APPROVED")) throw new PracticeError("Tu as déjà validé cet exercice.");
   if (previous.some((s) => s.status === "PENDING_HUMAN")) throw new PracticeError("Un coach examine déjà ta réalisation.");
 
@@ -199,7 +178,7 @@ export async function submitPractice(userId: string, lessonId: string, input: { 
           textSha256: textHash,
           threshold: config.threshold,
           criteriaSnapshot: config.criteria as unknown as Prisma.InputJsonValue,
-          status: "PROCESSING",
+          status: "PENDING_HUMAN",
         },
       });
       await tx.asset.updateMany({ where: { id: { in: assets.map((a) => a.id) } }, data: { submissionId: created.id } });
@@ -208,7 +187,6 @@ export async function submitPractice(userId: string, lessonId: string, input: { 
         create: { userId, lessonId, attemptCount: 1 },
         update: { attemptCount: { increment: 1 } },
       });
-      await tx.job.create({ data: { type: "submission.process", payload: { submissionId: created.id } } });
       await tx.auditLog.create({
         data: { actorUserId: userId, action: "SUBMISSION_CREATED", entityType: "submission", entityId: created.id, metadata: { lessonId, attemptNumber } },
       });
@@ -221,141 +199,20 @@ export async function submitPractice(userId: string, lessonId: string, input: { 
   }
 
   await pruneOldSubmissionFiles(userId, lessonId);
+  await notifyGraders(submission.id);
   return submission;
 }
 
-// ---------- Analyse (worker) ----------
-// 1. mesures exactes (ffmpeg, comparaison de texte) ; 2. l'analyste décrit la réalisation ;
-// 3. le correcteur compte les erreurs par critère ; 4. le serveur calcule les points et la note.
-
-async function measureMedia(asset: { storageKey: string; kind: string; durationSeconds: number | null; hasAudio: boolean | null }) {
-  const p = filePath(asset.storageKey);
-  const duration = asset.durationSeconds ?? 0;
-  const cuts = asset.kind === "VIDEO" ? await detectCuts(p) : [];
-  const silences = asset.hasAudio ? await detectSilences(p, 0.25) : [];
-  const m: MediaMeasurements = {
-    durationSeconds: Math.round(duration * 100) / 100,
-    hasAudio: Boolean(asset.hasAudio),
-    hasVideo: asset.kind === "VIDEO",
-    cuts,
-    shots: asset.kind === "VIDEO" ? shotsFromCuts(cuts, duration) : [],
-    silences,
-  };
-  return m;
-}
-
-export async function processSubmission(submissionId: string) {
-  const submission = await prisma.submission.findUnique({ where: { id: submissionId }, include: { assets: true, lesson: true } });
-  if (!submission || submission.status !== "PROCESSING") return; // déjà traitée
-
-  try {
-    const config = parsePracticeConfig(submission.lesson.config);
-    const criteria = (submission.criteriaSnapshot as unknown as PracticeCriterion[] | null) ?? config.criteria;
-    const media = submission.assets.find((a) => (a.kind === "VIDEO" || a.kind === "AUDIO") && !a.deletedAt) ?? null;
-
-    const report: AnalysisReport = { media: null, text: null, ai: null };
-    if (submission.text) report.text = measureText(submission.text, config.referenceText);
-    let analystModel: string | null = null;
-    if (media) {
-      report.media = await measureMedia(media);
-      const reference = config.referenceAssetId
-        ? await prisma.asset.findFirst({ where: { id: config.referenceAssetId, isReference: true, deletedAt: null } })
-        : null;
-      report.ai = await getAnalyst().analyze({
-        lessonTitle: submission.lesson.title,
-        agentInstructions: config.agentInstructions,
-        criteria,
-        media: { path: filePath(media.storageKey), mimeType: media.mimeType, originalName: media.originalName },
-        reference: reference ? { path: filePath(reference.storageKey), mimeType: reference.mimeType, originalName: reference.originalName } : null,
-        measurements: report.media,
-      });
-      analystModel = report.ai.model;
-    }
-
-    const grading = await getGrader().grade({
-      lessonTitle: submission.lesson.title,
-      learnerInstructions: submission.lesson.summary,
-      agentInstructions: config.agentInstructions,
-      criteria,
-      report,
-      text: submission.text,
-      referenceText: config.referenceText,
+// Correction à la main : les admins et les coachs sont prévenus (pendant la formation, l'élève n'a pas encore de coach).
+async function notifyGraders(submissionId: string) {
+  const s = await prisma.submission.findUniqueOrThrow({ where: { id: submissionId }, include: { user: { select: { displayName: true } }, lesson: { select: { title: true } } } });
+  const staff = await prisma.user.findMany({ where: { role: { in: ["ADMIN", "COACH"] }, status: "ACTIVE" }, select: { id: true, role: true } });
+  for (const u of staff) {
+    await notify(u.id, {
+      kind: "admin.humanReview",
+      href: u.role === "ADMIN" ? `/admin/reviews/${s.id}` : `/coach/exercises/${s.id}`,
+      text: `${s.user.displayName} a envoyé « ${s.lesson.title} » : à corriger.`,
     });
-
-    const results: CriterionResult[] = criteria.map((c) => {
-      const g = grading.criteria.find((x) => x.criterionId === c.id);
-      if (!g) throw new AIError(`correcteur : critère « ${c.id} » non évalué`);
-      const misses = Math.max(0, Math.floor(g.misses));
-      return {
-        criterionId: c.id,
-        instruction: c.instruction,
-        pointsPerMiss: c.pointsPerMiss,
-        misses,
-        pointsLost: pointsLost(misses, c.pointsPerMiss),
-        evidence: g.evidence.slice(0, 30),
-        comment: g.comment,
-      };
-    });
-    const { score, passed } = computeScore(results, submission.threshold);
-
-    const updated = await prisma.submission.updateMany({
-      where: { id: submissionId, status: "PROCESSING" },
-      data: {
-        status: passed ? "PASSED" : "FAILED",
-        score,
-        criteria: results as unknown as Prisma.InputJsonValue,
-        analysis: report as unknown as Prisma.InputJsonValue,
-        feedback: grading.feedback,
-        aiModel: [analystModel, grading.model].filter(Boolean).join(" / "),
-        lastError: null,
-        processedAt: new Date(),
-      },
-    });
-    if (updated.count === 0) return;
-
-    const progress = await prisma.lessonProgress.findUnique({ where: { userId_lessonId: { userId: submission.userId, lessonId: submission.lessonId } } });
-    if (progress && (progress.bestScore === null || score > progress.bestScore)) {
-      await prisma.lessonProgress.update({ where: { id: progress.id }, data: { bestScore: score } });
-    }
-    if (passed) await completeLesson(submission.userId, submission.lessonId, score);
-    await notify(submission.userId, { kind: "learn.result", href: `/learn/practice/${submission.lessonId}`, mood: passed ? "content" : "ko", text: passed
-        ? `« ${submission.lesson.title} » validé avec ${fmtScore(score)}/10. La suite est débloquée !`
-        : `« ${submission.lesson.title} » : ${fmtScore(score)}/10. Il faut ${fmtScore(submission.threshold)}/10. Regarde la correction sur Creato et renvoie une nouvelle réalisation.` });
-  } catch (e) {
-    console.error(`[submission ${submissionId}] analyse impossible`, e);
-    await prisma.submission.updateMany({
-      where: { id: submissionId, status: "PROCESSING" },
-      data: { status: "ERROR", technicalFailures: { increment: 1 }, lastError: e instanceof Error ? e.message.slice(0, 1000) : String(e) },
-    });
-  }
-}
-
-const fmtScore = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
-
-// ---------- Panne : relancer, puis faire appel à un humain ----------
-
-export async function retrySubmission(userId: string, submissionId: string) {
-  const sub = await prisma.submission.findFirst({ where: { id: submissionId, userId } });
-  if (!sub) throw new PracticeError("Soumission introuvable.");
-  if (sub.status !== "ERROR") throw new PracticeError("Cette soumission n'est pas en erreur.");
-  const updated = await prisma.submission.updateMany({ where: { id: sub.id, status: "ERROR" }, data: { status: "PROCESSING" } });
-  if (updated.count) await enqueue("submission.process", { submissionId: sub.id });
-}
-
-export async function requestHumanReview(userId: string, submissionId: string) {
-  const sub = await prisma.submission.findFirst({ where: { id: submissionId, userId }, include: { lesson: true, user: true } });
-  if (!sub) throw new PracticeError("Soumission introuvable.");
-  if (sub.status !== "ERROR" || sub.technicalFailures < HUMAN_HELP_AFTER_FAILURES) {
-    throw new PracticeError("Tu pourras faire appel à un humain après 3 essais qui n'ont pas pu être traités.");
-  }
-  await prisma.submission.update({ where: { id: sub.id }, data: { status: "PENDING_HUMAN" } });
-  await prisma.auditLog.create({
-    data: { actorUserId: userId, action: "HUMAN_REVIEW_REQUESTED", entityType: "submission", entityId: sub.id, metadata: { lessonId: sub.lessonId } },
-  });
-  // Pendant le Learn, les corrections humaines sont traitées par les admins.
-  const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
-  for (const a of admins) {
-    await notify(a.id, { kind: "admin.humanReview", href: "/admin/reviews", text: `${sub.user.displayName} demande une correction humaine pour « ${sub.lesson.title} ». Ouvre Creato pour l'examiner.` });
   }
 }
 
@@ -368,8 +225,7 @@ export interface PracticeView {
   criteria: { instruction: string; pointsPerMiss: number }[]; // visibles par l'élève avant l'envoi
   accept: PracticeConfig["accept"];
   threshold: number;
-  status: "NOT_READY" | "OPEN" | "PROCESSING" | "PASSED" | "PENDING_HUMAN";
-  canAskHuman: boolean;
+  status: "NOT_READY" | "OPEN" | "PASSED" | "PENDING_HUMAN";
   submissions: {
     id: string;
     attemptNumber: number;
@@ -396,13 +252,11 @@ export async function getPracticeView(userId: string, lessonId: string): Promise
   const passed = submissions.some((s) => s.status === "PASSED" || s.status === "HUMAN_APPROVED");
   const status = passed
     ? "PASSED"
-    : latest?.status === "PROCESSING"
-      ? "PROCESSING"
-      : latest?.status === "PENDING_HUMAN"
-        ? "PENDING_HUMAN"
-        : isPracticeReady(config)
-          ? "OPEN"
-          : "NOT_READY";
+    : latest?.status === "PENDING_HUMAN"
+      ? "PENDING_HUMAN"
+      : isPracticeReady(config)
+        ? "OPEN"
+        : "NOT_READY";
   return {
     lessonId,
     title: lesson.title,
@@ -411,7 +265,6 @@ export async function getPracticeView(userId: string, lessonId: string): Promise
     accept: config.accept,
     threshold: config.threshold,
     status,
-    canAskHuman: latest?.status === "ERROR" && latest.technicalFailures >= HUMAN_HELP_AFTER_FAILURES,
     submissions: submissions.map((s) => ({
       id: s.id,
       attemptNumber: s.attemptNumber,

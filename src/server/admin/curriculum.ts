@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/server/db";
 import type { LessonType } from "@/generated/prisma/enums";
 import { generateValidationCode } from "@/lib/codes";
+import { isPracticeReady, parsePracticeConfig } from "@/server/practice/config";
 
 // Édition du parcours par l'Admin. Règle : une validation acquise reste acquise.
 // Un élément qui a déjà de la progression ne se supprime pas : il se masque (dépublier).
@@ -66,7 +67,8 @@ export async function deleteModule(actorId: string, id: string) {
 function defaultConfig(type: LessonType): object {
   switch (type) {
     case "PRACTICE_AI":
-      return { threshold: 8, accept: ["video"], agentInstructions: "", criteria: [], referenceText: "", referenceAssetId: null };
+    case "PRACTICE_HUMAN":
+      return { threshold: 8, accept: ["video"], criteria: [] };
     case "DECISION":
       return { catalog: "niches" };
     case "CODE_VALIDATION":
@@ -88,6 +90,11 @@ export async function createLesson(actorId: string, data: { moduleId: string; ti
 }
 
 export async function updateLesson(actorId: string, id: string, data: { title: string; isPublished: boolean }) {
+  const lesson = await prisma.lesson.findUniqueOrThrow({ where: { id } });
+  // Un exercice pratique ne devient visible qu'avec 1 à 3 critères.
+  if (data.isPublished && !lesson.isPublished && (lesson.type === "PRACTICE_AI" || lesson.type === "PRACTICE_HUMAN") && !isPracticeReady(parsePracticeConfig(lesson.config))) {
+    throw new CurriculumError("Ajoute au moins un critère (3 au maximum) avant de rendre cet exercice visible.");
+  }
   await prisma.lesson.update({ where: { id }, data });
   await audit(actorId, "LESSON_UPDATED", "lesson", id, { isPublished: data.isPublished });
 }

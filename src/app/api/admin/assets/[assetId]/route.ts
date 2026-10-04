@@ -5,10 +5,10 @@ import { getCurrentUser } from "@/server/auth/session";
 import { prisma } from "@/server/db";
 import { filePath } from "@/server/storage/storage";
 
-// Lecture d'un fichier d'élève (vidéo, audio) par un admin. Gère les requêtes partielles (Range) pour le lecteur vidéo.
+// Lecture d'un fichier d'élève (vidéo, audio) par un admin ou un coach (correction des exercices). Gère les requêtes partielles (Range) pour le lecteur vidéo.
 export async function GET(request: Request, ctx: RouteContext<"/api/admin/assets/[assetId]">) {
   const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") return new Response("Introuvable", { status: 404 });
+  if (!user || (user.role !== "ADMIN" && user.role !== "COACH")) return new Response("Introuvable", { status: 404 });
   const { assetId } = await ctx.params;
   const asset = await prisma.asset.findUnique({ where: { id: assetId } });
   if (!asset || asset.deletedAt) return new Response("Introuvable", { status: 404 });

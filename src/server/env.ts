@@ -25,12 +25,6 @@ const schema = z.object({
   CLAUDE_MODEL: z.string().default("claude-opus-5-5"),
   // Plafond de lectures de captures par l'IA et par mois (au-delà, vérification à la main par le coach / l'admin).
   AI_MONTHLY_MAX_READS: z.coerce.number().int().min(0).default(300),
-  GEMINI_API_KEY: optional,
-  // Analyste (regarde la vidéo) et correcteur (compte les erreurs) : les modèles les plus précis.
-  GEMINI_ANALYST_MODEL: z.string().default("gemini-2.5-pro"),
-  GEMINI_GRADER_MODEL: z.string().default("gemini-2.5-pro"),
-  // Images analysées par seconde de vidéo (plus = plus précis sur les timings, mais plus cher).
-  GEMINI_VIDEO_FPS: z.coerce.number().min(0.1).max(24).default(2),
   // Fuseau par défaut (élèves qui ne l'ont pas encore donné, horaires des coachs et admins).
   APP_TIMEZONE: z.string().default("Europe/Paris"),
   // Pour les tests uniquement : faux serveur Discord.

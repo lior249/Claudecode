@@ -3,7 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 
 // File de tâches minimale dans PostgreSQL (SKIP LOCKED : plusieurs workers possibles).
 
-export type JobType = "submission.process" | "discord.grantElite" | "result.read";
+export type JobType = "discord.grantElite" | "result.read";
 
 export async function enqueue(type: JobType, payload: Prisma.InputJsonValue, runAt = new Date(), maxAttempts = 3) {
   return prisma.job.create({ data: { type, payload, runAt, maxAttempts } });

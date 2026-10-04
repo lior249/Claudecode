@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { Plus, Trash2, Upload } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Plus, Trash2 } from "lucide-react";
 import { savePracticeConfig } from "@/app/actions/admin-practice";
 
 type Accept = "video" | "audio" | "text";
@@ -14,13 +14,10 @@ interface Criterion {
 interface Initial {
   summary: string;
   accept: Accept[];
-  agentInstructions: string;
   criteria: { id: string; instruction: string; pointsPerMiss: number }[];
-  referenceText: string;
-  referenceFileName: string | null;
 }
 
-const MAX = 4;
+const MAX = 3;
 const ACCEPT_LABELS: Record<Accept, string> = { video: "Une vidéo", audio: "Un audio", text: "Un texte" };
 let counter = 0;
 const newKey = () => `c${++counter}-${Date.now()}`;
@@ -30,19 +27,13 @@ const field = "w-full rounded-xl border border-line bg-bg p-3 text-sm outline-no
 export function PracticeEditor({ lessonId, initial }: { lessonId: string; initial: Initial }) {
   const [summary, setSummary] = useState(initial.summary);
   const [accept, setAccept] = useState<Accept[]>(initial.accept);
-  const [agentInstructions, setAgentInstructions] = useState(initial.agentInstructions);
   const [criteria, setCriteria] = useState<Criterion[]>(() =>
     initial.criteria.length
       ? initial.criteria.map((c) => ({ key: newKey(), id: c.id, instruction: c.instruction, points: String(c.pointsPerMiss).replace(".", ",") }))
       : [{ key: newKey(), instruction: "", points: "" }],
   );
-  const [referenceText, setReferenceText] = useState(initial.referenceText);
-  const [referenceFile, setReferenceFile] = useState<string | null>(initial.referenceFileName);
-  const [removeReference, setRemoveReference] = useState(false);
-  const [upload, setUpload] = useState<{ progress: number } | null>(null);
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
 
   const update = (key: string, patch: Partial<Criterion>) => setCriteria((cs) => cs.map((c) => (c.key === key ? { ...c, ...patch } : c)));
   const toggle = (a: Accept) => setAccept((cur) => (cur.includes(a) ? cur.filter((x) => x !== a) : [...cur, a]));
@@ -53,39 +44,9 @@ export function PracticeEditor({ lessonId, initial }: { lessonId: string; initia
       const parsed = criteria.map((c) => ({ id: c.id, instruction: c.instruction, pointsPerMiss: Number(c.points.replace(",", ".")) }));
       const bad = parsed.findIndex((c) => !Number.isFinite(c.pointsPerMiss) || c.pointsPerMiss <= 0);
       if (bad !== -1) return setMessage({ ok: false, text: `Critère ${bad + 1} : indique les points retirés à chaque erreur (ex. 2).` });
-      const res = await savePracticeConfig({ lessonId, summary, accept, agentInstructions, criteria: parsed, referenceText, removeReferenceFile: removeReference });
-      if (res.ok && removeReference) {
-        setReferenceFile(null);
-        setRemoveReference(false);
-      }
+      const res = await savePracticeConfig({ lessonId, summary, accept, criteria: parsed });
       setMessage(res.ok ? { ok: true, text: "Enregistré. Les prochains envois seront corrigés avec ces critères." } : { ok: false, text: res.error });
     });
-
-  function sendReference(file: File) {
-    setMessage(null);
-    setUpload({ progress: 0 });
-    const req = new XMLHttpRequest();
-    req.open("POST", `/api/admin/lessons/${lessonId}/reference`);
-    req.setRequestHeader("x-file-name", encodeURIComponent(file.name));
-    req.upload.onprogress = (e) => e.lengthComputable && setUpload({ progress: e.loaded / e.total });
-    req.onload = () => {
-      setUpload(null);
-      let body: { asset?: { originalName: string }; error?: string } = {};
-      try {
-        body = JSON.parse(req.responseText);
-      } catch {}
-      if (req.status === 200 && body.asset) {
-        setReferenceFile(body.asset.originalName);
-        setRemoveReference(false);
-        setMessage({ ok: true, text: "Fichier de référence enregistré." });
-      } else setMessage({ ok: false, text: body.error ?? "Envoi impossible. Réessaie." });
-    };
-    req.onerror = () => {
-      setUpload(null);
-      setMessage({ ok: false, text: "Connexion interrompue. Réessaie." });
-    };
-    req.send(file);
-  }
 
   return (
     <div className="mt-6 space-y-5 pb-28">
@@ -109,20 +70,7 @@ export function PracticeEditor({ lessonId, initial }: { lessonId: string; initia
         </div>
       </Section>
 
-      <Section
-        title="Consigne pour l'agent"
-        hint="Tout ce que l'agent doit savoir : l'exercice, le script, les timings, les tolérances, des exemples. Jamais montré à l'élève."
-      >
-        <textarea
-          value={agentInstructions}
-          onChange={(e) => setAgentInstructions(e.target.value)}
-          rows={10}
-          placeholder={"Ex. : L'élève monte la vidéo fournie. 4 cuts sont attendus : à 3 s, 5 s, 8 s et 13 s, avec une tolérance de ± 0,5 s…"}
-          className={field}
-        />
-      </Section>
-
-      <Section title={`Critères de notation (${criteria.length}/${MAX})`} hint="Visibles par l'élève. L'agent compte combien de fois chaque critère n'est pas respecté.">
+      <Section title={`Critères de notation (${criteria.length}/${MAX})`} hint="1 à 3 critères, visibles par l'élève. Le coach ou l'admin compte combien de fois chacun n'est pas respecté ; 8/10 pour valider.">
         <div className="space-y-3">
           {criteria.map((c, i) => (
             <div key={c.key} className="rounded-2xl border border-line bg-bg/40 p-3">
@@ -170,45 +118,6 @@ export function PracticeEditor({ lessonId, initial }: { lessonId: string; initia
               <Plus size={16} /> Ajouter un critère
             </button>
           )}
-        </div>
-      </Section>
-
-      <Section title="Éléments de référence" hint="Jamais montrés à l'élève.">
-        <label className="block text-xs text-muted">
-          Texte de référence (script exact) — le serveur calcule le pourcentage exact de ressemblance avec le texte de l&apos;élève
-          <textarea value={referenceText} onChange={(e) => setReferenceText(e.target.value)} rows={5} className={`${field} mt-1`} />
-        </label>
-        <div className="mt-3 rounded-2xl border border-line p-3 text-sm">
-          <p className="text-xs text-muted">Fichier de référence (vidéo ou audio d&apos;exemple) — l&apos;analyste le compare à la réalisation</p>
-          {upload ? (
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-card-2">
-              <div className="h-full rounded-full bg-gold" style={{ width: `${upload.progress * 100}%` }} />
-            </div>
-          ) : referenceFile && !removeReference ? (
-            <div className="mt-2 flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate">{referenceFile}</span>
-              <button type="button" onClick={() => setRemoveReference(true)} className="text-xs text-muted underline">
-                Retirer
-              </button>
-            </div>
-          ) : (
-            <button type="button" onClick={() => fileInput.current?.click()} className="mt-2 flex items-center gap-2 rounded-xl bg-card-2 px-3 py-2">
-              <Upload size={14} /> Choisir un fichier
-            </button>
-          )}
-          {removeReference && <p className="mt-1 text-xs text-gold">Sera retiré à l&apos;enregistrement.</p>}
-          <input
-            ref={fileInput}
-            type="file"
-            accept="video/*,audio/*,.mp4,.mov,.webm,.mp3,.wav,.m4a"
-            className="hidden"
-            aria-label="Fichier de référence"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (f) sendReference(f);
-            }}
-          />
         </div>
       </Section>
 

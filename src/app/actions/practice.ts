@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/server/auth/session";
-import { PracticeError, requestHumanReview, retrySubmission, submitPractice } from "@/server/practice/service";
+import { PracticeError, submitPractice } from "@/server/practice/service";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -27,16 +27,4 @@ export async function submitPracticeAction(raw: unknown): Promise<Result> {
   const input = submitInput.safeParse(raw);
   if (!input.success) return { ok: false, error: "Envoi invalide." };
   return guard(() => submitPractice(user.id, input.data.lessonId, { assetIds: input.data.assetIds, text: input.data.text }), input.data.lessonId);
-}
-
-export async function retrySubmissionAction(lessonId: string, submissionId: string): Promise<Result> {
-  const user = await requireUser();
-  if (!id.safeParse(submissionId).success || !id.safeParse(lessonId).success) return { ok: false, error: "Soumission introuvable." };
-  return guard(() => retrySubmission(user.id, submissionId), lessonId);
-}
-
-export async function requestHumanAction(lessonId: string, submissionId: string): Promise<Result> {
-  const user = await requireUser();
-  if (!id.safeParse(submissionId).success || !id.safeParse(lessonId).success) return { ok: false, error: "Soumission introuvable." };
-  return guard(() => requestHumanReview(user.id, submissionId), lessonId);
 }

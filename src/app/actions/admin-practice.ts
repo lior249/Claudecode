@@ -12,7 +12,6 @@ const input = z.object({
   lessonId: z.string().min(1).max(64),
   summary: z.string().trim().max(4000),
   accept: z.array(z.enum(["video", "audio", "text"])).min(1, "Choisis au moins un type d'envoi."),
-  agentInstructions: z.string().trim().min(1, "Écris la consigne pour l'agent.").max(20_000),
   criteria: z
     .array(
       z.object({
@@ -23,8 +22,6 @@ const input = z.object({
     )
     .min(MIN_CRITERIA, "Ajoute au moins un critère.")
     .max(MAX_CRITERIA, `${MAX_CRITERIA} critères maximum.`),
-  referenceText: z.string().max(20_000),
-  removeReferenceFile: z.boolean(),
 });
 
 export async function savePracticeConfig(raw: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -34,20 +31,17 @@ export async function savePracticeConfig(raw: unknown): Promise<{ ok: true } | {
   const data = parsed.data;
 
   const lesson = await prisma.lesson.findUnique({ where: { id: data.lessonId } });
-  if (!lesson || lesson.type !== "PRACTICE_AI") return { ok: false, error: "Exercice introuvable." };
+  if (!lesson || (lesson.type !== "PRACTICE_AI" && lesson.type !== "PRACTICE_HUMAN")) return { ok: false, error: "Exercice introuvable." };
   const current = parsePracticeConfig(lesson.config);
 
   const config = {
     threshold: current.threshold,
     accept: data.accept,
-    agentInstructions: data.agentInstructions,
     criteria: data.criteria.map((c) => ({
       id: c.id && /^[\w-]{1,40}$/.test(c.id) ? c.id : randomUUID().slice(0, 8),
       instruction: c.instruction,
       pointsPerMiss: c.pointsPerMiss,
     })),
-    referenceText: data.referenceText,
-    referenceAssetId: data.removeReferenceFile ? null : current.referenceAssetId,
   };
   await prisma.lesson.update({
     where: { id: lesson.id },

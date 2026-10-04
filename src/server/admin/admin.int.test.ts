@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/server/db";
-import { getLearnerProgression } from "@/server/learn/service";
 import { resetDb, seedCourse } from "../../../tests/db";
-import { createLesson, createModule, CurriculumError, deleteLesson, move } from "./curriculum";
+import { createLesson, createModule, CurriculumError, deleteLesson, move, updateLesson } from "./curriculum";
 import { getLearnerFile } from "./learner-file";
-import { decideReview, ReviewError } from "./reviews";
 import { sendDeadlineReminders } from "@/server/reminders/service";
 
 const H = 3_600_000;
@@ -65,18 +63,17 @@ describe("Fiche Learn d'un élève", () => {
   });
 });
 
-describe("Validation humaine", () => {
+describe("Exercice pratique : visible seulement avec 1 à 3 critères", () => {
   beforeEach(resetDb);
 
-  it("valider débloque la suite ; refuser exige un commentaire", async () => {
-    const { lessons, learner } = await seedCourse(["PRACTICE_AI", "PRACTICE_AI"]);
+  it("refuse de rendre visible un exercice sans critère", async () => {
+    const { lessons } = await seedCourse(["PRACTICE_HUMAN"]);
     const admin = await prisma.user.create({ data: { displayName: "Admin", role: "ADMIN" } });
-    const sub = await prisma.submission.create({ data: { userId: learner.id, lessonId: lessons[0].id, attemptNumber: 1, status: "PENDING_HUMAN", threshold: 8 } });
-    await expect(decideReview(admin.id, sub.id, "REJECT", "  ")).rejects.toThrow(ReviewError);
-    await decideReview(admin.id, sub.id, "APPROVE", "");
-    expect((await prisma.submission.findUniqueOrThrow({ where: { id: sub.id } })).status).toBe("HUMAN_APPROVED");
-    expect((await getLearnerProgression(learner.id)).progression.currentLessonId).toBe(lessons[1].id);
-    await expect(decideReview(admin.id, sub.id, "APPROVE", "")).rejects.toThrow("n'attend plus");
+    await prisma.lesson.update({ where: { id: lessons[0].id }, data: { isPublished: false, config: { accept: ["video"], criteria: [] } } });
+    await expect(updateLesson(admin.id, lessons[0].id, { title: "Les cuts", isPublished: true })).rejects.toThrow("au moins un critère");
+    await prisma.lesson.update({ where: { id: lessons[0].id }, data: { config: { accept: ["video"], criteria: [{ id: "a", instruction: "Cuts", pointsPerMiss: 2 }] } } });
+    await updateLesson(admin.id, lessons[0].id, { title: "Les cuts", isPublished: true });
+    expect((await prisma.lesson.findUniqueOrThrow({ where: { id: lessons[0].id } })).isPublished).toBe(true);
   });
 });
 
