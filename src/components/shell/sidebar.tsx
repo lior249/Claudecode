@@ -9,6 +9,7 @@ import {
   BookOpen,
   CalendarDays,
   ClipboardCheck,
+  Clapperboard,
   Flame,
   GraduationCap,
   Images,
@@ -56,6 +57,7 @@ const NAV: Record<ViewName, (d: SidebarData) => Item[]> = {
     ["/admin/catalogs", "Catalogues", LayoutGrid],
     ["/admin/results", "Types de résultats", Images],
     ["/admin/coaches", "Coachs", GraduationCap],
+    ["/admin/accueil", "Vidéo d'accueil", Clapperboard],
   ],
 };
 

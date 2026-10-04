@@ -144,7 +144,7 @@ Un seul module, une seule leçon :
 - Le coach voit la liste de ses élèves. La fiche d'un élève s'ouvre dans un panneau latéral :
   - progression Learn, rang, dates de validation, nombre d'essais, critères ratés, décrochages (en rouge) ;
   - choix du niveau 2 et ressenti du niveau 3 ;
-  - streak, points, preuves de rang, résultats mensuels, tickets.
+  - streak, points, résultats publiés, revenus du mois, tickets.
 
 ## Espace coaching (élève avec le rôle @Élite)
 
@@ -345,10 +345,14 @@ Les montants se comptent **sur un seul mois**. Un rang atteint reste acquis.
 ## Hébergement et budget
 
 - **10 à 20 $ par mois.** Un seul **serveur Linux (VPS)** qui héberge l'application, PostgreSQL, les fichiers et le worker ffmpeg.
+- **IA : Claude (Anthropic), 20 $ par mois au maximum** (limite de dépense dans la console Anthropic), seulement pour lire
+  les captures de résultats. Plafond de **300 lectures par mois** dans Creato (`AI_MONTHLY_MAX_READS`) : au-delà, vérification
+  à la main. Relance automatique sur un autre modèle d'Anthropic en cas de refus (« fallbacks »).
 - Domaine chez LWS, pointé vers le serveur. Données hors UE ; mentions légales simples.
 
 ## Méthode de travail
 
 - Le porteur de projet n'a jamais codé. Il reçoit des résumés non techniques, des captures et des démos **bloc par bloc**.
 - Objectif : une première version utilisable en **2 à 3 jours**.
-- Les contenus réels (QCM, critères, fiches) ne sont pas encore prêts : le parcours est créé avec des **contenus provisoires**. Les exercices de pratique n'ont aucun critère prédéfini.
+- En production, la base démarre **vide** : l'Admin crée lui-même niveaux, modules, leçons, QCM, critères et fiches.
+  Les contenus provisoires n'existent qu'en développement (`npm run db:seed`).

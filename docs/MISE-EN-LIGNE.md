@@ -125,7 +125,7 @@ Ouvre **Terminal** (**Cmd + Espace** → tape `Terminal` → **Entrée**). ssh e
    Colle entre les guillemets :
    - `DISCORD_CLIENT_SECRET="…"` → le **nouveau** secret (étape 0)
    - `DISCORD_BOT_TOKEN="…"` → le **nouveau** token (étape 0)
-   - `GEMINI_API_KEY="…"` → ta clé Gemini (<https://aistudio.google.com/apikey>)
+   - `ANTHROPIC_API_KEY="…"` → ta clé Claude (voir « Clé Claude » ci-dessous)
 
    Enregistre : **Ctrl+O**, **Entrée**, puis quitte : **Ctrl+X**.
 6. Relance :
@@ -134,16 +134,35 @@ Ouvre **Terminal** (**Cmd + Espace** → tape `Terminal` → **Entrée**). ssh e
    ```
    Après quelques minutes : **✅ Creato tourne**. Ouvre <https://creatoskills.site>.
 
+### Clé Claude (l'IA qui lit les captures de résultats)
+
+1. Va sur <https://console.anthropic.com> et crée un compte (ou connecte-toi).
+2. **Settings → Billing** (Facturation) : ajoute ta carte et un premier crédit (5 à 10 $ suffisent pour commencer).
+3. **Settings → Limits** (Limites) : mets une **limite de dépense mensuelle à 20 $**. Au-delà, l'IA s'arrête : les captures passent
+   simplement à la vérification à la main par le coach ou toi, rien ne casse.
+4. **Settings → API Keys** → **Create Key** → nom : `creato` → copie la clé (elle commence par `sk-ant-`).
+   Elle ne s'affiche qu'une fois : colle-la directement dans `.env` sur le serveur, **jamais dans une conversation**.
+
+Bon à savoir :
+- Une lecture de capture coûte environ **1 à 3 centimes**. Creato s'arrête de lui-même après **300 lectures par mois**
+  (réglage `AI_MONTHLY_MAX_READS` dans `.env`) : au-delà, les captures passent à la main.
+- Si le modèle principal refuse de lire une capture (par excès de prudence), la demande est relancée **automatiquement**
+  sur un autre modèle d'Anthropic (option « fallbacks » activée). Si l'IA est en panne, la capture passe à la main.
+  Le modèle principal se règle avec `CLAUDE_MODEL` dans `.env`.
+
 ## Étape 5 — Premier vrai test (toi seul, 30 min)
 
 Coche au fur et à mesure :
 
 - [ ] **Connexion Discord** avec ton compte → tu arrives sur Creato, le bouton **Admin** est là (tu es aussi coach n° 1).
 - [ ] Un compte **sans** le rôle @TikTok est refusé avec un message clair.
-- [ ] **Admin → Parcours** : remplace les liens Whop provisoires par les vrais liens secrets.
-- [ ] **Admin** : saisis les vraies questions des QCM, les critères des leçons pratiques, les niches / pays / méthodes, la phrase et le code du lancement.
-- [ ] Avec un compte test qui a @TikTok : fais le QCM, puis envoie une vraie vidéo de montage → la note arrive en 1 à 3 min.
-- [ ] **Coût Gemini** : sur <https://aistudio.google.com> → *Usage*, regarde combien a coûté cette vidéo. Mets une **alerte de budget à 20 $** dans Google Cloud → *Facturation* → *Budgets et alertes*.
+- [ ] **Admin → Accueil** : envoie ta vidéo de bienvenue (montrée à chaque nouveau membre, à sa première connexion).
+- [ ] **Admin → Parcours** : la base démarre **vide**. Crée tes niveaux, modules et leçons un par un, avec les vrais liens Whop secrets.
+- [ ] **Admin** : saisis les questions des QCM, les **1 à 3 critères** de chaque exercice pratique, les niches / pays / méthodes, la phrase et le code du lancement.
+- [ ] Avec un compte test qui a @TikTok : l'accueil en 4 étapes s'affiche, puis fais le QCM et envoie une réalisation
+  → elle arrive dans **Admin → Exercices à corriger** ; corrige-la → l'élève reçoit sa note.
+- [ ] **Résultats** : publie un résultat avec une capture (et le code du jour écrit dessus) → l'IA le publie tout de suite
+  ou te l'envoie à vérifier. Regarde ensuite le coût sur <https://console.anthropic.com> → *Usage*.
 - [ ] Termine le lancement → le rôle **@Élite** apparaît sur Discord, et tu reçois un **message privé** du bot.
 - [ ] Dans le coaching : colle le lien d'un vrai TikTok → la date du post est la bonne.
 - [ ] La **cloche** 🔔 affiche les notifications ; règle ton heure de rappel.
@@ -177,6 +196,26 @@ cd /opt/creato && ./deploy/update.sh
 ```
 (Le script fait une sauvegarde avant, puis met le site à jour.)
 
+### Une seule fois : passage à Claude et remise à zéro (octobre 2026)
+
+Cette version remplace Gemini par Claude et démarre sur une base vide. Dans l'ordre :
+
+1. Crée ta clé Claude (voir « Clé Claude » à l'étape 4).
+2. Ouvre les réglages du serveur : `nano /opt/creato/.env`
+   - remplace `AI_PROVIDER="gemini"` par `AI_PROVIDER="claude"` ;
+   - **supprime** les lignes qui commencent par `GEMINI_` ;
+   - ajoute ces lignes (colle ta clé entre les guillemets) :
+     ```
+     ANTHROPIC_API_KEY="…"
+     CLAUDE_MODEL="claude-opus-5-5"
+     AI_MONTHLY_MAX_READS="300"
+     ```
+   - enregistre : **Ctrl+O**, **Entrée**, puis **Ctrl+X**.
+3. Mets à jour : `cd /opt/creato && ./deploy/update.sh`
+4. Efface tout (membres, ancien parcours, résultats, fichiers ; une sauvegarde est faite avant) :
+   `./deploy/reset.sh` puis tape `EFFACER`.
+5. Reconnecte-toi sur le site avec Discord, puis **Admin → Accueil** (ta vidéo) et **Admin → Parcours**.
+
 ## Commandes utiles
 
 | Besoin | Commande (dans `/opt/creato`) |
@@ -186,6 +225,7 @@ cd /opt/creato && ./deploy/update.sh
 | Messages du worker (IA, rappels) | `docker compose logs worker --tail 50` |
 | Redémarrer | `docker compose restart` |
 | Modifier un réglage | `nano .env` puis `docker compose up -d` |
+| **Tout effacer** (membres, parcours, résultats, fichiers ; sauvegarde faite avant) | `./deploy/reset.sh` puis taper `EFFACER` |
 
 ## Coûts mensuels
 
@@ -193,4 +233,4 @@ cd /opt/creato && ./deploy/update.sh
 |-------|------|
 | VPS Namecheap (Quasar recommandé) | ≈ 7 à 12 $ selon l'offre (voir ta facture) |
 | Domaine (Namecheap) | déjà payé (pense au renouvellement annuel) |
-| Gemini | ≤ 20 $ (alerte de budget) |
+| Claude (lecture des captures) | ≤ 20 $ (limite de dépense dans la console Anthropic) |

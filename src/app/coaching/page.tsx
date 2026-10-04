@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/server/auth/session";
 import { getCoachingDashboard } from "@/server/coaching/progress";
 import { listTicketsForLearner } from "@/server/coaching/tickets";
@@ -8,6 +9,7 @@ import { isTeam } from "@/server/coaching/team";
 
 export default async function CoachingPage() {
   const user = await requireUser();
+  if (!user.onboardedAt) redirect("/bienvenue");
   const team = isTeam(user) ? (user.role as "ADMIN" | "COACH") : null;
   const dashboard = await getCoachingDashboard(user.id);
   const tickets = (team ? [] : await listTicketsForLearner(user.id)).map((t) => ({

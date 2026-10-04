@@ -27,5 +27,5 @@ export async function GET(request: NextRequest) {
   if (!result.ok) redirect(`/login?erreur=${result.error}`);
 
   await createSession(result.userId);
-  redirect("/learn");
+  redirect("/"); // la page d'accueil oriente (accueil en 4 étapes à la première connexion)
 }

@@ -21,8 +21,8 @@ export default async function ResultsPage({ searchParams }: PageProps<"/resultat
   return (
     <main className="mx-auto min-h-dvh max-w-md px-4 pb-16 sm:max-w-3xl lg:max-w-none lg:px-10 lg:pt-5">
       <PageHeader title="Résultats" back={viewsFor(user)[0].href} account={await accountBarData(user)}>
-        <Link href="/resultats/publier" className="flex items-center gap-1.5 rounded-full bg-text px-3.5 py-2 text-sm font-semibold text-black">
-          <Plus size={16} /> Publier
+        <Link href="/resultats/publier" aria-label="Publier un résultat" className="flex items-center gap-1.5 rounded-full bg-text p-2.5 text-sm font-semibold text-black sm:px-3.5 sm:py-2">
+          <Plus size={18} /> <span className="hidden sm:inline">Publier</span>
         </Link>
       </PageHeader>
       <nav className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:px-0" aria-label="Filtrer par type">

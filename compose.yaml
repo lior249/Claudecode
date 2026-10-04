@@ -30,7 +30,7 @@ services:
       timeout: 5s
       retries: 20
 
-  # Met la base à jour (migrations) puis crée le parcours de départ s'il n'existe pas. S'arrête ensuite.
+  # Met la base à jour (migrations) puis remet les réglages de base si la base est vide (aucun parcours). S'arrête ensuite.
   migrate:
     <<: *app
     command: sh -c "npx prisma migrate deploy && npm run db:seed -- --production"

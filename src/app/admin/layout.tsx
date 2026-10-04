@@ -24,6 +24,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           ["/admin/catalogs", "Catalogues"],
           ["/admin/results", "Résultats"],
           ["/admin/coaches", "Coachs"],
+          ["/admin/accueil", "Accueil"],
         ]}
       />
       {children}

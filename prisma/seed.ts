@@ -1,7 +1,8 @@
-// Parcours de départ (contenus provisoires) + comptes de démonstration.
-// Usage : npm run db:seed                 → ne fait rien si un parcours existe déjà
+// Données de départ : critères des catalogues et types de résultats (une seule fois, modifiables ensuite dans l'Admin).
+// En développement seulement : un parcours de démonstration et des comptes de test.
+// Usage : npm run db:seed                 → démonstration (ne fait rien si un parcours existe déjà)
 //         npm run db:seed -- --reset      → efface tout et recrée (refusé en production)
-//         npm run db:seed -- --production → parcours seulement, sans comptes de démonstration
+//         npm run db:seed -- --production → données de départ seulement : la base démarre vide, l'admin crée tout
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
@@ -150,18 +151,71 @@ async function seedCatalogCriteria() {
   }
 }
 
+// Types de résultats de départ (mêmes identifiants que la migration result_types).
+async function seedResultTypes() {
+  if ((await prisma.resultType.count()) > 0) return;
+  await prisma.resultType.createMany({
+    data: [
+      {
+        id: "rt_video",
+        name: "Résultat d'une vidéo",
+        instructions:
+          "Capture de l'écran « Video analysis » de TikTok Studio (onglet Overview), recadrée : on voit la date de publication, les compteurs et les « Key metrics ». Coupe le haut de l'écran pour cacher la vidéo (ta niche reste secrète). Écris ton code du jour sur la capture.",
+        exampleKey: "exemples/resultat-video.jpg",
+        aiMustHave: "L'écran « Video analysis » de TikTok Studio : la date « Posted on … », les compteurs (vues, j'aime, commentaires, partages, enregistrements) et le bloc « Key metrics » avec « Video views ».",
+        aiMustNotHave: "L'image de la vidéo elle-même, la miniature, le nom du compte, la description de la vidéo ou tout élément qui dévoile la niche.",
+        aiIdentifier: "La date et l'heure de publication (« Posted on … »).",
+        points: 0,
+        metric: "VIEWS",
+        tiers: [{ min: 10000, points: 1 }, { min: 100000, points: 2 }, { min: 300000, points: 3 }, { min: 500000, points: 4 }, { min: 1000000, points: 5 }],
+        position: 1,
+      },
+      {
+        id: "rt_monthly",
+        name: "Revenus du mois",
+        instructions: "À envoyer le dernier jour du mois : capture de ton tableau de bord de revenus du mois (montant total visible en euros). Écris ton code du jour sur la capture.",
+        aiMustHave: "Un tableau de bord de revenus (programme de monétisation) avec le montant total du mois.",
+        aiMustNotHave: "Le nom du compte, la photo de profil ou tout élément qui dévoile la niche.",
+        points: 2,
+        metric: "REVENUE_EUR",
+        tiers: [{ min: 0, points: 2 }, { min: 100, points: 3 }, { min: 500, points: 5 }, { min: 1000, points: 8 }],
+        special: "MONTHLY_REVENUE",
+        position: 2,
+      },
+      {
+        id: "rt_followers",
+        name: "10 000 abonnés",
+        instructions: "Capture de ton profil TikTok où l'on voit le nombre d'abonnés (10 000 ou plus). Écris ton code du jour sur la capture.",
+        aiMustHave: "Le nombre d'abonnés (« Followers » / « Abonnés ») du compte, 10 000 ou plus.",
+        aiMustNotHave: "Les vidéos du compte (miniatures) qui dévoilent la niche.",
+        points: 3,
+        metric: "FOLLOWERS",
+        special: "FOLLOWERS_RANK",
+        position: 3,
+      },
+    ],
+  });
+}
+
 async function main() {
   const production = process.argv.includes("--production") || process.env.NODE_ENV === "production";
   if (process.argv.includes("--reset")) {
     if (production) throw new Error("--reset est interdit en production (il effacerait les élèves).");
     await reset();
   }
+  // Seulement à la première installation (ou après une remise à zéro) : ce que l'admin supprime ne revient pas.
+  if (!(await prisma.appSetting.findUnique({ where: { key: "initialized" } }))) {
+    await seedCatalogCriteria();
+    await seedResultTypes();
+    await prisma.appSetting.create({ data: { key: "initialized", value: true } });
+    console.log("Données de départ créées (critères des catalogues, types de résultats).");
+  }
+  // En production, la base démarre vide : l'admin crée les niveaux, modules, leçons et liens Whop un par un.
+  if (production) return;
   if ((await prisma.level.count()) > 0) {
     console.log("Un parcours existe déjà : rien à faire (utilise --reset pour repartir de zéro).");
     return;
   }
-  // Seulement à la première installation : si l'admin supprime tous les critères, ils ne reviennent pas à la mise à jour suivante.
-  await seedCatalogCriteria();
 
   for (const [li, level] of curriculum.entries()) {
     const levelRow = await prisma.level.create({
@@ -193,16 +247,10 @@ async function main() {
     }
   }
 
-  if (production) {
-    // Le premier admin devient coach n° 1 à sa première connexion Discord.
-    console.log("Parcours de départ créé (3 niveaux, 8 modules, 12 leçons).");
-    return;
-  }
-
   const coach = await prisma.user.create({
-    data: { displayName: "Coach Creato", role: "ADMIN", coachOrder: 1, coachCapacity: 20, coachStars: 3 },
+    data: { displayName: "Coach Creato", role: "ADMIN", coachOrder: 1, coachCapacity: 20, coachStars: 3, onboardedAt: new Date() },
   });
-  await prisma.user.create({ data: { displayName: "Élève démo", role: "LEARNER" } });
+  await prisma.user.create({ data: { displayName: "Élève démo", role: "LEARNER", onboardedAt: new Date() } });
   // Élève déjà en coaching (démo) : Learn terminé, suivi par le coach n° 1.
   const now = new Date();
   await prisma.user.create({
@@ -216,10 +264,11 @@ async function main() {
       learnCompletedAt: new Date(now.getTime() - 10 * 86_400_000),
       tiktokUsername: "ines.demo",
       timezone: "Europe/Paris",
+      onboardedAt: now,
     },
   });
 
-  console.log("Parcours de départ créé (3 niveaux, 8 modules, 12 leçons) + comptes de démonstration.");
+  console.log("Parcours de démonstration créé (3 niveaux, 8 modules, 12 leçons) + comptes de démonstration.");
 }
 
 main()

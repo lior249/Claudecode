@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/server/auth/session";
 import { getEnv } from "@/server/env";
 import { getLearnerProgression, getUnlockedWhopLinks } from "@/server/learn/service";
@@ -8,6 +9,7 @@ import { TimezoneSync } from "@/components/notifications/timezone-sync";
 
 export default async function LearnPage() {
   const user = await requireUser();
+  if (!user.onboardedAt) redirect("/bienvenue");
   const { curriculum, progression } = await getLearnerProgression(user.id);
   const whop = await getUnlockedWhopLinks(progression);
 

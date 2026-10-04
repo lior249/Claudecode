@@ -26,7 +26,7 @@ npm run worker              # dans un 2e terminal : analyse des exercices (ffmpe
 | `npm run dev` | Serveur de développement |
 | `npm test` | Tests automatiques (les tests d'intégration utilisent `TEST_DATABASE_URL`) |
 | `npm run lint` / `npm run typecheck` | Contrôles de qualité |
-| `npm run db:seed -- --reset` | Efface tout et recrée le parcours de départ |
+| `npm run db:seed -- --reset` | Efface tout et recrée le parcours de démonstration (développement seulement ; en ligne, la base démarre vide) |
 
 ## Avancement
 
@@ -40,4 +40,8 @@ npm run worker              # dans un 2e terminal : analyse des exercices (ffmpe
 - [x] **Preuves** : vues + j'aime + commentaires, liens des vidéos pour les résultats du mois, case « tout concorde » obligatoire pour le coach.
 - [x] **Notifications façon Duolingo** : cloche pour tous (élève, coach, admin), messages privés Discord avec heures calmes et plafond, heure de rappel au choix, relances des absents (1, 2, 3, 5, 7, 14 jours puis silence), flamme en danger et dernière chance, paliers de streak, gel utilisé, classement du lundi, résultats du mois, fins de module et de niveau, résumé du matin des coachs et des admins, étoiles gagnées ou perdues.
 - [x] **Kit de mise en ligne** : Docker (site + worker + base + HTTPS Caddy), installation en une commande, sauvegardes chaque nuit, restauration, mise à jour. Guide : `docs/MISE-EN-LIGNE.md`.
+- [x] **Octobre 2026** : design (rangs en métaux, mascotte, version PC avec barre latérale), critères des catalogues gérés par l'admin,
+  exercices pratiques corrigés à la main (1 à 3 critères, Gemini retiré), types de résultats créés par l'admin et lus par Claude
+  (code du jour, publication immédiate si conforme, sinon vérification), galerie « Résultats », base vide en ligne,
+  accueil en 4 étapes à la première connexion (vidéo envoyée dans l'Admin).
 - [ ] Bloc 7 : mise en ligne sur creatoskills.site et premier vrai test.

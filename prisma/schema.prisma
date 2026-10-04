@@ -90,6 +90,7 @@ model User {
   // Coach : dernière mise à jour de ses disponibilités de la semaine.
   availabilityUpdatedAt DateTime?
 
+  onboardedAt      DateTime? // accueil en 4 étapes terminé
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -733,3 +734,10 @@ model CoachAvailability {
   @@index([coachId])
 }
 
+
+// Réglages de l'application (clé → valeur), ex. la vidéo d'accueil.
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
