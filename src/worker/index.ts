@@ -3,6 +3,7 @@
 import "dotenv/config";
 import { claimNextJob, completeJob, failJob, releaseStuckJobs } from "@/server/jobs/queue";
 import { processSubmission } from "@/server/practice/service";
+import { processResultRead } from "@/server/results/service";
 import { cleanupOrphanAssets } from "@/server/retention/service";
 import { grantEliteRole } from "@/server/launch/service";
 import { sendDeadlineReminders } from "@/server/reminders/service";
@@ -23,6 +24,8 @@ async function handle(type: string, payload: Record<string, unknown>) {
   switch (type) {
     case "submission.process":
       return processSubmission(String(payload.submissionId));
+    case "result.read":
+      return processResultRead(String(payload.postId));
     case "discord.grantElite":
       return grantEliteRole(String(payload.userId));
     default:
@@ -37,6 +40,12 @@ async function housekeeping() {
     where: { status: "PROCESSING", createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) } },
     data: { status: "ERROR", technicalFailures: { increment: 1 }, lastError: "analyse bloquée" },
   });
+  // Résultats restés « en lecture » sans tâche active : passés en vérification à la main.
+  const unread = await prisma.resultPost.updateMany({
+    where: { status: "ANALYZING", createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) } },
+    data: { status: "PENDING", aiReport: { error: "Lecture par l'IA bloquée : vérification à la main." } },
+  });
+  if (unread.count) console.log(`[worker] ${unread.count} résultat(s) passé(s) en vérification à la main`);
   const orphans = await cleanupOrphanAssets();
   const revoked = await processAbsences();
   await pruneNotifications();

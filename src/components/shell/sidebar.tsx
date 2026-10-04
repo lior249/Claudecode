@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Flame,
   GraduationCap,
+  Images,
   Inbox,
   LayoutGrid,
   ListTree,
@@ -35,13 +36,14 @@ const NAV: Record<ViewName, (d: SidebarData) => Item[]> = {
   Élève: (d) => [
     ["/learn", "Parcours", BookOpen],
     ...(d.participant ? ([["/coaching", "Coaching", Flame]] as Item[]) : []),
+    ["/resultats", "Résultats", Images],
     ["/classement", "Classement", Trophy],
     ["/profil", "Mon profil", User],
   ],
   Coach: () => [
     ["/coach", "Demandes", Inbox],
     ["/coach/learners", "Élèves", Users],
-    ["/coach/proofs", "Preuves", BadgeCheck],
+    ["/coach/proofs", "Résultats à vérifier", BadgeCheck],
     ["/coach/follow-ups", "Suivi", MessageSquareText],
     ["/coach/reactivations", "Retours", RotateCcw],
     ["/coach/availability", "Disponibilités", CalendarDays],
@@ -51,6 +53,7 @@ const NAV: Record<ViewName, (d: SidebarData) => Item[]> = {
     ["/admin/learners", "Élèves", Users],
     ["/admin/reviews", "Validations", ClipboardCheck],
     ["/admin/catalogs", "Catalogues", LayoutGrid],
+    ["/admin/results", "Types de résultats", Images],
     ["/admin/coaches", "Coachs", GraduationCap],
   ],
 };

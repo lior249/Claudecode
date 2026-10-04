@@ -82,13 +82,12 @@ export default async function CoachLearners({ searchParams }: PageProps<"/coach/
               </div>
               <p className="mt-2 text-xs text-muted">
                 Statut : {STATUS[selected.l.coachingStatus]} · rang {selected.d.rank}
-                {selected.d.proofs.filter((p) => p.status === "APPROVED" && p.kind === "MONTHLY").map((p) => ` · ${p.month} : ${p.amountEur} €`)}
               </p>
               <div className="mt-3">
                 <ActivityGrid grid={selected.d.activity} current={selected.d.streak.current} best={selected.d.streak.best} />
               </div>
               <div className="mt-3">
-                <PostGallery title="Ses résultats" items={await listResultPosts(selected.l.id, user.id)} empty="Aucun post de résultat pour l'instant." />
+                <PostGallery title="Ses résultats" items={await listResultPosts(selected.l.id, user.id)} empty="Aucun résultat publié pour l'instant." />
               </div>
             </section>
           }

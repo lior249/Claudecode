@@ -12,7 +12,7 @@ export default async function CoachLayout({ children }: LayoutProps<"/coach">) {
   const tabs: [string, string][] = [
     ["/coach", "Demandes"],
     ["/coach/learners", "Élèves"],
-    ["/coach/proofs", "Preuves"],
+    ["/coach/proofs", "Résultats"],
     ["/coach/follow-ups", "Suivi"],
     ["/coach/reactivations", "Retours"],
     ["/coach/availability", "Dispos"],

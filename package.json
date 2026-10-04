@@ -17,6 +17,7 @@
     "worker": "tsx --conditions=react-server --tsconfig tsconfig.json src/worker/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "lucide-react": "^1.49.0",

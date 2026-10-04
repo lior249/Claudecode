@@ -4,7 +4,7 @@ import { prisma } from "@/server/db";
 import { exists } from "@/server/storage/storage";
 import { resetDb } from "../../../tests/db";
 import { avatarOf, memberCard, previousMonth, resetProfilePhoto, setProfilePhoto, viewsFor } from "./service";
-import { isPublicProofImage } from "@/server/coaching/access";
+import { isPublicResultImage } from "@/server/results/service";
 
 
 beforeEach(resetDb);
@@ -37,15 +37,18 @@ describe("Profil", () => {
     const u = await prisma.user.create({ data: { displayName: "Max", coachingStatus: "ACTIVE", coachingStartedAt: new Date("2026-08-01"), timezone: "Europe/Paris" } });
     expect(await memberCard(u.id, now)).toMatchObject({ lastMonthEur: 0, bestMonthEur: 0, totalEur: 0, months: [] });
     const img = (n: number) => `uploads/${u.id}/0000000${n}-0000-4000-8000-000000000000.png`;
+    const type = await prisma.resultType.create({ data: { name: "Revenus du mois", metric: "REVENUE_EUR", special: "MONTHLY_REVENUE" } });
     for (const [n, month, amountEur, status] of [[1, "2026-08", 150, "APPROVED"], [2, "2026-09", 620, "APPROVED"], [3, "2026-10", 5000, "PENDING"]] as const) {
-      await prisma.rankProof.create({ data: { learnerId: u.id, kind: "MONTHLY", month, amountEur, imageKey: img(n), status } });
+      await prisma.resultPost.create({
+        data: { authorId: u.id, typeId: type.id, title: month, imageKey: img(n), imageSha256: `h${n}`, dailyCode: "CR-0000", month, metricValue: amountEur, status, createdAt: new Date(`${month}-28T12:00:00Z`) },
+      });
     }
     const card = await memberCard(u.id, now);
     expect(card).toMatchObject({ lastMonthEur: 620, bestMonthEur: 620, totalEur: 770 });
     expect(card.months.map((m) => [m.month, m.amountEur])).toEqual([["2026-09", 620], ["2026-08", 150]]);
     expect(card.months[0].imageUrl).toContain(img(2));
-    expect(await isPublicProofImage(img(2))).toBe(true);
-    expect(await isPublicProofImage(img(3))).toBe(false); // en attente : reste privée
+    expect(await isPublicResultImage(img(2))).toBe(true);
+    expect(await isPublicResultImage(img(3))).toBe(false); // en attente : reste privée
   });
 
   it("mois précédent", () => {

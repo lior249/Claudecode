@@ -18,8 +18,13 @@ const schema = z.object({
   ADMIN_DISCORD_IDS: z.string().default(""),
   // Fichiers envoyés (disque du serveur).
   STORAGE_DIR: z.string().default("./storage"),
-  // IA : "gemini" en production, "mock" (IA simulée) en développement.
-  AI_PROVIDER: z.enum(["gemini", "mock"]).default("mock"),
+  // IA : "claude" en production (lecture des captures de résultats), "mock" (IA simulée) en développement.
+  AI_PROVIDER: z.enum(["claude", "mock"]).default("mock"),
+  ANTHROPIC_API_KEY: optional,
+  // Modèle Claude qui lit les captures (le plus précis par défaut).
+  CLAUDE_MODEL: z.string().default("claude-opus-5-5"),
+  // Plafond de lectures de captures par l'IA et par mois (au-delà, vérification à la main par le coach / l'admin).
+  AI_MONTHLY_MAX_READS: z.coerce.number().int().min(0).default(300),
   GEMINI_API_KEY: optional,
   // Analyste (regarde la vidéo) et correcteur (compte les erreurs) : les modèles les plus précis.
   GEMINI_ANALYST_MODEL: z.string().default("gemini-2.5-pro"),
@@ -50,10 +55,10 @@ export function getEnv(): Env {
     parsed.DISCORD_CLIENT_ID && parsed.DISCORD_CLIENT_SECRET && parsed.DISCORD_GUILD_ID && parsed.DISCORD_ROLE_TIKTOK_ID,
   );
   const adminDiscordIds = parsed.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (parsed.NODE_ENV === "production" && parsed.AI_PROVIDER !== "gemini") {
-    throw new Error("En production, AI_PROVIDER doit valoir \"gemini\" (l'IA simulée est réservée au développement).");
+  if (parsed.NODE_ENV === "production" && parsed.AI_PROVIDER !== "claude") {
+    throw new Error("En production, AI_PROVIDER doit valoir \"claude\" (l'IA simulée est réservée au développement).");
   }
-  if (parsed.AI_PROVIDER === "gemini" && !parsed.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY manquant.");
+  if (parsed.AI_PROVIDER === "claude" && !parsed.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY manquant.");
   cached = { ...parsed, devLoginEnabled, discordLoginEnabled, adminDiscordIds };
   return cached;
 }

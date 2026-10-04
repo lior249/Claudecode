@@ -2,22 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
-import { ChevronRight, ExternalLink, ImagePlus, Lock, MessageCircle, Plus, Snowflake } from "lucide-react";
+import { useState, useTransition } from "react";
+import { ChevronRight, ExternalLink, Lock, MessageCircle, Plus, Snowflake } from "lucide-react";
 import type { CoachingDashboard } from "@/server/coaching/progress";
-import {
-  addPostAction,
-  followersProofAction,
-  monthlyProofAction,
-  reactivationAction,
-  saveProfileAction,
-  viewProofAction,
-} from "@/app/actions/coaching";
+import { addPostAction, reactivationAction, saveProfileAction } from "@/app/actions/coaching";
 import { RankBadge } from "@/components/learn/badges";
 import { AccountBar } from "@/components/profile/account-bar";
 import type { MenuUser } from "@/components/profile/user-menu";
 import { Flame } from "./flame";
-import { uploadImage } from "./image-upload";
 import { TrophyIcon } from "@/components/ui/icons";
 import { Logo } from "@/components/mascot";
 import { Mascot } from "@/components/mascot";
@@ -98,7 +90,7 @@ export function CoachingHome({
         <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
           <Stat label="Points" value={d.points.total} />
           <Stat label="Record" value={`${d.streak.best} j`} />
-          <Stat label="Qualité" value={d.points.quality} />
+          <Stat label="Résultats" value={d.points.quality} />
         </div>
         {d.streak.frozenDays.length > 0 && (
           <p className="mt-3 flex items-center gap-1.5 text-xs text-sky-300">
@@ -162,8 +154,8 @@ export function CoachingHome({
           </section>
           )}
 
+          <Results monthlyOpen={d.monthlyOpen} />
           <Videos posts={d.posts} />
-          <Ranks dashboard={d} />
         </div>
       )}
     </>
@@ -226,76 +218,19 @@ function TodayPost({ todayDone, username }: { todayDone: boolean; username: stri
   );
 }
 
-function ImagePicker({ value, onChange, label }: { value: { key: string; url: string } | null; onChange: (v: { key: string; url: string } | null) => void; label: string }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <div>
-      {value ? (
-        <div className="flex items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value.url} alt="" className="h-14 w-14 rounded-xl object-cover" />
-          <button onClick={() => onChange(null)} className="text-xs text-muted underline">
-            Changer
-          </button>
-        </div>
-      ) : (
-        <button disabled={busy} onClick={() => input.current?.click()} className="flex items-center gap-1.5 rounded-xl bg-card-2 px-3 py-2 text-sm">
-          <ImagePlus size={16} /> {busy ? "Envoi…" : label}
-        </button>
-      )}
-      <input
-        ref={input}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        className="hidden"
-        aria-label={label}
-        onChange={async (e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (!f) return;
-          setBusy(true);
-          setError(null);
-          try {
-            onChange(await uploadImage(f));
-          } catch (err) {
-            setError((err as Error).message);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-    </div>
-  );
-}
-
 function Videos({ posts }: { posts: CoachingDashboard["posts"] }) {
-  const [openId, setOpenId] = useState<string | null>(null);
   return (
     <section className={card}>
-      <h2 className="font-semibold">Mes vidéos</h2>
-      <p className="mt-1 text-xs text-muted">Points qualité : 10 000 vues = 1 · 100 000 = 2 · 300 000 = 3 · 500 000 = 4 · 1 million = 5.</p>
+      <h2 className="font-semibold">Mes posts</h2>
+      <p className="mt-1 text-xs text-muted">Les liens envoyés pour ta flamme (un post par jour suffit).</p>
       {posts.length === 0 && <p className="mt-3 text-sm text-muted">Ajoute ton premier post ci-dessus.</p>}
       <ul className="mt-2 divide-y divide-line">
-        {posts.map((p) => (
-          <li key={p.id} className="py-3">
-            <div className="flex items-center gap-3 text-sm">
-              <span className="w-24 text-muted">{frDay(p.localDate)}</span>
-              <a href={p.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-1 truncate underline">
-                Voir <ExternalLink size={12} />
-              </a>
-              <span className="text-xs text-muted">{p.validatedViews ? `${p.validatedViews.toLocaleString("fr-FR")} vues · ${p.points} pt` : ""}</span>
-              {p.pendingProof ? (
-                <span className="text-xs text-gold">En validation</span>
-              ) : (
-                <button onClick={() => setOpenId(openId === p.id ? null : p.id)} className="rounded-lg bg-card-2 px-2 py-1 text-xs">
-                  Mes vues
-                </button>
-              )}
-            </div>
-            {openId === p.id && <ViewProofForm postId={p.id} onDone={() => setOpenId(null)} />}
+        {posts.slice(0, 10).map((p) => (
+          <li key={p.id} className="flex items-center gap-3 py-3 text-sm">
+            <span className="w-24 text-muted">{frDay(p.localDate)}</span>
+            <a href={p.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-1 truncate underline">
+              Voir <ExternalLink size={12} />
+            </a>
           </li>
         ))}
       </ul>
@@ -303,146 +238,28 @@ function Videos({ posts }: { posts: CoachingDashboard["posts"] }) {
   );
 }
 
-function ViewProofForm({ postId, onDone }: { postId: string; onDone: () => void }) {
-  const { pending, error, run } = useAction();
-  const [views, setViews] = useState("");
-  const [likes, setLikes] = useState("");
-  const [comments, setComments] = useState("");
-  const [img, setImg] = useState<{ key: string; url: string } | null>(null);
-  const digits = (v: string) => v.replace(/\D/g, "");
+// Résultats : points et rangs passent par les captures (types de résultats lus par l'IA).
+function Results({ monthlyOpen }: { monthlyOpen: boolean }) {
   return (
-    <div className="mt-2 space-y-2 rounded-2xl bg-bg/40 p-3">
-      <p className="text-xs text-muted">Recopie les chiffres affichés sur ta capture : ton coach vérifie qu&apos;ils concordent avec la vidéo.</p>
-      <input value={views} onChange={(e) => setViews(digits(e.target.value))} inputMode="numeric" placeholder="Vues" className={field} />
-      <div className="grid grid-cols-2 gap-2">
-        <input value={likes} onChange={(e) => setLikes(digits(e.target.value))} inputMode="numeric" placeholder="J'aime" className={field} />
-        <input value={comments} onChange={(e) => setComments(digits(e.target.value))} inputMode="numeric" placeholder="Commentaires" className={field} />
-      </div>
-      <ImagePicker value={img} onChange={setImg} label="Capture des statistiques" />
-      <button
-        disabled={pending || !views || !likes || !comments || !img}
-        onClick={() =>
-          run(() => viewProofAction({ postId, views: Number(views), likes: Number(likes), comments: Number(comments), imageKey: img!.key }), "Envoyé.", onDone)
-        }
-        className="w-full rounded-xl bg-text py-2.5 text-sm font-semibold text-black disabled:opacity-40"
-      >
-        Envoyer à mon coach
-      </button>
-      {error && <p className="text-xs text-danger">{error}</p>}
-    </div>
-  );
-}
-
-function VideoLinks({ value, onChange, username }: { value: string[]; onChange: (v: string[]) => void; username: string | null }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted">Liens des vidéos qui ont rapporté ces gains (1 à 10).</p>
-      {value.map((url, i) => (
-        <div key={i} className="flex gap-2">
-          <input
-            value={url}
-            onChange={(e) => onChange(value.map((u, j) => (j === i ? e.target.value : u)))}
-            inputMode="url"
-            placeholder={`https://www.tiktok.com/@${username ?? "ton_compte"}/video/…`}
-            className={field}
-          />
-          {value.length > 1 && (
-            <button onClick={() => onChange(value.filter((_, j) => j !== i))} className="shrink-0 rounded-xl bg-card-2 px-3 text-xs text-muted" aria-label="Retirer ce lien">
-              ✕
-            </button>
-          )}
+    <section className={`${card} lg:col-span-2`}>
+      <div className="flex items-center gap-3">
+        <Mascot mood="motive" size={48} />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-semibold">Mes résultats</h2>
+          <p className="text-sm text-muted">
+            Une vidéo qui marche, tes revenus, tes abonnés : envoie la capture, gagne des points et débloque les rangs A à SSS.
+            {monthlyOpen && <span className="text-gold"> Aujourd&apos;hui, c&apos;est le jour des revenus du mois !</span>}
+          </p>
         </div>
-      ))}
-      {value.length < 10 && (
-        <button onClick={() => onChange([...value, ""])} className="flex items-center gap-1 text-xs text-muted underline">
-          <Plus size={12} /> Ajouter un lien
-        </button>
-      )}
-    </div>
-  );
-}
-
-const PROOF_STATUS: Record<string, string> = { PENDING: "en validation", APPROVED: "validé ✅", REJECTED: "refusé" };
-
-function Ranks({ dashboard: d }: { dashboard: CoachingDashboard }) {
-  const followers = useAction();
-  const monthly = useAction();
-  const [followersCount, setFollowersCount] = useState("");
-  const [amount, setAmount] = useState("");
-  const [story, setStory] = useState("");
-  const approvedMonths = d.proofs.filter((p) => p.kind === "MONTHLY" && p.status === "APPROVED").map((p) => p.amountEur ?? 0);
-  const pastTotal = approvedMonths.reduce((a, b) => a + b, 0);
-  const pastBest = Math.max(0, ...approvedMonths);
-  const [fImg, setFImg] = useState<{ key: string; url: string } | null>(null);
-  const [mImg, setMImg] = useState<{ key: string; url: string } | null>(null);
-  const [links, setLinks] = useState<string[]>([""]);
-  const filledLinks = links.map((l) => l.trim()).filter(Boolean);
-  const hasA = ["A", "S", "SS", "SSS"].includes(d.rank);
-  return (
-    <section className={card}>
-      <h2 className="font-semibold">Mes rangs</h2>
-      <p className="mt-1 text-xs text-muted">A : 10 000 abonnés · S : un mois à 100 € · SS : un mois à 500 € · SSS : un mois à 1 000 € (fin du coaching).</p>
-
-      {!hasA && (
-        <div className="mt-4 space-y-2">
-          <p className="text-sm font-medium">Rang A : 10 000 abonnés</p>
-          <input value={followersCount} onChange={(e) => setFollowersCount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Nombre d'abonnés" className={field} />
-          <ImagePicker value={fImg} onChange={setFImg} label="Capture de ton profil (nom visible)" />
-          <button
-            disabled={followers.pending || !followersCount || !fImg}
-            onClick={() => followers.run(() => followersProofAction({ followers: Number(followersCount), imageKey: fImg!.key }), "Envoyé à ton coach.")}
-            className="w-full rounded-xl bg-text py-2.5 text-sm font-semibold text-black disabled:opacity-40"
-          >
-            Envoyer
-          </button>
-          {followers.error && <p className="text-xs text-danger">{followers.error}</p>}
-          {followers.done && <p className="text-xs text-success">{followers.done}</p>}
-        </div>
-      )}
-
-      <div className="mt-4 space-y-2 border-t border-line pt-4">
-        <p className="text-sm font-medium">Résultats du mois</p>
-        {d.monthlyWindow.open && !d.monthlyAlreadySent ? (
-          <>
-            <p className="text-xs text-muted">
-              Mois de {d.monthlyWindow.month} : envoie ce que tu as gagné, la capture de ton tableau de bord et les liens des vidéos. Ton coach vérifie que tout concorde avant de valider.
-            </p>
-            <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Montant exact gagné ce mois-ci (€)" className={field} />
-            {amount && (
-              <p className="text-xs text-muted">
-                Total généré avec ce mois : <b className="text-text">{(pastTotal + Number(amount)).toLocaleString("fr-FR")} €</b>
-                {Number(amount) > pastBest ? " · ce serait ton meilleur mois !" : ` · ton meilleur mois reste ${pastBest.toLocaleString("fr-FR")} €`}
-              </p>
-            )}
-            <textarea value={story} onChange={(e) => setStory(e.target.value)} rows={3} maxLength={1500} placeholder="Raconte ton mois : ce que tu ressens, ce qui a marché…" className={field} />
-            <ImagePicker value={mImg} onChange={setMImg} label="Capture du tableau de bord" />
-            <VideoLinks value={links} onChange={setLinks} username={d.tiktokUsername} />
-            <p className="text-xs text-muted">Une fois validés, tes résultats et ta capture du tableau de bord sont visibles par tous les membres dans le classement. Cache tes infos personnelles (nom complet, banque…) avant de l&apos;envoyer.</p>
-            <button
-              disabled={monthly.pending || !amount || !mImg || filledLinks.length === 0}
-              onClick={() => monthly.run(() => monthlyProofAction({ amountEur: Number(amount), videoUrls: filledLinks, imageKey: mImg!.key, description: story }), "Résultats envoyés.")}
-              className="w-full rounded-xl bg-gold py-2.5 text-sm font-semibold text-black disabled:opacity-40"
-            >
-              Envoyer mes résultats
-            </button>
-            {monthly.error && <p className="text-xs text-danger">{monthly.error}</p>}
-          </>
-        ) : (
-          <p className="text-xs text-muted">{d.monthlyAlreadySent ? "Résultats du mois envoyés." : "À envoyer uniquement le dernier jour du mois."}</p>
-        )}
       </div>
-
-      {d.proofs.length > 0 && (
-        <ul className="mt-4 space-y-1 border-t border-line pt-3 text-xs text-muted">
-          {d.proofs.map((p) => (
-            <li key={p.id}>
-              {p.kind === "MONTHLY" ? `Résultats ${p.month} : ${p.amountEur} €` : `${p.followers?.toLocaleString("fr-FR")} abonnés`} — {PROOF_STATUS[p.status]}
-              {p.reviewComment ? ` (${p.reviewComment})` : ""}
-              {p.videoUrls.length > 0 && ` · ${p.videoUrls.length} vidéo${p.videoUrls.length > 1 ? "s" : ""}`}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Link href="/resultats/publier" className="flex items-center justify-center gap-1.5 rounded-2xl bg-text py-3 text-sm font-semibold text-black">
+          <Plus size={16} /> Publier un résultat
+        </Link>
+        <Link href="/resultats" className="flex items-center justify-center gap-1.5 rounded-2xl bg-card-2 py-3 text-sm font-semibold">
+          Voir les résultats <ChevronRight size={16} />
+        </Link>
+      </div>
     </section>
   );
 }

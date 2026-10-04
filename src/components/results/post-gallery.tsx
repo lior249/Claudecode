@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { BadgeCheck, ExternalLink, X } from "lucide-react";
 import { reactAction } from "@/app/actions/results";
 import { TrophyIcon } from "@/components/ui/icons";
@@ -16,74 +16,114 @@ export interface GalleryItem {
   imageUrl: string;
   link?: string | null;
   tag?: string | null; // ex. « Meilleur mois » (affiché avec un trophée)
-  status?: "PENDING" | "APPROVED" | "REJECTED";
+  status?: "ANALYZING" | "PENDING" | "APPROVED" | "REJECTED";
   reviewComment?: string | null;
+  typeName?: string | null; // type de résultat (ex. « Résultat d'une vidéo »)
+  points?: number | null; // points gagnés
+  author?: string | null; // galerie de tous les résultats : nom du membre
   counts?: Record<ReactionKey, number>; // présent = post réagissable
   mine?: ReactionKey | null;
 }
 
-// Galerie de 2 colonnes : aperçu de la capture (fondu vers le bas), titre, 2 lignes de texte, « Voir plus ».
-export function PostGallery({ title, items, empty }: { title: string; items: GalleryItem[]; empty: string }) {
-  // Réactions modifiées localement (affichage immédiat), par-dessus les données du serveur.
+const STATUS_LABEL = { ANALYZING: "Lecture par l'IA…", PENDING: "En vérification", REJECTED: "Refusé" } as const;
+
+// Cartes réparties en colonnes, dans l'ordre (le plus récent en haut à gauche) : même largeur, hauteur libre.
+function ResultGrid({ items, columns, onOpen }: { items: GalleryItem[]; columns: number; onOpen: (id: string) => void }) {
+  const cols = Array.from({ length: columns }, (_, c) => items.filter((_, i) => i % columns === c));
+  return (
+    <div className="grid items-start gap-2 lg:gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+      {cols.map((col, c) => (
+        <div key={c} className="grid min-w-0 content-start gap-2 lg:gap-3">
+          {col.map((it) => (
+            <button key={it.id} onClick={() => onOpen(it.id)} className="block w-full overflow-hidden rounded-2xl bg-card-2 text-left transition hover:ring-2 hover:ring-gold/40">
+              <span className="relative m-1.5 mb-0 block aspect-[4/5] overflow-hidden rounded-xl bg-black">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={it.imageUrl} alt="" loading="lazy" className="block h-full w-full object-cover object-top" />
+                <span className="absolute inset-0 bg-gradient-to-b from-transparent from-45% to-card-2" />
+                {it.status && it.status !== "APPROVED" && (
+                  <span className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold ${it.status === "REJECTED" ? "bg-danger text-white" : "bg-gold text-black"}`}>
+                    {STATUS_LABEL[it.status]}
+                  </span>
+                )}
+                {!!it.points && <span className="absolute right-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-bold text-gold">+{it.points} pt{it.points > 1 ? "s" : ""}</span>}
+              </span>
+              <span className="grid gap-1 px-2.5 pb-2.5 pt-1.5">
+                {it.typeName && <span className="truncate text-xs font-medium text-muted">{it.typeName}</span>}
+                <span className="flex items-start gap-1 text-sm font-semibold leading-tight">
+                  <span className="min-w-0">{it.title}</span>
+                  {it.status === "APPROVED" && <BadgeCheck size={15} className="mt-px shrink-0 text-success" aria-label="Validé" />}
+                </span>
+                {it.author && <span className="truncate text-xs text-muted">par {it.author}</span>}
+                {it.tag && (
+                  <span className="flex items-center gap-1 text-xs font-semibold text-gold">
+                    <TrophyIcon size={14} /> {it.tag}
+                  </span>
+                )}
+                {it.body && <span className="line-clamp-2 text-xs leading-snug text-muted">{it.body}</span>}
+                <span className="text-xs font-semibold">Voir plus</span>
+                {it.counts && (
+                  <span className="flex flex-wrap gap-1.5 text-xs text-muted">
+                    {KEYS.filter((k) => it.counts![k]).map((k) => (
+                      <span key={k}>
+                        {EMOJI[k]} {it.counts![k]}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Réactions modifiées localement (affichage immédiat), par-dessus les données du serveur.
+function useGallery(items: GalleryItem[]) {
   const [overrides, setOverrides] = useState<Record<string, GalleryItem>>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const list = items.map((i) => overrides[i.id] ?? i);
   const open = list.find((i) => i.id === openId) ?? null;
-  const cols = [list.filter((_, i) => i % 2 === 0), list.filter((_, i) => i % 2 === 1)];
+  const dialog = open && <PostDialog item={open} onClose={() => setOpenId(null)} onChange={(next) => setOverrides((o) => ({ ...o, [next.id]: next }))} />;
+  return { list, open: setOpenId, dialog };
+}
+
+// Galerie de 2 colonnes dans une carte (profil, fiche d'un membre) : aperçu fondu, titre, 2 lignes de texte, « Voir plus ».
+export function PostGallery({ title, items, empty }: { title: string; items: GalleryItem[]; empty: string }) {
+  const g = useGallery(items);
   return (
     <section className="rounded-3xl border border-line bg-card p-4">
       <div className="flex items-baseline justify-between">
         <h3 className="text-sm font-semibold">{title}</h3>
-        {list.length > 0 && <span className="text-xs text-muted">{list.length}</span>}
+        {g.list.length > 0 && <span className="text-xs text-muted">{g.list.length}</span>}
       </div>
-      {list.length === 0 ? (
-        <p className="mt-2 text-xs text-muted">{empty}</p>
-      ) : (
-        <div className="mt-3 grid grid-cols-2 items-start gap-2">
-          {cols.map((col, c) => (
-            <div key={c} className="grid min-w-0 content-start gap-2">
-              {col.map((it) => (
-                <button key={it.id} onClick={() => setOpenId(it.id)} className="block w-full overflow-hidden rounded-2xl bg-card-2 text-left">
-                  <span className="relative m-1.5 mb-0 block aspect-[4/5] overflow-hidden rounded-xl bg-black">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={it.imageUrl} alt="" loading="lazy" className="block h-full w-full object-cover object-top" />
-                    <span className="absolute inset-0 bg-gradient-to-b from-transparent from-45% to-card-2" />
-                    {it.status && it.status !== "APPROVED" && (
-                      <span className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold ${it.status === "PENDING" ? "bg-gold text-black" : "bg-danger text-white"}`}>
-                        {it.status === "PENDING" ? "En validation" : "Refusé"}
-                      </span>
-                    )}
-                  </span>
-                  <span className="grid gap-1 px-2.5 pb-2.5 pt-1.5">
-                    <span className="flex items-start gap-1 text-sm font-semibold leading-tight">
-                      <span className="min-w-0">{it.title}</span>
-                      {it.status === "APPROVED" && <BadgeCheck size={15} className="mt-px shrink-0 text-success" aria-label="Validé" />}
-                    </span>
-                    {it.tag && (
-                      <span className="flex items-center gap-1 text-xs font-semibold text-gold">
-                        <TrophyIcon size={14} /> {it.tag}
-                      </span>
-                    )}
-                    {it.body && <span className="line-clamp-2 text-xs leading-snug text-muted">{it.body}</span>}
-                    <span className="text-xs font-semibold">Voir plus</span>
-                    {it.counts && (
-                      <span className="flex flex-wrap gap-1.5 text-xs text-muted">
-                        {KEYS.filter((k) => it.counts![k]).map((k) => (
-                          <span key={k}>
-                            {EMOJI[k]} {it.counts![k]}
-                          </span>
-                        ))}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-      {open && <PostDialog item={open} onClose={() => setOpenId(null)} onChange={(next) => setOverrides((o) => ({ ...o, [next.id]: next }))} />}
+      {g.list.length === 0 ? <p className="mt-2 text-xs text-muted">{empty}</p> : <div className="mt-3"><ResultGrid items={g.list} columns={2} onOpen={g.open} /></div>}
+      {g.dialog}
     </section>
+  );
+}
+
+// Nombre de colonnes selon la largeur de l'écran : 2 sur téléphone, plus sur PC (zoom compris).
+function columnsFor(width: number) {
+  if (width < 640) return 2;
+  if (width < 1024) return 3;
+  return Math.min(7, Math.max(3, Math.floor((width - 256 - 80) / 230)));
+}
+const subscribeResize = (cb: () => void) => {
+  window.addEventListener("resize", cb);
+  return () => window.removeEventListener("resize", cb);
+};
+
+// Mur plein écran de tous les résultats (page « Résultats »).
+export function GalleryWall({ items }: { items: GalleryItem[] }) {
+  const columns = useSyncExternalStore(subscribeResize, () => columnsFor(window.innerWidth), () => 2);
+  const g = useGallery(items);
+  return (
+    <>
+      <ResultGrid items={g.list} columns={columns} onOpen={g.open} />
+      {g.dialog}
+    </>
   );
 }
 
@@ -125,7 +165,15 @@ function PostDialog({ item, onClose, onChange }: { item: GalleryItem; onClose: (
             <TrophyIcon size={16} /> {item.tag}
           </p>
         )}
-        {item.status === "PENDING" && <p className="mt-2 text-xs text-gold">En attente de validation : visible seulement par toi.</p>}
+        {(item.typeName || item.author) && (
+          <p className="mt-1 text-sm text-muted">
+            {item.typeName}
+            {item.author && ` · par ${item.author}`}
+            {!!item.points && <b className="text-gold"> · +{item.points} pt{item.points > 1 ? "s" : ""}</b>}
+          </p>
+        )}
+        {item.status === "ANALYZING" && <p className="mt-2 text-xs text-gold">L&apos;IA lit ta capture : visible seulement par toi pour l&apos;instant.</p>}
+        {item.status === "PENDING" && <p className="mt-2 text-xs text-gold">En vérification par un coach : visible seulement par toi.</p>}
         {item.status === "REJECTED" && <p className="mt-2 text-xs text-danger">Refusé : {item.reviewComment}</p>}
         {item.body && <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-text/85">{item.body}</p>}
         {item.link && (

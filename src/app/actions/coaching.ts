@@ -15,11 +15,6 @@ import {
 } from "@/server/coaching/tickets";
 import {
   addPost,
-  reviewRankProof,
-  reviewViewProof,
-  submitFollowersProof,
-  submitMonthlyProof,
-  submitViewProof,
   updateCoachingProfile,
 } from "@/server/coaching/progress";
 import { addCoach, NeedsForceError, removeCoach, setCoachCapacity } from "@/server/coaching/admin";
@@ -74,22 +69,6 @@ export const rateTicketAction = async (raw: unknown) =>
     rateTicket(u.id, d.ticketId, d.rating, d.comment),
   );
 
-export const viewProofAction = async (raw: unknown) =>
-  run(
-    PARTICIPANTS,
-    z.object({ postId: id, views: z.number().int(), likes: z.number().int(), comments: z.number().int(), imageKey: z.string().max(200) }),
-    raw,
-    (u, d) => submitViewProof(u.id, d.postId, { views: d.views, likes: d.likes, comments: d.comments }, d.imageKey),
-  );
-
-export const followersProofAction = async (raw: unknown) =>
-  run(PARTICIPANTS, z.object({ followers: z.number().int(), imageKey: z.string().max(200) }), raw, (u, d) => submitFollowersProof(u.id, d.followers, d.imageKey));
-
-export const monthlyProofAction = async (raw: unknown) =>
-  run(PARTICIPANTS, z.object({ amountEur: z.number().int(), videoUrls: z.array(z.string().max(500)).max(10), imageKey: z.string().max(200), description: z.string().max(1500).default("") }), raw, (u, d) =>
-    submitMonthlyProof(u.id, d.amountEur, d.videoUrls, d.imageKey, new Date(), d.description),
-  );
-
 export const reactivationAction = async (raw: unknown) => run(["LEARNER"], z.object({ reason: z.string().max(2000) }), raw, (u, d) => requestReactivation(u.id, d.reason));
 
 // ---------- Élève et coach ----------
@@ -106,24 +85,6 @@ export const closeTicketAction = async (raw: unknown) => run(COACHES, z.object({
 export const followUpsAction = async (raw: unknown) =>
   run(COACHES, z.object({ templateKey: z.string().max(40), learnerIds: z.array(id).min(1, "Choisis au moins un élève.").max(200) }), raw, (u, d) =>
     sendFollowUps(u.id, d.templateKey, d.learnerIds),
-  );
-
-export const reviewProofAction = async (raw: unknown) =>
-  run(
-    COACHES,
-    z.object({
-      kind: z.enum(["views", "rank"]),
-      proofId: id,
-      approve: z.boolean(),
-      views: z.number().int().positive().optional(),
-      comment: z.string().max(1000),
-      verified: z.boolean(),
-    }),
-    raw,
-    (u, d) =>
-      d.kind === "views"
-        ? reviewViewProof(u, d.proofId, d.approve, d.views, d.comment, d.verified)
-        : reviewRankProof(u, d.proofId, d.approve, d.comment, d.verified),
   );
 
 export const reactivationDecisionAction = async (raw: unknown) =>

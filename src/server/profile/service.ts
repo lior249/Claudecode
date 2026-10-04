@@ -8,7 +8,7 @@ import { localDate, type AnyRank } from "@/server/coaching/rules";
 import { userTimezone } from "@/server/notifications/service";
 import { storeAvatarImage } from "@/server/storage/images";
 import { deleteAvatarFile } from "@/server/retention/service";
-import { listResultPosts } from "@/server/results/service";
+import { listResultPosts, monthlyRevenues } from "@/server/results/service";
 
 // Photo affichée : celle choisie sur Creato, sinon celle de Discord.
 export const avatarOf = (u: { photoKey: string | null; avatarUrl: string | null }) => (u.photoKey ? fileUrl(u.photoKey) : u.avatarUrl);
@@ -27,24 +27,6 @@ export async function resetProfilePhoto(userId: string) {
   await deleteAvatarFile(before.photoKey);
 }
 
-// Résultats du mois validés par un coach (avec leur capture), du plus récent au plus ancien.
-async function validatedMonths(userId: string) {
-  const rows = await prisma.rankProof.findMany({
-    where: { learnerId: userId, kind: "MONTHLY", status: "APPROVED" },
-    select: { id: true, month: true, amountEur: true, imageKey: true, description: true },
-    orderBy: { month: "desc" },
-  });
-  const best = rows.reduce((m, r) => Math.max(m, r.amountEur ?? 0), 0);
-  return rows.map((r) => ({
-    id: r.id,
-    month: r.month!,
-    amountEur: r.amountEur ?? 0,
-    imageUrl: fileUrl(r.imageKey),
-    description: r.description ?? "",
-    isBest: best > 0 && (r.amountEur ?? 0) === best,
-  }));
-}
-
 const bestOf = (months: { amountEur: number }[]) => months.reduce((m, r) => Math.max(m, r.amountEur), 0);
 
 // Mois civil précédent (AAAA-MM) dans le fuseau de la personne.
@@ -59,7 +41,7 @@ export async function memberCard(userId: string, now = new Date(), viewerId: str
   const u = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   const streak = await getStreak(userId, now);
   const quality = await qualityPoints(userId);
-  const months = await validatedMonths(userId);
+  const months = await monthlyRevenues(userId);
   return {
     id: u.id,
     displayName: u.displayName,
@@ -95,7 +77,6 @@ export async function myProfile(userId: string, now = new Date()) {
     inCoaching,
     coaching: card,
     tiktokUsername: u.tiktokUsername,
-    autoApprovedPosts: u.role === "ADMIN",
     reminderHour: u.reminderHour,
     dmEnabled: u.dmEnabled,
   };

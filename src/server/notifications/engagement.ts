@@ -100,11 +100,11 @@ async function coachingNudges(now: Date, count: Counter) {
     // Résultats du mois : seulement le dernier jour du mois (rappel le matin, dernière chance le soir).
     const win = monthlyWindow(today);
     if (win.open && win.month && hour >= 10 && hour < QUIET_START_HOUR) {
-      const sent = await prisma.rankProof.count({ where: { learnerId: l.id, kind: "MONTHLY", month: win.month } });
+      const sent = await prisma.resultPost.count({ where: { authorId: l.id, month: win.month, type: { special: "MONTHLY_REVENUE" } } });
       if (!sent) {
-        count(await notify(l.id, { kind: "monthly.open", href: "/coaching", onceKey: `monthly-open:${win.month}`, text: "C'est le dernier jour du mois : envoie tes résultats aujourd'hui (montant exact, capture et liens des vidéos)." }));
+        count(await notify(l.id, { kind: "monthly.open", href: "/resultats/publier", onceKey: `monthly-open:${win.month}`, text: "C'est le dernier jour du mois : envoie tes revenus du mois aujourd'hui (capture avec ton code du jour)." }));
         if (hour >= STREAK_LAST_CHANCE_HOUR) {
-          count(await notify(l.id, { kind: "monthly.last", href: "/coaching", onceKey: `monthly-last:${win.month}`, text: "Dernière chance : tes résultats du mois s'envoient jusqu'à minuit." }));
+          count(await notify(l.id, { kind: "monthly.last", href: "/resultats/publier", onceKey: `monthly-last:${win.month}`, text: "Dernière chance : tes résultats du mois s'envoient jusqu'à minuit." }));
         }
       }
     }
@@ -125,9 +125,7 @@ async function staffDigests(now: Date, count: Counter) {
       waits: await prisma.responseWait.count({ where: { coachId: s.id, answeredAt: null } }),
       late: await prisma.responseWait.count({ where: { coachId: s.id, answeredAt: null, dueAt: { lt: now } } }),
       proofs:
-        (await prisma.viewProof.count({ where: { status: "PENDING", post: { learner: { coachId: s.id } } } })) +
-        (await prisma.rankProof.count({ where: { status: "PENDING", learner: { coachId: s.id } } })) +
-        (await prisma.resultPost.count({ where: { status: "PENDING", author: s.role === "ADMIN" ? { role: { not: "LEARNER" } } : { coachId: s.id, role: "LEARNER" } } })),
+        (await prisma.resultPost.count({ where: { status: "PENDING", author: s.role === "ADMIN" ? { OR: [{ role: { not: "LEARNER" } }, { coachId: null }] } : { coachId: s.id, role: "LEARNER" } } })),
       reactivations: s.role === "ADMIN" ? 0 : (await listReactivationRequests(s)).length,
     });
     if (coachText) count(await notify(s.id, { kind: "coach.digest", href: "/coach", onceKey: `coach-digest:${today}`, text: coachText }));

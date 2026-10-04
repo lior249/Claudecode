@@ -80,8 +80,7 @@ Un seul module, une seule leçon :
 |---|---|---|
 | **Compréhension** | U | QCM de 20 questions saisies à la main, 16/20 minimum |
 | **Décision** | D | Choix d'une fiche dans un catalogue (niches, pays, méthodes…) |
-| **Pratique IA** | P | Corrigée par l'IA : consigne pour l'agent + 1 à 4 critères (consigne + points retirés à chaque erreur) + références |
-| **Pratique humaine** | P | Validée par le coach. Prévue, mais pas prioritaire |
+| **Pratique** | P | Corrigée **à la main** par le coach ou l'admin : consigne + **1 à 3 critères** (consigne + points retirés à chaque erreur) |
 | **Validation par code** | — | Phrase et code secret (niveau 3) |
 
 ## Compréhension (QCM)
@@ -92,30 +91,14 @@ Un seul module, une seule leçon :
 - Après un échec : « Retourne revoir le module sur Whop », puis **5 minutes d'attente** avant de réessayer.
 - **Nombre de tentatives illimité.**
 
-## Correction automatique (Pratique IA)
+## Exercices pratiques (corrigés à la main)
 
-**Configuration par l'Admin, exercice par exercice. Rien n'est prédéfini.**
-- **Consigne pour l'agent** : grand texte libre (exercice, script, timings, tolérances, exemples). Jamais montrée à l'élève.
-- **Critères de notation : 1 à 4**, chacun avec deux champs séparés :
-  - la **consigne du critère** (ce que l'agent vérifie), visible par l'élève avant l'envoi ;
-  - les **points retirés à chaque fois** que le critère n'est pas respecté. **Pas de plafond** : la note ne descend jamais sous 0.
-- **Éléments de référence** (jamais montrés à l'élève) :
-  - un **texte de référence**, comparé exactement par le serveur (pourcentage de ressemblance, première phrase identique ou non) ;
-  - un **fichier d'exemple** (vidéo ou audio), comparé par l'analyste.
-- Un exercice sans consigne pour l'agent ou sans critère n'est pas encore ouvert aux élèves.
-
-**Correction en deux temps, par deux IA :**
-1. **Mesures exactes** (serveur, ffmpeg) : instants des cuts, plans, silences (dès 0,25 s), son présent ou non, durée.
-2. **Analyste** (Gemini, multimodal) : décrit objectivement la vidéo ou l'audio. Il produit la transcription horodatée, les plans, les textes à l'écran, les effets sonores et la comparaison avec la référence. Il ne juge pas.
-3. **Correcteur** (agent) : lit la consigne, les critères et le rapport. Il **compte les erreurs** par critère, avec les instants précis et un commentaire.
-4. **Serveur** : points retirés = erreurs × points du critère ; note = 10 − total ; **8/10 minimum**.
-
-- L'IA ne calcule jamais la note. Un critère oublié par le correcteur compte comme une panne (relançable), jamais comme un 10/10.
-- Les critères sont figés au moment de l'envoi : une modification par l'Admin ne change pas une correction en cours ou passée.
-- Fournisseur d'IA interchangeable par réglage. Modèles (`GEMINI_ANALYST_MODEL`, `GEMINI_GRADER_MODEL`) et précision (`GEMINI_VIDEO_FPS`, images par seconde) configurables.
-- **Budget IA : 20 $ par mois.** Le coût réel est mesuré dès les premières corrections. Si le plafond est atteint, les corrections attendent en file au lieu de dépenser plus (mis en place à la mise en ligne).
-- Si l'IA tombe en panne : « Ta demande n'a pas pu être traitée ». **Après 3 échecs techniques**, un bouton **« Faire appel à un humain »** apparaît.
-- Formats : vidéos exportées de CapCut en MP4, audios en MP3 ou M4A.
+*Octobre 2026 : plus aucune correction par IA pour les exercices (Gemini retiré). Prévu : environ 3 exercices pratiques.*
+- L'Admin crée chaque exercice : consigne pour l'élève, ce qu'il envoie (vidéo, audio, texte) et **1 à 3 critères**
+  (consigne + points retirés à chaque erreur). **Un exercice ne peut pas être rendu visible sans au moins 1 critère.**
+- L'élève envoie sa réalisation ; le **coach (ou l'admin)** la regarde et indique, critère par critère, le nombre d'erreurs
+  et un commentaire. Le serveur calcule la note : 10 − erreurs × points ; **8/10 minimum**.
+- Échec : l'élève voit la correction et renvoie une nouvelle réalisation.
 
 ## Délais : remarques sans pénalité
 
@@ -124,6 +107,19 @@ Un seul module, une seule leçon :
 - **Aucune pénalité de points.** Les dates de déblocage et de validation de chaque leçon sont enregistrées.
 - Sur la fiche coach, chaque dépassement est signalé **en rouge**, avec sa durée exacte. Par exemple :
   « A décroché entre *Montage — Cuts* et *Montage — Voix off* pendant plus de 24 h (précisément 3 j 4 h). »
+
+## Première connexion : accueil en 4 étapes
+
+1. **Vidéo de l'admin** (envoyée et remplaçable dans l'Admin) : pourquoi Creato, comment l'utiliser.
+   Creato = plateforme d'apprentissage, de gestion, de coaching et d'engagement, complémentaire à Discord.
+2. **Compte TikTok** (nom d'utilisateur).
+3. **Rappels** : heure du rappel du jour et messages privés Discord.
+4. **Comment ça marche** : points, flamme, résultats, puis « C'est parti ».
+
+## Démarrage à vide
+
+- La base démarre **vide** : aucun niveau, module, leçon, exercice, QCM ni lien Whop pré-rempli.
+  L'Admin crée tout lui-même, un par un.
 
 ## Accès et authentification
 
@@ -182,25 +178,15 @@ Un seul module, une seule leçon :
 - **Gel de streak** (comme Duolingo) : 1 jour par mois qui ne casse pas la chaîne.
 - Points : +1 par semaine complète, +3 de bonus à 30 jours, +10 à 100 jours. Le record personnel reste affiché.
 
-### Qualité : points par vidéo (capture des statistiques validée par le coach)
-| Vues | Points |
-|---|---|
-| 10 000 à 99 999 | 1 |
-| 100 000 à 299 999 | 2 |
-| 300 000 à 499 999 | 3 |
-| 500 000 à 999 999 | 4 |
-| 1 million et plus | 5 |
-
-Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève gagne seulement la différence.
+### Points
+- Points = streak (régularité) + **points des résultats publiés** (voir « Résultats »).
 
 ### Classement
-- Les élèves en coaching sont classés par points (streak + qualité).
+- Les élèves en coaching sont classés par points (streak + résultats).
 - **Podium des 3 premiers**, puis le tableau complet. Visible par tous les membres de la plateforme.
 
-### Résultats du mois et fin du coaching
-- Une fenêtre s'ouvre du **dernier jour du mois au 5 du mois suivant**.
-- L'élève envoie le montant gagné et une capture de son tableau de bord, où son nom d'utilisateur est visible. Le coach valide.
-- Le **coach peut clôturer le coaching** quand l'élève atteint SSS. Sa place est alors libérée.
+### Fin du coaching
+- Le coaching est terminé quand l'élève atteint **SSS** (résultat « Revenus du mois » à 1 000 € ou plus). Sa place est libérée.
 
 ### Absence
 - **7 jours sans post** (élèves seulement, rappels à J+4 et J+6) : coaching **révoqué automatiquement**. Le rôle @Élite est retiré sur Discord et la place est libérée.
@@ -225,12 +211,32 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
   nouveaux messages, retours 👍/👎, étoile gagnée ou perdue.
 - **Admin** : résumé à 9 h (corrections humaines, réactivations, élèves sans coach, coachs à 1–2 étoiles, tâches en échec).
 
-## Preuves (vues et résultats du mois)
+## Résultats (types de résultats, lecture par l'IA, points)
 
-- **Vues d'une vidéo** : l'élève déclare vues, j'aime et commentaires + la capture des statistiques.
-- **Résultats du mois** : montant + capture du tableau de bord + **liens des vidéos** (1 à 10) qui ont rapporté.
-- Le coach ouvre la vidéo / les liens, compare avec la capture et les chiffres déclarés, et doit cocher
-  « tout concorde » pour valider. Un refus demande toujours une explication.
+*Octobre 2026 : remplace les preuves de vues, les preuves de rang et les posts de résultats validés à la main.*
+- L'**Admin crée les types de résultats** (bouton « Ajouter un type de résultat ») :
+  nom, consigne pour l'élève, **exemple visuel**, ce que l'IA **doit trouver** sur la capture, ce qu'elle **ne doit
+  absolument pas trouver**, et les **points** : un chiffre fixe, ou (en option) des **paliers sur un chiffre lu**
+  (vues, euros ou abonnés). Exemples : « Résultat d'une vidéo », « Résultat d'une semaine », « Nouveau compte monétisé ».
+- Deux types spéciaux :
+  - **Revenus du mois** : montant lu en €, envoi **uniquement le dernier jour du mois**, additionné (total généré),
+    meilleur mois, et rangs **S / SS / SSS** (100 / 500 / 1 000 € sur un mois). Points de départ proposés :
+    moins de 100 € = 2, 100 € = 3, 500 € = 5, 1 000 € = 8.
+  - **10 000 abonnés** : abonnés lus → **rang A**.
+- Côté élève : « Publier un résultat » → **liste des types** (sans miniature) → page du type : consigne, exemple,
+  **code du jour** à écrire sur la capture (pour prouver qu'elle est à lui), puis capture + titre + petit texte.
+- La capture doit être **recadrée** comme l'exemple (statistiques seulement, sans la vidéo) pour ne dévoiler ni la niche
+  ni le compte.
+- **Claude** (IA d'Anthropic) lit la capture : conforme au type, code du jour présent, rien d'interdit, chiffre lu.
+  - Conforme → **publié tout de suite** et points attribués (le serveur calcule les points, jamais l'IA).
+  - Non conforme ou illisible → envoyé au coach (élève) ou à l'admin (coach, admin) avec la raison ; il publie ou refuse.
+- **2 résultats par jour** au maximum. **Plafond mensuel de lectures IA** : au-delà, les captures passent à la main.
+- Réactions 🔥 🚀 😡 😢 (une par membre et par post) inchangées.
+- **Page « Résultats »** : galerie plein écran de tous les résultats publiés, tous types mélangés, du plus récent au
+  plus ancien, avec un **filtre par type**. Même largeur, hauteur libre, fondu + texte en bas.
+  2 colonnes sur téléphone, autant que la largeur le permet sur PC. Pas de classement sur cette page.
+- **Plusieurs comptes TikTok** : un seul compte par élève pour l'instant ; idée pour plus tard : un 2e compte
+  débloqué au rang SSS (le rang SSS ne se perd jamais).
 
 ## Profil, menu et classement
 
@@ -257,19 +263,6 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
   il valide leurs preuves, et les siennes. La règle d'absence ne s'applique pas à l'équipe : ils perdent juste leur flamme.
 - Le nombre d'élèves par niche n'est visible que dans l'Admin.
 - La page de connexion n'affiche que « Se connecter avec Discord » (les comptes de test sont sur une page à part, inexistante en ligne).
-
-## Posts de résultats (mur des réussites)
-
-- Tout membre qui participe (élèves en coaching, coachs, admin) peut publier : **titre** (ex. « 1 500 € en une seule
-  vidéo 🔥 »), **capture**, **petit texte** (ressenti), **lien** facultatif. **2 posts par jour** au maximum.
-- Validation avant publication : élève → son coach ; coach → l'admin ; admin → publié d'office. Refus = explication.
-- Affichage sous la grille de régularité (Mon profil, fiche du classement, fiche élève côté coach) : galerie de 2,
-  aperçu de la capture fondu vers le bas, titre + ✓, 2 lignes de texte, « Voir plus » → fenêtre avec l'image en
-  entier, le texte complet, le lien et les réactions.
-- Réactions : 🔥 🚀 😡 😢, **une seule par membre et par post** (modifiable, retirable).
-- Les posts **ne comptent pas** dans les revenus. Les **résultats du mois** restent à part : montant exact + capture
-  + liens + petit texte, envoyés **uniquement le dernier jour du mois**, validés par le coach, additionnés (total
-  généré) et marqués « 🏆 Meilleur mois » quand c'est le record.
 
 ## Disponibilités des coachs
 
@@ -298,10 +291,10 @@ Une vidéo ne compte qu'une fois. Si elle passe un palier plus tard, l'élève g
 | D | Niveau 1 (Les bases) terminé | automatique |
 | C | Niveau 2 (Positionnement) terminé | automatique |
 | B | Niveau 3 (Lancement) terminé, rôle @Élite | automatique |
-| A | 10 000 abonnés | preuve validée par le coach |
-| S | Un mois à **100 €** ou plus | résultats du mois validés par le coach |
-| SS | Un mois à **500 €** ou plus | résultats du mois validés par le coach |
-| SSS | Un mois à **1 000 €** ou plus : **coaching terminé** | résultats du mois validés par le coach |
+| A | 10 000 abonnés | résultat « 10 000 abonnés » lu par l'IA |
+| S | Un mois à **100 €** ou plus | résultat « Revenus du mois » lu par l'IA |
+| SS | Un mois à **500 €** ou plus | résultat « Revenus du mois » lu par l'IA |
+| SSS | Un mois à **1 000 €** ou plus : **coaching terminé** | résultat « Revenus du mois » lu par l'IA |
 
 Les montants se comptent **sur un seul mois**. Un rang atteint reste acquis.
 

@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { Camera } from "lucide-react";
+import { Camera, Plus } from "lucide-react";
 import type { MyProfile } from "@/server/profile/service";
 import { resetPhotoAction } from "@/app/actions/profile";
 import { RankBadge } from "@/components/learn/badges";
@@ -10,7 +11,6 @@ import { LocalTime } from "@/components/local-time";
 import { Avatar } from "./avatar";
 import { Revenue, StatTile } from "./member-stats";
 import { PostGallery } from "@/components/results/post-gallery";
-import { NewResultPost } from "@/components/results/new-result-post";
 import { monthItems } from "@/components/results/gallery-items";
 import { ActivityGrid } from "@/components/coaching/activity-grid";
 
@@ -47,10 +47,14 @@ export function ProfileView({ profile: p }: { profile: MyProfile }) {
       </div>
       <div className="contents lg:flex lg:flex-col lg:gap-4">
       {c && <ActivityGrid grid={c.activity} current={c.streak.current} best={c.streak.best} />}
-      {c && <NewResultPost autoApproved={p.autoApprovedPosts} />}
-      {c && <PostGallery title="Mes résultats" items={c.posts} empty="Publie ton premier résultat : vues, tableau de bord, RPM…" />}
+      {c && (
+        <Link href="/resultats/publier" className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line py-3 text-sm text-muted hover:text-text">
+          <Plus size={16} /> Publier un résultat
+        </Link>
+      )}
+      {c && <PostGallery title="Mes résultats" items={c.posts} empty="Publie ton premier résultat : une vidéo qui marche, tes revenus, tes abonnés…" />}
       {c && <Revenue lastMonthEur={c.lastMonthEur} bestMonthEur={c.bestMonthEur} totalEur={c.totalEur} />}
-      {c && <PostGallery title="Résultats du mois" items={monthItems(c.months)} empty="Aucun résultat du mois validé pour l'instant." />}
+      {c && <PostGallery title="Résultats du mois" items={monthItems(c.months)} empty="Aucun revenu du mois publié pour l'instant." />}
       </div>
 
     </div>

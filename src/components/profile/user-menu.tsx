@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, LogOut, Settings, Trophy, User } from "lucide-react";
+import { Check, Images, LogOut, Settings, Trophy, User } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { Avatar } from "./avatar";
 
@@ -47,6 +47,9 @@ export function UserMenu({ user }: { user: MenuUser }) {
           </Link>
           <Link href="/classement" className={item} onClick={() => setOpen(false)} role="menuitem">
             <Trophy size={16} className="text-muted" /> Classement
+          </Link>
+          <Link href="/resultats" className={item} onClick={() => setOpen(false)} role="menuitem">
+            <Images size={16} className="text-muted" /> Résultats
           </Link>
           <Link href="/reglages" className={item} onClick={() => setOpen(false)} role="menuitem">
             <Settings size={16} className="text-muted" /> Réglages

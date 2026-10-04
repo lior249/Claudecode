@@ -2,6 +2,7 @@ import { getEnv } from "@/server/env";
 import { GeminiAnalyst, GeminiClient, GeminiGrader } from "./gemini";
 import { MockAnalyst, MockGrader } from "./mock";
 import type { Analyst, Grader } from "./types";
+import { ClaudeScreenshotReader, MockScreenshotReader, type ScreenshotReader } from "./screenshot";
 
 // Le fournisseur se choisit par configuration : on peut changer d'IA sans toucher au reste du code.
 let overrides: { analyst?: Analyst | null; grader?: Grader | null } = {};
@@ -22,4 +23,18 @@ export function getGrader(): Grader {
   const env = getEnv();
   if (env.AI_PROVIDER === "gemini") return new GeminiGrader(new GeminiClient(env.GEMINI_API_KEY!), env.GEMINI_GRADER_MODEL);
   return new MockGrader();
+}
+
+// ---------- Lecture des captures de résultats ----------
+
+let screenshotOverride: ScreenshotReader | null = null;
+export function setScreenshotReaderForTests(r: ScreenshotReader | null) {
+  screenshotOverride = r;
+}
+
+export function getScreenshotReader(): ScreenshotReader {
+  if (screenshotOverride) return screenshotOverride;
+  const env = getEnv();
+  if (env.AI_PROVIDER === "claude") return new ClaudeScreenshotReader(env.ANTHROPIC_API_KEY!, env.CLAUDE_MODEL);
+  return new MockScreenshotReader();
 }

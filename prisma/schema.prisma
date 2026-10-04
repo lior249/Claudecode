@@ -104,7 +104,6 @@ model User {
   ticketsAsCoach   Ticket[]              @relation("TicketCoach")
   ticketMessages   TicketMessage[]
   posts            Post[]
-  rankProofs       RankProof[]           @relation("ProofLearner")
   reactivations    ReactivationRequest[] @relation("ReactivationLearner")
   auditLogs        AuditLog[]
   notifications    Notification[]
@@ -597,9 +596,7 @@ model Post {
   videoId        String
   postedAt       DateTime // lu dans l'identifiant de la vidéo
   localDate      String // jour du post dans le fuseau de l'élève (AAAA-MM-JJ)
-  validatedViews Int? // dernières vues validées par le coach
   createdAt      DateTime    @default(now())
-  viewProofs     ViewProof[]
 
   @@unique([learnerId, videoId])
   @@index([learnerId, localDate])
@@ -611,46 +608,8 @@ enum ProofStatus {
   REJECTED
 }
 
-// Capture des statistiques d'une vidéo (points de qualité).
-model ViewProof {
-  id            String      @id @default(cuid())
-  postId        String
-  post          Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
-  views         Int
-  likes         Int?
-  comments      Int?
-  imageKey      String
-  status        ProofStatus @default(PENDING)
-  reviewComment String?
-  reviewedAt    DateTime?
-  reviewedById  String?
-  createdAt     DateTime    @default(now())
-}
 
-enum RankProofKind {
-  FOLLOWERS_10K // rang A
-  MONTHLY // résultats du mois : S (100 €), SS (500 €), SSS (1 000 €)
-}
 
-model RankProof {
-  id            String        @id @default(cuid())
-  learnerId     String
-  learner       User          @relation("ProofLearner", fields: [learnerId], references: [id], onDelete: Cascade)
-  kind          RankProofKind
-  month         String? // mois déclaré (AAAA-MM)
-  amountEur     Int?
-  followers     Int?
-  videoUrls     Json          @default("[]") // liens des vidéos concernées (vérifiés par le coach)
-  description   String? // résultats du mois : le petit texte de l'élève (ressenti)
-  imageKey      String
-  status        ProofStatus   @default(PENDING)
-  reviewComment String?
-  reviewedAt    DateTime?
-  reviewedById  String?
-  createdAt     DateTime      @default(now())
-
-  @@index([learnerId, kind])
-}
 
 model ReactivationRequest {
   id          String      @id @default(cuid())
@@ -667,15 +626,69 @@ model ReactivationRequest {
 
 // Post libre : titre, capture, texte, lien. Validé par le coach de l'élève, par l'admin pour un coach ;
 // les posts de l'admin sont validés d'office. N'entre pas dans les revenus du mois.
+// Chiffre lu sur une capture, qui peut décider des points (paliers) et des rangs spéciaux.
+enum ResultMetric {
+  NONE
+  VIEWS
+  REVENUE_EUR
+  FOLLOWERS
+}
+
+// Types aux règles spéciales : revenus du mois (rangs S / SS / SSS, total, meilleur mois) et 10 000 abonnés (rang A).
+enum ResultSpecial {
+  NONE
+  MONTHLY_REVENUE
+  FOLLOWERS_RANK
+}
+
+// Type de résultat défini par l'admin : consigne, exemple, règles de lecture pour l'IA et points.
+model ResultType {
+  id            String        @id @default(cuid())
+  name          String
+  instructions  String        @default("") // consigne affichée à l'élève
+  exampleKey    String? // image d'exemple (clé de stockage)
+  aiMustHave    String        @default("") // ce que l'IA doit trouver sur la capture
+  aiMustNotHave String        @default("") // ce que l'IA ne doit absolument pas trouver
+  aiIdentifier  String        @default("") // ce qui identifie le résultat (ex. date de publication) : une seule fois par élève
+  points        Int           @default(1) // points fixes
+  metric        ResultMetric  @default(NONE) // chiffre lu (paliers facultatifs)
+  tiers         Json          @default("[]") // [{ min, points }] : si non vide, remplace les points fixes
+  special       ResultSpecial @default(NONE)
+  position      Int           @default(0)
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  posts         ResultPost[]
+
+  @@index([isActive, position])
+}
+
+enum ResultStatus {
+  ANALYZING // lecture par l'IA en cours (worker)
+  PENDING // à vérifier par un coach ou l'admin
+  APPROVED
+  REJECTED
+}
+
 model ResultPost {
   id            String         @id @default(cuid())
   authorId      String
   author        User           @relation("ResultAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  typeId        String
+  type          ResultType     @relation(fields: [typeId], references: [id], onDelete: Restrict)
   title         String
   body          String         @default("")
   imageKey      String
+  imageSha256   String
   link          String?
-  status        ProofStatus    @default(PENDING)
+  dailyCode     String // code du jour à écrire sur la capture
+  month         String? // revenus du mois : mois concerné (AAAA-MM)
+  status        ResultStatus   @default(ANALYZING)
+  metricValue   Int? // chiffre lu (ou corrigé par le coach)
+  identifier    String? // identifiant lu (ex. date de publication de la vidéo)
+  points        Int            @default(0) // points gagnés par ce résultat (calculés par le serveur)
+  aiReport      Json? // verdict de l'IA (conforme, raisons, chiffre, code trouvé…)
+  aiModel       String?
   reviewComment String?
   reviewedAt    DateTime?
   reviewedById  String?
@@ -684,6 +697,7 @@ model ResultPost {
 
   @@index([authorId, createdAt])
   @@index([status, createdAt])
+  @@index([typeId, status, createdAt])
 }
 
 enum ReactionKind {
