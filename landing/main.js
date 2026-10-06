@@ -6,18 +6,27 @@
   var price = document.querySelector("[data-price]");
   if (price && c.price) price.textContent = c.price;
 
-  // Captures de résultats : 2 colonnes de même largeur, hauteur libre, réparties à tour de rôle (gauche, droite…).
+  // Captures de résultats : 2 colonnes de même largeur, hauteur libre.
+  // Chaque photo va dans la colonne la plus courte, pour que les deux colonnes finissent au même niveau.
   var results = document.querySelector("[data-results]");
   if (results && c.results && c.results.length) {
     var cols = [document.createElement("div"), document.createElement("div")];
-    c.results.forEach(function (src, i) {
-      var img = document.createElement("img");
-      img.src = src;
-      img.alt = "Résultat d'un membre";
-      img.loading = "lazy";
-      cols[i % 2].appendChild(img);
-    });
+    var heights = [0, 0];
     cols.forEach(function (col) { results.appendChild(col); });
+    var place = function (i) {
+      if (i >= c.results.length) return;
+      var img = new Image();
+      img.alt = "Résultat d'un membre";
+      img.decoding = "async";
+      img.onload = img.onerror = function () {
+        var k = heights[0] <= heights[1] ? 0 : 1;
+        heights[k] += img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1;
+        cols[k].appendChild(img);
+        place(i + 1);
+      };
+      img.src = c.results[i];
+    };
+    place(0);
   } else if (results) results.remove();
 
   var zone = document.querySelector("[data-pay-zone]");

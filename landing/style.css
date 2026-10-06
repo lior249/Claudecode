@@ -19,14 +19,24 @@ h1 { line-height: 1.05; text-wrap: balance; letter-spacing: -0.1em; }
 .btn-gold { background: var(--gold); color: #000; box-shadow: 0 10px 40px -10px rgba(245,179,1,.6); }
 .btn-outline { background: transparent; color: var(--gold); border: 2px solid var(--gold); }
 
-.join { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 18px; }
-.join-card { width: 100%; max-width: 560px; text-align: center; }
+.join { min-height: 100dvh; padding: clamp(28px, 6vh, 64px) 18px 48px; }
+.join-card { width: 100%; max-width: 560px; margin: 0 auto; text-align: center; }
 .join .thumb { width: 100%; height: auto; border-radius: 20px; border: 1px solid var(--line); box-shadow: 0 30px 80px -30px rgba(245,179,1,.35); }
-.join-card > h1 { margin-top: 28px; font-size: clamp(36px, 9vw, 60px); font-weight: 700; }
+.hero-col h1, .status h1 { margin-top: 28px; font-size: clamp(36px, 9vw, 60px); font-weight: 700; }
 .price { margin-top: 12px; font-size: 22px; font-weight: 700; letter-spacing: -0.04em; color: var(--gold); }
 .join-buttons { display: grid; gap: 12px; margin-top: 28px; min-height: 56px; }
 .join-buttons .btn { width: 100%; padding: 18px 24px; border-radius: 16px; }
-@media (min-width: 640px) { .join-buttons { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 640px) and (max-width: 1023px) { .join-buttons { grid-template-columns: 1fr 1fr; } }
+
+.join:has([data-thanks]) { display: flex; align-items: center; justify-content: center; }
+
+/* PC : l'offre à gauche (reste visible en défilant), les résultats à droite. */
+@media (min-width: 1024px) {
+  .join-card:has(.hero-col) { max-width: 1160px; display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 64px; align-items: start; text-align: left; }
+  .hero-col { position: sticky; top: 48px; }
+  .hero-col h1 { font-size: 52px; }
+  .join-card:has(.hero-col) .results { margin-top: 0; }
+}
 
 /* Captures de résultats : même largeur, hauteur libre, 2 par ligne. */
 .results { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 36px; align-items: start; }
