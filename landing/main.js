@@ -6,6 +6,20 @@
   var price = document.querySelector("[data-price]");
   if (price && c.price) price.textContent = c.price;
 
+  // Captures de résultats : 2 colonnes de même largeur, hauteur libre, réparties à tour de rôle (gauche, droite…).
+  var results = document.querySelector("[data-results]");
+  if (results && c.results && c.results.length) {
+    var cols = [document.createElement("div"), document.createElement("div")];
+    c.results.forEach(function (src, i) {
+      var img = document.createElement("img");
+      img.src = src;
+      img.alt = "Résultat d'un membre";
+      img.loading = "lazy";
+      cols[i % 2].appendChild(img);
+    });
+    cols.forEach(function (col) { results.appendChild(col); });
+  } else if (results) results.remove();
+
   var zone = document.querySelector("[data-pay-zone]");
   if (zone) {
     var reset = function () { zone.classList.remove("paying"); };

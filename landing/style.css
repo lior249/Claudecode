@@ -28,6 +28,11 @@ h1 { line-height: 1.05; text-wrap: balance; letter-spacing: -0.1em; }
 .join-buttons .btn { width: 100%; padding: 18px 24px; border-radius: 16px; }
 @media (min-width: 640px) { .join-buttons { grid-template-columns: 1fr 1fr; } }
 
+/* Captures de résultats : même largeur, hauteur libre, 2 par ligne. */
+.results { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 36px; align-items: start; }
+.results > div { display: grid; gap: 10px; }
+.results img { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); }
+
 /* Paiement : les deux boutons fusionnent en un cercle gris qui tourne. */
 .join-buttons { position: relative; }
 .join-buttons .btn { transition: transform .45s cubic-bezier(.6,0,.3,1), opacity .35s ease, border-radius .45s ease; }
