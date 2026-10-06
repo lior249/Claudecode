@@ -9,7 +9,7 @@ window.CREATO = {
   price: "120€ jusqu’au 11 nov 2026",
 
   // Captures de résultats affichées sous les boutons (2 par ligne). Ajoute un fichier dans img/resultats/ puis son nom ici.
-  results: ["img/resultats/01.jpg", "img/resultats/02.jpg", "img/resultats/03.jpg", "img/resultats/04.jpg"],
+  results: ["img/resultats/01.jpg", "img/resultats/02.jpg", "img/resultats/03.jpg", "img/resultats/04.jpg", "img/resultats/05.png"],
 
   // Code affiché après le paiement (à copier par l'élève).
   accessCode: "3GS&JnQr",
