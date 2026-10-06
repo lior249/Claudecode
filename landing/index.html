@@ -2,109 +2,155 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Creato — Rejoins l'accompagnement TikTok</title>
-  <meta name="description" content="Creato TikTok Élite : apprends à créer, poster chaque jour et monétiser ton compte TikTok, avec un coach et une communauté." />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Creato — La monétisation TikTok</title>
+  <meta name="description" content="Creato TikTok Élite — Lance-toi dans la monétisation TikTok en moins de 21 jours." />
+  <meta name="theme-color" content="#000000" />
   <link rel="icon" href="img/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script src="config.js"></script>
 </head>
 <body>
   <header class="wrap top">
     <a class="logo" href="./"><img src="img/logo.png" alt="" /><span>Creato</span></a>
-    <a class="btn btn-white btn-small" href="#offre">Rejoindre</a>
+    <a class="btn btn-white btn-small" href="#offres">Rejoindre</a>
   </header>
 
   <main>
+    <!-- Hero : fenêtres d'images autour du titre, puis la vidéo de présentation -->
     <section class="wrap hero">
-      <div>
-        <span class="eyebrow">Creato TikTok Élite</span>
-        <h1>Lance ton compte TikTok et <em>monétise-le</em>, accompagné.</h1>
-        <p class="lead">Une formation courte et pratique, un coach qui te suit, et une communauté qui poste tous les jours. Tu apprends, tu choisis ta niche, tu publies, tu progresses.</p>
-        <div class="hero-cta">
-          <a class="btn btn-gold" data-pay="saspay" href="#">Rejoindre l'accompagnement</a>
-          <a class="btn btn-ghost" href="#programme">Voir le programme</a>
-        </div>
-        <p class="price-line">À partir de <b data-price></b> <span data-period></span> · paiement mobile money</p>
+      <div class="collage" aria-hidden="true" data-collage></div>
+      <div class="hero-copy">
+        <p class="eyebrow">Le système Creato TikTok Élite</p>
+        <h1><span class="thin">La monétisation TikTok,</span><span class="bold">comme jamais auparavant.</span></h1>
+        <p class="lead">Lance-toi dans la monétisation TikTok en moins de 21 jours.</p>
+        <a class="btn btn-gold" href="#offres">Rejoindre <span aria-hidden="true">↓</span></a>
       </div>
-      <div class="hero-visual">
-        <img class="shot" src="img/resultat-video.jpg" alt="Capture des statistiques d'une vidéo TikTok" />
-        <img class="mascot" src="img/wow.png" alt="" />
+      <div class="win vsl reveal" data-vsl>
+        <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="bar-title">Creato TikTok Élite — Présentation</span><span></span></div>
+        <div class="video"></div>
       </div>
     </section>
 
-    <section class="block" id="programme">
-      <div class="wrap">
-        <h2>Ce que tu vas faire</h2>
-        <p class="sub">Des modules de 5 minutes, puis de la pratique. Pas de longues vidéos que tu ne finis jamais.</p>
-        <div class="grid three">
-          <div class="card"><span class="num">1</span><h3>Les bases</h3><p>Comprendre la monétisation TikTok, monter tes vidéos (cuts, voix off, rythme) et écrire des scripts qui retiennent.</p></div>
-          <div class="card"><span class="num">2</span><h3>Ton positionnement</h3><p>Choisir ta niche, ton pays cible et ta méthode pour atteindre les 10 000 abonnés. Un choix clair, pour ne plus hésiter.</p></div>
-          <div class="card"><span class="num">3</span><h3>Le coaching</h3><p>Un coach qui répond à tes questions, une flamme à garder en postant chaque jour, et un classement avec les autres membres.</p></div>
-        </div>
+    <!-- Résultats -->
+    <section class="section" id="resultats">
+      <div class="wrap heading reveal">
+        <p class="eyebrow">Résultats clients</p>
+        <h2>Ils sont passés de <span>l'idée aux résultats.</span></h2>
+        <p>Fais défiler les fenêtres pour découvrir leurs performances.</p>
+      </div>
+      <div class="results" data-results aria-label="Galerie des résultats clients"></div>
+      <p class="hint">← Fais glisser →</p>
+      <p class="disclaimer">Résultats partagés par des membres. Les performances varient selon le profil, le contenu et l'exécution.</p>
+    </section>
+
+    <!-- Offres -->
+    <section class="section wrap" id="offres">
+      <div class="heading reveal">
+        <p class="eyebrow">Offres</p>
+        <h2>Choisis ton <span>accompagnement.</span></h2>
+        <p>Accède à la solution qui correspond le mieux à ton niveau et à ton objectif.</p>
+      </div>
+      <div class="offers">
+        <article class="win offer featured reveal">
+          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="bar-title">01 — Formation complète</span><span></span></div>
+          <div class="content">
+            <span class="badge">Basic</span>
+            <h3>Formation <b>complète</b></h3>
+            <div class="divider"></div>
+            <ul class="features">
+              <li>Les meilleures techniques pour faire du contenu viral sur TikTok.</li>
+              <li>Les meilleures méthodes pour avoir les 10K abonnés rapidement.</li>
+              <li>Les meilleures niches du moment pour avoir le meilleur RPM.</li>
+              <li>Des appels groupés sur Discord pour répondre à tes problèmes et discuter.</li>
+              <li>Des challenges quotidiens pour récompenser les membres les plus actifs.</li>
+            </ul>
+            <div class="offer-bottom">
+              <div class="price" data-price></div>
+              <a class="btn btn-gold btn-block" data-pay="saspay" href="#">Payer par mobile money <span aria-hidden="true">→</span></a>
+              <a class="btn btn-ghost btn-block" data-pay="whop" href="#">Payer par carte bancaire</a>
+              <p class="pay-note">Après le paiement, tu arrives sur ta page d'accès.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="win offer reveal" data-coaching>
+          <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="bar-title">02 — Coaching privé</span><span></span></div>
+          <div class="content">
+            <span class="badge muted">Most popular</span>
+            <h3>Coaching <b>privé</b></h3>
+            <div class="divider"></div>
+            <ul class="features">
+              <li>Suivi personnalisé individuel.</li>
+              <li>Appels de coaching individuels tous les jours*.</li>
+              <li>Tutoriel personnalisé pour la niche de ton choix.</li>
+              <li>Compte livré à 5 000 abonnés et 500 000 vues déjà établis dans la niche de ton choix.</li>
+              <li>Suivi jusqu'à l'atteinte de l'objectif ou remboursement intégral.</li>
+              <li>Tout le contenu de la formation complète.</li>
+            </ul>
+            <p class="footnote">*Les coachings sont organisés en fonction de ta disponibilité personnelle.</p>
+            <div class="offer-bottom">
+              <div class="price" data-coaching-price></div>
+              <a class="btn btn-ghost btn-block" data-coaching-cta href="#">Places prises</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="win offer free reveal">
+          <div class="content">
+            <div>
+              <span class="badge">Free</span>
+              <h3>Discord <b>gratuit</b></h3>
+              <p style="margin-top:8px;color:var(--muted)">Rejoins la communauté et échange avec d'autres créateurs.</p>
+            </div>
+            <div class="offer-bottom">
+              <a class="btn btn-white" data-discord href="#" target="_blank" rel="noopener">Accéder au Discord gratuit <span aria-hidden="true">→</span></a>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
 
-    <section class="block">
-      <div class="wrap">
-        <h2>Des résultats de membres</h2>
-        <p class="sub">Les vraies statistiques de vidéos publiées par les membres.</p>
-        <div class="gallery">
-          <figure><img src="img/resultat-video.jpg" alt="Statistiques d'une vidéo : 634 000 vues" /><figcaption>634 000 vues sur une vidéo</figcaption></figure>
-          <figure class="placeholder">Photo de résultat à ajouter</figure>
-          <figure class="placeholder">Photo de résultat à ajouter</figure>
-          <figure class="placeholder">Photo de résultat à ajouter</figure>
-        </div>
+    <!-- Contact -->
+    <section class="section wrap narrow" id="contact">
+      <div class="heading reveal">
+        <p class="eyebrow">Me contacter</p>
+        <h2>Une question&nbsp;? <span>Écris-moi directement.</span></h2>
       </div>
-    </section>
-
-    <section class="block" id="offre">
-      <div class="wrap offer-wrap">
-        <div>
-          <h2>Rejoins Creato TikTok Élite</h2>
-          <p class="sub">Paie en mobile money, puis suis les 3 étapes d'accès : ton compte Whop, ton compte Discord et ton lien personnel.</p>
-          <div class="grid" style="margin-top:20px">
-            <div class="card"><span class="num">1</span><h3>Tu paies</h3><p>Mobile money ou carte, en quelques secondes.</p></div>
-            <div class="card"><span class="num">2</span><h3>Tu prépares tes comptes</h3><p>Whop et Discord, avec un guide pas à pas sur PC et téléphone.</p></div>
-            <div class="card"><span class="num">3</span><h3>Tu entres</h3><p>Ton lien d'accès personnel t'ouvre la formation et le Discord.</p></div>
+      <div class="win reveal">
+        <div class="contact">
+          <img src="img/contact-floh.jpg" alt="Photo de profil" data-fallback="round" />
+          <div>
+            <h3>Parlons de ton <span>projet.</span></h3>
+            <p>Tu as une question, besoin d'une précision ou tu veux simplement échanger ? Écris-moi directement sur Instagram.</p>
+            <a class="btn btn-gold" data-instagram href="#" target="_blank" rel="noopener">M'écrire sur Instagram <span aria-hidden="true">→</span></a>
           </div>
         </div>
-        <div class="offer">
-          <p class="eyebrow">Accompagnement</p>
-          <p class="price" style="margin-top:14px"><span data-price></span> <small data-period></small></p>
-          <ul class="checks">
-            <li>La formation complète sur Whop</li>
-            <li>L'accès au Discord des membres</li>
-            <li>Un coach qui te suit</li>
-            <li>Le classement et la communauté</li>
-          </ul>
-          <a class="btn btn-gold btn-block" data-pay="saspay" href="#">Payer par mobile money</a>
-          <a class="btn btn-ghost btn-block" data-pay="whop" href="#" style="margin-top:10px">Payer par carte bancaire</a>
-          <p class="pay-note">Paiement sécurisé. Après le paiement, tu arrives sur la page d'accès.</p>
-        </div>
       </div>
     </section>
 
-    <section class="block">
-      <div class="wrap narrow">
-        <h2>Questions fréquentes</h2>
-        <div style="margin-top:24px">
-          <details><summary>Je n'ai jamais fait de TikTok, c'est pour moi ?</summary><p>Oui. Tu commences par les bases (monétisation, montage, scripts) avant de choisir ta niche.</p></details>
-          <details><summary>Comment je paie ?</summary><p>Par mobile money (ou par carte bancaire). Le paiement prend quelques secondes.</p></details>
-          <details><summary>Que se passe-t-il après le paiement ?</summary><p>Tu arrives sur une page qui te guide : créer ton compte Whop, créer ton compte Discord, puis cliquer sur ton lien d'accès personnel.</p></details>
-          <details><summary>J'ai payé mais je n'ai pas accès.</summary><p><a href="#" data-support>Contacte-nous</a> avec la preuve de ton paiement : on règle ça vite.</p></details>
-        </div>
+    <!-- FAQ -->
+    <section class="section wrap narrow" id="faq">
+      <div class="heading reveal">
+        <p class="eyebrow">FAQ</p>
+        <h2>On nous a déjà <span>tout demandé.</span></h2>
+      </div>
+      <div class="win faq reveal">
+        <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="bar-title">Questions fréquentes — Creato</span><span></span></div>
+        <details><summary><span class="idx">01</span><span>Creato est-il adapté aux débutants ?</span><span class="plus">+</span></summary><p class="answer">Oui. Le parcours commence par les bases de la monétisation TikTok, puis avance progressivement vers la création de contenu, la croissance, l'analyse des données et le retrait des revenus.</p></details>
+        <details><summary><span class="idx">02</span><span>Dois-je déjà avoir 10 000 abonnés ?</span><span class="plus">+</span></summary><p class="answer">Non. La formation présente justement les méthodes permettant de construire une audience et de viser le seuil requis, tout en développant une stratégie de contenu cohérente.</p></details>
+        <details><summary><span class="idx">03</span><span>Comment je paie ?</span><span class="plus">+</span></summary><p class="answer">Par mobile money (SasPay) ou par carte bancaire (Whop). Après un paiement mobile money, une page te guide pour créer tes comptes Whop et Discord, puis te donne ton lien d'accès personnel.</p></details>
+        <details><summary><span class="idx">04</span><span>Puis-je vraiment me lancer en moins de 21 jours ?</span><span class="plus">+</span></summary><p class="answer">Le parcours est structuré pour te permettre de mettre en place les fondations de ton projet en moins de 21 jours si tu appliques les étapes avec régularité. L'éligibilité et les résultats restent néanmoins propres à chaque profil.</p></details>
+        <details><summary><span class="idx">05</span><span>Les revenus sont-ils garantis ?</span><span class="plus">+</span></summary><p class="answer">Non. Creato apporte une méthode, des outils et un accompagnement, mais les résultats dépendent de ton exécution, de la qualité de tes contenus et des conditions d'éligibilité fixées par TikTok.</p></details>
+        <details><summary><span class="idx">06</span><span>J'ai payé mais je n'ai pas accès.</span><span class="plus">+</span></summary><p class="answer">Écris-moi sur Instagram avec la preuve de ton paiement : on règle ça rapidement.</p></details>
       </div>
     </section>
   </main>
 
-  <footer>
-    <div class="wrap">© <span id="y"></span> Creato · <a href="#" data-support>Contact</a></div>
-  </footer>
-
+  <footer>© <span id="y"></span> Creato</footer>
   <script src="main.js"></script>
 </body>
 </html>

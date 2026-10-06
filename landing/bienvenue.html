@@ -8,7 +8,7 @@
   <link rel="icon" href="img/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script src="config.js"></script>
 </head>
@@ -24,14 +24,16 @@
         <h1>Merci, ton paiement est reçu&nbsp;!</h1>
       </div>
     </div>
-    <p class="sub" style="margin-top:14px;color:var(--muted);font-size:17px">
-      <b style="color:var(--text)">Avant de rejoindre, tu dois absolument faire ceci.</b> Trois étapes, environ 5 minutes.
+    <p class="lead-b">
+      <b>Avant de rejoindre, tu dois absolument faire ceci.</b> Trois étapes, environ 5 minutes.
       Garde cette page ouverte jusqu'au bout.
     </p>
     <div class="steps-progress" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
 
     <!-- Étape 1 : Whop -->
-    <section class="step" data-step="1">
+    <section class="win step" data-step="1">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="bar-title">étape-1 — compte Whop</span><span></span></div>
+      <div class="content">
       <div class="step-head">
         <span class="num">1</span>
         <div>
@@ -62,10 +64,13 @@
         </ol>
       </div>
       <label class="confirm"><input type="checkbox" id="ok-whop" /> J'ai créé mon compte Whop</label>
+      </div>
     </section>
 
     <!-- Étape 2 : Discord -->
-    <section class="step" data-step="2">
+    <section class="win step" data-step="2">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="bar-title">étape-2 — compte Discord</span><span></span></div>
+      <div class="content">
       <div class="step-head">
         <span class="num">2</span>
         <div>
@@ -96,10 +101,13 @@
         </ol>
       </div>
       <label class="confirm"><input type="checkbox" id="ok-discord" /> J'ai mon compte Discord</label>
+      </div>
     </section>
 
     <!-- Étape 3 : lien d'accès -->
-    <section class="step" data-step="3">
+    <section class="win step" data-step="3">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="bar-title">étape-3 — lien d'accès</span><span></span></div>
+      <div class="content">
       <div class="step-head">
         <span class="num">3</span>
         <div>
@@ -121,6 +129,7 @@
         </ul>
       </div>
       <label class="confirm"><input type="checkbox" id="ok-regles" /> J'ai compris : ce lien est à moi seul</label>
+      </div>
     </section>
 
     <div style="margin-top:24px">

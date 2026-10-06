@@ -5,17 +5,24 @@ window.CREATO = {
   //   https://creatoskills.site/bienvenue.html
   saspayUrl: "https://saspay.me/",
 
-  // Paiement par carte bancaire directement sur Whop (laisse "" pour cacher ce bouton).
-  whopCardUrl: "https://whop.com/meekyo/creato-tiktok-elite/",
+  // Paiement par carte directement sur Whop (laisse "" pour cacher ce bouton).
+  whopCardUrl: "https://whop.com/checkout/plan_1FlwZkp0RJiqP",
 
   // Lien d'accès donné après le paiement SasPay (étape 3 de la page « bienvenue »).
-  // Exemple : un lien Whop d'accès gratuit et caché vers le produit Creato TikTok Élite.
   accessUrl: "https://whop.com/meekyo/creato-tiktok-elite/",
 
-  // Prix affiché sur la page.
-  price: "XX 000 FCFA",
-  pricePeriod: "par mois",
+  // Prix de la formation complète.
+  price: "197 €",
+  // Prix du coaching privé, et s'il reste des places (true = bouton actif, false = « Places prises »).
+  coachingPrice: "797 €",
+  coachingUrl: "",
+  coachingOpen: false,
 
-  // Contact en cas de problème (lien Discord, WhatsApp, e-mail…).
-  supportUrl: "https://discord.com/",
+  // Vidéo de présentation YouTube (l'identifiant après « watch?v= »).
+  youtubeId: "9ucErR5eEH8",
+
+  // Discord gratuit, contact.
+  discordFreeUrl: "https://discord.gg/Cqgfm4SDWv",
+  instagramUrl: "https://www.instagram.com/flohustle24/",
+  supportUrl: "https://www.instagram.com/flohustle24/",
 };
