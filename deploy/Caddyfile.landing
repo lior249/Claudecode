@@ -1,0 +1,14 @@
+# Page TikTok Elite seule (l'application Creato est en pause). HTTPS automatique.
+{$DOMAIN} {
+	encode zstd gzip
+	root * /srv
+	@cache path /config.js /main.js /style.css /*.html /
+	header @cache Cache-Control "no-cache"
+	@hidden path /LISEZMOI.md
+	respond @hidden 404
+	file_server
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

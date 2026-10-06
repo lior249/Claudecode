@@ -8,3 +8,11 @@
 
 Police Helvetica, lettres serrées (−100 ≈ −0,1 em) sur le titre ; fond noir, jaune Creato.
 Dans SasPay, l'adresse de retour après paiement doit être : `https://creatoskills.site/merci.html`.
+
+## Mise en ligne (serveur /opt/creato)
+```
+cd /opt/creato && git pull && ./deploy/landing.sh
+```
+Met l'application Creato en pause (rien n'est effacé) et sert ce dossier sur https://creatoskills.site.
+Après une modification : `git pull` suffit (la page lit directement le dossier).
+Revenir à l'application : `docker rm -f creato-landing && docker compose up -d`.
