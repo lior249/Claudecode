@@ -1,18 +1,18 @@
 # Page TikTok Elite
 
-- `index.html` : l'image, « Rejoins le TikTok Elite » et deux boutons (carte, mobile money) qui mènent tous les deux au paiement SasPay ;
-- `merci.html` : retour de paiement (cercle qui devient vert, code à copier, bouton vers la communauté) ;
-- `config.js` : les seuls réglages à modifier (lien SasPay, prix, code, lien de la communauté) ;
-- `img/resultats/` : les captures de résultats (2 par ligne). Pour en ajouter : mets le fichier ici et ajoute son nom dans `results` de `config.js` ;
-- `img/tiktok-elite.avif` (+ copie `.jpg` pour les vieux navigateurs).
+- `index.html` : l'image, le titre, le prix, deux boutons (carte, mobile money) → nom + e-mail → paiement SasPay ;
+- `merci.html` : retour de paiement. Le serveur demande à SasPay si le paiement est réussi : vert + code seulement si `SUCCESS` ;
+- `server.mjs` : petit serveur sans dépendance (page + `/api/checkout`, `/api/status`, `/api/saspay/webhook`) ;
+- `config.js` : réglages publics (prix affiché, liste des captures) ;
+- `img/resultats/` : les captures de résultats (2 par ligne). Pour en ajouter : mets le fichier ici et ajoute son nom dans `results` de `config.js`.
 
-Police Helvetica, lettres serrées (−100 ≈ −0,1 em) sur le titre ; fond noir, jaune Creato.
-Dans SasPay, l'adresse de retour après paiement doit être : `https://creatoskills.site/merci.html`.
+Les secrets (clé SasPay, secret du webhook, montant facturé, code d'accès, lien de la communauté) sont dans
+`/opt/creato/landing.env` sur le serveur (modèle : `deploy/landing.env.example`), jamais dans le dépôt.
 
 ## Mise en ligne (serveur /opt/creato)
 ```
 cd /opt/creato && git pull && ./deploy/landing.sh
 ```
-Met l'application Creato en pause (rien n'est effacé) et sert ce dossier sur https://creatoskills.site.
-Après une modification : `git pull` suffit (la page lit directement le dossier).
-Revenir à l'application : `docker rm -f creato-landing && docker compose up -d`.
+Webhook à créer dans SasPay : `https://creatoskills.site/api/saspay/webhook` (événement `transaction.success`).
+Paiements réussis : `docker exec landing-app cat /data/paiements.jsonl`.
+Revenir à l'application : `docker rm -f creato-landing landing-app && docker compose up -d`.

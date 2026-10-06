@@ -1,12 +1,8 @@
-# Page TikTok Elite seule (l'application Creato est en pause). HTTPS automatique.
+# Page TikTok Elite (l'application Creato est en pause). HTTPS automatique.
+# Le petit serveur Node (landing/server.mjs) sert la page et vérifie les paiements SasPay.
 {$DOMAIN} {
 	encode zstd gzip
-	root * /srv
-	@cache path /config.js /main.js /style.css /*.html /
-	header @cache Cache-Control "no-cache"
-	@hidden path /LISEZMOI.md
-	respond @hidden 404
-	file_server
+	reverse_proxy landing-app:8080
 }
 
 www.{$DOMAIN} {

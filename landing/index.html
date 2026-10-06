@@ -23,6 +23,13 @@
       <a class="btn btn-outline" data-pay href="#">Payer par mobile money</a>
       <span class="ring" role="status" aria-label="Redirection vers le paiement…"></span>
     </div>
+    <form class="pay-form" data-pay-form hidden novalidate>
+      <label>Ton nom<input name="name" autocomplete="name" required minlength="2" maxlength="80" placeholder="Prénom Nom" /></label>
+      <label>Ton e-mail<input name="email" type="email" autocomplete="email" required maxlength="120" placeholder="toi@exemple.com" /></label>
+      <button class="btn btn-gold" type="submit">Continuer vers le paiement</button>
+      <p class="form-error" data-pay-error role="alert"></p>
+      <button class="link" type="button" data-pay-back>Retour</button>
+    </form>
     </div>
     <section class="results" data-results aria-label="Résultats de membres"></section>
   </main>
