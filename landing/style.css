@@ -16,11 +16,11 @@
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--bg); color: var(--text); font-family: "Poppins", system-ui, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 img { display: block; max-width: 100%; }
 a { color: inherit; }
 h1, h2, h3, p { margin: 0; }
-h1, h2, h3 { line-height: 1.1; text-wrap: balance; }
+h1, h2, h3 { line-height: 1.05; text-wrap: balance; letter-spacing: -0.1em; }
 p { text-wrap: pretty; }
 .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 18px; }
 .narrow { max-width: 720px; }
@@ -41,7 +41,7 @@ p { text-wrap: pretty; }
 .logo span { font-family: Helvetica, Arial, sans-serif; font-weight: 700; font-size: 25px; letter-spacing: -0.1em; }
 
 .eyebrow { color: var(--gold); font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 999px; padding: 15px 28px; font: 600 16px/1.2 "Poppins", sans-serif; text-decoration: none; cursor: pointer; transition: transform .15s ease; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 999px; padding: 15px 28px; font: 700 17px/1.2 "Helvetica Neue", Helvetica, Arial, sans-serif; letter-spacing: -0.04em; text-decoration: none; cursor: pointer; transition: transform .15s ease; }
 .btn:hover { transform: translateY(-1px); }
 .btn-gold { background: var(--gold); color: #000; box-shadow: 0 10px 40px -10px rgba(245,179,1,.6); }
 .btn-white { background: #fff; color: #000; }
@@ -168,7 +168,7 @@ footer { padding: 36px 0 52px; text-align: center; color: #6e6e73; font-size: 13
 .step h2 { font-size: 21px; font-weight: 700; }
 .why { margin-top: 4px; color: var(--muted); font-size: 15px; }
 .tabs { display: inline-flex; gap: 4px; padding: 4px; margin: 18px 0 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; }
-.tabs button { border: 0; background: none; color: var(--muted); font: 500 15px "Poppins", sans-serif; padding: 8px 16px; border-radius: 10px; cursor: pointer; }
+.tabs button { border: 0; background: none; color: var(--muted); font: 500 15px "Helvetica Neue", Helvetica, Arial, sans-serif; padding: 8px 16px; border-radius: 10px; cursor: pointer; }
 .tabs button[aria-selected="true"] { background: var(--card-2); color: var(--text); font-weight: 600; }
 ol.howto { margin: 0; padding-left: 22px; display: grid; gap: 8px; color: #d1d1d6; }
 ol.howto li::marker { color: var(--gold); font-weight: 700; }
@@ -180,3 +180,13 @@ ol.howto b { color: var(--text); }
 .warn b { color: var(--danger); }
 .warn ul { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 4px; color: #e5e5ea; }
 .locked-hint { margin-top: 10px; text-align: center; color: var(--muted); font-size: 14px; }
+
+/* Page d'inscription : une image, un titre, deux boutons. */
+.join { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 18px; }
+.join-card { width: 100%; max-width: 560px; text-align: center; }
+.join .thumb { width: 100%; height: auto; border-radius: 20px; border: 1px solid var(--line); box-shadow: 0 30px 80px -30px rgba(245,179,1,.35); }
+.join h1 { margin-top: 28px; font-size: clamp(36px, 9vw, 60px); font-weight: 700; }
+.join-buttons { display: grid; gap: 12px; margin-top: 28px; }
+.join .btn { width: 100%; padding: 18px 24px; border-radius: 16px; font-size: 18px; }
+.btn-outline { background: transparent; color: var(--gold); border: 2px solid var(--gold); }
+@media (min-width: 640px) { .join-buttons { grid-template-columns: 1fr 1fr; } }
