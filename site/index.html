@@ -25,8 +25,8 @@
           referrerpolicy="strict-origin-when-cross-origin"
           allowfullscreen></iframe>
       </div>
-      <p class="accroche">Lance-toi dans la monétisation TikTok en moins de 21 jours.<br>Réserve un appel : on regarde ensemble ton niveau et ton objectif.</p>
-      <a class="bouton" href="#reservation">Je réserve mon appel</a>
+      <a class="bouton" href="#rejoindre">Je veux rejoindre maintenant</a>
+      <p class="accroche">Lance-toi dans la monétisation TikTok en moins de 21 jours.</p>
       <a class="descendre" href="#resultats" aria-label="Voir les résultats">
         <svg viewBox="0 0 48 52" aria-hidden="true"><path class="hexa" d="M24 1.5 45.5 14v24L24 50.5 2.5 38V14Z"/><path d="m18 20 6 6 6-6M18 27l6 6 6-6"/></svg>
       </a>
@@ -78,7 +78,7 @@
           <li>Tu veux être accompagné au lieu d’avancer seul ;</li>
           <li>Tu es prêt à appliquer la méthode avec régularité.</li>
         </ul>
-        <a class="bouton" href="#reservation">Je réserve mon appel</a>
+        <a class="bouton" href="#rejoindre">Je veux rejoindre maintenant</a>
       </div>
     </section>
 
@@ -94,46 +94,32 @@
         <details><summary>Que contient exactement l’accompagnement ?</summary><p>Tu accèdes à la formation vidéo, à la communauté Discord privée, à un coaching personnalisé et aux lives de coaching. Des ressources complémentaires, dont plus de 70 niches organisées, sont aussi incluses.</p></details>
         <details><summary>Puis-je vraiment me lancer en moins de 21 jours ?</summary><p>Le parcours est construit pour te permettre de poser les fondations de ton projet en moins de 21 jours si tu appliques les étapes avec régularité. L’éligibilité et les résultats restent propres à chaque profil.</p></details>
         <details><summary>Les revenus sont-ils garantis ?</summary><p>Non. Creato apporte une méthode, des outils et un accompagnement, mais les résultats dépendent de ton exécution, de la qualité de tes contenus et des conditions d’éligibilité fixées par TikTok.</p></details>
-        <details><summary>Comment rejoindre Creato ?</summary><p>Réserve un appel juste en dessous. On fait le point sur ton niveau et ton objectif, puis on te propose l’accompagnement le plus adapté à ta situation.</p></details>
+        <details><summary>Comment rejoindre Creato ?</summary><p>Choisis ton moyen de paiement juste en dessous : carte bancaire ou mobile money. Dès que le paiement est confirmé, tu reçois ton code d’accès et le lien pour rejoindre la communauté.</p></details>
       </div>
     </section>
 
-    <!-- 5. Réservation d'un appel -->
-    <section class="reservation conteneur" id="reservation">
+    <!-- 5. Rejoindre : paiement par carte (Maketou) ou mobile money (SasPay) -->
+    <section class="rejoindre conteneur" id="rejoindre">
       <div class="entete apparait">
-        <p class="surtitre">Réservation</p>
-        <h2>Réserve ton appel.</h2>
-        <p>Choisis un jour et une heure, puis préviens-moi sur Instagram : c’est là que je te recontacte.</p>
+        <p class="surtitre">Rejoindre</p>
+        <h2>Rejoins Creato.</h2>
+        <p>Choisis ton moyen de paiement. Dès que le paiement est confirmé, tu reçois ton code d’accès.</p>
       </div>
-      <div class="agenda apparait" data-agenda>
-        <p class="agenda-etat" data-etat role="status">Chargement des créneaux…</p>
-
-        <div data-choix hidden>
-          <p class="etape"><span>1</span>Choisis un jour</p>
-          <div class="jours" data-jours role="listbox" aria-label="Jours disponibles"></div>
-          <p class="etape"><span>2</span>Choisis une heure</p>
-          <div class="heures" data-heures></div>
-          <p class="fuseau" data-fuseau></p>
-          <p class="erreur" data-alerte role="alert"></p>
+      <div class="paiement apparait" data-paiement>
+        <p class="prix">120 €</p>
+        <div class="moyens" data-moyens>
+          <button class="bouton" type="button" data-moyen="carte">Payer par carte</button>
+          <button class="bouton bouton-contour" type="button" data-moyen="mobile">Payer par mobile money</button>
         </div>
-
         <form class="formulaire" data-formulaire hidden novalidate>
-          <p class="etape"><span>3</span>Tes coordonnées</p>
-          <p class="recap" data-recap></p>
-          <label>Ton nom<input name="nom" autocomplete="name" required minlength="2" maxlength="60" placeholder="Prénom Nom"></label>
-          <label>Ton pseudo Instagram<span class="champ-insta"><span aria-hidden="true">@</span><input name="instagram" autocomplete="off" autocapitalize="off" spellcheck="false" required maxlength="80" placeholder="tonpseudo"></span></label>
-          <label class="piege" aria-hidden="true">Site<input name="site" tabindex="-1" autocomplete="off"></label>
-          <button class="bouton" type="submit">Je réserve ce créneau</button>
+          <p class="recap" data-moyen-choisi></p>
+          <label>Ton prénom<input name="firstName" autocomplete="given-name" required maxlength="40" placeholder="Prénom"></label>
+          <label>Ton nom<input name="lastName" autocomplete="family-name" required maxlength="40" placeholder="Nom"></label>
+          <label>Ton e-mail<input name="email" type="email" autocomplete="email" required maxlength="120" placeholder="toi@exemple.com"></label>
+          <button class="bouton" type="submit">Continuer vers le paiement</button>
           <p class="erreur" data-erreur role="alert"></p>
+          <button class="lien" type="button" data-retour>Changer de moyen de paiement</button>
         </form>
-
-        <div class="confirmation" data-confirmation hidden>
-          <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="m15 27 7 7 15-16"/></svg>
-          <h3>Ton appel est réservé !</h3>
-          <p data-confirmation-texte></p>
-          <p class="consigne">Dernière étape : <strong>abonne-toi à mon compte Instagram et écris-moi</strong> pour me prévenir de ta réservation. C’est là que je te recontacte pour l’appel.</p>
-          <a class="bouton" href="https://www.instagram.com/flohustle24/" target="_blank" rel="noopener noreferrer">Je t’écris sur Instagram</a>
-        </div>
       </div>
     </section>
   </main>

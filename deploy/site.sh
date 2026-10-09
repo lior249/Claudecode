@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Met en ligne le site Creato (page principale, page de paiement, réservations) sur ce serveur, en HTTPS.
+# Met en ligne le site Creato (page principale et page de paiement) sur ce serveur, en HTTPS.
 # Usage (dans /opt/creato-site) : ./deploy/site.sh   — à relancer après chaque mise à jour (git pull) ou modification de site.env.
 # Remplace la page TikTok Elite seule (conteneurs landing-app et creato-landing). Rien n'est effacé.
 # Revenir à l'ancienne page : docker rm -f creato-site creato-https && cd /opt/creato && ./deploy/landing.sh
@@ -25,9 +25,7 @@ if [ ! -f site.env ]; then
   exit 0
 fi
 rempli() { grep -Eq "^$1=(\"[^\"]+\"|[^\"[:space:]]+)" site.env; }
-if ! rempli DISCORD_WEBHOOK_URL && ! { rempli DISCORD_BOT_TOKEN && rempli DISCORD_USER_ID; }; then
-  echo "⚠️  Discord n'est pas réglé : les réservations d'appel seront fermées."
-fi
+rempli DISCORD_WEBHOOK_URL || echo "ℹ️  DISCORD_WEBHOOK_URL est vide : pas de message Discord à chaque paiement (le site marche quand même)."
 rempli MAKETOU_API_KEY || echo "⚠️  MAKETOU_API_KEY est vide : le paiement par carte sera fermé."
 rempli SASPAY_API_KEY || echo "⚠️  SASPAY_API_KEY est vide : le paiement par mobile money sera fermé."
 { rempli ACCESS_CODE && rempli COMMUNITY_URL; } || echo "⚠️  ACCESS_CODE ou COMMUNITY_URL est vide : les deux paiements seront fermés."

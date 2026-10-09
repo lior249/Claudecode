@@ -9,7 +9,7 @@ test("écrit, lit, liste par préfixe et efface", async () => {
   assert.equal(await s.get("sessions/a", { type: "json" }), null);
   await s.setJSON("sessions/a", { x: 1 });
   await s.setJSON("sessions/b", { x: 2 });
-  await s.set("creneaux/2026-10-12T08-30-00-000Z", "{}");
+  await s.set("webhooks/2026-10-12T08-30-00-000Z", "{}");
   assert.deepEqual(await s.get("sessions/a", { type: "json" }), { x: 1 });
   assert.deepEqual((await s.list({ prefix: "sessions/" })).blobs.map((b) => b.key), ["sessions/a", "sessions/b"]);
   assert.deepEqual((await s.list({ prefix: "rien/" })).blobs, []);

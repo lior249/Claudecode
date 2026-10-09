@@ -8,15 +8,14 @@ Projet repris depuis zéro.
 ## Site Creato (creatoskills.site)
 
 Pages (`site/`) :
-- `/` : vidéo, résultats clients, « Pour qui ? », FAQ, réservation d'un appel, puis renvoi vers Instagram ;
-- `/paiement/` : page TikTok Elite (lien envoyé après l'appel, aucun lien depuis `/`).
-  Carte bancaire → Maketou, mobile money → SasPay ; code d'accès et lien de la communauté après paiement confirmé.
+- `/` : vidéo, bouton « Je veux rejoindre maintenant », résultats clients, « Pour qui ? », FAQ, puis paiement ;
+- `/paiement/` : page TikTok Elite (même paiement, autre présentation) ; `/paiement/merci.html` : validation et code.
+Carte bancaire → Maketou, mobile money → SasPay ; code d'accès et lien de la communauté après paiement confirmé.
 
 Serveur : `serveur.mjs` (Node 22, aucune dépendance) sert `site/` et l'API :
-- `/api/creneaux`, `/api/reserver` : réservation d'appels (jours, heures, durée : `lib/agenda.mjs`) ;
 - `/api/checkout`, `/api/status`, `/api/saspay/webhook` : paiements (Maketou : https://docs-api.maketou.com) ;
 - `/api/sante` : quels services sont actifs (aucun secret).
-Données dans `DATA_DIR` (`lib/stockage.mjs`, un fichier JSON par réservation ou paiement).
+Données dans `DATA_DIR` (`lib/stockage.mjs`, un fichier JSON par paiement).
 
 ### Mise en ligne sur le serveur
 
@@ -26,7 +25,7 @@ Première fois (connecté au serveur en `ssh root@<IP>`) :
 ```
 git clone -b claude/laughing-wright-igl9h0 https://github.com/lior249/Claudecode.git /opt/creato-site
 cd /opt/creato-site && ./deploy/site.sh     # crée seulement site.env (reprend /opt/creato/landing.env)
-nano site.env                               # ajoute MAKETOU_API_KEY, Discord, etc.
+nano site.env                               # ajoute MAKETOU_API_KEY, le nouveau ACCESS_CODE, Discord
 ./deploy/site.sh                            # relance avec les réglages
 ```
 Mise à jour : `cd /opt/creato-site && git pull && ./deploy/site.sh`.

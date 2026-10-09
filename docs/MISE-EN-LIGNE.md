@@ -24,12 +24,13 @@ L'ancienne clé a été envoyée dans une conversation : on la remplace.
 4. **Copie la clé** et colle-la dans un bloc-notes de ton ordinateur (elle ne s'affiche qu'une seule fois).
    Tu la colleras sur le serveur à l'étape 5, puis tu effaceras le bloc-notes.
 
-## Étape 3 — Créer le webhook Discord (3 min)
+## Étape 3 — Créer le webhook Discord (3 min, conseillé)
 
-C'est l'adresse qui permet au site d'écrire dans un salon Discord à chaque réservation et à chaque paiement.
+C'est l'adresse qui permet au site d'écrire dans un salon Discord à chaque paiement réussi.
+Sans elle, le site marche quand même, mais tu ne seras pas prévenu.
 
 1. Ouvre Discord **sur ordinateur** et va sur ton serveur.
-2. Choisis le salon où tu veux recevoir les messages (de préférence un salon privé, par exemple `#réservations`).
+2. Choisis le salon où tu veux recevoir les messages (de préférence un salon privé, par exemple `#paiements`).
 3. Passe la souris sur le nom du salon et clique sur la **roue dentée** (« Modifier le salon »).
 4. Clique sur **Intégrations**, puis sur **Webhooks**, puis sur **Nouveau webhook**.
 5. Clique sur le webhook créé, donne-lui le nom `Creato`, puis clique sur **Copier l'URL du webhook**.
@@ -108,7 +109,7 @@ Exemple de ligne remplie : `MAKETOU_API_KEY="msk_xxxxxxxx…"`
 
 Vérifie aussi que ces lignes ne sont **pas vides** (elles ont été reprises de l'ancienne page) :
 `SASPAY_API_KEY`, `SASPAY_WEBHOOK_SECRET`, `COMMUNITY_URL`.
-Laisse `DISCORD_BOT_TOKEN` et `DISCORD_USER_ID` vides.
+Si tu vois des lignes `DISCORD_BOT_TOKEN` ou `DISCORD_USER_ID`, laisse-les vides : elles ne servent plus.
 
 Pour enregistrer et quitter :
 1. **Ctrl + O**, puis **Entrée** (enregistre).
@@ -118,6 +119,11 @@ Tu peux maintenant effacer ton bloc-notes.
 
 ### 5.7 Mettre le site en ligne
 
+Récupère d'abord la dernière version du code :
+```
+git pull
+```
+Puis :
 ```
 ./deploy/site.sh
 ```
@@ -125,13 +131,14 @@ Attends environ 30 secondes. ✅ Tu dois voir :
 ```
 ▶ Démarrage du site sur https://creatoskills.site …
 Site Creato sur le port 8080
-  réservations : actif
   carte (Maketou) : actif
   mobile money (SasPay) : actif
-{"ok":true,"reservations":true,"carte":true,"mobileMoney":true}
+  message Discord à chaque paiement : actif
+{"ok":true,"carte":true,"mobileMoney":true,"discord":true}
 ✅ Le site est en ligne : https://creatoskills.site  (paiement : https://creatoskills.site/paiement/)
 ```
 - Si une ligne commence par **⚠️** ou dit **fermé** : le réglage indiqué est vide → refais l'étape 5.6, puis 5.7.
+- Si une ligne commence par **ℹ️** ou dit **non réglé** : c'est seulement le message Discord (étape 3), le site marche.
 - Si tu vois **⏳** : attends une minute et ouvre le site. Si rien ne s'affiche, tape `docker logs creato-site --tail 30`
   et envoie-moi une capture d'écran (ces lignes ne contiennent aucun secret).
 
@@ -142,20 +149,13 @@ Pour te déconnecter du serveur : tape `exit`, puis **Entrée**.
 ## Étape 6 — Vérifier que tout marche (5 min, sur ton téléphone)
 
 1. **Page principale** : ouvre <https://creatoskills.site>. Tu dois voir la nouvelle page (vidéo, résultats, FAQ…).
-2. **Réservation** : en bas de la page, réserve un appel avec ton nom et ton Instagram.
-   ✅ Un message « Nouvelle réservation d'appel » arrive dans ton salon Discord en quelques secondes.
-3. **Paiement par carte** : ouvre <https://creatoskills.site/paiement>, clique **Je paye par carte**, remplis
-   prénom, nom, e-mail, puis **Continuer vers le paiement**.
+2. **Bouton sous la vidéo** : touche **Je veux rejoindre maintenant**. ✅ La page descend jusqu'au prix (120 €)
+   et aux deux boutons de paiement.
+3. **Paiement par carte** : touche **Payer par carte**, remplis prénom, nom, e-mail, puis **Continuer vers le paiement**.
    ✅ La page Maketou s'ouvre avec ton produit à 78 715 FCFA. Tu peux fermer sans payer.
 4. **Paiement mobile money** : même chose avec **Payer par mobile money**. ✅ La page SasPay s'ouvre.
 5. *(Conseillé)* Fais un vrai paiement : après le paiement, tu reviens sur la page « Paiement validé » avec le code,
    et un message « Nouveau paiement TikTok Elite » arrive sur Discord.
-
-Ta réservation de test bloque un créneau. Pour la retirer, **juste après ton test** (cette commande efface
-**toutes** les réservations, donc seulement tant que personne d'autre n'a réservé) : reconnecte-toi (étape 5.3), puis
-```
-docker exec creato-site sh -c 'rm -f /data/reservations/creneaux/*'
-```
 
 Rien à changer dans SasPay : l'adresse du webhook reste `https://creatoskills.site/api/saspay/webhook`.
 

@@ -15,6 +15,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -74,7 +75,7 @@ h2 { margin: 0; font-size: clamp(26px, 4.4vw, 38px); line-height: 1.15; }
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 .bouton:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px #19e3f099, 0 14px 40px #19e3f066, 0 0 80px #19e3f040; }
-.bouton:focus-visible, .jours button:focus-visible, .heures button:focus-visible, summary:focus-visible { outline: 2px solid var(--vert); outline-offset: 3px; }
+.bouton:focus-visible, .lien:focus-visible, summary:focus-visible { outline: 2px solid var(--vert); outline-offset: 3px; }
 .bouton:disabled { opacity: 0.6; cursor: progress; transform: none; }
 
 /* ----- 1. Haut de page ----- */
@@ -107,7 +108,8 @@ h2 { margin: 0; font-size: clamp(26px, 4.4vw, 38px); line-height: 1.15; }
 }
 .video iframe { display: block; width: 100%; height: 100%; border: 0; }
 .accroche { max-width: 520px; margin: 26px 0 0; color: #d4dce1; font-size: 15px; line-height: 1.6; }
-.hero .bouton { margin-top: 26px; }
+.hero .bouton { margin-top: 24px; }
+.hero .accroche { margin-top: 20px; }
 .descendre { margin-top: 44px; color: var(--cyan); }
 .descendre svg { width: 40px; height: 44px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .descendre .hexa { stroke-width: 1.4; opacity: 0.55; }
@@ -222,43 +224,25 @@ h2 { margin: 0; font-size: clamp(26px, 4.4vw, 38px); line-height: 1.15; }
 .faq details[open] summary::after { background: linear-gradient(var(--cyan), var(--cyan)) center / 10px 2px no-repeat; transform: translateY(-50%) rotate(180deg); }
 .faq details p { margin: 0; padding: 0 44px 22px 0; color: var(--gris); font-size: 15px; }
 
-/* ----- 5. Réservation ----- */
-.reservation { padding: 40px 0 110px; }
-.agenda {
-  max-width: 640px;
+/* ----- 5. Rejoindre (paiement) ----- */
+.rejoindre { padding: 40px 0 110px; }
+.paiement {
+  max-width: 520px;
   margin: 40px auto 0;
-  padding: 28px;
+  padding: 30px 28px;
   border: 1px solid #19e3f033;
   border-radius: 14px;
   background: linear-gradient(180deg, #111b23, #0c1319);
   box-shadow: 0 0 60px #19e3f014, 0 30px 70px #00000080;
+  text-align: center;
 }
-.agenda-etat { margin: 0; color: var(--gris); text-align: center; }
-.agenda-etat a { color: var(--cyan); }
-.etape { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-weight: 600; }
-.etape span { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 999px; background: var(--cyan-sombre); color: var(--cyan); font-size: 12px; }
-.jours { display: flex; gap: 8px; margin: 0 -28px 24px; padding: 0 28px 6px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; }
-.jours::-webkit-scrollbar { display: none; }
-.jours button, .heures button {
-  border: 1px solid var(--trait);
-  border-radius: 8px;
-  background: #0f171e;
-  color: var(--texte);
-  font-family: var(--corps);
-  cursor: pointer;
-  transition: border-color 140ms ease, background 140ms ease;
-}
-.jours button { flex: 0 0 auto; min-width: 74px; padding: 10px 12px; scroll-snap-align: start; text-align: center; }
-.jours button b { display: block; font-size: 12px; font-weight: 500; color: var(--gris); text-transform: capitalize; }
-.jours button span { display: block; margin-top: 2px; font-size: 16px; font-weight: 600; }
-.heures { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
-.heures button { min-height: 44px; font-size: 15px; font-weight: 600; }
-.jours button:hover, .heures button:hover { border-color: #19e3f080; }
-.jours button[aria-selected="true"], .heures button[aria-pressed="true"] { border-color: var(--cyan); background: var(--cyan-sombre); color: #d8fbfe; }
-.jours button[aria-selected="true"] b { color: #9eeef5; }
-.fuseau { margin: 14px 0 0; color: var(--gris-2); font-size: 12px; }
-.formulaire { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--trait); }
-.recap { margin: 0 0 16px; color: #bdf6fb; font-weight: 600; }
+.prix { margin: 0 0 22px; font-family: var(--titre); font-size: 44px; font-weight: 700; letter-spacing: -0.03em; }
+.moyens { display: grid; gap: 12px; }
+.moyens .bouton { width: 100%; }
+.bouton-contour { background: transparent; color: var(--cyan); box-shadow: inset 0 0 0 1.5px var(--cyan); }
+.bouton-contour:hover { background: var(--cyan-sombre); box-shadow: inset 0 0 0 1.5px var(--cyan), 0 10px 34px #19e3f033; }
+.formulaire { text-align: left; }
+.recap { margin: 0 0 16px; color: #bdf6fb; font-weight: 600; text-align: center; }
 .formulaire label { display: block; margin-bottom: 14px; color: var(--gris); font-size: 13px; font-weight: 500; }
 .formulaire input {
   display: block;
@@ -274,19 +258,10 @@ h2 { margin: 0; font-size: clamp(26px, 4.4vw, 38px); line-height: 1.15; }
   font-size: 16px;
 }
 .formulaire input:focus { border-color: var(--cyan); outline: none; box-shadow: 0 0 0 3px #19e3f026; }
-.champ-insta { position: relative; display: block; }
-.champ-insta > span { position: absolute; top: 50%; left: 14px; margin-top: 3px; color: var(--gris); font-size: 16px; transform: translateY(-50%); }
-.champ-insta input { padding-left: 32px; }
-.piege { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .formulaire .bouton { width: 100%; margin-top: 6px; }
 .erreur { min-height: 1.5em; margin: 12px 0 0; color: #ff8a8a; font-size: 14px; text-align: center; }
-[data-alerte]:empty { min-height: 0; margin: 0; }
-.confirmation { text-align: center; }
-.confirmation svg { width: 64px; height: 64px; fill: none; stroke: var(--cyan); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 10px #19e3f080); }
-.confirmation h3 { margin: 14px 0 6px; font-size: 24px; }
-.confirmation p { margin: 0; color: #d4dce1; }
-.confirmation .consigne { margin: 18px 0 22px; padding: 14px 16px; border: 1px solid #19e3f040; border-radius: 10px; background: var(--cyan-sombre); color: #d8fbfe; font-size: 15px; }
-.confirmation .consigne strong { color: #fff; }
+.lien { display: block; margin: 4px auto 0; border: 0; background: none; color: var(--gris); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
+.lien:hover { color: var(--cyan); }
 
 /* ----- Pied de page ----- */
 .pied { display: flex; justify-content: space-between; gap: 16px; padding: 28px 0 40px; border-top: 1px solid var(--trait); color: var(--gris-2); font-size: 13px; }
@@ -327,8 +302,8 @@ h2 { margin: 0; font-size: clamp(26px, 4.4vw, 38px); line-height: 1.15; }
   .notif:nth-child(4) { display: none; }
   .faq { padding-bottom: 76px; }
   .faq summary { font-size: 16px; }
-  .agenda { padding: 22px 18px; }
-  .jours { margin-inline: -18px; padding-inline: 18px; }
+  .paiement { padding: 24px 18px; }
+  .prix { font-size: 38px; }
   .pied { flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {

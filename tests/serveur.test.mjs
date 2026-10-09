@@ -27,7 +27,10 @@ test("sert la page principale et la page de paiement", async () => {
   const accueil = await fetch(`${base}/`);
   assert.equal(accueil.status, 200);
   assert.match(accueil.headers.get("content-type"), /text\/html/);
-  assert.match(await accueil.text(), /Réserve ton appel/);
+  const html = await accueil.text();
+  assert.match(html, /Payer par carte/);
+  assert.match(html, /Payer par mobile money/);
+  assert.doesNotMatch(html, /\/paiement\//);
   const redir = await fetch(`${base}/paiement`, { redirect: "manual" });
   assert.equal(redir.status, 301);
   assert.equal(redir.headers.get("location"), "/paiement/");
@@ -42,12 +45,11 @@ test("ne sert rien en dehors du dossier site/", async () => {
   assert.equal((await fetch(`${base}/inexistant.html`)).status, 404);
 });
 
-test("API : créneaux, réservations fermées sans Discord, état des réglages", async () => {
-  const c = await (await fetch(`${base}/api/creneaux`)).json();
-  assert.ok(Array.isArray(c.creneaux) && c.creneaux.length > 0);
-  const r = await fetch(`${base}/api/reserver`, { method: "POST", body: JSON.stringify({ nom: "Jean", instagram: "jean", creneau: c.creneaux[0] }) });
+test("API : état des réglages, routes inconnues, paiement par carte fermé sans clé", async () => {
+  assert.deepEqual(await (await fetch(`${base}/api/sante`)).json(), { ok: true, carte: false, mobileMoney: true, discord: false });
+  assert.equal((await fetch(`${base}/api/creneaux`)).status, 404);
+  const r = await fetch(`${base}/api/checkout`, { method: "POST", body: JSON.stringify({ moyen: "carte", firstName: "A", lastName: "B", email: "a@b.co" }) });
   assert.equal(r.status, 503);
-  assert.deepEqual(await (await fetch(`${base}/api/sante`)).json(), { ok: true, reservations: false, carte: false, mobileMoney: true });
   assert.equal((await fetch(`${base}/api/inconnue`)).status, 404);
   assert.equal((await fetch(`${base}/api/status?s=pas-un-jeton`)).status, 404);
 });

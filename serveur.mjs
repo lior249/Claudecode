@@ -1,17 +1,15 @@
 // Serveur du site Creato (creatoskills.site) : les pages de site/ et l'API.
-//   /api/creneaux, /api/reserver            réservation d'un appel (message Discord)
 //   /api/checkout, /api/status               paiement : carte → Maketou, mobile money → SasPay
 //   /api/saspay/webhook                      notifications SasPay (signées)
 //   /api/sante                               état des réglages (sans aucun secret)
 // Aucune dépendance. Réglages lus dans un fichier .env (chemin SITE_ENV, défaut /run/site.env) ou l'environnement.
-// Données (réservations, paiements) dans DATA_DIR (défaut /data).
+// Données (paiements) dans DATA_DIR (défaut /data).
 import { createServer } from "node:http";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { discordConfigure } from "./lib/discord.mjs";
 import { creerPaiement, reglages, statutPaiement, webhookSaspay } from "./lib/paiement.mjs";
-import { listerCreneaux, reserver } from "./lib/reservations.mjs";
 import { ouvrirStockage } from "./lib/stockage.mjs";
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
@@ -86,7 +84,6 @@ async function envoyer(res, reponse) {
 }
 
 export function creerServeur({ racine = path.join(ICI, "site"), donnees = process.env.DATA_DIR ?? "/data", env = process.env } = {}) {
-  const reservations = ouvrirStockage(path.join(donnees, "reservations"));
   const paiements = ouvrirStockage(path.join(donnees, "paiements"));
   racine = path.resolve(racine);
 
@@ -99,14 +96,12 @@ export function creerServeur({ racine = path.join(ICI, "site"), donnees = proces
       const ip = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "").split(",")[0].trim();
       if (p.startsWith("/api/")) {
         const request = await versRequest(req, `http://localhost${req.url}`);
-        if (p === "/api/creneaux" && m === "GET") return await envoyer(res, await listerCreneaux(reservations));
-        if (p === "/api/reserver" && m === "POST") return await envoyer(res, await reserver(request, reservations, { env }));
         if (p === "/api/checkout" && m === "POST") return await envoyer(res, await creerPaiement(request, paiements, { env, ip }));
         if (p === "/api/status" && m === "GET") return await envoyer(res, await statutPaiement(request, paiements, { env }));
         if (p === "/api/saspay/webhook" && m === "POST") return await envoyer(res, await webhookSaspay(request, paiements, { env }));
         if (p === "/api/sante" && m === "GET") {
           const cfg = reglages(env);
-          return await envoyer(res, Response.json({ ok: true, reservations: discordConfigure(env), carte: !cfg.manquants.carte.length, mobileMoney: !cfg.manquants.mobile.length }));
+          return await envoyer(res, Response.json({ ok: true, carte: !cfg.manquants.carte.length, mobileMoney: !cfg.manquants.mobile.length, discord: discordConfigure(env) }));
         }
         return await envoyer(res, Response.json({ error: "Introuvable" }, { status: 404 }));
       }
@@ -131,8 +126,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const cfg = reglages();
     const etat = (ok) => (ok ? "actif" : "fermé (réglages manquants)");
     console.log(`Site Creato sur le port ${port}`);
-    console.log(`  réservations : ${etat(discordConfigure())}`);
     console.log(`  carte (Maketou) : ${etat(!cfg.manquants.carte.length)}${cfg.manquants.carte.length ? " — " + cfg.manquants.carte.join(", ") : ""}`);
     console.log(`  mobile money (SasPay) : ${etat(!cfg.manquants.mobile.length)}${cfg.manquants.mobile.length ? " — " + cfg.manquants.mobile.join(", ") : ""}`);
+    console.log(`  message Discord à chaque paiement : ${discordConfigure() ? "actif" : "non réglé"}`);
   });
 }
