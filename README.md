@@ -20,6 +20,8 @@ Données dans `DATA_DIR` (`lib/stockage.mjs`, un fichier JSON par réservation o
 
 ### Mise en ligne sur le serveur
 
+Guide pas à pas : `docs/MISE-EN-LIGNE.md`.
+
 Première fois (connecté au serveur en `ssh root@<IP>`) :
 ```
 git clone -b claude/laughing-wright-igl9h0 https://github.com/lior249/Claudecode.git /opt/creato-site
