@@ -285,6 +285,8 @@ h2 { margin: 0; font-size: clamp(26px, 4.4vw, 38px); line-height: 1.15; }
 .confirmation svg { width: 64px; height: 64px; fill: none; stroke: var(--cyan); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 10px #19e3f080); }
 .confirmation h3 { margin: 14px 0 6px; font-size: 24px; }
 .confirmation p { margin: 0; color: #d4dce1; }
+.confirmation .consigne { margin: 18px 0 22px; padding: 14px 16px; border: 1px solid #19e3f040; border-radius: 10px; background: var(--cyan-sombre); color: #d8fbfe; font-size: 15px; }
+.confirmation .consigne strong { color: #fff; }
 
 /* ----- Pied de page ----- */
 .pied { display: flex; justify-content: space-between; gap: 16px; padding: 28px 0 40px; border-top: 1px solid var(--trait); color: var(--gris-2); font-size: 13px; }

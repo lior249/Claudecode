@@ -171,7 +171,7 @@
           choix.hidden = true;
           form.hidden = true;
           confirmation.hidden = false;
-          confirmationTexte.textContent = "Ton appel est prévu le " + libelle(creneauChoisi) + " (heure de ton téléphone). Je te contacte sur Instagram avant l’appel.";
+          confirmationTexte.textContent = "Le " + libelle(creneauChoisi) + " (heure de ton téléphone).";
           confirmation.scrollIntoView({ behavior: "smooth", block: "center" });
           return;
         }
