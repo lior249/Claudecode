@@ -1,0 +1,5 @@
+# Site Creato : page statique dans site/, réservations d'appels dans netlify/functions/.
+[build]
+  publish = "site"
+  functions = "netlify/functions"
+  command = "npm test"
