@@ -20,7 +20,8 @@ export function reglages(env = process.env) {
     maketou: {
       apiUrl: (env.MAKETOU_API_URL || "https://api.maketou.net").replace(/\/$/, ""),
       apiKey: env.MAKETOU_API_KEY || "",
-      productId: env.MAKETOU_PRODUCT_ID || "",
+      // Identifiant public du produit « Accès unique à la formation » (Maketou → produit → Partager).
+      productId: env.MAKETOU_PRODUCT_ID || "1aee38b8-746a-47ba-a638-fdb0c99f589b",
     },
   };
   const commun = ["accessCode", "communityUrl", "siteUrl"].filter((k) => !cfg[k]);

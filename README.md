@@ -22,8 +22,8 @@ Variables d'environnement à saisir dans Netlify (jamais dans le dépôt) :
 - Discord, au choix : `DISCORD_WEBHOOK_URL` (message dans un salon), ou `DISCORD_BOT_TOKEN` + `DISCORD_USER_ID` (message privé du bot).
   Sans l'un des deux, les réservations sont fermées. Les paiements réussis y sont aussi annoncés.
 - Un moyen de paiement dont les réglages manquent reste fermé ; l'autre fonctionne.
-- Maketou (carte) : `MAKETOU_API_KEY` (Maketou → boutique → Autres → Clés API), `MAKETOU_PRODUCT_ID`
-  (fiche du produit → Partager → Identifiant public du produit). Le prix facturé est celui du produit dans Maketou.
+- Maketou (carte) : `MAKETOU_API_KEY` (Maketou → boutique → Autres → Clés API). Facultatif : `MAKETOU_PRODUCT_ID`
+  pour vendre un autre produit (par défaut, celui de `netlify/lib/paiement.mjs`). Le prix facturé est celui du produit dans Maketou.
 - SasPay (mobile money) : `SASPAY_API_KEY`, `SASPAY_WEBHOOK_SECRET`, `SASPAY_AMOUNT` (ex. `120.00`), `SASPAY_CURRENCY` (ex. `EUR`), `SASPAY_DESCRIPTION`.
 - Accès après paiement : `ACCESS_CODE`, `COMMUNITY_URL`.
 - `SITE_URL` (ex. `https://creatoskills.site`) : adresse de retour après paiement (sinon l'adresse principale du site Netlify).

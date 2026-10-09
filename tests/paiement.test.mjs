@@ -133,6 +133,13 @@ test("mobile money (SasPay) : pas de code si la transaction n'est pas confirmée
   }
 });
 
+test("carte (Maketou) : produit de la boutique Creato par défaut", async () => {
+  const store = nouveauStore();
+  const s = fauxServices();
+  await creerPaiement(checkout({ moyen: "carte", ...client }), store, { env: { ...env, MAKETOU_PRODUCT_ID: undefined }, fetcher: s.fetcher, ip: "7.7.7.7" });
+  assert.equal(s.appels.find((a) => a.url.endsWith("/stores/cart/checkout")).corps.productDocumentId, "1aee38b8-746a-47ba-a638-fdb0c99f589b");
+});
+
 test("lien de retour inconnu ou mal formé", async () => {
   const store = nouveauStore();
   assert.equal((await statutPaiement(statut("pas-un-jeton"), store, { env })).status, 404);
@@ -142,7 +149,7 @@ test("lien de retour inconnu ou mal formé", async () => {
 test("chaque moyen reste fermé tant que ses réglages manquent", async () => {
   const store = nouveauStore();
   const s = fauxServices();
-  const sansMaketou = { ...env, MAKETOU_PRODUCT_ID: "" };
+  const sansMaketou = { ...env, MAKETOU_API_KEY: "" };
   assert.equal((await creerPaiement(checkout({ moyen: "carte", ...client }), store, { env: sansMaketou, fetcher: s.fetcher, ip: "9.9.9.1" })).status, 503);
   assert.equal((await creerPaiement(checkout({ moyen: "mobile", ...client }), store, { env: sansMaketou, fetcher: s.fetcher, ip: "9.9.9.1" })).status, 200);
   const sansCode = { ...env, ACCESS_CODE: "" };
