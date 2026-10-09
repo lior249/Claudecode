@@ -17,9 +17,12 @@ if [ ! -f site.env ]; then
       BEGIN { while ((getline l < src) > 0) if (l ~ /^[A-Z0-9_]+=/) { k = l; sub(/=.*/, "", k); v[k] = l } }
       /^[A-Z0-9_]+=/ { k = $0; sub(/=.*/, "", k); if (k in v) { print v[k]; next } }
       { print }' site.env > site.env.tmp && cat site.env.tmp > site.env && rm site.env.tmp
-    echo "Réglages repris de /opt/creato/landing.env."
+    echo "Réglages repris de /opt/creato/landing.env (SasPay, code d'accès, lien de la communauté)."
   fi
-  echo "Fichier de réglages créé : $ROOT/site.env"
+  echo "✅ Fichier de réglages créé : $ROOT/site.env"
+  echo "   Ton site actuel n'a pas été touché."
+  echo "   Étape suivante : nano site.env   (remplis les réglages), puis relance ./deploy/site.sh"
+  exit 0
 fi
 rempli() { grep -Eq "^$1=(\"[^\"]+\"|[^\"[:space:]]+)" site.env; }
 if ! rempli DISCORD_WEBHOOK_URL && ! { rempli DISCORD_BOT_TOKEN && rempli DISCORD_USER_ID; }; then
