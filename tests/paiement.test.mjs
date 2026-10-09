@@ -1,13 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { creerPaiement, statutPaiement, webhookSaspay } from "../netlify/lib/paiement.mjs";
-import { stockageLocal } from "./aide-blobs.mjs";
+import { creerPaiement, statutPaiement, webhookSaspay } from "../lib/paiement.mjs";
+import { stockageLocal } from "./aide-stockage.mjs";
 
 const nouveauStore = stockageLocal();
 
 const env = {
-  URL: "https://creatoskills.site",
   SASPAY_API_KEY: "sk_test",
   SASPAY_WEBHOOK_SECRET: "secret",
   MAKETOU_API_KEY: "mk_test",

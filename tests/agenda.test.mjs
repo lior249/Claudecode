@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { AGENDA, cleCreneau, creneauxAVenir, libelleCreneau, lireReservation, messageDiscord, pseudoInstagram, zonedToUtc } from "../netlify/lib/agenda.mjs";
+import { AGENDA, cleCreneau, creneauxAVenir, libelleCreneau, lireReservation, messageDiscord, pseudoInstagram, zonedToUtc } from "../lib/agenda.mjs";
 
 const agenda = { ...AGENDA, fuseau: "Europe/Paris", nomFuseau: "heure de Paris", joursAffiches: 3, delaiMinimumHeures: 2, horaires: { 1: ["10:00-11:00"], 2: ["18:00-19:30"] } };
 

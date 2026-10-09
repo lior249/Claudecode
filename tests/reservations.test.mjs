@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { creneauxAVenir } from "../netlify/lib/agenda.mjs";
-import { listerCreneaux, reserver } from "../netlify/lib/reservations.mjs";
-import { stockageLocal } from "./aide-blobs.mjs";
+import { creneauxAVenir } from "../lib/agenda.mjs";
+import { listerCreneaux, reserver } from "../lib/reservations.mjs";
+import { stockageLocal } from "./aide-stockage.mjs";
 
 const nouveauStore = stockageLocal();
 
@@ -49,8 +49,17 @@ test("refuse un créneau déjà pris", async () => {
   assert.equal(discord.envois.length, 1);
 });
 
+test("trois réservations simultanées du même créneau : une seule passe", async () => {
+  const store = nouveauStore();
+  const discord = fauxDiscord();
+  const corps = { nom: "Jean", instagram: "jean", creneau: premier };
+  const statuts = (await Promise.all([1, 2, 3].map(() => reserver(requete(corps), store, { now, env, fetcher: discord.fetcher })))).map((r) => r.status);
+  assert.equal(statuts.filter((s) => s === 200).length, 1);
+  assert.equal(discord.envois.length, 1);
+});
+
 // Le créneau est pris entre la lecture de la liste et l'écriture : l'écriture conditionnelle
-// (onlyIfNew, atomique chez Netlify) refuse la seconde réservation.
+// (onlyIfNew) refuse la seconde réservation.
 test("créneau pris entre la lecture et l'écriture : la seconde réservation est refusée", async () => {
   const store = nouveauStore();
   const discord = fauxDiscord();
