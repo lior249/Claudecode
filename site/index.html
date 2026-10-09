@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Creato</title>
   <meta name="description" content="Creato — Lance-toi dans la monétisation TikTok en moins de 21 jours.">
-  <meta name="theme-color" content="#0a0f14">
+  <meta name="theme-color" content="#111111">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Epilogue:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@600;700;800&display=swap">
   <link rel="stylesheet" href="site.css">
   <!-- VSL Wistia (code d'intégration fourni par Wistia, vidéo m3fx3pj8ug) -->
   <script src="https://fast.wistia.com/player.js" async></script>
@@ -16,19 +16,17 @@
   <style>wistia-player[media-id='m3fx3pj8ug']:not(:defined) { background: center / contain no-repeat url('https://fast.wistia.com/embed/medias/m3fx3pj8ug/swatch'); display: block; filter: blur(5px); padding-top:56.25%; }</style>
 </head>
 <body>
+  <div class="fond-arcs" aria-hidden="true"></div>
   <main>
     <!-- 1. Titre, vidéo, bouton -->
     <header class="hero conteneur">
       <h1>La monétisation TikTok, <span>comme jamais auparavant.</span></h1>
+      <p class="accroche">Lance-toi dans la monétisation TikTok en moins de 21 jours.</p>
       <p class="pastille"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Regarde cette vidéo avant de continuer</p>
       <div class="video">
         <wistia-player media-id="m3fx3pj8ug" aspect="1.7777777777777777"></wistia-player>
       </div>
       <a class="bouton" href="#rejoindre">Je veux rejoindre maintenant</a>
-      <p class="accroche">Lance-toi dans la monétisation TikTok en moins de 21 jours.</p>
-      <a class="descendre" href="#resultats" aria-label="Voir les résultats">
-        <svg viewBox="0 0 48 52" aria-hidden="true"><path class="hexa" d="M24 1.5 45.5 14v24L24 50.5 2.5 38V14Z"/><path d="m18 20 6 6 6-6M18 27l6 6 6-6"/></svg>
-      </a>
     </header>
 
     <!-- 2. Résultats clients (même carrousel que l'ancien site) -->
@@ -48,8 +46,8 @@
         <svg class="courbe-axes" viewBox="0 0 400 360" preserveAspectRatio="none">
           <defs>
             <linearGradient id="degrade" x1="0" y1="1" x2="1" y2="0">
-              <stop offset="0" stop-color="#19e3f0"/>
-              <stop offset="1" stop-color="#7dfc8f"/>
+              <stop offset="0" stop-color="#6b6b6b"/>
+              <stop offset="1" stop-color="#ffffff"/>
             </linearGradient>
           </defs>
           <path class="axe" d="M12 6v342h382"/>
@@ -107,8 +105,57 @@
       <div class="paiement apparait" data-paiement>
         <p class="prix">120 €</p>
         <div class="moyens" data-moyens>
-          <button class="bouton" type="button" data-moyen="carte">Payer par carte</button>
-          <button class="bouton bouton-contour" type="button" data-moyen="mobile">Payer par mobile money</button>
+          <button class="moyen" type="button" data-moyen="carte">
+            <svg class="icone-3d" viewBox="0 0 160 130" aria-hidden="true">
+              <defs>
+                <linearGradient id="cb-face" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6b6b6b"/><stop offset=".38" stop-color="#2f2f2f"/><stop offset="1" stop-color="#121212"/></linearGradient>
+                <linearGradient id="cb-tranche" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c1c1c"/><stop offset="1" stop-color="#050505"/></linearGradient>
+                <linearGradient id="cb-puce" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b5b5b5"/><stop offset="1" stop-color="#3d3d3d"/></linearGradient>
+                <radialGradient id="cb-reflet" cx=".2" cy=".1" r=".9"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></radialGradient>
+              </defs>
+              <g transform="rotate(-16 80 66)">
+                <rect x="24" y="36" width="114" height="72" rx="13" fill="url(#cb-tranche)"/>
+                <rect x="22" y="28" width="114" height="72" rx="13" fill="url(#cb-face)"/>
+                <rect x="22" y="28" width="114" height="72" rx="13" fill="url(#cb-reflet)"/>
+                <rect x="22" y="44" width="114" height="13" fill="#0c0c0c" opacity=".85"/>
+                <rect x="36" y="66" width="22" height="16" rx="4" fill="url(#cb-puce)"/>
+                <path d="M47 66v16M36 74h22" stroke="#2a2a2a" stroke-width="1.2"/>
+                <rect x="70" y="84" width="52" height="5" rx="2.5" fill="#4a4a4a"/>
+                <circle cx="110" cy="72" r="8" fill="#3a3a3a"/><circle cx="120" cy="72" r="8" fill="#5a5a5a" opacity=".9"/>
+              </g>
+            </svg>
+            <span class="moyen-panneau">
+              <span class="moyen-titre">Payer par carte</span>
+              <span class="moyen-texte">Paie avec ta carte bancaire, en quelques secondes.</span>
+              <span class="moyen-action">Choisir</span>
+            </span>
+          </button>
+          <button class="moyen" type="button" data-moyen="mobile">
+            <svg class="icone-3d" viewBox="0 0 160 130" aria-hidden="true">
+              <defs>
+                <linearGradient id="mm-corps" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6b6b6b"/><stop offset=".4" stop-color="#2f2f2f"/><stop offset="1" stop-color="#121212"/></linearGradient>
+                <linearGradient id="mm-tranche" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1c1c1c"/><stop offset="1" stop-color="#050505"/></linearGradient>
+                <linearGradient id="mm-ecran" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d1d1d"/><stop offset="1" stop-color="#0a0a0a"/></linearGradient>
+                <linearGradient id="mm-piece" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9c9c9"/><stop offset="1" stop-color="#4a4a4a"/></linearGradient>
+                <radialGradient id="mm-reflet" cx=".2" cy=".05" r=".9"><stop offset="0" stop-color="#fff" stop-opacity=".26"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></radialGradient>
+              </defs>
+              <g transform="rotate(12 80 66)">
+                <rect x="58" y="12" width="56" height="106" rx="14" fill="url(#mm-tranche)"/>
+                <rect x="52" y="8" width="56" height="106" rx="14" fill="url(#mm-corps)"/>
+                <rect x="52" y="8" width="56" height="106" rx="14" fill="url(#mm-reflet)"/>
+                <rect x="58" y="18" width="44" height="86" rx="8" fill="url(#mm-ecran)"/>
+                <rect x="72" y="12" width="16" height="3" rx="1.5" fill="#0a0a0a"/>
+                <path d="M70 60h20m-6-6 6 6-6 6" fill="none" stroke="#8a8a8a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+              </g>
+              <circle cx="122" cy="98" r="15" fill="url(#mm-piece)"/>
+              <circle cx="122" cy="98" r="10" fill="none" stroke="#2c2c2c" stroke-width="1.5"/>
+            </svg>
+            <span class="moyen-panneau">
+              <span class="moyen-titre">Payer par mobile money</span>
+              <span class="moyen-texte">Paie directement depuis ton compte mobile money.</span>
+              <span class="moyen-action">Choisir</span>
+            </span>
+          </button>
         </div>
         <form class="formulaire" data-formulaire hidden novalidate>
           <p class="recap" data-moyen-choisi></p>
