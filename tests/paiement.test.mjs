@@ -13,18 +13,16 @@ const env = {
   MAKETOU_PRODUCT_ID: "7b63442b-200f-445c-89c6-cd4b3b001bf7",
   ACCESS_CODE: "CODE-TEST",
   COMMUNITY_URL: "https://whop.test/acces",
-  DISCORD_WEBHOOK_URL: "https://discord.test/webhook",
 };
 const CART = "fd2d91d7-20d2-4b86-b067-d474fb0d1e60";
 
-// Faux SasPay, faux Maketou (réponses de la documentation) et faux Discord.
+// Faux SasPay et faux Maketou (réponses de la documentation).
 function fauxServices({ saspay = "SUCCESS", verification = "SUCCESS", panier = "completed", jetonPanier } = {}) {
   const appels = [];
   let meta = null;
   const fetcher = async (url, init = {}) => {
     const corps = init.body ? JSON.parse(init.body) : null;
     appels.push({ url, methode: init.method, auth: init.headers?.Authorization, corps });
-    if (url === env.DISCORD_WEBHOOK_URL) return new Response(null, { status: 204 });
     // SasPay
     if (url.endsWith("/checkout-sessions/")) return Response.json({ success: true, data: { id: "cs_1", checkout_url: "https://pay.saspay.test/cs_1" } });
     if (url.endsWith("/checkout-sessions/cs_1/status/")) return Response.json({ success: true, data: { transaction_status: saspay, transaction_id: saspay === "SUCCESS" ? "tx_1" : null } });
@@ -51,9 +49,8 @@ async function payer(store, services, moyen) {
   assert.equal(res.status, 200);
   return (await res.json()).url;
 }
-const discord = (services) => services.appels.filter((a) => a.url === env.DISCORD_WEBHOOK_URL);
 
-test("mobile money (SasPay) : paiement créé, code d'accès donné, un seul message Discord", async () => {
+test("mobile money (SasPay) : paiement créé, code d'accès donné après double vérification", async () => {
   const store = nouveauStore();
   const s = fauxServices();
   assert.equal(await payer(store, s, "mobile"), "https://pay.saspay.test/cs_1");
@@ -71,8 +68,6 @@ test("mobile money (SasPay) : paiement créé, code d'accès donné, un seul mes
   const avant = s.appels.length;
   assert.equal((await (await statutPaiement(statut(token), store, { env, fetcher: s.fetcher })).json()).status, "SUCCESS");
   assert.equal(s.appels.length, avant);
-  assert.equal(discord(s).length, 1);
-  assert.match(discord(s)[0].corps.content, /Nouveau paiement TikTok Elite[\s\S]*Jean Dupont[\s\S]*jean@exemple\.com[\s\S]*Mobile money \(SasPay\)[\s\S]*114\.00 EUR/);
 });
 
 test("carte (Maketou) : panier créé selon la documentation, code donné seulement si « completed »", async () => {
@@ -99,8 +94,6 @@ test("carte (Maketou) : panier créé selon la documentation, code donné seulem
   const verif = s.appels.find((a) => a.methode === "GET");
   assert.equal(verif.url, `https://api.maketou.net/api/v1/stores/cart/${CART}`);
   assert.equal(verif.auth, "Bearer mk_test");
-  assert.equal(discord(s).length, 1);
-  assert.match(discord(s)[0].corps.content, /Jean Dupont[\s\S]*Carte bancaire \(Maketou\)/);
 });
 
 test("carte (Maketou) : pas de code tant que le panier n'est pas payé", async () => {
@@ -110,7 +103,6 @@ test("carte (Maketou) : pas de code tant que le panier n'est pas payé", async (
     await payer(store, s, "carte");
     const token = s.appels.find((a) => a.url.endsWith("/stores/cart/checkout")).corps.meta.token;
     assert.deepEqual(await (await statutPaiement(statut(token), store, { env, fetcher: s.fetcher })).json(), { status: attendu });
-    assert.equal(discord(s).length, 0);
   }
 });
 

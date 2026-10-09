@@ -46,7 +46,7 @@ test("ne sert rien en dehors du dossier site/", async () => {
 });
 
 test("API : état des réglages, routes inconnues, paiement par carte fermé sans clé", async () => {
-  assert.deepEqual(await (await fetch(`${base}/api/sante`)).json(), { ok: true, carte: false, mobileMoney: true, discord: false });
+  assert.deepEqual(await (await fetch(`${base}/api/sante`)).json(), { ok: true, carte: false, mobileMoney: true });
   assert.equal((await fetch(`${base}/api/creneaux`)).status, 404);
   const r = await fetch(`${base}/api/checkout`, { method: "POST", body: JSON.stringify({ moyen: "carte", firstName: "A", lastName: "B", email: "a@b.co" }) });
   assert.equal(r.status, 503);

@@ -25,7 +25,7 @@ Première fois (connecté au serveur en `ssh root@<IP>`) :
 ```
 git clone -b claude/laughing-wright-igl9h0 https://github.com/lior249/Claudecode.git /opt/creato-site
 cd /opt/creato-site && ./deploy/site.sh     # crée seulement site.env (reprend /opt/creato/landing.env)
-nano site.env                               # ajoute MAKETOU_API_KEY, le nouveau ACCESS_CODE, Discord
+nano site.env                               # ajoute MAKETOU_API_KEY et le nouveau ACCESS_CODE
 ./deploy/site.sh                            # relance avec les réglages
 ```
 Mise à jour : `cd /opt/creato-site && git pull && ./deploy/site.sh`.

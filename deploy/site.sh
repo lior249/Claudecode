@@ -25,7 +25,6 @@ if [ ! -f site.env ]; then
   exit 0
 fi
 rempli() { grep -Eq "^$1=(\"[^\"]+\"|[^\"[:space:]]+)" site.env; }
-rempli DISCORD_WEBHOOK_URL || echo "ℹ️  DISCORD_WEBHOOK_URL est vide : pas de message Discord à chaque paiement (le site marche quand même)."
 rempli MAKETOU_API_KEY || echo "⚠️  MAKETOU_API_KEY est vide : le paiement par carte sera fermé."
 rempli SASPAY_API_KEY || echo "⚠️  SASPAY_API_KEY est vide : le paiement par mobile money sera fermé."
 { rempli ACCESS_CODE && rempli COMMUNITY_URL; } || echo "⚠️  ACCESS_CODE ou COMMUNITY_URL est vide : les deux paiements seront fermés."
