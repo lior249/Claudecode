@@ -80,6 +80,7 @@ h1 { line-height: 1.05; text-wrap: balance; letter-spacing: -0.1em; }
 /* Formulaire nom + e-mail avant le paiement. */
 .pay-form { display: grid; gap: 12px; margin-top: 28px; text-align: left; }
 .pay-form[hidden], .join-buttons[hidden] { display: none; }
+.pay-method { margin: 0; color: var(--gold); font-size: 15px; font-weight: 700; text-align: center; }
 .pay-form label { display: grid; gap: 6px; font-size: 15px; color: var(--muted); }
 .pay-form input { font: 400 17px/1.3 "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--text); background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; padding: 15px 16px; outline: none; }
 .pay-form input:focus { border-color: var(--gold); }

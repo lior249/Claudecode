@@ -2,7 +2,7 @@
 (function () {
   var c = window.CREATO || {};
 
-  // ----- Accueil : les deux boutons fusionnent en un cercle gris qui tourne, puis on part vers SasPay. -----
+  // ----- Accueil : les deux boutons fusionnent en un cercle gris qui tourne, puis on part vers le paiement. -----
   var price = document.querySelector("[data-price]");
   if (price && c.price) price.textContent = c.price;
 
@@ -29,30 +29,40 @@
     place(0);
   } else if (results) results.remove();
 
-  // ----- Accueil : clic → nom + e-mail → les boutons fusionnent en un cercle gris → page de paiement SasPay. -----
+  // ----- Accueil : clic → prénom, nom, e-mail → les boutons fusionnent en un cercle gris → page de paiement. -----
   var zone = document.querySelector("[data-pay-zone]");
   var form = document.querySelector("[data-pay-form]");
   if (zone && form) {
     var err = form.querySelector("[data-pay-error]");
+    var methodEl = form.querySelector("[data-pay-method]");
+    var moyen = "";
     var showForm = function (show) {
       zone.hidden = show;
       form.hidden = !show;
-      if (show) form.elements.name.focus();
+      if (show) form.elements.firstName.focus();
     };
+    // Carte → Maketou, mobile money → SasPay (choix fait par le serveur selon `moyen`).
     Array.prototype.forEach.call(zone.querySelectorAll("[data-pay]"), function (btn) {
-      btn.addEventListener("click", function (e) { e.preventDefault(); showForm(true); });
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        moyen = btn.getAttribute("data-pay");
+        methodEl.textContent = moyen === "carte" ? "Paiement par carte bancaire" : "Paiement par mobile money";
+        showForm(true);
+      });
     });
     form.querySelector("[data-pay-back]").addEventListener("click", function () { err.textContent = ""; showForm(false); });
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       err.textContent = "";
-      var name = form.elements.name.value.trim();
+      var firstName = form.elements.firstName.value.trim();
+      var lastName = form.elements.lastName.value.trim();
       var email = form.elements.email.value.trim();
-      if (name.length < 2) return (err.textContent = "Indique ton nom.");
+      if (!firstName) return (err.textContent = "Indique ton prénom.");
+      if (!lastName) return (err.textContent = "Indique ton nom.");
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return (err.textContent = "Adresse e-mail invalide.");
       showForm(false);
       zone.classList.add("paying");
-      fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name, email: email }) })
+      fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ moyen: moyen, firstName: firstName, lastName: lastName, email: email }) })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
           if (!res.ok || !res.j.url) throw new Error(res.j.error || "Le paiement est momentanément indisponible.");
@@ -64,11 +74,11 @@
           err.textContent = e2.message || "Le paiement est momentanément indisponible.";
         });
     });
-    // Retour arrière depuis SasPay : on réaffiche les boutons.
+    // Retour arrière depuis la page de paiement : on réaffiche les boutons.
     window.addEventListener("pageshow", function () { zone.classList.remove("paying"); });
   }
 
-  // ----- Retour de paiement : le serveur vérifie auprès de SasPay. Gris tant que c'est en cours, vert seulement si SUCCESS. -----
+  // ----- Retour de paiement : le serveur vérifie auprès du service de paiement. Gris tant que c'est en cours, vert seulement si SUCCESS. -----
   var thanks = document.querySelector("[data-thanks]");
   if (!thanks) return;
   var title = thanks.querySelector("[data-status-title]");
@@ -79,7 +89,8 @@
   var copyBtn = thanks.querySelector("[data-copy]");
   var hint = thanks.querySelector("[data-copy-hint]");
   var join = thanks.querySelector("[data-join]");
-  var token = new URLSearchParams(window.location.search).get("s") || "";
+  // Le service de paiement peut ajouter ses propres paramètres à l'adresse de retour : on ne garde que notre identifiant.
+  var token = (new URLSearchParams(window.location.search).get("s") || "").slice(0, 36);
   var started = Date.now();
   var community = "";
 
@@ -107,10 +118,10 @@
           fail("Lien invalide", "Ce lien de retour ne correspond à aucun paiement.");
         } else if (Date.now() - started > 3 * 60 * 1000) {
           title.textContent = "Paiement en attente";
-          note.textContent = "SasPay n'a pas encore confirmé ton paiement. Garde cette page ouverte : elle se mettra à jour toute seule.";
+          note.textContent = "Ton paiement n'est pas encore confirmé. Garde cette page ouverte : elle se mettra à jour toute seule.";
           setTimeout(check, 15000);
         } else {
-          if (Date.now() - started > 15000) note.textContent = "Confirmation en cours auprès de SasPay…";
+          if (Date.now() - started > 15000) note.textContent = "Confirmation du paiement en cours…";
           setTimeout(check, 3000);
         }
       })

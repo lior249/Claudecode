@@ -1,46 +1,110 @@
-// Paiement SasPay de la page TikTok Elite (/paiement/), repris du petit serveur de creatoskills.site.
-// La clé API et le code d'accès ne quittent jamais Netlify : le code n'est donné qu'après un paiement SUCCESS
-// vérifié auprès de SasPay. Réglages dans les variables d'environnement Netlify (voir README).
+// Paiement de la page TikTok Elite (/paiement/) : carte bancaire par Maketou, mobile money par SasPay.
+// Les clés API et le code d'accès ne quittent jamais Netlify : le code n'est donné qu'après un paiement
+// confirmé auprès du service de paiement. Réglages dans les variables d'environnement Netlify (voir README).
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { discordConfigure, envoyerDiscord } from "./discord.mjs";
 
 export function reglages(env = process.env) {
   const cfg = {
     siteUrl: (env.SITE_URL || env.URL || "").replace(/\/$/, ""),
-    apiUrl: (env.SASPAY_API_URL || "https://api.saspay.me/api/v1").replace(/\/$/, ""),
-    apiKey: env.SASPAY_API_KEY || "",
-    webhookSecret: env.SASPAY_WEBHOOK_SECRET || "",
-    amount: env.SASPAY_AMOUNT || "120.00",
-    currency: env.SASPAY_CURRENCY || "EUR",
-    description: env.SASPAY_DESCRIPTION || "TikTok Elite",
     accessCode: env.ACCESS_CODE || "",
     communityUrl: env.COMMUNITY_URL || "",
+    saspay: {
+      apiUrl: (env.SASPAY_API_URL || "https://api.saspay.me/api/v1").replace(/\/$/, ""),
+      apiKey: env.SASPAY_API_KEY || "",
+      webhookSecret: env.SASPAY_WEBHOOK_SECRET || "",
+      amount: env.SASPAY_AMOUNT || "120.00",
+      currency: env.SASPAY_CURRENCY || "EUR",
+      description: env.SASPAY_DESCRIPTION || "TikTok Elite",
+    },
+    maketou: {
+      apiUrl: (env.MAKETOU_API_URL || "https://api.maketou.net").replace(/\/$/, ""),
+      apiKey: env.MAKETOU_API_KEY || "",
+      productId: env.MAKETOU_PRODUCT_ID || "",
+    },
   };
-  cfg.manquants = ["apiKey", "accessCode", "communityUrl", "siteUrl"].filter((k) => !cfg[k]);
-  if (!/^\d+\.\d{2}$/.test(cfg.amount)) cfg.manquants.push("amount");
+  const commun = ["accessCode", "communityUrl", "siteUrl"].filter((k) => !cfg[k]);
+  cfg.manquants = {
+    mobile: [...commun, ...(cfg.saspay.apiKey ? [] : ["SASPAY_API_KEY"]), ...(/^\d+\.\d{2}$/.test(cfg.saspay.amount) ? [] : ["SASPAY_AMOUNT"])],
+    carte: [...commun, ...(cfg.maketou.apiKey ? [] : ["MAKETOU_API_KEY"]), ...(cfg.maketou.productId ? [] : ["MAKETOU_PRODUCT_ID"])],
+  };
   return cfg;
 }
 
 const json = (status, data) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
-async function saspay(cfg, fetcher, method, route, body) {
-  const res = await fetcher(cfg.apiUrl + route, {
+// Appel d'une API de paiement (clé uniquement ici). `enveloppe` : SasPay répond { success, data, code }.
+async function appeler(fetcher, { url, cle, method, body, enveloppe = false }) {
+  const res = await fetcher(url, {
     method,
-    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
+    headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json", Accept: "application/json" },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(20_000),
   });
   const j = await res.json().catch(() => ({}));
-  // Enveloppe documentée : { success, data, code } ; certains exemples renvoient directement l'objet.
-  const data = j && typeof j === "object" && "data" in j ? j.data : j;
-  if (!res.ok || j?.success === false) {
-    const err = new Error(`SasPay ${method} ${route} → ${res.status}`);
+  // Certains exemples SasPay renvoient directement l'objet, sans enveloppe.
+  const data = enveloppe && j && typeof j === "object" && "data" in j ? j.data : j;
+  if (!res.ok || (enveloppe && j?.success === false)) {
+    const err = new Error(`${method} ${url} → ${res.status}`);
     err.detail = j?.error ?? j;
     throw err;
   }
   return data;
 }
+
+// ----- Les deux services -----
+// creer(...) → { ref, url } ; verifier(...) → { statut: "SUCCESS" | "FAILED" | "PENDING", montant? }
+const services = {
+  // Mobile money : SasPay. Double contrôle : statut de la session, puis la transaction elle-même.
+  mobile: {
+    nom: "Mobile money (SasPay)",
+    async creer(cfg, fetcher, { name, email, token, retour }) {
+      const c = cfg.saspay;
+      const s = await appeler(fetcher, {
+        url: `${c.apiUrl}/checkout-sessions/`, cle: c.apiKey, method: "POST", enveloppe: true,
+        body: { amount: c.amount, currency: c.currency, description: c.description, customer_email: email, customer_name: name, return_url: retour, metadata: { token } },
+      });
+      if (!s?.id || !s?.checkout_url) throw new Error("Réponse SasPay sans id ou checkout_url");
+      return { ref: s.id, url: s.checkout_url };
+    },
+    async verifier(cfg, fetcher, entry) {
+      const c = cfg.saspay;
+      const st = await appeler(fetcher, { url: `${c.apiUrl}/checkout-sessions/${encodeURIComponent(entry.ref)}/status/`, cle: c.apiKey, method: "GET", enveloppe: true });
+      if (st?.transaction_status === "SUCCESS" && st?.transaction_id) {
+        const tx = await appeler(fetcher, { url: `${c.apiUrl}/payments/${encodeURIComponent(st.transaction_id)}/verify/`, cle: c.apiKey, method: "GET", enveloppe: true });
+        if (tx?.status === "SUCCESS") {
+          return { statut: "SUCCESS", transactionId: st.transaction_id, montant: tx.net_amount != null ? `${tx.net_amount} ${tx.currency ?? ""}`.trim() : null };
+        }
+      }
+      if (st?.transaction_status === "FAILED") return { statut: "FAILED" };
+      return { statut: "PENDING" };
+    },
+  },
+
+  // Carte bancaire : Maketou (panier d'un seul produit, accès seulement si le panier est « completed »).
+  carte: {
+    nom: "Carte bancaire (Maketou)",
+    async creer(cfg, fetcher, { firstName, lastName, email, token, retour }) {
+      const c = cfg.maketou;
+      const r = await appeler(fetcher, {
+        url: `${c.apiUrl}/api/v1/stores/cart/checkout`, cle: c.apiKey, method: "POST",
+        body: { productDocumentId: c.productId, email, firstName, lastName, redirectURL: retour, meta: { token } },
+      });
+      if (!r?.cart?.id || !r?.redirectUrl) throw new Error("Réponse Maketou sans cart.id ou redirectUrl");
+      return { ref: r.cart.id, url: r.redirectUrl };
+    },
+    async verifier(cfg, fetcher, entry, token) {
+      const c = cfg.maketou;
+      const cart = await appeler(fetcher, { url: `${c.apiUrl}/api/v1/stores/cart/${encodeURIComponent(entry.ref)}`, cle: c.apiKey, method: "GET" });
+      // Le panier doit bien être celui créé pour ce lien de retour.
+      if (cart?.meta?.token && cart.meta.token !== token) return { statut: "FAILED" };
+      if (cart?.status === "completed") return { statut: "SUCCESS", transactionId: cart.paymentId ?? null, montant: null };
+      if (cart?.status === "payment_failed" || cart?.status === "abandoned") return { statut: "FAILED" };
+      return { statut: "PENDING" };
+    },
+  },
+};
 
 // Petite limite anti-abus : 8 paiements créés par adresse IP toutes les 10 minutes.
 async function tropDeTentatives(store, ip, now) {
@@ -51,39 +115,39 @@ async function tropDeTentatives(store, ip, now) {
   return liste.length > 8;
 }
 
-// POST /api/checkout  { name, email } → { url } (page de paiement SasPay)
+const nettoyer = (v, max) => String(v ?? "").trim().replace(/\s+/g, " ").slice(0, max);
+
+// POST /api/checkout  { moyen: "carte" | "mobile", firstName, lastName, email } → { url } (page de paiement)
 export async function creerPaiement(req, store, { env = process.env, fetcher = fetch, ip = "", now = Date.now() } = {}) {
   if (req.method !== "POST") return json(405, { error: "Méthode non autorisée." });
-  const cfg = reglages(env);
-  if (cfg.manquants.length) return json(503, { error: "Le paiement n'est pas encore activé. Réessaie plus tard." });
-  if (await tropDeTentatives(store, ip, now)) return json(429, { error: "Trop de tentatives. Réessaie dans quelques minutes." });
   let input;
   try {
     input = await req.json();
   } catch {
     return json(400, { error: "Requête invalide." });
   }
-  const name = String(input?.name ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
-  const email = String(input?.email ?? "").trim().toLowerCase().slice(0, 120);
-  if (name.length < 2) return json(400, { error: "Indique ton nom." });
+  const moyen = input?.moyen === "carte" ? "carte" : input?.moyen === "mobile" ? "mobile" : null;
+  if (!moyen) return json(400, { error: "Choisis un moyen de paiement." });
+  const cfg = reglages(env);
+  if (cfg.manquants[moyen].length) return json(503, { error: "Ce moyen de paiement n'est pas encore activé. Réessaie plus tard." });
+  if (await tropDeTentatives(store, ip, now)) return json(429, { error: "Trop de tentatives. Réessaie dans quelques minutes." });
+
+  const firstName = nettoyer(input.firstName, 40);
+  const lastName = nettoyer(input.lastName, 40);
+  const email = String(input.email ?? "").trim().toLowerCase().slice(0, 120);
+  if (!firstName) return json(400, { error: "Indique ton prénom." });
+  if (!lastName) return json(400, { error: "Indique ton nom." });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json(400, { error: "Adresse e-mail invalide." });
+  const name = `${firstName} ${lastName}`;
 
   const token = randomUUID();
+  const retour = `${cfg.siteUrl}/paiement/merci.html?s=${token}`;
   try {
-    const s = await saspay(cfg, fetcher, "POST", "/checkout-sessions/", {
-      amount: cfg.amount,
-      currency: cfg.currency,
-      description: cfg.description,
-      customer_email: email,
-      customer_name: name,
-      return_url: `${cfg.siteUrl}/paiement/merci.html?s=${token}`,
-      metadata: { token },
-    });
-    if (!s?.id || !s?.checkout_url) throw new Error("Réponse SasPay sans id ou checkout_url");
-    await store.setJSON(`sessions/${token}`, { sessionId: s.id, name, email, createdAt: new Date(now).toISOString(), paid: false });
-    return json(200, { url: s.checkout_url });
+    const { ref, url } = await services[moyen].creer(cfg, fetcher, { name, firstName, lastName, email, token, retour });
+    await store.setJSON(`sessions/${token}`, { moyen, ref, name, email, createdAt: new Date(now).toISOString(), paid: false });
+    return json(200, { url });
   } catch (e) {
-    console.error("Création du paiement impossible :", e.message, JSON.stringify(e.detail ?? ""));
+    console.error(`Création du paiement (${moyen}) impossible :`, e.message, JSON.stringify(e.detail ?? ""));
     return json(502, { error: "Le paiement est momentanément indisponible. Réessaie dans un instant." });
   }
 }
@@ -99,24 +163,20 @@ export async function statutPaiement(req, store, { env = process.env, fetcher = 
   const entry = lu.data;
   const success = () => json(200, { status: "SUCCESS", code: cfg.accessCode, community: cfg.communityUrl });
   if (entry.paid) return success();
+  const service = services[entry.moyen];
+  if (!service) return json(404, { status: "UNKNOWN" });
   try {
-    // L'endpoint de statut revérifie l'état réel auprès du gateway.
-    const st = await saspay(cfg, fetcher, "GET", `/checkout-sessions/${encodeURIComponent(entry.sessionId)}/status/`);
-    if (st?.transaction_status === "SUCCESS" && st?.transaction_id) {
-      // Double contrôle sur la transaction elle-même : seul SUCCESS autorise l'accès.
-      const tx = await saspay(cfg, fetcher, "GET", `/payments/${encodeURIComponent(st.transaction_id)}/verify/`);
-      if (tx?.status === "SUCCESS") {
-        const paye = { ...entry, paid: true, paidAt: new Date(now).toISOString(), transactionId: st.transaction_id, netAmount: tx.net_amount ?? null, paidCurrency: tx.currency ?? null };
-        // Écriture conditionnelle : si deux onglets vérifient en même temps, un seul message Discord part.
-        const { modified } = await store.setJSON(cle, paye, { onlyIfMatch: lu.etag });
-        if (modified && discordConfigure(env)) {
-          await envoyerDiscord(messagePaiement(paye), env, fetcher).catch((e) => console.error("Discord (paiement) :", e.message));
-        }
-        return success();
+    const v = await service.verifier(cfg, fetcher, entry, token);
+    if (v.statut === "SUCCESS") {
+      const paye = { ...entry, paid: true, paidAt: new Date(now).toISOString(), transactionId: v.transactionId, montant: v.montant };
+      // Écriture conditionnelle : si deux onglets vérifient en même temps, un seul message Discord part.
+      const { modified } = await store.setJSON(cle, paye, { onlyIfMatch: lu.etag });
+      if (modified && discordConfigure(env)) {
+        await envoyerDiscord(messagePaiement(paye), env, fetcher).catch((e) => console.error("Discord (paiement) :", e.message));
       }
+      return success();
     }
-    if (st?.transaction_status === "FAILED") return json(200, { status: "FAILED" });
-    return json(200, { status: "PENDING" });
+    return json(200, { status: v.statut });
   } catch (e) {
     console.error("Vérification impossible :", e.message);
     return json(200, { status: "PENDING" });
@@ -126,22 +186,27 @@ export async function statutPaiement(req, store, { env = process.env, fetcher = 
 const echapper = (s) => String(s).replace(/([\\*_~`|>#\[\]()-])/g, "\\$1");
 
 export function messagePaiement(p) {
-  const montant = p.netAmount != null ? `${p.netAmount} ${p.paidCurrency ?? ""}`.trim() : "?";
-  return ["**Nouveau paiement TikTok Elite**", `Nom : ${echapper(p.name)}`, `E-mail : ${echapper(p.email)}`, `Montant net : ${echapper(montant)}`].join("\n");
+  return [
+    "**Nouveau paiement TikTok Elite**",
+    `Nom : ${echapper(p.name)}`,
+    `E-mail : ${echapper(p.email)}`,
+    `Moyen : ${services[p.moyen]?.nom ?? p.moyen}`,
+    ...(p.montant ? [`Montant net : ${echapper(p.montant)}`] : []),
+  ].join("\n");
 }
 
 // POST /api/saspay/webhook : signature vérifiée, puis simple journal.
 // L'accès n'est donné qu'après vérification par l'API (route /api/status).
 export async function webhookSaspay(req, store, { env = process.env, now = Date.now() } = {}) {
-  const cfg = reglages(env);
+  const secret = reglages(env).saspay.webhookSecret;
   if (req.method !== "POST") return json(405, { ok: false });
   const raw = Buffer.from(await req.arrayBuffer());
-  if (!raw.length || raw.length > 1024 * 1024 || !cfg.webhookSecret) return json(400, { ok: false });
+  if (!raw.length || raw.length > 1024 * 1024 || !secret) return json(400, { ok: false });
   const signature = String(req.headers.get("x-webhook-signature") ?? "");
   const timestamp = String(req.headers.get("x-webhook-timestamp") ?? "");
   const age = Math.abs(Math.floor(now / 1000) - Number(timestamp));
   if (!/^\d+$/.test(timestamp) || age > 300) return json(403, { ok: false });
-  const expected = createHmac("sha256", cfg.webhookSecret).update(Buffer.concat([Buffer.from(`${timestamp}.`), raw])).digest("hex");
+  const expected = createHmac("sha256", secret).update(Buffer.concat([Buffer.from(`${timestamp}.`), raw])).digest("hex");
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return json(403, { ok: false });

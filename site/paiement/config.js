@@ -1,8 +1,8 @@
 // ===== Réglages publics de la page TikTok Elite =====
 // Ce fichier est visible par tous : aucune clé, aucun code ici.
-// Le lien de paiement, la clé SasPay, le code d'accès et le lien de la communauté sont sur le serveur (fichier landing.env).
+// Les clés Maketou et SasPay, le code d'accès et le lien de la communauté sont dans les réglages Netlify (variables d'environnement).
 window.CREATO = {
-  // Prix affiché sous le titre (le montant réellement facturé est SASPAY_AMOUNT dans landing.env).
+  // Prix affiché sous le titre. Montants réellement facturés : SASPAY_AMOUNT (Netlify) et le prix du produit dans Maketou.
   price: "120€ jusqu’au 11 nov 2026",
 
   // Captures de résultats affichées sous les boutons (2 par ligne). Ajoute un fichier dans img/resultats/ puis son nom ici.
