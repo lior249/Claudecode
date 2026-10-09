@@ -56,7 +56,7 @@ test("mobile money (SasPay) : paiement créé, code d'accès donné après doubl
   assert.equal(await payer(store, s, "mobile"), "https://pay.saspay.test/cs_1");
   const demande = s.appels.find((a) => a.url.endsWith("/checkout-sessions/"));
   assert.equal(demande.auth, "Bearer sk_test");
-  assert.equal(demande.corps.amount, "120.00");
+  assert.equal(demande.corps.amount, "115.00");
   assert.equal(demande.corps.customer_name, "Jean Dupont");
   assert.equal(demande.corps.customer_email, "jean@exemple.com");
   const token = demande.corps.metadata.token;

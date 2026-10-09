@@ -11,10 +11,11 @@ ROOT="$(pwd)"
 if [ ! -f site.env ]; then
   cp deploy/site.env.example site.env
   chmod 600 site.env
-  # Reprend les réglages de l'ancienne page de paiement (clé SasPay, code d'accès…) s'ils existent.
+  # Reprend les réglages de l'ancienne page de paiement (clé SasPay, code d'accès…) s'ils existent,
+  # sauf le montant : le nouveau (115 € hors frais) reste celui du modèle.
   if [ -f /opt/creato/landing.env ]; then
     awk -v src=/opt/creato/landing.env '
-      BEGIN { while ((getline l < src) > 0) if (l ~ /^[A-Z0-9_]+=/) { k = l; sub(/=.*/, "", k); v[k] = l } }
+      BEGIN { while ((getline l < src) > 0) if (l ~ /^[A-Z0-9_]+=/) { k = l; sub(/=.*/, "", k); if (k != "SASPAY_AMOUNT") v[k] = l } }
       /^[A-Z0-9_]+=/ { k = $0; sub(/=.*/, "", k); if (k in v) { print v[k]; next } }
       { print }' site.env > site.env.tmp && cat site.env.tmp > site.env && rm site.env.tmp
     echo "Réglages repris de /opt/creato/landing.env (SasPay, code d'accès, lien de la communauté)."

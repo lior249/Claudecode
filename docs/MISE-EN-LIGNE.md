@@ -11,7 +11,8 @@ Durée : environ 25 minutes. Fais les étapes **dans l'ordre**, sans en sauter.
 
 1. Va sur <https://app.maketou.com> et connecte-toi.
 2. Ouvre ta boutique, puis le produit **« Accès unique à la formation TikTok Vision »**.
-3. Modifie le prix : **78 715** FCFA (= 120 €). Enregistre.
+3. Modifie le prix : **75 435** FCFA (= 115 €). Enregistre.
+   Le site affiche 120 € : avec les frais de Maketou, le client paie environ 120 €.
 4. *(Conseillé)* Renomme le produit, par exemple « Accès à la formation Creato » : ce nom s'affiche sur la page de paiement.
 
 ## Étape 2 — Créer une nouvelle clé API Maketou (3 min)
@@ -96,6 +97,9 @@ Le fichier s'ouvre. **La souris ne marche pas ici** : tu te déplaces avec les *
 2. **Retour arrière** (⌫) jusqu'à effacer l'ancien code, en gardant les deux guillemets : `ACCESS_CODE=""`.
 3. Tape le nouveau code (étape 3).
 
+**Ligne `SASPAY_AMOUNT`** : elle doit être exactement `SASPAY_AMOUNT="115.00"`.
+Si elle contient `120.00`, remplace `120` par `115` (même méthode : **Fin**, ←, Retour arrière, puis tape).
+
 **Ne touche pas aux autres lignes.** Si tu vois des lignes qui commencent par `DISCORD_`, laisse-les telles quelles :
 elles ne servent plus.
 
@@ -146,7 +150,7 @@ Pour te déconnecter du serveur : tape `exit`, puis **Entrée**.
 2. **Bouton sous la vidéo** : touche **Je veux rejoindre maintenant**. ✅ La page descend jusqu'au prix (120 €)
    et aux deux boutons de paiement.
 3. **Paiement par carte** : touche **Payer par carte**, remplis prénom, nom, e-mail, puis **Continuer vers le paiement**.
-   ✅ La page Maketou s'ouvre avec ton produit à 78 715 FCFA. Tu peux fermer sans payer.
+   ✅ La page Maketou s'ouvre avec ton produit à 75 435 FCFA (plus les frais de Maketou). Tu peux fermer sans payer.
 4. **Paiement mobile money** : même chose avec **Payer par mobile money**. ✅ La page SasPay s'ouvre.
 5. *(Conseillé)* Fais un vrai paiement : après le paiement, tu reviens sur la page « Paiement validé » avec le code.
 
