@@ -31,6 +31,8 @@ test("sert la page principale et la page de paiement", async () => {
   assert.match(html, /Payer par carte/);
   assert.match(html, /Payer par mobile money/);
   assert.doesNotMatch(html, /\/paiement\//);
+  assert.match(html, /<wistia-player media-id="m3fx3pj8ug"/);
+  assert.doesNotMatch(html, /youtube/);
   const redir = await fetch(`${base}/paiement`, { redirect: "manual" });
   assert.equal(redir.status, 301);
   assert.equal(redir.headers.get("location"), "/paiement/");
