@@ -7,8 +7,21 @@ Projet repris depuis zéro.
 
 ## Site Creato (Netlify)
 
-- `site/` : la page publique (statique).
-- `netlify/functions/` : réservation d'appels (`/api/creneaux`, `/api/reserver`), réservations gardées dans Netlify Blobs.
-- `netlify/lib/agenda.mjs` : jours, heures et durée des appels.
-- Prévenir sur Discord : variable `DISCORD_WEBHOOK_URL` (salon), ou `DISCORD_BOT_TOKEN` + `DISCORD_USER_ID` (message privé du bot).
-- Tests : `npm test` (lancés aussi à chaque déploiement Netlify).
+Pages :
+- `/` (`site/index.html`) : vidéo, résultats clients, « Pour qui ? », FAQ, réservation d'un appel ;
+- `/paiement/` (`site/paiement/`) : page TikTok Elite, paiement par carte ou mobile money (SasPay), code d'accès après paiement.
+
+Fonctions (`netlify/functions/`) :
+- `/api/creneaux`, `/api/reserver` : réservation d'appels, gardées dans Netlify Blobs (magasin `reservations`).
+  Jours, heures et durée : `netlify/lib/agenda.mjs`.
+- `/api/checkout`, `/api/status`, `/api/saspay/webhook` : paiement SasPay (magasin `paiements`).
+
+Variables d'environnement à saisir dans Netlify (jamais dans le dépôt) :
+- Discord, au choix : `DISCORD_WEBHOOK_URL` (message dans un salon), ou `DISCORD_BOT_TOKEN` + `DISCORD_USER_ID` (message privé du bot).
+  Sans l'un des deux, les réservations sont fermées. Les paiements réussis y sont aussi annoncés.
+- SasPay : `SASPAY_API_KEY`, `SASPAY_WEBHOOK_SECRET`, `SASPAY_AMOUNT` (ex. `120.00`), `SASPAY_CURRENCY` (ex. `EUR`), `SASPAY_DESCRIPTION`.
+- Accès après paiement : `ACCESS_CODE`, `COMMUNITY_URL`.
+- `SITE_URL` (ex. `https://creatoskills.site`) : adresse de retour après paiement (sinon l'adresse principale du site Netlify).
+- Webhook à créer dans SasPay : `<adresse du site>/api/saspay/webhook` (événement `transaction.success`).
+
+Tests : `npm test` (lancés aussi à chaque déploiement Netlify : un test raté bloque la mise en ligne).

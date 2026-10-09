@@ -1,28 +1,10 @@
-import { after, before, test } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { getStore } from "@netlify/blobs";
-import { BlobsServer } from "@netlify/blobs/server";
 import { creneauxAVenir } from "../netlify/lib/agenda.mjs";
 import { listerCreneaux, reserver } from "../netlify/lib/reservations.mjs";
+import { stockageLocal } from "./aide-blobs.mjs";
 
-// Vrai stockage Netlify Blobs, lancé en local.
-let server, dir, port, n = 0;
-before(async () => {
-  dir = await mkdtemp(join(tmpdir(), "blobs-"));
-  server = new BlobsServer({ directory: dir, token: "jeton" });
-  ({ port } = await server.start());
-});
-after(async () => {
-  await server.stop();
-  await rm(dir, { recursive: true, force: true });
-});
-const nouveauStore = () => {
-  const url = `http://localhost:${port}`;
-  return getStore({ name: `test-${n++}`, siteID: "site", token: "jeton", edgeURL: url, uncachedEdgeURL: url, consistency: "strong" });
-};
+const nouveauStore = stockageLocal();
 
 // Lundi 12 octobre 2026, 6 h à Lomé.
 const now = new Date("2026-10-12T06:00:00Z");

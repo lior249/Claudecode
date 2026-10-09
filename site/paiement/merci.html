@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>TikTok Elite — Paiement</title>
+  <meta name="theme-color" content="#000000" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="config.js"></script>
+</head>
+<body class="join">
+  <main class="join-card" data-thanks>
+    <div class="status">
+      <span class="ring big" aria-hidden="true">
+        <svg viewBox="0 0 52 52" class="check"><path d="M14 27l8 8 16-17" /></svg>
+        <svg viewBox="0 0 52 52" class="cross"><path d="M17 17l18 18M35 17L17 35" /></svg>
+      </span>
+      <h1 data-status-title>Vérification du paiement…</h1>
+      <p class="status-note" data-status-note></p>
+      <a class="btn btn-gold btn-retry" href="./" data-retry hidden>Réessayer le paiement</a>
+    </div>
+
+    <section class="code-step" data-code-step hidden>
+      <p class="code-label">Ton code d'accès</p>
+      <div class="code-box">
+        <code data-code></code>
+        <button class="btn btn-gold btn-copy" type="button" data-copy>Copier</button>
+      </div>
+      <p class="code-hint" data-copy-hint>Copie ce code : on te le demandera pour rejoindre la communauté.</p>
+      <a class="btn btn-outline btn-join" data-join href="#" aria-disabled="true">J'ai copié le code, je rejoins la communauté</a>
+    </section>
+  </main>
+  <script src="main.js"></script>
+</body>
+</html>
