@@ -191,7 +191,7 @@ async function payerEtVerifier(s, store, moyen, e = envDiscord) {
   return { token, r: await (await statutPaiement(statut(token), store, { env: e, fetcher: s.fetcher })).json() };
 }
 
-test("Discord : vente par mobile money → embed « Maneyy! » avec nom, montant reçu, SasPay et l'image", async () => {
+test("Discord : vente par mobile money → embed « Maneyy! » avec nom, montant reçu, SasPay et la petite image", async () => {
   const store = nouveauStore();
   const s = fauxServices();
   const { token, r } = await payerEtVerifier(s, store, "mobile");
@@ -204,10 +204,9 @@ test("Discord : vente par mobile money → embed « Maneyy! » avec nom, montant
   assert.deepEqual(allowed_mentions, { parse: [] });
   // Montant reçu : le net donné par SasPay (114,00 €).
   assert.deepEqual(embeds, [{
-    title: "💸Maneyy! Jean Dupont a rejoint Creato!",
-    description: "114,00 € par mobile money (SasPay)!",
-    color: 0x2ecc71,
-    image: { url: "https://creatoskills.site/img/discord/argent.png" },
+    description: "💸Maneyy! Jean Dupont a rejoint Creato!\n114,00 € par mobile money (SasPay)!",
+    color: 0xf5b301,
+    thumbnail: { url: "https://creatoskills.site/img/discord/argent.png" },
   }]);
   // Le client recharge la page : pas de second message.
   await statutPaiement(statut(token), store, { env: envDiscord, fetcher: s.fetcher });
@@ -220,8 +219,7 @@ test("Discord : vente par carte → embed avec le prix Maketou et Maketou", asyn
   await payerEtVerifier(s, store, "carte");
   assert.equal(messagesDiscord(s).length, 1);
   const [embed] = messagesDiscord(s)[0].corps.embeds;
-  assert.equal(embed.title, "💸Maneyy! Jean Dupont a rejoint Creato!");
-  assert.equal(embed.description, "75 435 FCFA par carte (Maketou)!");
+  assert.equal(embed.description, "💸Maneyy! Jean Dupont a rejoint Creato!\n75 435 FCFA par carte (Maketou)!");
 });
 
 test("Discord : aucun message tant que le paiement n'est pas confirmé, ni sans réglages", async () => {
@@ -232,6 +230,17 @@ test("Discord : aucun message tant que le paiement n'est pas confirmé, ni sans 
   const { r } = await payerEtVerifier(s2, nouveauStore(), "mobile", env);
   assert.equal(r.status, "SUCCESS");
   assert.equal(s2.appels.filter((a) => a.url.includes("discord.com")).length, 0);
+});
+
+test("Discord : un nom avec de la mise en forme s'affiche tel quel", async () => {
+  const s = fauxServices();
+  const store = nouveauStore();
+  await creerPaiement(checkout({ moyen: "carte", firstName: "**Jo**", lastName: "@everyone", email: "jo@ex.com" }), store, { env: envDiscord, fetcher: s.fetcher, ip: "4.4.4.4" });
+  const token = s.appels.find((a) => a.url.endsWith("/stores/cart/checkout")).corps.meta.token;
+  await statutPaiement(statut(token), store, { env: envDiscord, fetcher: s.fetcher });
+  const { embeds, allowed_mentions } = messagesDiscord(s)[0].corps;
+  assert.match(embeds[0].description, /^💸Maneyy! \\\*\\\*Jo\\\*\\\* @everyone a rejoint Creato!/);
+  assert.deepEqual(allowed_mentions, { parse: [] });
 });
 
 test("Discord : si le message échoue, le client reçoit quand même son code", async () => {

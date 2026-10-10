@@ -15,7 +15,7 @@ Carte bancaire → Maketou, mobile money → SasPay ; code d'accès et lien de l
 Serveur : `serveur.mjs` (Node 22, aucune dépendance) sert `site/` et l'API :
 - `/api/checkout`, `/api/status`, `/api/saspay/webhook` : paiements (Maketou : https://docs-api.maketou.com) ;
 - `/api/sante` : quels services sont actifs (aucun secret).
-À chaque vente confirmée : message privé Discord du bot Creato, en embed avec `site/img/discord/argent.png` (`DISCORD_BOT_TOKEN`, `DISCORD_USER_ID` ; `lib/discord.mjs`).
+À chaque vente confirmée : message privé Discord du bot Creato, en embed (barre jaune, vignette `site/img/discord/argent.png`) (`DISCORD_BOT_TOKEN`, `DISCORD_USER_ID` ; `lib/discord.mjs`).
 Test : `docker exec creato-site node /app/outils/tester-discord.mjs`.
 Données dans `DATA_DIR` (`lib/stockage.mjs`, un fichier JSON par paiement).
 
