@@ -8,7 +8,10 @@ cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
 # ----- Réglages -----
+rempli() { grep -Eq "^$1=(\"[^\"]+\"|[^\"[:space:]]+)" site.env; }
+nouveau=0
 if [ ! -f site.env ]; then
+  nouveau=1
   cp deploy/site.env.example site.env
   chmod 600 site.env
   # Reprend les réglages de l'ancienne page de paiement (clé SasPay, code d'accès…) s'ils existent,
@@ -20,15 +23,26 @@ if [ ! -f site.env ]; then
       { print }' site.env > site.env.tmp && cat site.env.tmp > site.env && rm site.env.tmp
     echo "Réglages repris de /opt/creato/landing.env (SasPay, code d'accès, lien de la communauté)."
   fi
+fi
+# Jeton du bot Discord : repris de l'ancienne application Creato s'il n'est pas déjà dans site.env.
+if ! rempli DISCORD_BOT_TOKEN && [ -f /opt/creato/.env ] && grep -Eq '^DISCORD_BOT_TOKEN="?[^"[:space:]]+' /opt/creato/.env; then
+  ligne=$(grep -E '^DISCORD_BOT_TOKEN=' /opt/creato/.env | tail -1)
+  awk -v l="$ligne" '/^DISCORD_BOT_TOKEN=/ { print l; f = 1; next } { print } END { if (!f) print l }' site.env > site.env.tmp \
+    && cat site.env.tmp > site.env && rm site.env.tmp
+  echo "Jeton du bot Discord repris de /opt/creato/.env."
+fi
+# La ligne de ton identifiant Discord doit exister pour que tu puisses la remplir.
+grep -q '^DISCORD_USER_ID=' site.env || echo 'DISCORD_USER_ID=""' >> site.env
+if [ "$nouveau" = 1 ]; then
   echo "✅ Fichier de réglages créé : $ROOT/site.env"
   echo "   Ton site actuel n'a pas été touché."
   echo "   Étape suivante : nano site.env   (remplis les réglages), puis relance ./deploy/site.sh"
   exit 0
 fi
-rempli() { grep -Eq "^$1=(\"[^\"]+\"|[^\"[:space:]]+)" site.env; }
 rempli MAKETOU_API_KEY || echo "⚠️  MAKETOU_API_KEY est vide : le paiement par carte sera fermé."
 rempli SASPAY_API_KEY || echo "⚠️  SASPAY_API_KEY est vide : le paiement par mobile money sera fermé."
 { rempli ACCESS_CODE && rempli COMMUNITY_URL; } || echo "⚠️  ACCESS_CODE ou COMMUNITY_URL est vide : les deux paiements seront fermés."
+{ rempli DISCORD_BOT_TOKEN && rempli DISCORD_USER_ID; } || echo "ℹ️  DISCORD_USER_ID ou DISCORD_BOT_TOKEN est vide : pas de message Discord à chaque vente (le site marche quand même)."
 DOMAIN=$(grep -E '^DOMAIN=' site.env | tail -1 | cut -d= -f2- | tr -d '"')
 DOMAIN=${DOMAIN:-creatoskills.site}
 

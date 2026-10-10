@@ -16,13 +16,16 @@ const env = {
 };
 const CART = "fd2d91d7-20d2-4b86-b067-d474fb0d1e60";
 
-// Faux SasPay et faux Maketou (réponses de la documentation).
-function fauxServices({ saspay = "SUCCESS", verification = "SUCCESS", panier = "completed", jetonPanier } = {}) {
+// Faux SasPay, faux Maketou (réponses de la documentation) et faux Discord.
+function fauxServices({ saspay = "SUCCESS", verification = "SUCCESS", panier = "completed", jetonPanier, discord = 200 } = {}) {
   const appels = [];
   let meta = null;
   const fetcher = async (url, init = {}) => {
     const corps = init.body ? JSON.parse(init.body) : null;
     appels.push({ url, methode: init.method, auth: init.headers?.Authorization, corps });
+    // Discord (message privé du bot)
+    if (url === "https://discord.com/api/v10/users/@me/channels") return discord === 200 ? Response.json({ id: "dm-1" }) : new Response(null, { status: discord });
+    if (url === "https://discord.com/api/v10/channels/dm-1/messages") return new Response(null, { status: 200 });
     // SasPay
     if (url.endsWith("/checkout-sessions/")) return Response.json({ success: true, data: { id: "cs_1", checkout_url: "https://pay.saspay.test/cs_1" } });
     if (url.endsWith("/checkout-sessions/cs_1/status/")) return Response.json({ success: true, data: { transaction_status: saspay, transaction_id: saspay === "SUCCESS" ? "tx_1" : null } });
@@ -176,4 +179,55 @@ test("webhook SasPay : seule une signature valide et récente est acceptée", as
   const { blobs } = await store.list({ prefix: "webhooks/" });
   assert.equal(blobs.length, 1);
   assert.deepEqual(await store.get(blobs[0].key, { type: "json" }), { event: "transaction.success", id: "tx_1", status: "SUCCESS", net_amount: "114.00", currency: "EUR" });
+});
+
+// ----- Message privé Discord à chaque vente -----
+const envDiscord = { ...env, DISCORD_BOT_TOKEN: "jeton-bot", DISCORD_USER_ID: "4242" };
+const messagesDiscord = (s) => s.appels.filter((a) => a.url.endsWith("/channels/dm-1/messages"));
+async function payerEtVerifier(s, store, moyen, e = envDiscord) {
+  await creerPaiement(checkout({ moyen, ...client }), store, { env: e, fetcher: s.fetcher, ip: "3.3.3.3" });
+  const a = s.appels.find((x) => x.url.endsWith("/checkout-sessions/") || x.url.endsWith("/stores/cart/checkout"));
+  const token = a.corps.metadata?.token ?? a.corps.meta.token;
+  return { token, r: await (await statutPaiement(statut(token), store, { env: e, fetcher: s.fetcher })).json() };
+}
+
+test("Discord : vente par mobile money → un message privé avec nom, montant et SasPay", async () => {
+  const store = nouveauStore();
+  const s = fauxServices();
+  const { token, r } = await payerEtVerifier(s, store, "mobile");
+  assert.equal(r.status, "SUCCESS");
+  const ouverture = s.appels.find((a) => a.url.endsWith("/users/@me/channels"));
+  assert.equal(ouverture.auth, "Bot jeton-bot");
+  assert.deepEqual(ouverture.corps, { recipient_id: "4242" });
+  assert.equal(messagesDiscord(s).length, 1);
+  const { content, allowed_mentions } = messagesDiscord(s)[0].corps;
+  assert.deepEqual(allowed_mentions, { parse: [] });
+  assert.equal(content, "**Nouvelle vente Creato**\nJean Dupont a rejoint Creato.\nMontant : 115,00 € (hors frais)\nPaiement : mobile money → vérifie sur ton tableau de bord **SasPay**");
+  // Le client recharge la page : pas de second message.
+  await statutPaiement(statut(token), store, { env: envDiscord, fetcher: s.fetcher });
+  assert.equal(messagesDiscord(s).length, 1);
+});
+
+test("Discord : vente par carte → message avec le prix Maketou et Maketou", async () => {
+  const store = nouveauStore();
+  const s = fauxServices();
+  await payerEtVerifier(s, store, "carte");
+  assert.equal(messagesDiscord(s).length, 1);
+  assert.match(messagesDiscord(s)[0].corps.content, /Jean Dupont a rejoint Creato\.\nMontant : 75 435 FCFA \(hors frais\)\nPaiement : carte bancaire → vérifie sur ton tableau de bord \*\*Maketou\*\*/);
+});
+
+test("Discord : aucun message tant que le paiement n'est pas confirmé, ni sans réglages", async () => {
+  const s1 = fauxServices({ panier: "waiting_payment" });
+  await payerEtVerifier(s1, nouveauStore(), "carte");
+  assert.equal(s1.appels.filter((a) => a.url.includes("discord.com")).length, 0);
+  const s2 = fauxServices();
+  const { r } = await payerEtVerifier(s2, nouveauStore(), "mobile", env);
+  assert.equal(r.status, "SUCCESS");
+  assert.equal(s2.appels.filter((a) => a.url.includes("discord.com")).length, 0);
+});
+
+test("Discord : si le message échoue, le client reçoit quand même son code", async () => {
+  const s = fauxServices({ discord: 403 });
+  const { r } = await payerEtVerifier(s, nouveauStore(), "carte");
+  assert.deepEqual(r, { status: "SUCCESS", code: "CODE-TEST", community: "https://whop.test/acces" });
 });

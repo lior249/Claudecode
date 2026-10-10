@@ -29,6 +29,18 @@ L'ancienne clé a été envoyée dans une conversation : on la remplace.
 L'ancien code est visible publiquement sur GitHub. Choisis-en un nouveau (8 caractères ou plus, lettres et chiffres)
 et note-le dans ton bloc-notes. Pense à le changer aussi là où il est vérifié pour rejoindre la communauté (sur Whop).
 
+## Étape 3 bis — Copier ton identifiant Discord (2 min)
+
+Il permet au bot Creato de t'envoyer un **message privé à chaque vente** (nom du client, montant, carte ou mobile money).
+
+1. Ouvre Discord **sur ordinateur**.
+2. En bas à gauche, clique sur la **roue dentée** (Paramètres utilisateur).
+3. Dans la colonne de gauche, descends jusqu'à **Avancés**, puis active **Mode développeur**. Ferme les paramètres (**Échap**).
+4. En bas à gauche, clique sur **ta photo de profil**, puis sur **Copier l'identifiant de l'utilisateur**.
+5. Colle-le dans ton bloc-notes. C'est une longue suite de chiffres, par exemple `412345678901234567`.
+
+Le jeton du bot Creato, lui, est déjà sur ton serveur : le script le reprend tout seul.
+
 ## Étape 4 — Installer le site sur le serveur (15 min)
 
 ### 4.1 Retrouver l'adresse du serveur
@@ -100,8 +112,14 @@ Le fichier s'ouvre. **La souris ne marche pas ici** : tu te déplaces avec les *
 **Ligne `SASPAY_AMOUNT`** : elle doit être exactement `SASPAY_AMOUNT="115.00"`.
 Si elle contient `120.00`, remplace `120` par `115` (même méthode : **Fin**, ←, Retour arrière, puis tape).
 
-**Ne touche pas aux autres lignes.** Si tu vois des lignes qui commencent par `DISCORD_`, laisse-les telles quelles :
-elles ne servent plus.
+**Ligne `DISCORD_USER_ID=""`**
+1. Va sur la ligne, **Fin**, puis **une fois** ←.
+2. Colle ton identifiant Discord (étape 3 bis). La ligne ressemble à : `DISCORD_USER_ID="412345678901234567"`
+
+La ligne `DISCORD_BOT_TOKEN` est déjà remplie par le script : n'y touche pas.
+Si elle est vide (`DISCORD_BOT_TOKEN=""`), ce n'est pas grave : le site marche, seuls les messages de vente manqueront.
+
+**Ne touche pas aux autres lignes.**
 
 Pour enregistrer et quitter :
 1. **Ctrl + O**, puis **Entrée** (enregistre).
@@ -114,8 +132,8 @@ Tu peux maintenant effacer ton bloc-notes.
 ```
 grep -E '^[A-Z_]+=' site.env | sed -E 's/=""$/ : VIDE/; s/=.+$/ : rempli/'
 ```
-✅ Tu dois voir **`rempli`** en face de `MAKETOU_API_KEY`, `ACCESS_CODE`, `SASPAY_API_KEY`, `SASPAY_WEBHOOK_SECRET`
-et `COMMUNITY_URL`. Si une de ces lignes est **`VIDE`**, refais 4.6 pour celle-là.
+✅ Tu dois voir **`rempli`** en face de `MAKETOU_API_KEY`, `ACCESS_CODE`, `SASPAY_API_KEY`, `SASPAY_WEBHOOK_SECRET`,
+`COMMUNITY_URL`, `DISCORD_BOT_TOKEN` et `DISCORD_USER_ID`. Si une de ces lignes est **`VIDE`**, refais 4.6 pour celle-là.
 
 ### 4.8 Mettre le site en ligne
 
@@ -133,12 +151,27 @@ Attends environ 30 secondes. ✅ Tu dois voir :
 Site Creato sur le port 8080
   carte (Maketou) : actif
   mobile money (SasPay) : actif
-{"ok":true,"carte":true,"mobileMoney":true}
+  message Discord à chaque vente : actif
+{"ok":true,"carte":true,"mobileMoney":true,"discord":true}
 ✅ Le site est en ligne : https://creatoskills.site  (paiement : https://creatoskills.site/paiement/)
 ```
 - Si une ligne commence par **⚠️** ou dit **fermé** : le réglage indiqué est vide → refais 4.6, puis 4.8.
+- Si une ligne commence par **ℹ️** ou dit **non réglé** : c'est seulement le message Discord (4.6), le site marche.
 - Si tu vois **⏳** : attends une minute et ouvre le site. Si rien ne s'affiche, tape `docker logs creato-site --tail 30`
   et envoie-moi une capture d'écran (ces lignes ne contiennent aucun secret).
+
+### 4.9 Tester le message Discord
+
+```
+docker exec creato-site node /app/outils/tester-discord.mjs
+```
+✅ Tu vois `✅ Message envoyé` et tu reçois en message privé, de la part du bot Creato :
+**« Test Creato : les messages de vente arriveront ici. »**
+
+- `❌ … 401` : le jeton du bot ne marche plus → dis-le-moi.
+- `❌ … 400` ou `404` : l'identifiant Discord est faux → refais l'étape 3 bis, puis 4.6 et 4.8.
+- `❌ … 403` : Discord bloque le message privé. Sur ton serveur Discord, clique sur son **nom** en haut à gauche →
+  **Paramètres de confidentialité** → active **Messages privés**. Puis relance la commande ci-dessus.
 
 Pour te déconnecter du serveur : tape `exit`, puis **Entrée**.
 
@@ -152,7 +185,9 @@ Pour te déconnecter du serveur : tape `exit`, puis **Entrée**.
 3. **Paiement par carte** : touche **Payer par carte**, remplis prénom, nom, e-mail, puis **Continuer vers le paiement**.
    ✅ La page Maketou s'ouvre avec ton produit à 75 435 FCFA (plus les frais de Maketou). Tu peux fermer sans payer.
 4. **Paiement mobile money** : même chose avec **Payer par mobile money**. ✅ La page SasPay s'ouvre.
-5. *(Conseillé)* Fais un vrai paiement : après le paiement, tu reviens sur la page « Paiement validé » avec le code.
+5. *(Conseillé)* Fais un vrai paiement : après le paiement, tu reviens sur la page « Paiement validé » avec le code,
+   et tu reçois en message privé Discord : « **Nouvelle vente Creato** — *Ton nom* a rejoint Creato. Montant : …
+   Paiement : … → vérifie sur ton tableau de bord Maketou (ou SasPay) ».
 
 Rien à changer dans SasPay : l'adresse du webhook reste `https://creatoskills.site/api/saspay/webhook`.
 
@@ -165,7 +200,8 @@ Rien à changer dans SasPay : l'adresse du webhook reste `https://creatoskills.s
   cd /opt/creato-site && git pull && ./deploy/site.sh
   ```
 - **Modifier un réglage** : `cd /opt/creato-site && nano site.env`, puis `./deploy/site.sh`.
-- **Voir les paiements** : dans tes tableaux de bord Maketou et SasPay, ou sur le serveur avec
+- **Voir les paiements** : un message privé Discord arrive à chaque vente. Le détail est dans tes tableaux de bord
+  Maketou et SasPay, ou sur le serveur avec
   `docker logs creato-site | grep "Paiement réussi"`.
 - **Revenir à l'ancienne page** en cas de gros problème :
   ```

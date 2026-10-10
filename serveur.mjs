@@ -8,6 +8,7 @@ import { createServer } from "node:http";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { discordConfigure } from "./lib/discord.mjs";
 import { creerPaiement, reglages, statutPaiement, webhookSaspay } from "./lib/paiement.mjs";
 import { ouvrirStockage } from "./lib/stockage.mjs";
 
@@ -100,7 +101,7 @@ export function creerServeur({ racine = path.join(ICI, "site"), donnees = proces
         if (p === "/api/saspay/webhook" && m === "POST") return await envoyer(res, await webhookSaspay(request, paiements, { env }));
         if (p === "/api/sante" && m === "GET") {
           const cfg = reglages(env);
-          return await envoyer(res, Response.json({ ok: true, carte: !cfg.manquants.carte.length, mobileMoney: !cfg.manquants.mobile.length }));
+          return await envoyer(res, Response.json({ ok: true, carte: !cfg.manquants.carte.length, mobileMoney: !cfg.manquants.mobile.length, discord: discordConfigure(env) }));
         }
         return await envoyer(res, Response.json({ error: "Introuvable" }, { status: 404 }));
       }
@@ -127,5 +128,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.log(`Site Creato sur le port ${port}`);
     console.log(`  carte (Maketou) : ${etat(!cfg.manquants.carte.length)}${cfg.manquants.carte.length ? " — " + cfg.manquants.carte.join(", ") : ""}`);
     console.log(`  mobile money (SasPay) : ${etat(!cfg.manquants.mobile.length)}${cfg.manquants.mobile.length ? " — " + cfg.manquants.mobile.join(", ") : ""}`);
+    console.log(`  message Discord à chaque vente : ${discordConfigure() ? "actif" : "non réglé (DISCORD_BOT_TOKEN, DISCORD_USER_ID)"}`);
   });
 }
