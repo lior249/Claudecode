@@ -165,8 +165,8 @@ Site Creato sur le port 8080
 ```
 docker exec creato-site node /app/outils/tester-discord.mjs
 ```
-✅ Tu vois `✅ Message envoyé` et tu reçois en message privé, de la part du bot Creato :
-**« Test Creato : les messages de vente arriveront ici. »**
+✅ Tu vois `✅ Message envoyé` et tu reçois en message privé, de la part du bot Creato, un exemple de vente :
+**« 💸Maneyy! Test a rejoint Creato! — 115,00 € par mobile money (SasPay)! »** avec l'image des billets.
 
 - `❌ … 401` : le jeton du bot ne marche plus → dis-le-moi.
 - `❌ … 400` ou `404` : l'identifiant Discord est faux → refais l'étape 3 bis, puis 4.6 et 4.8.
@@ -186,8 +186,8 @@ Pour te déconnecter du serveur : tape `exit`, puis **Entrée**.
    ✅ La page Maketou s'ouvre avec ton produit à 75 435 FCFA (plus les frais de Maketou). Tu peux fermer sans payer.
 4. **Paiement mobile money** : même chose avec **Payer par mobile money**. ✅ La page SasPay s'ouvre.
 5. *(Conseillé)* Fais un vrai paiement : après le paiement, tu reviens sur la page « Paiement validé » avec le code,
-   et tu reçois en message privé Discord : « **Nouvelle vente Creato** — *Ton nom* a rejoint Creato. Montant : …
-   Paiement : … → vérifie sur ton tableau de bord Maketou (ou SasPay) ».
+   et tu reçois en message privé Discord : « **💸Maneyy! *Ton nom* a rejoint Creato!** — *montant* par carte (Maketou)! »
+   (ou « par mobile money (SasPay)! »), avec l'image des billets.
 
 Rien à changer dans SasPay : l'adresse du webhook reste `https://creatoskills.site/api/saspay/webhook`.
 

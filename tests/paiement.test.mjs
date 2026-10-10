@@ -191,7 +191,7 @@ async function payerEtVerifier(s, store, moyen, e = envDiscord) {
   return { token, r: await (await statutPaiement(statut(token), store, { env: e, fetcher: s.fetcher })).json() };
 }
 
-test("Discord : vente par mobile money → un message privé avec nom, montant et SasPay", async () => {
+test("Discord : vente par mobile money → embed « Maneyy! » avec nom, montant reçu, SasPay et l'image", async () => {
   const store = nouveauStore();
   const s = fauxServices();
   const { token, r } = await payerEtVerifier(s, store, "mobile");
@@ -200,20 +200,28 @@ test("Discord : vente par mobile money → un message privé avec nom, montant e
   assert.equal(ouverture.auth, "Bot jeton-bot");
   assert.deepEqual(ouverture.corps, { recipient_id: "4242" });
   assert.equal(messagesDiscord(s).length, 1);
-  const { content, allowed_mentions } = messagesDiscord(s)[0].corps;
+  const { embeds, allowed_mentions } = messagesDiscord(s)[0].corps;
   assert.deepEqual(allowed_mentions, { parse: [] });
-  assert.equal(content, "**Nouvelle vente Creato**\nJean Dupont a rejoint Creato.\nMontant : 115,00 € (hors frais)\nPaiement : mobile money → vérifie sur ton tableau de bord **SasPay**");
+  // Montant reçu : le net donné par SasPay (114,00 €).
+  assert.deepEqual(embeds, [{
+    title: "💸Maneyy! Jean Dupont a rejoint Creato!",
+    description: "114,00 € par mobile money (SasPay)!",
+    color: 0x2ecc71,
+    image: { url: "https://creatoskills.site/img/discord/argent.png" },
+  }]);
   // Le client recharge la page : pas de second message.
   await statutPaiement(statut(token), store, { env: envDiscord, fetcher: s.fetcher });
   assert.equal(messagesDiscord(s).length, 1);
 });
 
-test("Discord : vente par carte → message avec le prix Maketou et Maketou", async () => {
+test("Discord : vente par carte → embed avec le prix Maketou et Maketou", async () => {
   const store = nouveauStore();
   const s = fauxServices();
   await payerEtVerifier(s, store, "carte");
   assert.equal(messagesDiscord(s).length, 1);
-  assert.match(messagesDiscord(s)[0].corps.content, /Jean Dupont a rejoint Creato\.\nMontant : 75 435 FCFA \(hors frais\)\nPaiement : carte bancaire → vérifie sur ton tableau de bord \*\*Maketou\*\*/);
+  const [embed] = messagesDiscord(s)[0].corps.embeds;
+  assert.equal(embed.title, "💸Maneyy! Jean Dupont a rejoint Creato!");
+  assert.equal(embed.description, "75 435 FCFA par carte (Maketou)!");
 });
 
 test("Discord : aucun message tant que le paiement n'est pas confirmé, ni sans réglages", async () => {

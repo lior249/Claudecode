@@ -2,6 +2,7 @@
 // Sur le serveur : docker exec creato-site node /app/outils/tester-discord.mjs
 import { chargerEnv } from "../serveur.mjs";
 import { discordConfigure, envoyerDiscord } from "../lib/discord.mjs";
+import { messageVente, reglages } from "../lib/paiement.mjs";
 
 chargerEnv(process.env.SITE_ENV ?? "/run/site.env");
 if (!discordConfigure()) {
@@ -9,7 +10,8 @@ if (!discordConfigure()) {
   process.exit(1);
 }
 try {
-  await envoyerDiscord("**Test Creato** : les messages de vente arriveront ici.");
+  // Exemple de vente, exactement comme les vrais messages.
+  await envoyerDiscord(messageVente({ moyen: "mobile", name: "Test", montant: "115,00 €" }, reglages().siteUrl));
   console.log("✅ Message envoyé : regarde tes messages privés Discord.");
 } catch (e) {
   console.log(`❌ Échec : ${e.message}`);
