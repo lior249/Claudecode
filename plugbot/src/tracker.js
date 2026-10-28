@@ -1,6 +1,6 @@
 // Relie la base de données aux membres du serveur : catégorie, chaîne, prison, points.
 
-import { chainLength, prisonState, trackingStartDay } from './stats.js';
+import { DAYS_TO_LEAVE_PRISON, PRISON_DAYS, chainLength, missedDays, trackingStartDay } from './stats.js';
 import { dayOf, weekRange } from './time.js';
 
 export function createTracker({ config, db }) {
@@ -15,26 +15,44 @@ export function createTracker({ config, db }) {
     return !member.user.bot && !config.adminIds.has(member.id) && categoryOf(member) !== null;
   }
 
+  // Note la catégorie du membre. Quand elle change (rôle @TikTok ou Free gagné ou perdu),
+  // le compteur de la prison repart de zéro.
+  function syncCategory(member, today) {
+    const category = isTracked(member) ? categoryOf(member) : null;
+    const state = db.getMemberState(member.id);
+    if ((state?.category ?? null) === category) return;
+    db.setMemberState(member.id, category, category ? today : (state?.resetDay ?? null));
+  }
+
   // Une ligne par membre suivi, calculée à l'instant `now`.
   // `points` compte les show-ups de la période `range` (par défaut, la semaine en cours).
   function snapshot(members, now, range = weekRange(now)) {
     const today = dayOf(now);
     const launchDay = Number(db.getMeta('launch_day'));
     const days = db.validDays();
-    const pardons = db.pardonDays();
+    const states = db.memberStates();
+    const prisoners = db.prisonRecords();
     const totals = db.totals();
     const counts = db.countsBetween(range.start, range.end);
     const rows = new Map();
     for (const member of members.values()) {
       if (!isTracked(member)) continue;
+      const category = categoryOf(member);
       const memberDays = days.get(member.id) ?? new Set();
-      const startDay = trackingStartDay(member.joinedTimestamp, launchDay, pardons.get(member.id));
+      const chain = chainLength(memberDays, today);
+      const startDay = trackingStartDay(member.joinedTimestamp, launchDay, states.get(member.id)?.resetDay);
+      const inPrison = prisoners.has(member.id);
       rows.set(member.id, {
         userId: member.id,
         member,
-        category: categoryOf(member),
-        chain: chainLength(memberDays, today),
-        prison: prisonState(memberDays, startDay, today),
+        category,
+        chain,
+        prison: {
+          inPrison,
+          missed: missedDays(memberDays, startDay, today),
+          limit: PRISON_DAYS[category],
+          daysToLeave: inPrison ? Math.max(0, DAYS_TO_LEAVE_PRISON - chain) : 0,
+        },
         total: totals.get(member.id)?.count ?? 0,
         points: counts.get(member.id)?.count ?? 0,
         pointsReachedAt: counts.get(member.id)?.reachedAt ?? 0,
@@ -43,5 +61,5 @@ export function createTracker({ config, db }) {
     return rows;
   }
 
-  return { categoryOf, isTracked, snapshot };
+  return { categoryOf, isTracked, syncCategory, snapshot };
 }

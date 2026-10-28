@@ -1,5 +1,5 @@
 // Réactions aux événements Discord : nouveau résultat, ❌ de l'admin, message supprimé,
-// rôle Prisonnier retiré par l'équipe.
+// changement de rôle.
 
 import {
   deletedMessage,
@@ -52,7 +52,7 @@ export function createHandlers(ctx) {
     const member = await findMember(userId);
     if (!member) return;
     const row = tracker.snapshot(new Map([[member.id, member]]), Date.now()).get(member.id);
-    if (row && !row.prison.inPrison && db.getPrison(userId)) {
+    if (row?.prison.inPrison && row.prison.daysToLeave === 0) {
       await prison.free(member);
       await send(channels.prison, prisonExitMessage(userId), [userId]);
     }
@@ -130,9 +130,12 @@ export function createHandlers(ctx) {
     async onMessageDelete(message) {
       if (message.channelId === config.channels.results) await markDeleted(message.id);
     },
+    // Rôle gagné ou perdu : catégorie à jour, et libération si l'équipe a retiré le rôle Prisonnier.
     async onMemberUpdate(member) {
       const current = guild.members.cache.get(member.id) ?? member;
-      if (prison.wasReleasedByTeam(current)) await prison.releaseByTeam(current, dayOf(Date.now()));
+      const today = dayOf(Date.now());
+      tracker.syncCategory(current, today);
+      if (prison.wasReleasedByTeam(current)) await prison.releaseByTeam(current, today);
     },
   };
 }

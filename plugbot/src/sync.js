@@ -27,6 +27,7 @@ export async function startup(ctx, handlers, jobs) {
     console.log('[PlugBot] Premier lancement : le suivi commence maintenant.');
   }
 
+  for (const member of ctx.guild.members.cache.values()) ctx.tracker.syncCategory(member, dayOf(now));
   await catchUpNewMessages(ctx, handlers);
   await reconcileRecent(ctx, handlers, now - RECONCILE_MS);
   await jobs.checkTeamReleases(dayOf(now));

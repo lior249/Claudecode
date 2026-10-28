@@ -4,7 +4,8 @@ import {
   frenchList,
   ordinal,
   plural,
-  prisonLevelMessages,
+  prisonEntryMessages,
+  prisonFinalMessages,
   prisonWarningMessages,
   rankingMessage,
   showupMessage,
@@ -14,7 +15,6 @@ import {
 
 const config = {
   channels: { results: 'res' },
-  prisonExitChannelId: 'exit',
   roles: { streak: 'feu', weekWinner: 'p7', monthWinner: 'p30', prisoner: 'pri' },
   streakRoleDays: 21,
 };
@@ -64,7 +64,12 @@ describe('messages', () => {
       prison: { inPrison: true, daysToLeave: 2 },
     });
     assert.match(text, /Toujours en prison : encore \*\*2 jours\*\*/);
-    assert.doesNotMatch(text, /Plug/);
+    assert.doesNotMatch(text, /Accompagnement/);
+  });
+
+  it("affiche le rang de l'accompagnement", () => {
+    const text = showupMessage({ userId: '1', chain: 2, week: 3, total: 3, rank: 1, category: 'plug', prison: { inPrison: false } });
+    assert.match(text, /\(1er Accompagnement\)/);
   });
 
   it('annonce le rôle de chaîne et sa réduction', () => {
@@ -74,39 +79,54 @@ describe('messages', () => {
     );
   });
 
-  it("alerte 5 jours avant la prison en disant ce qui va arriver", () => {
-    const [text] = prisonWarningMessages(['1', '2'], config);
-    assert.match(text, /^⚠️ <@1> et <@2> : 10 jours sans show-up\./);
-    assert.match(text, /Encore 5 jours sans résultat et c'est la prison : le rôle <@&pri>/);
-    assert.match(text, /<@&feu>, <@&p7>, <@&p30>/);
-    assert.match(text, /Un seul résultat dans <#res> suffit/);
+  it("alerte 5 jours avant la prison, puis liste les membres concernés", () => {
+    assert.deepEqual(prisonWarningMessages(['1', '2'], config), [
+      [
+        '⚠️ **Alerte : tu vas en prison.**',
+        "Dans 5 jours, tu iras en prison, parce que tu n'as posté aucun résultat montrant que tu es actif sur TikTok.",
+        'Si tu veux éviter ça, poste une vidéo et envoie le résultat dans les 5 jours qui viennent. Sinon, tu rejoindras la prison.',
+        '(La prison te coupe tous les accès principaux du Discord : écrire dans les salons, rejoindre les lives, accéder aux réductions, etc.)',
+        'Pour éviter que ça arrive, envoie juste un seul résultat dans <#res>, le plus vite possible.',
+        '',
+        "Voici tous ceux qui iront en prison dans 5 jours s'ils ne postent aucun résultat :",
+        '<@1> <@2>',
+      ].join('\n'),
+    ]);
   });
 
-  it('regroupe les entrées en prison et explique comment sortir', () => {
-    assert.deepEqual(prisonLevelMessages(15, ['1'], config), [
-      "🔒 <@1> vient d'entrer en prison : 15 jours sans show-up.\n" +
-        "Pour sortir : 3 jours de show-up d'affilée dans <#res>, ou un ticket dans <#exit> pour justifier ton absence.",
+  it("continue la liste de l'alerte dans d'autres messages si elle est trop longue", () => {
+    const ids = Array.from({ length: 120 }, (_, i) => String(100000000000000000n + BigInt(i)));
+    const messages = prisonWarningMessages(ids, config);
+    assert.equal(messages.length, 3);
+    assert.match(messages[0], /^⚠️/);
+    assert.match(messages[1], /^<@/);
+    for (const message of messages) assert.ok(message.length <= 2000);
+  });
+
+  it('annonce les entrées en prison avec le délai et la seule façon de sortir', () => {
+    assert.deepEqual(prisonEntryMessages(21, ['1'], config), [
+      "🔒 <@1> vient d'entrer en prison : 21 jours sans show-up.\nPour sortir : 3 jours de show-up d'affilée dans <#res>.",
     ]);
-    assert.match(prisonLevelMessages(30, ['1', '2'], config)[0], /^🔒 <@1> et <@2> sont définitivement en prison/);
+    assert.match(prisonEntryMessages(15, ['1', '2'], config)[0], /^🔒 <@1> et <@2> viennent d'entrer en prison : 15 jours/);
+    assert.match(prisonFinalMessages(['1', '2'], config)[0], /^🔒 <@1> et <@2> sont définitivement en prison : 30 jours/);
   });
 
   it('découpe les longues listes sous la limite de Discord', () => {
     const ids = Array.from({ length: 290 }, (_, i) => String(100000000000000000n + BigInt(i)));
-    const messages = prisonLevelMessages(15, ids, config);
+    const messages = prisonEntryMessages(21, ids, config);
     assert.equal(messages.length, 6);
     for (const message of messages) assert.ok(message.length <= 2000);
   });
 
-  it('publie le classement avec les deux catégories et les gagnants', () => {
+  it("publie l'accompagnement avant les Free, et seul le gagnant Free gagne la réduction", () => {
     const text = rankingMessage({
       kind: 'week',
       title: 'Classement de la semaine',
       congrats: 'Bravo !',
       sections: [
+        { category: 'plug', entries: [{ userId: '3', score: 7 }] },
         { category: 'free', entries: [{ userId: '1', score: 12 }, { userId: '2', score: 1 }] },
-        { category: 'plug', entries: [] },
       ],
-      winners: ['1'],
       config,
     });
     assert.equal(
@@ -115,16 +135,32 @@ describe('messages', () => {
         '⚡ **Classement de la semaine**',
         'Bravo !',
         '',
+        '**Accompagnement**',
+        '1. <@3> — 7 points',
+        '',
         '**Free**',
         '1. <@1> — 12 points',
         '2. <@2> — 1 point',
         '',
-        '**Plug**',
-        '_Personne pour cette période._',
-        '',
+        '🏆 <@3> remporte le classement Accompagnement !',
         '⚡ <@1> remporte <@&p7> : −25 % sur la formation !',
       ].join('\n'),
     );
+  });
+
+  it('indique une catégorie vide', () => {
+    const text = rankingMessage({
+      kind: 'month',
+      title: 'Classement du mois — novembre 2026',
+      congrats: 'Bravo !',
+      sections: [
+        { category: 'plug', entries: [] },
+        { category: 'free', entries: [{ userId: '1', score: 30 }] },
+      ],
+      config,
+    });
+    assert.match(text, /\*\*Accompagnement\*\*\n_Personne pour cette période._/);
+    assert.match(text, /★ <@1> remporte <@&p30> : −35 % sur la formation !$/);
   });
 
   it('découpe un texte trop long sans couper les lignes', () => {

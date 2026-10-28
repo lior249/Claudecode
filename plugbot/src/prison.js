@@ -42,15 +42,15 @@ export function createPrison({ config, db, channels }) {
     for (const roleId of record.suspendedRoles) await changeRole(member, roleId, true, 'Sortie de prison');
   }
 
-  // L'équipe a retiré le rôle Prisonnier à la main (après un ticket).
+  // L'équipe a retiré le rôle Prisonnier à la main, par exemple après une erreur.
   function wasReleasedByTeam(member) {
     const record = db.getPrison(member.id);
     return Boolean(record?.hasRole) && !member.roles.cache.has(config.roles.prisoner);
   }
 
-  // Le suivi de la prison repart de zéro le lendemain de la libération.
+  // Le compteur de la prison repart de zéro le lendemain de la libération.
   async function releaseByTeam(member, today) {
-    db.setPardon(member.id, today);
+    db.setResetDay(member.id, today);
     await free(member);
     await send(channels.prison, prisonReleaseMessage(member.id), [member.id]);
   }

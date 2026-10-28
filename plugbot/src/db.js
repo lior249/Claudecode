@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { DAY_MS } from './time.js';
 
 const SCHEMA = `
-  -- Un show-up par message posté dans #résultats.
+  -- Un show-up par message posté dans #flex-resultats.
   -- status : valid (compté), rejected (retiré par un admin), deleted (message supprimé).
   CREATE TABLE IF NOT EXISTS showups (
     message_id TEXT PRIMARY KEY,
@@ -33,10 +33,13 @@ const SCHEMA = `
     day     INTEGER NOT NULL
   );
 
-  -- Dernière libération de prison par l'équipe (numéro du jour UTC).
-  CREATE TABLE IF NOT EXISTS pardons (
-    user_id TEXT PRIMARY KEY,
-    day     INTEGER NOT NULL
+  -- Catégorie de chaque membre (free, plug, ou NULL s'il n'a plus de rôle suivi),
+  -- et dernier jour où le compteur de la prison a été remis à zéro (numéro du jour UTC) :
+  -- changement de rôle ou libération par l'équipe.
+  CREATE TABLE IF NOT EXISTS members (
+    user_id   TEXT PRIMARY KEY,
+    category  TEXT,
+    reset_day INTEGER
   );
 
   -- Réglages internes : date de lancement, dernier message lu, dernières publications.
@@ -79,8 +82,12 @@ export function openDatabase(path) {
     removePrison: db.prepare('DELETE FROM prison WHERE user_id = ?'),
     alertDays: db.prepare('SELECT user_id, day FROM alerts'),
     setAlert: db.prepare('INSERT OR REPLACE INTO alerts (user_id, day) VALUES (?, ?)'),
-    pardonDays: db.prepare('SELECT user_id, day FROM pardons'),
-    setPardon: db.prepare('INSERT OR REPLACE INTO pardons (user_id, day) VALUES (?, ?)'),
+    memberStates: db.prepare('SELECT * FROM members'),
+    getMemberState: db.prepare('SELECT * FROM members WHERE user_id = ?'),
+    setMemberState: db.prepare('INSERT OR REPLACE INTO members (user_id, category, reset_day) VALUES (?, ?, ?)'),
+    setResetDay: db.prepare(
+      'INSERT INTO members (user_id, reset_day) VALUES (?, ?) ON CONFLICT (user_id) DO UPDATE SET reset_day = excluded.reset_day',
+    ),
   };
 
   function prisonRecord(row) {
@@ -93,6 +100,10 @@ export function openDatabase(path) {
 
   function dayMap(rows) {
     return new Map(rows.map((row) => [row.user_id, row.day]));
+  }
+
+  function memberState(row) {
+    return { category: row.category, resetDay: row.reset_day };
   }
 
   function countsMap(rows) {
@@ -169,11 +180,18 @@ export function openDatabase(path) {
     setAlert(userId, day) {
       statements.setAlert.run(userId, day);
     },
-    pardonDays() {
-      return dayMap(statements.pardonDays.all());
+    memberStates() {
+      return new Map(statements.memberStates.all().map((row) => [row.user_id, memberState(row)]));
     },
-    setPardon(userId, day) {
-      statements.setPardon.run(userId, day);
+    getMemberState(userId) {
+      const row = statements.getMemberState.get(userId);
+      return row ? memberState(row) : null;
+    },
+    setMemberState(userId, category, resetDay) {
+      statements.setMemberState.run(userId, category, resetDay);
+    },
+    setResetDay(userId, day) {
+      statements.setResetDay.run(userId, day);
     },
 
     close() {

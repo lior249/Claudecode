@@ -2,9 +2,12 @@
 
 import { dayOf } from './time.js';
 
-// Alerte après 10 jours entiers sans show-up, prison à 15, dernier palier à 30.
-export const PRISON_WARNING_DAYS = 10;
-export const PRISON_LEVELS = [15, 30];
+// Jours entiers sans show-up avant la prison, selon la catégorie du membre.
+export const PRISON_DAYS = { free: 21, plug: 15 };
+// L'alerte part 5 jours avant la prison.
+export const WARNING_DAYS_BEFORE = 5;
+// Dernier message de prison : « définitivement en prison ».
+export const FINAL_PRISON_DAYS = 30;
 export const DAYS_TO_LEAVE_PRISON = 3;
 // Jours entiers à passer sur le serveur avant que la prison s'applique.
 export const DAYS_BEFORE_TRACKING = 7;
@@ -17,11 +20,12 @@ export function isProof(attachment) {
   return PROOF_TYPES.test(attachment.contentType ?? '') || PROOF_EXTENSIONS.test(attachment.name ?? '');
 }
 
-// Premier jour où la prison s'applique : le lendemain du lancement du bot, pas avant que le membre
-// ait passé 7 jours entiers sur le serveur, et le lendemain d'une libération par l'équipe.
-export function trackingStartDay(joinedAt, launchDay, pardonDay = null) {
+// Premier jour compté pour la prison : pas avant le lendemain du lancement du bot, ni avant que
+// le membre ait passé 7 jours entiers sur le serveur, ni avant le lendemain d'une remise à zéro
+// (changement de rôle ou libération par l'équipe).
+export function trackingStartDay(joinedAt, launchDay, resetDay = null) {
   const joinedDay = joinedAt == null ? -Infinity : dayOf(joinedAt);
-  return Math.max(launchDay + 1, joinedDay + DAYS_BEFORE_TRACKING + 1, (pardonDay ?? -Infinity) + 1);
+  return Math.max(launchDay + 1, joinedDay + DAYS_BEFORE_TRACKING + 1, (resetDay ?? -Infinity) + 1);
 }
 
 // Nombre de jours d'affilée avec au moins un show-up. Tant que la journée n'est pas finie,
@@ -36,42 +40,19 @@ export function chainLength(days, today) {
   return length;
 }
 
-// Rejoue les journées depuis le début du suivi pour savoir si le membre est en prison.
-// On y entre après 15 jours entiers sans show-up, on en sort après 3 jours de show-up d'affilée.
-export function prisonState(days, startDay, today) {
-  let inPrison = false;
-  let entryDay = null;
+// Jours entiers sans show-up depuis le dernier show-up, comptés à partir de `startDay`.
+// La journée en cours ne compte pas tant qu'elle n'est pas finie.
+export function missedDays(days, startDay, today) {
+  if (days.has(today)) return 0;
   let missed = 0;
-  let run = 0;
-  for (let day = startDay; day <= today; day++) {
-    if (days.has(day)) {
-      run++;
-      missed = 0;
-      if (inPrison && run >= DAYS_TO_LEAVE_PRISON) {
-        inPrison = false;
-        entryDay = null;
-      }
-    } else if (day < today) {
-      run = 0;
-      missed++;
-      if (!inPrison && missed >= PRISON_LEVELS[0]) {
-        inPrison = true;
-        entryDay = day + 1;
-      }
-    }
-  }
-  return { inPrison, entryDay, missed, daysToLeave: inPrison ? DAYS_TO_LEAVE_PRISON - run : 0 };
+  for (let day = today - 1; day >= startDay && !days.has(day); day--) missed++;
+  return missed;
 }
 
-// Palier atteint pour un nombre de jours sans show-up (0 si aucun).
-export function prisonLevel(missed) {
-  return PRISON_LEVELS.filter((level) => level <= missed).at(-1) ?? 0;
-}
-
-// Alerte à 10 jours sans show-up, une seule fois par absence.
-export function needsWarning(prison, today, lastWarningDay) {
-  if (prison.inPrison || prison.missed < PRISON_WARNING_DAYS) return false;
-  const absenceStart = today - prison.missed;
+// Alerte 5 jours avant la prison, une seule fois par absence.
+export function needsWarning(missed, prisonDays, today, lastWarningDay) {
+  if (missed < prisonDays - WARNING_DAYS_BEFORE || missed >= prisonDays) return false;
+  const absenceStart = today - missed;
   return lastWarningDay == null || lastWarningDay < absenceStart;
 }
 

@@ -41,8 +41,6 @@ export function loadConfig() {
       month: required('MONTH_CHANNEL_ID'),
       prison: required('PRISON_CHANNEL_ID'),
     },
-    // Salon des tickets pour sortir de prison : seulement mentionné dans les messages.
-    prisonExitChannelId: optional('PRISON_EXIT_CHANNEL_ID', null),
     roles: {
       free: required('FREE_ROLE_ID'),
       plug: required('PLUG_ROLE_ID'),

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  PRISON_DAYS,
   chainLength,
   isProof,
   leaderboard,
+  missedDays,
   needsWarning,
-  prisonLevel,
-  prisonState,
   trackingStartDay,
 } from '../src/stats.js';
 import { DAY_MS, dayOf, monthName, monthRange, monthStart, weekRange, weekStart } from '../src/time.js';
@@ -74,66 +74,42 @@ describe('trackingStartDay', () => {
     assert.equal(trackingStartDay(10 * DAY_MS, 50), 51);
     assert.equal(trackingStartDay(null, 50), 51);
   });
-  it("repart de zéro le lendemain d'une libération par l'équipe", () => {
+  it("repart de zéro le lendemain d'un changement de rôle ou d'une libération", () => {
     assert.equal(trackingStartDay(10 * DAY_MS, 50, 80), 81);
   });
 });
 
-describe('prisonState', () => {
-  it('entre en prison après 15 jours entiers sans show-up', () => {
-    assert.equal(prisonState(days(10), 10, 25).inPrison, false);
-    const state = prisonState(days(10), 10, 26);
-    assert.equal(state.inPrison, true);
-    assert.equal(state.entryDay, 26);
-    assert.equal(state.missed, 15);
+describe('missedDays', () => {
+  it("compte les jours entiers sans show-up depuis le dernier, sans compter aujourd'hui", () => {
+    assert.equal(missedDays(days(10), 1, 11), 0);
+    assert.equal(missedDays(days(10), 1, 14), 3);
   });
-
-  it("un membre qui n'a jamais posté entre en prison 15 jours après le début du suivi", () => {
-    assert.equal(prisonState(days(), 20, 34).inPrison, false);
-    assert.equal(prisonState(days(), 20, 35).inPrison, true);
+  it('ne compte rien si le membre a posté aujourd\'hui', () => {
+    assert.equal(missedDays(days(10, 14), 1, 14), 0);
   });
-
-  it("sort de prison au 3e jour de show-up d'affilée, dès le post", () => {
-    // Dernier show-up le jour 10, prison le jour 26, puis show-ups les jours 26, 27, 28.
-    assert.equal(prisonState(days(10, 26, 27), 10, 27).inPrison, true);
-    assert.equal(prisonState(days(10, 26, 27), 10, 27).daysToLeave, 1);
-    assert.equal(prisonState(days(10, 26, 27, 28), 10, 28).inPrison, false);
+  it('commence au début du suivi pour un membre qui n\'a jamais posté', () => {
+    assert.equal(missedDays(days(), 20, 41), 21);
+    assert.equal(missedDays(days(5), 20, 30), 10);
   });
-
-  it("reste en prison sans 3 jours d'affilée, même avec plusieurs posts le même jour", () => {
-    const state = prisonState(days(10, 26, 28, 30, 32), 10, 33);
-    assert.equal(state.inPrison, true);
-    // Le jour 32 compte : il lui reste aujourd'hui et demain.
-    assert.equal(state.daysToLeave, 2);
-  });
-
-  it('un membre régulier ne va jamais en prison', () => {
-    assert.equal(prisonState(range(10, 60), 10, 60).inPrison, false);
-  });
-});
-
-describe('prisonLevel', () => {
-  it('donne le palier atteint', () => {
-    assert.equal(prisonLevel(14), 0);
-    assert.equal(prisonLevel(15), 15);
-    assert.equal(prisonLevel(29), 15);
-    assert.equal(prisonLevel(45), 30);
+  it('plusieurs posts le même jour ne comptent que pour un jour', () => {
+    assert.equal(missedDays(range(10, 20), 1, 21), 0);
   });
 });
 
 describe('needsWarning', () => {
-  const free = (missed) => ({ inPrison: false, missed });
-  it('alerte à partir de 10 jours sans show-up', () => {
-    assert.equal(needsWarning(free(9), 100, null), false);
-    assert.equal(needsWarning(free(10), 100, null), true);
+  it("alerte 5 jours avant la prison : à 16 jours pour les Free, à 10 pour l'accompagnement", () => {
+    assert.equal(needsWarning(15, PRISON_DAYS.free, 100, null), false);
+    assert.equal(needsWarning(16, PRISON_DAYS.free, 100, null), true);
+    assert.equal(needsWarning(9, PRISON_DAYS.plug, 100, null), false);
+    assert.equal(needsWarning(10, PRISON_DAYS.plug, 100, null), true);
   });
   it('une seule alerte par absence', () => {
-    assert.equal(needsWarning(free(11), 101, 100), false);
+    assert.equal(needsWarning(17, 21, 101, 100), false);
     // Nouvelle absence commencée après la dernière alerte.
-    assert.equal(needsWarning(free(10), 140, 100), true);
+    assert.equal(needsWarning(16, 21, 140, 100), true);
   });
-  it("pas d'alerte en prison", () => {
-    assert.equal(needsWarning({ inPrison: true, missed: 12 }, 100, null), false);
+  it("pas d'alerte une fois le délai atteint", () => {
+    assert.equal(needsWarning(21, 21, 100, null), false);
   });
 });
 

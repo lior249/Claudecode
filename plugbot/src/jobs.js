@@ -3,16 +3,18 @@
 
 import {
   congratulations,
+  prisonEntryMessages,
   prisonExitMessage,
-  prisonLevelMessages,
+  prisonFinalMessages,
   prisonWarningMessages,
   rankingMessage,
 } from './messages.js';
 import { send } from './send.js';
-import { PRISON_LEVELS, leaderboard, needsWarning, prisonLevel } from './stats.js';
+import { DAYS_TO_LEAVE_PRISON, FINAL_PRISON_DAYS, leaderboard, needsWarning } from './stats.js';
 import { DAY_MS, dayOf, monthName, monthRange, monthStart, weekRange, weekStart } from './time.js';
 
-const CATEGORIES = ['free', 'plug'];
+// L'accompagnement est toujours affiché avant les Free.
+const CATEGORIES = ['plug', 'free'];
 const RANKING_SIZES = { week: 5, month: 10 };
 
 export function createJobs(ctx, handlers) {
@@ -29,39 +31,41 @@ export function createJobs(ctx, handlers) {
   async function runDaily(now) {
     const today = dayOf(now);
     await guild.members.fetch();
+    for (const member of guild.members.cache.values()) tracker.syncCategory(member, today);
     await checkTeamReleases(today);
 
     const rows = tracker.snapshot(guild.members.cache, now);
     const records = db.prisonRecords();
     const alerts = db.alertDays();
     const warnings = [];
-    const levels = new Map(PRISON_LEVELS.map((level) => [level, []]));
+    const entries = new Map(); // délai (15 ou 21 jours) -> membres
+    const finals = [];
     const exits = [];
 
     for (const row of rows.values()) {
-      const record = records.get(row.userId);
-      if (row.prison.inPrison) {
-        if (!record) {
-          const level = Math.max(PRISON_LEVELS[0], prisonLevel(row.prison.missed));
-          await prison.imprison(row.member, level);
-          levels.get(level).push(row.userId);
+      const { userId, prison: state } = row;
+      const record = records.get(userId);
+      if (record) {
+        if (row.chain >= DAYS_TO_LEAVE_PRISON) {
+          await prison.free(row.member);
+          exits.push(userId);
           continue;
         }
         if (!record.hasRole) await prison.giveRole(row.member);
-        const level = prisonLevel(row.prison.missed);
-        if (level > record.level) {
-          db.setPrisonLevel(row.userId, level);
-          levels.get(level).push(row.userId);
+        if (state.missed >= FINAL_PRISON_DAYS && record.level < FINAL_PRISON_DAYS) {
+          db.setPrisonLevel(userId, FINAL_PRISON_DAYS);
+          finals.push(userId);
         }
         continue;
       }
-      if (record) {
-        await prison.free(row.member);
-        exits.push(row.userId);
+      if (state.missed >= state.limit) {
+        await prison.imprison(row.member, state.limit);
+        entries.set(state.limit, [...(entries.get(state.limit) ?? []), userId]);
+        continue;
       }
-      if (needsWarning(row.prison, today, alerts.get(row.userId))) {
-        db.setAlert(row.userId, today);
-        warnings.push(row.userId);
+      if (needsWarning(state.missed, state.limit, today, alerts.get(userId))) {
+        db.setAlert(userId, today);
+        warnings.push(userId);
       }
     }
     // Membres partis du serveur ou qui ont perdu leur rôle : on les oublie sans annonce.
@@ -70,9 +74,10 @@ export function createJobs(ctx, handlers) {
     }
 
     for (const content of prisonWarningMessages(warnings, config)) await send(channels.prison, content);
-    for (const [level, userIds] of levels) {
-      for (const content of prisonLevelMessages(level, userIds, config)) await send(channels.prison, content);
+    for (const [days, userIds] of [...entries].sort(([a], [b]) => a - b)) {
+      for (const content of prisonEntryMessages(days, userIds, config)) await send(channels.prison, content);
     }
+    for (const content of prisonFinalMessages(finals, config)) await send(channels.prison, content);
     for (const userId of exits) await send(channels.prison, prisonExitMessage(userId), [userId]);
 
     // Le rôle de chaîne disparaît dès qu'un jour est manqué.
@@ -92,16 +97,13 @@ export function createJobs(ctx, handlers) {
       category,
       entries: leaderboard(rows, category).slice(0, RANKING_SIZES[kind]),
     }));
-    const winners = sections.map((section) => section.entries[0]?.userId).filter(Boolean);
-
+    // Seul le gagnant Free reçoit le rôle (et sa réduction sur la formation).
+    const freeWinner = guild.members.cache.get(sections.find((s) => s.category === 'free').entries[0]?.userId);
     const roleId = kind === 'week' ? config.roles.weekWinner : config.roles.monthWinner;
-    for (const userId of winners) {
-      const member = guild.members.cache.get(userId);
-      if (member && !member.roles.cache.has(roleId)) {
-        await member.roles
-          .add(roleId, 'Gagnant du classement')
-          .catch((error) => console.error(`[PlugBot] Impossible de donner le rôle de gagnant :`, error.message));
-      }
+    if (freeWinner && !freeWinner.roles.cache.has(roleId)) {
+      await freeWinner.roles
+        .add(roleId, 'Gagnant du classement')
+        .catch((error) => console.error(`[PlugBot] Impossible de donner le rôle de gagnant :`, error.message));
     }
 
     const title = kind === 'week' ? 'Classement de la semaine' : `Classement du mois — ${monthName(range.end)}`;
@@ -110,7 +112,6 @@ export function createJobs(ctx, handlers) {
       title,
       congrats: congratulations(range.start),
       sections,
-      winners,
       config,
     });
     await send(kind === 'week' ? channels.week : channels.month, content);
