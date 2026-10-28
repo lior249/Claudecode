@@ -76,7 +76,7 @@ Les récompenses sont des **rôles**. Chacun donne une réduction sur la formati
 - Les réductions sont annoncées publiquement.
 - Les rôles ouvrent l'accès au salon des codes de réduction. Ce salon et les codes sont gérés par le porteur de projet.
 - Chaque réduction ne s'utilise qu'une fois, même si le membre gagne plusieurs fois le même classement.
-- Le gagnant de l'accompagnement est félicité, mais ne reçoit pas de réduction : il est déjà dans l'accompagnement. Sa récompense reste à définir.
+- Le gagnant de l'accompagnement est félicité publiquement, sans réduction : il est déjà dans l'accompagnement. Sa récompense se règle directement avec les membres de l'accompagnement, en dehors de PlugBot.
 - Le rôle 🔥🔥🔥 est retiré dès que la chaîne est brisée. Quand un membre l'obtient, PlugBot l'annonce dans show-up :
 
   > 🔥 @Membre atteint **21 jours d'affilée** et débloque @🔥🔥🔥 : −15 % sur la formation !
