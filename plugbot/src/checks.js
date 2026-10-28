@@ -13,6 +13,7 @@ const CHANNEL_NEEDS = {
   week: ['ViewChannel', 'SendMessages'],
   month: ['ViewChannel', 'SendMessages'],
   prison: ['ViewChannel', 'SendMessages'],
+  allTime: ['ViewChannel', 'SendMessages'],
 };
 
 // Rôles que PlugBot donne et retire lui-même.
@@ -25,6 +26,7 @@ export function findPermissionProblems({ config, guild, channels }) {
 
   for (const [name, needs] of Object.entries(CHANNEL_NEEDS)) {
     const channel = channels[name];
+    if (!channel) continue;
     const missing = channel.permissionsFor(me).missing(needs);
     if (missing.length > 0) {
       problems.push(`#${channel.name} : il manque ${missing.map((perm) => PERMISSION_LABELS[perm] ?? perm).join(', ')}.`);

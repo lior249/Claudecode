@@ -24,8 +24,8 @@ Le fonctionnement complet est décrit dans [`SPEC.md`](SPEC.md).
 
 **Salons.**
 
-- PlugBot doit pouvoir voir flex-resultats, et voir et écrire dans show-up, top-7, top-30 et la-prison.
-- Les membres doivent pouvoir lire ces quatre salons, sans y écrire.
+- PlugBot doit pouvoir voir flex-resultats, et voir et écrire dans show-up, top-7, top-30, top-all-time et la-prison.
+- Les membres doivent pouvoir lire ces cinq salons, sans y écrire.
 - flex-resultats : mode lent de 15 minutes.
 
 **Le rôle Prisonnier.** Il doit couper les accès principaux (écrire dans les salons, rejoindre les lives…), sauf dans la-prison et flex-resultats. Attention à une règle de Discord :
@@ -99,7 +99,8 @@ npm test
 - `src/index.js` : démarrage et événements Discord.
 - `src/handlers.js` : résultats postés, ❌ de l'admin, messages supprimés, changements de rôle.
 - `src/prison.js` : entrées et sorties de prison (rôle Prisonnier, récompenses mises de côté).
-- `src/jobs.js` : prison (chaque jour à minuit UTC), top-7 (dimanche 18 h UTC), top-30 (dernier jour du mois à 18 h UTC).
+- `src/jobs.js` : prison (chaque jour à minuit UTC), publications de 18 h UTC (top-7, top-30, top-all-time).
+- `src/checks.js` : vérification des permissions au démarrage.
 - `src/sync.js` : premier lancement et rattrapage après une coupure.
 - `src/stats.js` : calculs des chaînes, de la prison et des classements.
 - `src/messages.js` : tous les textes publiés par le bot, et les pourcentages de réduction.

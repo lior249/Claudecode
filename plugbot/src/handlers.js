@@ -72,10 +72,12 @@ export function createHandlers(ctx) {
 
     await message.react(PENDING_EMOJI).catch((error) => console.error('[PlugBot] Réaction ❗ impossible :', error.message));
 
-    const rows = tracker.snapshot(guild.members.cache, Date.now());
+    const now = Date.now();
+    const rows = tracker.snapshot(guild.members.cache, now);
     const row = rows.get(member.id);
     const rank = leaderboard([...rows.values()], row.category).findIndex((entry) => entry.userId === member.id) + 1;
-    await send(channels.showup, showupMessage({ ...row, week: row.points, rank }), [member.id]);
+    const weekOpen = now >= weekRange(now).start;
+    await send(channels.showup, showupMessage({ ...row, week: row.points, rank, weekOpen }), [member.id]);
     await settle(member.id);
   }
 

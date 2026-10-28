@@ -9,36 +9,55 @@ import {
   needsWarning,
   trackingStartDay,
 } from '../src/stats.js';
-import { DAY_MS, dayOf, monthName, monthRange, monthStart, weekRange, weekStart } from '../src/time.js';
+import {
+  DAY_MS,
+  dayAndMonth,
+  dayOf,
+  eveningDay,
+  lastMonthEnd,
+  lastWeekEnd,
+  monthName,
+  monthRange,
+  weekRange,
+} from '../src/time.js';
 
 const days = (...list) => new Set(list);
 const range = (from, to) => new Set(Array.from({ length: to - from + 1 }, (_, i) => from + i));
 
 describe('time', () => {
-  it('les semaines commencent le dimanche à 18 h UTC', () => {
-    assert.equal(weekStart(Date.UTC(2026, 9, 28, 12)), Date.UTC(2026, 9, 25, 18));
-    assert.equal(weekStart(Date.UTC(2026, 10, 1, 17, 59)), Date.UTC(2026, 9, 25, 18));
-    assert.equal(weekStart(Date.UTC(2026, 10, 1, 18)), Date.UTC(2026, 10, 1, 18));
-    const { start, end } = weekRange(Date.UTC(2026, 9, 28));
-    assert.equal(end - start, 7 * DAY_MS);
+  it('le challenge de la semaine va du lundi 18 h au dimanche 18 h UTC', () => {
+    // Mercredi 28 octobre 2026.
+    assert.deepEqual(weekRange(Date.UTC(2026, 9, 28, 12)), {
+      start: Date.UTC(2026, 9, 26, 18),
+      end: Date.UTC(2026, 10, 1, 18),
+    });
+    assert.equal(lastWeekEnd(Date.UTC(2026, 10, 1, 17, 59)), Date.UTC(2026, 9, 25, 18));
+    assert.equal(lastWeekEnd(Date.UTC(2026, 10, 1, 18)), Date.UTC(2026, 10, 1, 18));
+    // Entre dimanche 18 h et lundi 18 h : le prochain challenge n'a pas commencé.
+    const pause = Date.UTC(2026, 10, 2, 9);
+    assert.ok(pause < weekRange(pause).start);
+    assert.equal(weekRange(pause).start, Date.UTC(2026, 10, 2, 18));
   });
 
-  it('les mois se terminent le dernier jour à 18 h UTC', () => {
-    assert.equal(monthStart(Date.UTC(2026, 9, 31, 17, 59)), Date.UTC(2026, 8, 30, 18));
-    assert.equal(monthStart(Date.UTC(2026, 9, 31, 18)), Date.UTC(2026, 9, 31, 18));
+  it('le challenge du mois va du 1er à 18 h au dernier jour du mois à 18 h UTC', () => {
+    assert.equal(lastMonthEnd(Date.UTC(2026, 9, 31, 17, 59)), Date.UTC(2026, 8, 30, 18));
+    assert.equal(lastMonthEnd(Date.UTC(2026, 9, 31, 18)), Date.UTC(2026, 9, 31, 18));
     assert.deepEqual(monthRange(Date.UTC(2026, 10, 15)), {
-      start: Date.UTC(2026, 9, 31, 18),
+      start: Date.UTC(2026, 10, 1, 18),
       end: Date.UTC(2026, 10, 30, 18),
     });
     assert.deepEqual(monthRange(Date.UTC(2027, 0, 10)), {
-      start: Date.UTC(2026, 11, 31, 18),
+      start: Date.UTC(2027, 0, 1, 18),
       end: Date.UTC(2027, 0, 31, 18),
     });
     assert.equal(monthName(Date.UTC(2026, 10, 30, 18)), 'novembre 2026');
+    assert.equal(dayAndMonth(Date.UTC(2026, 10, 30, 18)), '30 novembre');
   });
 
-  it('les jours changent à minuit UTC', () => {
+  it('les jours changent à minuit UTC, et le soir à 18 h', () => {
     assert.equal(dayOf(Date.UTC(2026, 9, 28, 23, 59)) + 1, dayOf(Date.UTC(2026, 9, 29, 0, 0)));
+    assert.equal(eveningDay(Date.UTC(2026, 9, 28, 17, 59)), dayOf(Date.UTC(2026, 9, 27)));
+    assert.equal(eveningDay(Date.UTC(2026, 9, 28, 18)), dayOf(Date.UTC(2026, 9, 28)));
   });
 });
 

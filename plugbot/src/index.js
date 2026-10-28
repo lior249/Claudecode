@@ -35,6 +35,7 @@ let handlers = null;
 async function fetchChannels(guild) {
   const channels = {};
   for (const [name, id] of Object.entries(config.channels)) {
+    if (!id) continue;
     const channel = await guild.channels.fetch(id).catch(() => null);
     if (!channel?.isTextBased()) throw new Error(`Salon introuvable ou sans messages : ${name} (${id})`);
     channels[name] = channel;
@@ -49,6 +50,7 @@ client.once(Events.ClientReady, (readyClient) =>
     const ctx = { config, db, tracker, guild, channels: await fetchChannels(guild) };
     ctx.prison = createPrison(ctx);
 
+    if (!ctx.channels.allTime) console.warn('[PlugBot] ALLTIME_CHANNEL_ID absent du .env : le top all-time ne sera pas publié.');
     const problems = findPermissionProblems(ctx);
     if (problems.length > 0) {
       console.error(`[PlugBot] Permissions à corriger sur Discord :\n${problems.map((problem) => `  - ${problem}`).join('\n')}`);

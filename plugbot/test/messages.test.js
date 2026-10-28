@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  allTimeMessage,
+  challengeLaunchMessage,
   frenchList,
   ordinal,
   plural,
@@ -10,6 +12,7 @@ import {
   rankingMessage,
   showupMessage,
   splitMessage,
+  standingsMessage,
   streakRewardMessage,
 } from '../src/messages.js';
 
@@ -161,6 +164,57 @@ describe('messages', () => {
     });
     assert.match(text, /\*\*Accompagnement\*\*\n_Personne pour cette période._/);
     assert.match(text, /★ <@1> remporte <@&p30> : −35 % sur la formation !$/);
+  });
+
+  it('annonce que le challenge de la semaine est en pause entre dimanche 18 h et lundi 18 h', () => {
+    const text = showupMessage({ userId: '1', chain: 3, week: 0, total: 9, rank: 0, category: 'free', prison: { inPrison: false }, weekOpen: false });
+    assert.match(text, /Semaine : le challenge reprend lundi à 18 h · 🏅 Total : \*\*9 points\*\*/);
+  });
+
+  it('lance le challenge de la semaine le lundi', () => {
+    const text = challengeLaunchMessage({ kind: 'week', end: Date.UTC(2026, 10, 8, 18), config });
+    assert.equal(
+      text,
+      [
+        '⚡ **Le challenge de la semaine est lancé !**',
+        "Jusqu'à dimanche 18 h (UTC), chaque résultat posté dans <#res> te rapporte 1 point.",
+        'Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.',
+        'Accompagnement et Free ont chacun leur classement.',
+        '',
+        '⚡ Le meilleur Free de la semaine remporte <@&p7> : −25 % sur la formation !',
+      ].join('\n'),
+    );
+  });
+
+  it('lance le challenge du mois le 1er', () => {
+    const text = challengeLaunchMessage({ kind: 'month', end: Date.UTC(2026, 10, 30, 18), config });
+    assert.match(text, /^★ \*\*Le challenge du mois de novembre 2026 est lancé !\*\*/);
+    assert.match(text, /\nJusqu'au 30 novembre à 18 h \(UTC\), chaque résultat/);
+    assert.match(text, /participe à ce challenge pour obtenir tes résultats/);
+    assert.match(text, /<@&p30> : −35 %/);
+  });
+
+  it('publie le point du jour avec les jours restants', () => {
+    const text = standingsMessage({
+      kind: 'week',
+      sections: [
+        { category: 'plug', entries: [] },
+        { category: 'free', entries: [{ userId: '1', score: 4 }] },
+      ],
+      daysLeft: 5,
+      end: Date.UTC(2026, 10, 8, 18),
+      config,
+    });
+    assert.match(text, /^⚡ \*\*Challenge de la semaine — classement du jour\*\*\nPlus que 5 jours avant la fin, dimanche à 18 h \(UTC\)/);
+    assert.match(text, /\*\*Accompagnement\*\*\n_Personne pour l'instant\. Sois le premier !_/);
+    assert.match(text, /\*\*Free\*\*\n1\. <@1> — 4 points/);
+    assert.match(standingsMessage({ kind: 'week', sections: [], daysLeft: 1, end: 0, config }), /Dernier jour avant la fin/);
+  });
+
+  it('publie le top all-time', () => {
+    const text = allTimeMessage({ sections: [{ category: 'plug', entries: [{ userId: '3', score: 140 }] }, { category: 'free', entries: [] }] });
+    assert.match(text, /^👑 \*\*Classement all-time\*\*/);
+    assert.match(text, /\*\*Accompagnement\*\*\n1\. <@3> — 140 points/);
   });
 
   it('découpe un texte trop long sans couper les lignes', () => {

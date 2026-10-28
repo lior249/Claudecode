@@ -53,8 +53,13 @@ function fakeChannel(id) {
   const channel = {
     id,
     sent: [],
+    // Membres notifiés par chaque message (undefined = tous les membres mentionnés).
+    notified: [],
     history: [],
-    send: async ({ content }) => channel.sent.push(content),
+    send: async ({ content, allowedMentions }) => {
+      channel.sent.push(content);
+      channel.notified.push(allowedMentions.users);
+    },
     messages: {
       // Assez fidèle à l'API Discord pour le rattrapage au démarrage.
       fetch: async ({ limit = 50, after, before } = {}) => {
@@ -91,7 +96,14 @@ function fakeMessage(channel, author, { attachment = 'image/png' } = {}) {
 function setup() {
   const config = {
     guildId: 'guild',
-    channels: { results: 'c-res', showup: 'c-log', week: 'c-top7', month: 'c-top30', prison: 'c-prison' },
+    channels: {
+      results: 'c-res',
+      showup: 'c-log',
+      week: 'c-top7',
+      month: 'c-top30',
+      prison: 'c-prison',
+      allTime: 'c-alltime',
+    },
     roles: ROLES,
     streakRoleDays: 21,
     adminIds: new Set([ADMIN]),
@@ -325,7 +337,7 @@ describe('scénario PlugBot', () => {
     assert.ok(!member.roles.cache.has(ROLES.streak), 'la chaîne est brisée après un jour manqué');
   });
 
-  it('publie le top-7 le dimanche à 18 h UTC, ⚡plug7⚡ pour le gagnant Free', async () => {
+  it('top-7 : lancement le lundi, classement du mardi au samedi, clôture le dimanche', async () => {
     const one = env.addMember('1', [ROLES.free]);
     env.addMember('2', [ROLES.free]);
     const three = env.addMember('3', [ROLES.plug]);
@@ -334,45 +346,63 @@ describe('scénario PlugBot', () => {
     await goTo(env, Date.UTC(2026, 10, 1, 18));
     assert.equal(env.channels.week.sent.length, 0);
 
-    // Semaine du 1er au 8 novembre (jours 5 à 10).
-    for (let day = 5; day <= 10; day++) {
+    // Lundi avant 18 h : le challenge est en pause, le résultat compte seulement pour le total.
+    await goTo(env, at(5, 12));
+    await post(env, '1');
+    await post(env, '1');
+    assert.match(env.channels.showup.sent.at(-1), /Semaine : le challenge reprend lundi à 18 h/);
+
+    await goTo(env, at(5, 18));
+    assert.equal(env.channels.week.sent.length, 1);
+    assert.match(env.channels.week.sent[0], /^⚡ \*\*Le challenge de la semaine est lancé !\*\*/);
+
+    // Du mardi 3 au samedi 7 novembre (jours 6 à 10) : posts, puis classement du jour à 18 h.
+    for (let day = 6; day <= 10; day++) {
       await goTo(env, at(day, 12));
       await post(env, '1');
       await post(env, '1');
       await post(env, '2');
       await post(env, '3');
+      await goTo(env, at(day, 18));
     }
+    assert.equal(env.channels.week.sent.length, 6);
+    assert.match(env.channels.week.sent[1], /classement du jour\*\*\nPlus que 5 jours avant la fin/);
+    assert.match(env.channels.week.sent[1], /\*\*Free\*\*\n1\. <@1> — 2 points\n2\. <@2> — 1 point/);
+    assert.match(env.channels.week.sent[5], /Dernier jour avant la fin/);
+    assert.deepEqual(env.channels.week.notified[1], [], 'le classement du jour ne notifie personne');
+
     await goTo(env, Date.UTC(2026, 10, 8, 17, 59));
-    assert.equal(env.channels.week.sent.length, 0);
+    assert.equal(env.channels.week.sent.length, 6);
     await goTo(env, Date.UTC(2026, 10, 8, 18));
 
     assert.equal(
-      env.channels.week.sent.join('\n'),
+      env.channels.week.sent.at(-1),
       [
         '⚡ **Classement de la semaine**',
-        env.channels.week.sent[0].split('\n')[1],
+        env.channels.week.sent.at(-1).split('\n')[1],
         '',
         '**Accompagnement**',
-        '1. <@3> — 6 points',
+        '1. <@3> — 5 points',
         '',
         '**Free**',
-        '1. <@1> — 12 points',
-        '2. <@2> — 6 points',
+        '1. <@1> — 10 points',
+        '2. <@2> — 5 points',
         '',
         '🏆 <@3> remporte le classement Accompagnement !',
         '⚡ <@1> remporte <@&role-plug7> : −25 % sur la formation !',
       ].join('\n'),
     );
+    assert.equal(env.channels.week.notified.at(-1), undefined, 'le classement final notifie les membres classés');
     assert.ok(one.roles.cache.has(ROLES.weekWinner));
     assert.ok(!three.roles.cache.has(ROLES.weekWinner), "l'accompagnement ne gagne pas la réduction");
 
-    // Les points de la semaine repartent à zéro juste après.
+    // Après la clôture, le challenge est en pause jusqu'à lundi 18 h, mais le total continue.
     await post(env, '1');
-    assert.match(env.channels.showup.sent.at(-1), /Semaine : \*\*1 point\*\*/);
+    assert.match(env.channels.showup.sent.at(-1), /Semaine : le challenge reprend lundi à 18 h/);
     assert.match(env.channels.showup.sent.at(-1), /Total : \*\*13 points\*\*/);
   });
 
-  it('publie le top-30 le dernier jour du mois, sans les membres en prison', async () => {
+  it('top-30 : lancement le 1er, points d’étape, clôture le dernier jour, sans les membres en prison', async () => {
     const one = env.addMember('1', [ROLES.free]);
     env.addMember('2', [ROLES.free]);
     env.addMember('3', [ROLES.plug]);
@@ -393,15 +423,41 @@ describe('scénario PlugBot', () => {
     }
     await goTo(env, Date.UTC(2026, 10, 30, 18));
 
-    const text = env.channels.month.sent.join('\n');
-    assert.match(text, /^★ \*\*Classement du mois — novembre 2026\*\*/);
+    const sent = env.channels.month.sent;
+    assert.match(sent[0], /^★ \*\*Le challenge du mois de novembre 2026 est lancé !\*\*/);
+    // Points d'étape : les dimanches 8, 15, 22 et 29, et les 10, 20 et 25 novembre.
+    assert.equal(sent.filter((m) => m.includes("point d'étape")).length, 7);
+    assert.equal(sent.length, 9);
+
+    const final = sent.at(-1);
+    assert.match(final, /^★ \*\*Classement du mois — novembre 2026\*\*/);
+    // Les posts du 1er novembre avant 18 h ne comptent pas pour le challenge du mois.
     assert.match(
-      text,
-      /\*\*Accompagnement\*\*\n1\. <@3> — 10 points\n\n\*\*Free\*\*\n1\. <@1> — 30 points\n2\. <@2> — 15 points/,
+      final,
+      /\*\*Accompagnement\*\*\n1\. <@3> — 10 points\n\n\*\*Free\*\*\n1\. <@1> — 29 points\n2\. <@2> — 14 points/,
     );
-    assert.doesNotMatch(text, /<@5>/);
-    assert.match(text, /🏆 <@3> remporte le classement Accompagnement !\n★ <@1> remporte <@&role-plug30> : −35 % sur la formation !$/);
+    assert.doesNotMatch(final, /<@5>/);
+    assert.match(final, /🏆 <@3> remporte le classement Accompagnement !\n★ <@1> remporte <@&role-plug30> : −35 % sur la formation !$/);
     assert.ok(one.roles.cache.has(ROLES.monthWinner));
+  });
+
+  it('publie le top all-time chaque dimanche à 18 h', async () => {
+    env.addMember('1', [ROLES.free]);
+    env.addMember('3', [ROLES.plug]);
+    await post(env, '1');
+    await post(env, '1');
+    await post(env, '1');
+    await post(env, '3');
+
+    await goTo(env, Date.UTC(2026, 10, 1, 17, 59));
+    assert.equal(env.channels.allTime.sent.length, 0);
+    await goTo(env, Date.UTC(2026, 10, 1, 18));
+    assert.equal(env.channels.allTime.sent.length, 1);
+    assert.match(env.channels.allTime.sent[0], /^👑 \*\*Classement all-time\*\*/);
+    assert.match(env.channels.allTime.sent[0], /\*\*Accompagnement\*\*\n1\. <@3> — 1 point\n\n\*\*Free\*\*\n1\. <@1> — 3 points/);
+
+    await goTo(env, Date.UTC(2026, 10, 2, 18));
+    assert.equal(env.channels.allTime.sent.length, 1, 'seulement le dimanche');
   });
 
   it('rattrape au démarrage les résultats et les ❌ arrivés pendant une coupure', async () => {

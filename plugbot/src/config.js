@@ -40,6 +40,8 @@ export function loadConfig() {
       week: required('WEEK_CHANNEL_ID'),
       month: required('MONTH_CHANNEL_ID'),
       prison: required('PRISON_CHANNEL_ID'),
+      // Facultatif : sans lui, le top all-time n'est pas publié.
+      allTime: optional('ALLTIME_CHANNEL_ID', null),
     },
     roles: {
       free: required('FREE_ROLE_ID'),

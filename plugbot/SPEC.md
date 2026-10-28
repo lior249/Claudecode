@@ -31,11 +31,12 @@ Les points marqués *(proposé)* sont des propositions en attente de confirmatio
 |---|---|
 | 🎮 **flex-resultats** | Les membres y postent leurs résultats. |
 | ➕ **show-up** | Le journal : chaque show-up, chaque point retiré, chaque rôle 🔥🔥🔥 gagné. |
-| 💸 **top-7** | Le classement de la semaine, chaque dimanche à 18 h UTC. |
-| 💎 **top-30** | Le classement du mois, le dernier jour du mois à 18 h UTC. |
+| 💸 **top-7** | Le challenge de la semaine : lancement, classement du jour et clôture. |
+| 💎 **top-30** | Le challenge du mois : lancement, points d'étape et clôture. |
+| **top-all-time** | Le classement all-time, chaque dimanche à 18 h UTC. |
 | 🤢 **la-prison** | Les alertes, les entrées en prison et les sorties. |
 
-Seul PlugBot écrit dans show-up, top-7, top-30 et la-prison.
+Seul PlugBot écrit dans show-up, top-7, top-30, top-all-time et la-prison.
 
 ## Points et chaîne
 
@@ -85,12 +86,64 @@ Les récompenses sont des **rôles**. Chacun donne une réduction sur la formati
 
 ## Classements
 
-| Salon | Période | Publication | Taille |
-|---|---|---|---|
-| top-7 | du dimanche 18 h au dimanche 18 h suivant | chaque dimanche à 18 h UTC | top 5 Accompagnement + top 5 Free |
-| top-30 | du dernier jour du mois précédent à 18 h au dernier jour du mois à 18 h | le dernier jour du mois à 18 h UTC | top 10 Accompagnement + top 10 Free |
+### Le challenge standard
 
-Un seul message par publication, qui mentionne tous les membres classés et annonce les gagnants :
+Le challenge standard, c'est **poster tous les jours**. Il est annoncé et suivi automatiquement.
+Les challenges personnalisés sont annoncés à la main par le porteur de projet : PlugBot ne s'en occupe pas.
+
+| Challenge | Période | Taille |
+|---|---|---|
+| Semaine (top-7) | du **lundi 18 h** au **dimanche 18 h** UTC | top 5 Accompagnement + top 5 Free |
+| Mois (top-30) | du **1er à 18 h** au **dernier jour du mois à 18 h** UTC | top 10 Accompagnement + top 10 Free |
+| All-time | depuis le lancement, sans fin | top 10 Accompagnement + top 10 Free |
+
+Entre la clôture et la relance (de dimanche 18 h à lundi 18 h pour la semaine, du dernier jour 18 h au 1er 18 h pour le mois), les résultats comptent pour le total, la chaîne et la prison, mais pas pour le challenge.
+Ça évite de prendre de l'avance en postant le dimanche soir. Pendant cette pause, le message de show-up indique : « Semaine : le challenge reprend lundi à 18 h ».
+
+### Calendrier (toujours à 18 h UTC)
+
+| Salon | Quand | Message | Notifie les membres classés |
+|---|---|---|---|
+| top-7 | lundi | Lancement du challenge de la semaine | — |
+| top-7 | mardi à samedi | Classement du jour, avec les jours restants | non |
+| top-7 | dimanche | Classement final, ⚡plug7⚡ pour le gagnant Free | oui |
+| top-30 | le 1er | Lancement du challenge du mois | — |
+| top-30 | les dimanches, et les 10, 20 et 25 | Point d'étape, avec les jours restants | non |
+| top-30 | le dernier jour du mois | Classement final, ★plug30★ pour le gagnant Free | oui |
+| top-all-time | dimanche | Classement all-time | oui |
+
+Quand plusieurs publications tombent le même jour (par exemple un dimanche qui est aussi le dernier jour du mois), chacune part dans son salon. Dans top-30, le classement final remplace le point d'étape.
+
+### Les messages
+
+> ⚡ **Le challenge de la semaine est lancé !**
+> Jusqu'à dimanche 18 h (UTC), chaque résultat posté dans #flex-resultats te rapporte 1 point.
+> Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.
+> Accompagnement et Free ont chacun leur classement.
+>
+> ⚡ Le meilleur Free de la semaine remporte @⚡plug7⚡ : −25 % sur la formation !
+
+> ⚡ **Challenge de la semaine — classement du jour**
+> Plus que 4 jours avant la fin, dimanche à 18 h (UTC). Chaque résultat compte : rien n'est encore joué !
+>
+> **Accompagnement**
+> 1. @Membre — 6 points
+> …
+>
+> **Free**
+> 1. @Membre — 9 points
+> …
+>
+> ⚡ À la fin de la semaine, le meilleur Free remporte @⚡plug7⚡ : −25 % sur la formation !
+
+> ★ **Le challenge du mois de novembre 2026 est lancé !**
+> Jusqu'au 30 novembre à 18 h (UTC), chaque résultat posté dans #flex-resultats te rapporte 1 point.
+> C'est le début du mois : participe à ce challenge pour obtenir tes résultats !
+> Accompagnement et Free ont chacun leur classement.
+>
+> ★ Le meilleur Free du mois remporte @★plug30★ : −35 % sur la formation !
+
+Le point d'étape du mois suit le même modèle que le classement du jour (« Challenge du mois de novembre 2026 — point d'étape »).
 
 > ⚡ **Classement de la semaine**
 > Énorme travail, bravo à tous ceux qui se sont montrés !
@@ -106,9 +159,18 @@ Un seul message par publication, qui mentionne tous les membres classés et anno
 > 🏆 @GagnantAccompagnement remporte le classement Accompagnement !
 > ⚡ @GagnantFree remporte @⚡plug7⚡ : −25 % sur la formation !
 
+> 👑 **Classement all-time**
+> Les membres les plus réguliers depuis le lancement de PlugBot. Chaque résultat posté te fait monter !
+>
+> **Accompagnement** … **Free** …
+>
+> Les membres en prison n'apparaissent pas dans ce classement.
+
+### Règles communes
+
 - Les membres **en prison** n'apparaissent dans aucun classement, même s'ils ont des points.
 - À points égaux, le plus gros total all-time passe devant, puis celui qui a atteint son score le premier.
-- *(proposé)* La semaine et le mois du lancement sont incomplets : ils ne sont pas publiés. Sinon, quelqu'un pourrait gagner −35 % avec trois jours de posts.
+- La semaine et le mois du lancement sont incomplets : pas de classement du jour, de point d'étape ni de clôture pour eux. Sinon, quelqu'un pourrait gagner −35 % avec trois jours de posts.
 
 ## La prison
 

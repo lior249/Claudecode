@@ -2,44 +2,60 @@
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const WEEK_MS = 7 * DAY_MS;
+const HOUR_MS = 60 * 60 * 1000;
+// Heure des publications quotidiennes et de la fin des challenges.
+export const EVENING_HOUR = 18;
 
-// Le 4 janvier 1970 était un dimanche : les semaines démarrent le dimanche à 18 h UTC.
-const FIRST_WEEK_START = Date.UTC(1970, 0, 4, 18);
+// Le 4 janvier 1970 était un dimanche.
+const FIRST_SUNDAY_EVENING = Date.UTC(1970, 0, 4, EVENING_HOUR);
 
 // Numéro du jour UTC (nombre de jours écoulés depuis le 1er janvier 1970).
 export function dayOf(timestamp) {
   return Math.floor(timestamp / DAY_MS);
 }
 
-// Début de la semaine en cours : le dernier dimanche 18 h UTC passé.
-export function weekStart(timestamp) {
-  return FIRST_WEEK_START + Math.floor((timestamp - FIRST_WEEK_START) / WEEK_MS) * WEEK_MS;
+// Jour UTC du dernier 18 h passé : la veille tant qu'il n'est pas 18 h.
+export function eveningDay(timestamp) {
+  return dayOf(timestamp - EVENING_HOUR * HOUR_MS);
 }
 
+// Fin de la dernière semaine de challenge : le dernier dimanche 18 h UTC passé.
+export function lastWeekEnd(timestamp) {
+  return FIRST_SUNDAY_EVENING + Math.floor((timestamp - FIRST_SUNDAY_EVENING) / WEEK_MS) * WEEK_MS;
+}
+
+// Challenge de la semaine : du lundi 18 h au dimanche 18 h UTC.
+// Entre dimanche 18 h et lundi 18 h, les résultats comptent pour le total, pas pour le challenge.
 export function weekRange(timestamp) {
-  const start = weekStart(timestamp);
-  return { start, end: start + WEEK_MS };
+  const previousEnd = lastWeekEnd(timestamp);
+  return { start: previousEnd + DAY_MS, end: previousEnd + WEEK_MS };
 }
 
 // Fin d'un mois : son dernier jour à 18 h UTC. `month` peut déborder (-1 = décembre de l'année d'avant).
 function monthEnd(year, month) {
-  return Date.UTC(year, month + 1, 0, 18);
+  return Date.UTC(year, month + 1, 0, EVENING_HOUR);
 }
 
-// Début du mois en cours : la dernière fin de mois passée.
-export function monthStart(timestamp) {
+// Fin du dernier challenge du mois : le dernier « dernier jour du mois à 18 h UTC » passé.
+export function lastMonthEnd(timestamp) {
   const date = new Date(timestamp);
   const end = monthEnd(date.getUTCFullYear(), date.getUTCMonth());
   return timestamp >= end ? end : monthEnd(date.getUTCFullYear(), date.getUTCMonth() - 1);
 }
 
+// Challenge du mois : du 1er à 18 h au dernier jour du mois à 18 h UTC.
 export function monthRange(timestamp) {
-  const start = monthStart(timestamp);
-  const next = new Date(start + DAY_MS);
-  return { start, end: monthEnd(next.getUTCFullYear(), next.getUTCMonth()) };
+  const start = lastMonthEnd(timestamp) + DAY_MS;
+  const date = new Date(start);
+  return { start, end: monthEnd(date.getUTCFullYear(), date.getUTCMonth()) };
 }
 
 // « novembre 2026 » pour le mois qui se termine à `end`.
 export function monthName(end) {
   return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(end);
+}
+
+// « 30 novembre »
+export function dayAndMonth(timestamp) {
+  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(timestamp);
 }
