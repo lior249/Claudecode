@@ -40,15 +40,30 @@ Le salon des codes de réduction ne doit être visible que pour 🔥🔥🔥, �
 
 ## 3. Installer sur le VPS
 
-Il faut Node.js 22.13 ou plus récent.
+Se connecter au VPS avec `ssh root@ADRESSE_IP`, puis taper ces commandes une par une.
+
+Installer Node.js 22 (la version proposée par `apt install npm` est trop ancienne) et git :
 
 ```bash
-cd plugbot
+apt update
+apt install -y curl git
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt install -y nodejs
+```
+
+Récupérer le code de PlugBot et l'installer :
+
+```bash
+git clone -b claude/busy-cannon-jbka53 https://github.com/lior249/Claudecode.git
+cd Claudecode/plugbot
 npm install
 cp .env.example .env
 ```
 
-Remplir ensuite le fichier `.env` (les explications sont dedans), puis lancer le bot :
+Remplir ensuite le fichier `.env` avec `nano .env` (les explications sont dedans). Pour enregistrer : Ctrl+O, Entrée, puis Ctrl+X pour quitter.
+Le dépôt GitHub est public : le jeton du bot ne doit exister que dans ce fichier `.env`, jamais sur GitHub.
+
+Lancer le bot :
 
 ```bash
 npm start
@@ -64,6 +79,14 @@ pm2 startup
 ```
 
 Commandes utiles : `pm2 logs plugbot` (voir ce que fait le bot), `pm2 restart plugbot` (redémarrer).
+
+Pour installer une nouvelle version du bot, depuis le dossier `Claudecode/plugbot` :
+
+```bash
+git pull
+npm install
+pm2 restart plugbot
+```
 
 Les données sont enregistrées dans `data/plugbot.db`. C'est le seul fichier à sauvegarder.
 
