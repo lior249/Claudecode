@@ -10,3 +10,4 @@ Projet repris depuis zéro.
 Bot Discord qui suit les show-ups des membres du serveur.
 
 - `plugbot/SPEC.md` : spécification.
+- `plugbot/README.md` : installation.
