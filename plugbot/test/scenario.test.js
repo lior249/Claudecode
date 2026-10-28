@@ -53,12 +53,12 @@ function fakeChannel(id) {
   const channel = {
     id,
     sent: [],
-    // Membres notifiés par chaque message (undefined = tous les membres mentionnés).
-    notified: [],
+    // Mentions autorisées pour chaque message envoyé.
+    allowed: [],
     history: [],
     send: async ({ content, allowedMentions }) => {
       channel.sent.push(content);
-      channel.notified.push(allowedMentions.users);
+      channel.allowed.push(allowedMentions);
     },
     messages: {
       // Assez fidèle à l'API Discord pour le rattrapage au démarrage.
@@ -342,19 +342,20 @@ describe('scénario PlugBot', () => {
     env.addMember('2', [ROLES.free]);
     const three = env.addMember('3', [ROLES.plug]);
 
-    // Semaine incomplète du lancement : pas de classement le dimanche 1er novembre.
+    // Semaine incomplète du lancement : pas de clôture le dimanche 1er novembre.
     await goTo(env, Date.UTC(2026, 10, 1, 18));
     assert.equal(env.channels.week.sent.length, 0);
 
-    // Lundi avant 18 h : le challenge est en pause, le résultat compte seulement pour le total.
+    // Pas de pause : dès dimanche 18 h, les résultats comptent pour la nouvelle semaine.
     await goTo(env, at(5, 12));
     await post(env, '1');
     await post(env, '1');
-    assert.match(env.channels.showup.sent.at(-1), /Semaine : le challenge reprend lundi à 18 h/);
+    assert.match(env.channels.showup.sent.at(-1), /Semaine : \*\*2 points\*\* \(1er Free\)/);
 
     await goTo(env, at(5, 18));
     assert.equal(env.channels.week.sent.length, 1);
-    assert.match(env.channels.week.sent[0], /^⚡ \*\*Le challenge de la semaine est lancé !\*\*/);
+    assert.match(env.channels.week.sent[0], /^@everyone\n⚡ \*\*Le challenge de la semaine est lancé !\*\*/);
+    assert.deepEqual(env.channels.week.allowed[0], { parse: ['everyone', 'users'] }, 'tout le serveur est notifié');
 
     // Du mardi 3 au samedi 7 novembre (jours 6 à 10) : posts, puis classement du jour à 18 h.
     for (let day = 6; day <= 10; day++) {
@@ -367,9 +368,8 @@ describe('scénario PlugBot', () => {
     }
     assert.equal(env.channels.week.sent.length, 6);
     assert.match(env.channels.week.sent[1], /classement du jour\*\*\nPlus que 5 jours avant la fin/);
-    assert.match(env.channels.week.sent[1], /\*\*Free\*\*\n1\. <@1> — 2 points\n2\. <@2> — 1 point/);
+    assert.match(env.channels.week.sent[1], /\*\*Free\*\*\n1\. <@1> — 4 points\n2\. <@2> — 1 point/);
     assert.match(env.channels.week.sent[5], /Dernier jour avant la fin/);
-    assert.deepEqual(env.channels.week.notified[1], [], 'le classement du jour ne notifie personne');
 
     await goTo(env, Date.UTC(2026, 10, 8, 17, 59));
     assert.equal(env.channels.week.sent.length, 6);
@@ -378,37 +378,37 @@ describe('scénario PlugBot', () => {
     assert.equal(
       env.channels.week.sent.at(-1),
       [
+        '@everyone',
         '⚡ **Classement de la semaine**',
-        env.channels.week.sent.at(-1).split('\n')[1],
+        env.channels.week.sent.at(-1).split('\n')[2],
         '',
         '**Accompagnement**',
         '1. <@3> — 5 points',
         '',
         '**Free**',
-        '1. <@1> — 10 points',
+        '1. <@1> — 12 points',
         '2. <@2> — 5 points',
         '',
         '🏆 <@3> remporte le classement Accompagnement !',
         '⚡ <@1> remporte <@&role-plug7> : −25 % sur la formation !',
       ].join('\n'),
     );
-    assert.equal(env.channels.week.notified.at(-1), undefined, 'le classement final notifie les membres classés');
     assert.ok(one.roles.cache.has(ROLES.weekWinner));
     assert.ok(!three.roles.cache.has(ROLES.weekWinner), "l'accompagnement ne gagne pas la réduction");
 
-    // Après la clôture, le challenge est en pause jusqu'à lundi 18 h, mais le total continue.
+    // La nouvelle semaine démarre tout de suite.
     await post(env, '1');
-    assert.match(env.channels.showup.sent.at(-1), /Semaine : le challenge reprend lundi à 18 h/);
+    assert.match(env.channels.showup.sent.at(-1), /Semaine : \*\*1 point\*\*/);
     assert.match(env.channels.showup.sent.at(-1), /Total : \*\*13 points\*\*/);
   });
 
-  it('top-30 : lancement le 1er, points d’étape, clôture le dernier jour, sans les membres en prison', async () => {
+  it('top-30 : lancement le 1er, classement le dimanche, rappels, clôture le dernier jour', async () => {
     const one = env.addMember('1', [ROLES.free]);
     env.addMember('2', [ROLES.free]);
     env.addMember('3', [ROLES.plug]);
     env.addMember('5', [ROLES.free]);
 
-    // Mois incomplet du lancement : pas de classement le 31 octobre.
+    // Mois incomplet du lancement : pas de clôture le 31 octobre.
     await goTo(env, Date.UTC(2026, 9, 31, 18));
     assert.equal(env.channels.month.sent.length, 0);
 
@@ -424,17 +424,21 @@ describe('scénario PlugBot', () => {
     await goTo(env, Date.UTC(2026, 10, 30, 18));
 
     const sent = env.channels.month.sent;
-    assert.match(sent[0], /^★ \*\*Le challenge du mois de novembre 2026 est lancé !\*\*/);
-    // Points d'étape : les dimanches 8, 15, 22 et 29, et les 10, 20 et 25 novembre.
-    assert.equal(sent.filter((m) => m.includes("point d'étape")).length, 7);
+    assert.match(sent[0], /^@everyone\n★ \*\*Le challenge du mois de novembre 2026 est lancé !\*\*/);
+    // Classement provisoire les dimanches 8, 15, 22 et 29 ; rappel les 10, 20 et 25 novembre.
+    assert.equal(sent.filter((m) => m.includes('classement provisoire')).length, 4);
+    const reminders = sent.filter((m) => m.includes('Rappel'));
+    assert.equal(reminders.length, 3);
+    assert.match(reminders[0], /Plus que 20 jours avant la fin/);
+    assert.doesNotMatch(reminders[0], /<@1>/, 'un rappel ne contient pas de classement');
     assert.equal(sent.length, 9);
+    assert.ok(env.channels.month.allowed.every((allowed) => allowed.parse.includes('everyone')));
 
     const final = sent.at(-1);
-    assert.match(final, /^★ \*\*Classement du mois — novembre 2026\*\*/);
-    // Les posts du 1er novembre avant 18 h ne comptent pas pour le challenge du mois.
+    assert.match(final, /^@everyone\n★ \*\*Classement du mois — novembre 2026\*\*/);
     assert.match(
       final,
-      /\*\*Accompagnement\*\*\n1\. <@3> — 10 points\n\n\*\*Free\*\*\n1\. <@1> — 29 points\n2\. <@2> — 14 points/,
+      /\*\*Accompagnement\*\*\n1\. <@3> — 10 points\n\n\*\*Free\*\*\n1\. <@1> — 30 points\n2\. <@2> — 15 points/,
     );
     assert.doesNotMatch(final, /<@5>/);
     assert.match(final, /🏆 <@3> remporte le classement Accompagnement !\n★ <@1> remporte <@&role-plug30> : −35 % sur la formation !$/);
@@ -453,8 +457,9 @@ describe('scénario PlugBot', () => {
     assert.equal(env.channels.allTime.sent.length, 0);
     await goTo(env, Date.UTC(2026, 10, 1, 18));
     assert.equal(env.channels.allTime.sent.length, 1);
-    assert.match(env.channels.allTime.sent[0], /^👑 \*\*Classement all-time\*\*/);
+    assert.match(env.channels.allTime.sent[0], /^@everyone\n👑 \*\*Classement all-time\*\*/);
     assert.match(env.channels.allTime.sent[0], /\*\*Accompagnement\*\*\n1\. <@3> — 1 point\n\n\*\*Free\*\*\n1\. <@1> — 3 points/);
+    assert.deepEqual(env.channels.allTime.allowed[0], { parse: ['everyone', 'users'] });
 
     await goTo(env, Date.UTC(2026, 10, 2, 18));
     assert.equal(env.channels.allTime.sent.length, 1, 'seulement le dimanche');

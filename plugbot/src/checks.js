@@ -5,15 +5,16 @@ const PERMISSION_LABELS = {
   SendMessages: 'Envoyer des messages',
   ReadMessageHistory: "Voir les anciens messages",
   AddReactions: 'Ajouter des réactions',
+  MentionEveryone: 'Mentionner @everyone, @here et tous les rôles',
 };
 
 const CHANNEL_NEEDS = {
   results: ['ViewChannel', 'ReadMessageHistory', 'AddReactions'],
   showup: ['ViewChannel', 'SendMessages'],
-  week: ['ViewChannel', 'SendMessages'],
-  month: ['ViewChannel', 'SendMessages'],
+  week: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
+  month: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
   prison: ['ViewChannel', 'SendMessages'],
-  allTime: ['ViewChannel', 'SendMessages'],
+  allTime: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
 };
 
 // Rôles que PlugBot donne et retire lui-même.

@@ -50,11 +50,10 @@ function totals({ total, week }) {
 
 // --- #show-up ---
 
-// `weekOpen` est faux entre dimanche 18 h et lundi 18 h, quand le challenge de la semaine est en pause.
-export function showupMessage({ userId, chain, week, total, rank, category, prison, weekOpen = true }) {
-  let weekPart = `**${plural(week, 'point')}**`;
-  if (!weekOpen) weekPart = 'le challenge reprend lundi à 18 h';
-  else if (rank) weekPart += ` (${ordinal(rank)} ${CATEGORY_LABELS[category]})`;
+export function showupMessage({ userId, chain, week, total, rank, category, prison }) {
+  const weekPart = rank
+    ? `**${plural(week, 'point')}** (${ordinal(rank)} ${CATEGORY_LABELS[category]})`
+    : `**${plural(week, 'point')}**`;
   const lines = [
     `🔥 ${mention(userId)} vient de show up !`,
     `⛓️ Chaîne : **${plural(chain, 'jour')} d'affilée** · 📅 Semaine : ${weekPart} · 🏅 Total : **${plural(total, 'point')}**`,
@@ -174,17 +173,23 @@ function endLabel(kind, end) {
   return kind === 'week' ? 'dimanche à 18 h (UTC)' : `le ${dayAndMonth(end)} à 18 h (UTC)`;
 }
 
-function untilLabel(kind, end) {
-  return kind === 'week' ? "Jusqu'à dimanche 18 h (UTC)" : `Jusqu'au ${dayAndMonth(end)} à 18 h (UTC)`;
+function periodLabel(kind, start, end) {
+  return kind === 'week'
+    ? 'Depuis dimanche 18 h et jusqu’à dimanche prochain 18 h (UTC)'
+    : `Depuis le ${dayAndMonth(start)} à 18 h et jusqu'au ${dayAndMonth(end)} à 18 h (UTC)`;
 }
 
-// Lundi 18 h (semaine) ou le 1er à 18 h (mois) : le challenge standard est lancé.
-export function challengeLaunchMessage({ kind, end, config }) {
+// Tous les messages des salons top commencent par @everyone : tout le serveur est notifié.
+const EVERYONE = '@everyone';
+
+// Lundi 18 h (semaine) ou le 1er à 18 h (mois) : annonce du challenge standard, qui a démarré la veille à 18 h.
+export function challengeLaunchMessage({ kind, start, end, config }) {
   const { emoji } = CHALLENGES[kind];
   const title = kind === 'week' ? 'Le challenge de la semaine est lancé !' : `Le challenge du mois de ${monthName(end)} est lancé !`;
   return [
+    EVERYONE,
     `${emoji} **${title}**`,
-    `${untilLabel(kind, end)}, chaque résultat posté dans ${channelMention(config.channels.results)} te rapporte 1 point.`,
+    `${periodLabel(kind, start, end)}, chaque résultat posté dans ${channelMention(config.channels.results)} te rapporte 1 point.`,
     kind === 'week'
       ? 'Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.'
       : "C'est le début du mois : participe à ce challenge pour obtenir tes résultats !",
@@ -194,12 +199,13 @@ export function challengeLaunchMessage({ kind, end, config }) {
   ].join('\n');
 }
 
-// Point d'étape pendant le challenge (tous les soirs pour la semaine, régulièrement pour le mois).
+// Classement en cours de challenge : tous les soirs du mardi au samedi (semaine), le dimanche (mois).
 export function standingsMessage({ kind, sections, daysLeft, end, config }) {
   const { emoji } = CHALLENGES[kind];
-  const title = kind === 'week' ? 'Challenge de la semaine — classement du jour' : `Challenge du mois de ${monthName(end)} — point d'étape`;
+  const title = kind === 'week' ? 'Challenge de la semaine — classement du jour' : `Challenge du mois de ${monthName(end)} — classement provisoire`;
   const remaining = daysLeft <= 1 ? 'Dernier jour' : `Plus que ${daysLeft} jours`;
   return [
+    EVERYONE,
     `${emoji} **${title}**`,
     `${remaining} avant la fin, ${endLabel(kind, end)}. Chaque résultat compte : rien n'est encore joué !`,
     ...sectionLines(sections, "_Personne pour l'instant. Sois le premier !_"),
@@ -208,11 +214,23 @@ export function standingsMessage({ kind, sections, daysLeft, end, config }) {
   ].join('\n');
 }
 
+// Les 10, 20 et 25 du mois : simple rappel, sans classement.
+export function monthReminderMessage({ daysLeft, end, config }) {
+  return [
+    EVERYONE,
+    `★ **Rappel : challenge du mois de ${monthName(end)}**`,
+    `Plus que ${daysLeft} jours avant la fin, ${endLabel('month', end)}.`,
+    `Participe à ce challenge pour obtenir tes résultats : chaque résultat posté dans ${channelMention(config.channels.results)} te rapporte 1 point.`,
+    '',
+    prizeLine('month', config, 'À la fin du mois, le meilleur Free remporte'),
+  ].join('\n');
+}
+
 // Fin du challenge. Le premier Free gagne le rôle de la période et sa réduction ;
 // le premier de l'accompagnement est félicité.
 export function rankingMessage({ kind, title, congrats, sections, config }) {
   const { emoji } = CHALLENGES[kind];
-  const lines = [`${emoji} **${title}**`, congrats, ...sectionLines(sections, '_Personne pour cette période._')];
+  const lines = [EVERYONE, `${emoji} **${title}**`, congrats, ...sectionLines(sections, '_Personne pour cette période._')];
   const winners = sections.filter((section) => section.entries.length > 0);
   if (winners.length > 0) lines.push('');
   for (const { category, entries } of winners) {
@@ -229,6 +247,7 @@ export function rankingMessage({ kind, title, congrats, sections, config }) {
 // Chaque dimanche à 18 h, dans #top-all-time.
 export function allTimeMessage({ sections }) {
   return [
+    EVERYONE,
     '👑 **Classement all-time**',
     'Les membres les plus réguliers depuis le lancement de PlugBot. Chaque résultat posté te fait monter !',
     ...sectionLines(sections, "_Personne pour l'instant._"),

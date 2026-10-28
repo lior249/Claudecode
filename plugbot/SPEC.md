@@ -93,36 +93,40 @@ Les challenges personnalisés sont annoncés à la main par le porteur de projet
 
 | Challenge | Période | Taille |
 |---|---|---|
-| Semaine (top-7) | du **lundi 18 h** au **dimanche 18 h** UTC | top 5 Accompagnement + top 5 Free |
-| Mois (top-30) | du **1er à 18 h** au **dernier jour du mois à 18 h** UTC | top 10 Accompagnement + top 10 Free |
+| Semaine (top-7) | du **dimanche 18 h** au **dimanche 18 h** suivant (UTC) | top 5 Accompagnement + top 5 Free |
+| Mois (top-30) | du **dernier jour du mois précédent à 18 h** au **dernier jour du mois à 18 h** (UTC) | top 10 Accompagnement + top 10 Free |
 | All-time | depuis le lancement, sans fin | top 10 Accompagnement + top 10 Free |
 
-Entre la clôture et la relance (de dimanche 18 h à lundi 18 h pour la semaine, du dernier jour 18 h au 1er 18 h pour le mois), les résultats comptent pour le total, la chaîne et la prison, mais pas pour le challenge.
-Ça évite de prendre de l'avance en postant le dimanche soir. Pendant cette pause, le message de show-up indique : « Semaine : le challenge reprend lundi à 18 h ».
+Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence. L'annonce du lancement arrive un jour plus tard (lundi 18 h, ou le 1er à 18 h), pour ne pas enchaîner trop d'annonces le même soir.
+
+**Tous les messages des salons top-7, top-30 et top-all-time commencent par @everyone** : tout le serveur est notifié.
 
 ### Calendrier (toujours à 18 h UTC)
 
-| Salon | Quand | Message | Notifie les membres classés |
-|---|---|---|---|
-| top-7 | lundi | Lancement du challenge de la semaine | — |
-| top-7 | mardi à samedi | Classement du jour, avec les jours restants | non |
-| top-7 | dimanche | Classement final, ⚡plug7⚡ pour le gagnant Free | oui |
-| top-30 | le 1er | Lancement du challenge du mois | — |
-| top-30 | les dimanches, et les 10, 20 et 25 | Point d'étape, avec les jours restants | non |
-| top-30 | le dernier jour du mois | Classement final, ★plug30★ pour le gagnant Free | oui |
-| top-all-time | dimanche | Classement all-time | oui |
+| Salon | Quand | Message |
+|---|---|---|
+| top-7 | lundi | Lancement du challenge de la semaine |
+| top-7 | mardi à samedi | Classement du jour, avec les jours restants |
+| top-7 | dimanche | Clôture : classement final, ⚡plug7⚡ pour le gagnant Free |
+| top-30 | le 1er | Lancement du challenge du mois |
+| top-30 | chaque dimanche | Classement provisoire, avec les jours restants |
+| top-30 | les 10, 20 et 25 | Rappel du challenge, sans classement |
+| top-30 | le dernier jour du mois | Clôture : classement final, ★plug30★ pour le gagnant Free |
+| top-all-time | dimanche | Classement all-time |
 
-Quand plusieurs publications tombent le même jour (par exemple un dimanche qui est aussi le dernier jour du mois), chacune part dans son salon. Dans top-30, le classement final remplace le point d'étape.
+- Si le 1er, le 10, le 20 ou le 25 tombe un dimanche, c'est le lancement ou le classement provisoire qui part, pas les deux. Le dernier jour du mois, seule la clôture part dans top-30.
 
 ### Les messages
 
+> @everyone
 > ⚡ **Le challenge de la semaine est lancé !**
-> Jusqu'à dimanche 18 h (UTC), chaque résultat posté dans #flex-resultats te rapporte 1 point.
+> Depuis dimanche 18 h et jusqu'à dimanche prochain 18 h (UTC), chaque résultat posté dans #flex-resultats te rapporte 1 point.
 > Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.
 > Accompagnement et Free ont chacun leur classement.
 >
 > ⚡ Le meilleur Free de la semaine remporte @⚡plug7⚡ : −25 % sur la formation !
 
+> @everyone
 > ⚡ **Challenge de la semaine — classement du jour**
 > Plus que 4 jours avant la fin, dimanche à 18 h (UTC). Chaque résultat compte : rien n'est encore joué !
 >
@@ -136,15 +140,24 @@ Quand plusieurs publications tombent le même jour (par exemple un dimanche qui 
 >
 > ⚡ À la fin de la semaine, le meilleur Free remporte @⚡plug7⚡ : −25 % sur la formation !
 
+> @everyone
 > ★ **Le challenge du mois de novembre 2026 est lancé !**
-> Jusqu'au 30 novembre à 18 h (UTC), chaque résultat posté dans #flex-resultats te rapporte 1 point.
+> Depuis le 31 octobre à 18 h et jusqu'au 30 novembre à 18 h (UTC), chaque résultat posté dans #flex-resultats te rapporte 1 point.
 > C'est le début du mois : participe à ce challenge pour obtenir tes résultats !
 > Accompagnement et Free ont chacun leur classement.
 >
 > ★ Le meilleur Free du mois remporte @★plug30★ : −35 % sur la formation !
 
-Le point d'étape du mois suit le même modèle que le classement du jour (« Challenge du mois de novembre 2026 — point d'étape »).
+Le classement provisoire du mois suit le même modèle que le classement du jour (« Challenge du mois de novembre 2026 — classement provisoire »).
 
+> @everyone
+> ★ **Rappel : challenge du mois de novembre 2026**
+> Plus que 20 jours avant la fin, le 30 novembre à 18 h (UTC).
+> Participe à ce challenge pour obtenir tes résultats : chaque résultat posté dans #flex-resultats te rapporte 1 point.
+>
+> ★ À la fin du mois, le meilleur Free remporte @★plug30★ : −35 % sur la formation !
+
+> @everyone
 > ⚡ **Classement de la semaine**
 > Énorme travail, bravo à tous ceux qui se sont montrés !
 >
@@ -159,6 +172,7 @@ Le point d'étape du mois suit le même modèle que le classement du jour (« Ch
 > 🏆 @GagnantAccompagnement remporte le classement Accompagnement !
 > ⚡ @GagnantFree remporte @⚡plug7⚡ : −25 % sur la formation !
 
+> @everyone
 > 👑 **Classement all-time**
 > Les membres les plus réguliers depuis le lancement de PlugBot. Chaque résultat posté te fait monter !
 >
@@ -170,7 +184,7 @@ Le point d'étape du mois suit le même modèle que le classement du jour (« Ch
 
 - Les membres **en prison** n'apparaissent dans aucun classement, même s'ils ont des points.
 - À points égaux, le plus gros total all-time passe devant, puis celui qui a atteint son score le premier.
-- La semaine et le mois du lancement sont incomplets : pas de classement du jour, de point d'étape ni de clôture pour eux. Sinon, quelqu'un pourrait gagner −35 % avec trois jours de posts.
+- La semaine et le mois du lancement sont incomplets : rien n'est publié pour eux (ni lancement, ni classement, ni rappel, ni clôture). Sinon, quelqu'un pourrait gagner −35 % avec trois jours de posts.
 
 ## La prison
 

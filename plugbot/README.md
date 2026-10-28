@@ -25,6 +25,7 @@ Le fonctionnement complet est décrit dans [`SPEC.md`](SPEC.md).
 **Salons.**
 
 - PlugBot doit pouvoir voir flex-resultats, et voir et écrire dans show-up, top-7, top-30, top-all-time et la-prison.
+- Dans top-7, top-30 et top-all-time, PlugBot doit aussi pouvoir **mentionner @everyone, @here et tous les rôles** : chaque annonce notifie tout le serveur.
 - Les membres doivent pouvoir lire ces cinq salons, sans y écrire.
 - flex-resultats : mode lent de 15 minutes.
 

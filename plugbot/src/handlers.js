@@ -76,8 +76,7 @@ export function createHandlers(ctx) {
     const rows = tracker.snapshot(guild.members.cache, now);
     const row = rows.get(member.id);
     const rank = leaderboard([...rows.values()], row.category).findIndex((entry) => entry.userId === member.id) + 1;
-    const weekOpen = now >= weekRange(now).start;
-    await send(channels.showup, showupMessage({ ...row, week: row.points, rank, weekOpen }), [member.id]);
+    await send(channels.showup, showupMessage({ ...row, week: row.points, rank }), [member.id]);
     await settle(member.id);
   }
 

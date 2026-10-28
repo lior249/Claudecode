@@ -5,6 +5,7 @@ import {
   allTimeMessage,
   challengeLaunchMessage,
   congratulations,
+  monthReminderMessage,
   prisonEntryMessages,
   prisonExitMessage,
   prisonFinalMessages,
@@ -12,7 +13,7 @@ import {
   rankingMessage,
   standingsMessage,
 } from './messages.js';
-import { send } from './send.js';
+import { announce, send } from './send.js';
 import { DAYS_TO_LEAVE_PRISON, FINAL_PRISON_DAYS, leaderboard, needsWarning } from './stats.js';
 import {
   DAY_MS,
@@ -28,8 +29,8 @@ import {
 
 // L'accompagnement est toujours affiché avant les Free.
 const CATEGORIES = ['plug', 'free'];
-// Jours du mois où le top-30 reçoit un point d'étape, en plus des dimanches.
-const MONTH_UPDATE_DAYS = [10, 20, 25];
+// Jours du mois où le top-30 reçoit un rappel du challenge.
+const MONTH_REMINDER_DAYS = [10, 20, 25];
 
 export function createJobs(ctx, handlers) {
   const { config, db, tracker, guild, channels, prison } = ctx;
@@ -128,28 +129,28 @@ export function createJobs(ctx, handlers) {
 
     const title = kind === 'week' ? 'Classement de la semaine' : `Classement du mois — ${monthName(range.end)}`;
     const content = rankingMessage({ kind, title, congrats: congratulations(range.start), sections, config });
-    await send(kind === 'week' ? channels.week : channels.month, content);
+    await announce(kind === 'week' ? channels.week : channels.month, content);
   }
 
-  // Point d'étape d'un challenge en cours, au soir `evening`. Les membres sont affichés sans être notifiés.
+  // Point d'étape d'un challenge en cours, au soir `evening`.
   async function runStandings(kind, range, evening, now) {
-    if (startedBeforeLaunch(range)) return;
     const sections = await sectionsFor(range, now, RANKING_SIZES[kind]);
     const daysLeft = Math.round((range.end - evening) / DAY_MS);
     const content = standingsMessage({ kind, sections, daysLeft, end: range.end, config });
-    await send(kind === 'week' ? channels.week : channels.month, content, []);
+    await announce(kind === 'week' ? channels.week : channels.month, content);
   }
 
   async function runAllTime(now) {
     if (!channels.allTime) return;
     const sections = await sectionsFor({ start: 0, end: Number.MAX_SAFE_INTEGER }, now, RANKING_SIZES.allTime);
-    await send(channels.allTime, allTimeMessage({ sections }));
+    await announce(channels.allTime, allTimeMessage({ sections }));
   }
 
-  // Publications de 18 h UTC (les classements finaux sont publiés à part, voir tick).
+  // Publications de 18 h UTC (les clôtures sont publiées à part, voir tick).
   // top-7 : lancement le lundi, classement du jour du mardi au samedi.
-  // top-30 : lancement le 1er, point d'étape le dimanche et les 10, 20 et 25 du mois.
+  // top-30 : lancement le 1er, classement le dimanche, rappel les 10, 20 et 25 du mois.
   // top-all-time : le dimanche.
+  // Rien n'est publié pour une semaine ou un mois commencé avant le lancement du bot.
   async function runEvening(day, now) {
     const date = new Date(day * DAY_MS);
     const weekday = date.getUTCDay(); // 0 = dimanche, 1 = lundi
@@ -157,18 +158,26 @@ export function createJobs(ctx, handlers) {
     const evening = day * DAY_MS + EVENING_HOUR * 60 * 60 * 1000;
 
     const week = weekRange(evening);
-    if (weekday === 1) {
-      await send(channels.week, challengeLaunchMessage({ kind: 'week', end: week.end, config }));
-    } else if (weekday >= 2 && weekday <= 6) {
-      await runStandings('week', week, evening, now);
+    if (!startedBeforeLaunch(week)) {
+      if (weekday === 1) {
+        await announce(channels.week, challengeLaunchMessage({ kind: 'week', ...week, config }));
+      } else if (weekday >= 2 && weekday <= 6) {
+        await runStandings('week', week, evening, now);
+      }
     }
 
+    // Le dernier jour du mois à 18 h, `month` est déjà le mois suivant (il démarre ce soir) :
+    // la clôture suffit.
     const month = monthRange(evening);
-    if (dayOfMonth === 1) {
-      await send(channels.month, challengeLaunchMessage({ kind: 'month', end: month.end, config }));
-    } else if (evening > month.start && (weekday === 0 || MONTH_UPDATE_DAYS.includes(dayOfMonth))) {
-      // Le dernier jour du mois, `month` est déjà le mois suivant : le classement final suffit.
-      await runStandings('month', month, evening, now);
+    if (!startedBeforeLaunch(month) && evening > month.start) {
+      const daysLeft = Math.round((month.end - evening) / DAY_MS);
+      if (dayOfMonth === 1) {
+        await announce(channels.month, challengeLaunchMessage({ kind: 'month', ...month, config }));
+      } else if (weekday === 0) {
+        await runStandings('month', month, evening, now);
+      } else if (MONTH_REMINDER_DAYS.includes(dayOfMonth)) {
+        await announce(channels.month, monthReminderMessage({ daysLeft, end: month.end, config }));
+      }
     }
 
     if (weekday === 0) await runAllTime(now);

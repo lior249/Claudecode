@@ -24,11 +24,11 @@ export function lastWeekEnd(timestamp) {
   return FIRST_SUNDAY_EVENING + Math.floor((timestamp - FIRST_SUNDAY_EVENING) / WEEK_MS) * WEEK_MS;
 }
 
-// Challenge de la semaine : du lundi 18 h au dimanche 18 h UTC.
-// Entre dimanche 18 h et lundi 18 h, les résultats comptent pour le total, pas pour le challenge.
+// Challenge de la semaine : du dimanche 18 h au dimanche 18 h suivant (UTC), sans pause.
+// Il est annoncé le lundi à 18 h.
 export function weekRange(timestamp) {
-  const previousEnd = lastWeekEnd(timestamp);
-  return { start: previousEnd + DAY_MS, end: previousEnd + WEEK_MS };
+  const start = lastWeekEnd(timestamp);
+  return { start, end: start + WEEK_MS };
 }
 
 // Fin d'un mois : son dernier jour à 18 h UTC. `month` peut déborder (-1 = décembre de l'année d'avant).
@@ -43,10 +43,11 @@ export function lastMonthEnd(timestamp) {
   return timestamp >= end ? end : monthEnd(date.getUTCFullYear(), date.getUTCMonth() - 1);
 }
 
-// Challenge du mois : du 1er à 18 h au dernier jour du mois à 18 h UTC.
+// Challenge du mois : du dernier jour du mois précédent à 18 h au dernier jour du mois à 18 h (UTC),
+// sans pause. Il est annoncé le 1er à 18 h.
 export function monthRange(timestamp) {
-  const start = lastMonthEnd(timestamp) + DAY_MS;
-  const date = new Date(start);
+  const start = lastMonthEnd(timestamp);
+  const date = new Date(start + DAY_MS);
   return { start, end: monthEnd(date.getUTCFullYear(), date.getUTCMonth()) };
 }
 
