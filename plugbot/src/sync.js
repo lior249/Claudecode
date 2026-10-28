@@ -26,7 +26,7 @@ export async function startup(ctx, handlers, jobs) {
     db.setMeta('launch_day', dayOf(now));
     console.log('[PlugBot] Premier lancement : le suivi commence maintenant.');
   }
-  // Publications de 18 h : ajoutées après le premier lancement, elles démarrent au prochain 18 h.
+  // Publications du soir : ajoutées après le premier lancement, elles démarrent au prochain soir.
   if (db.getMeta('last_evening_day') === null) db.setMeta('last_evening_day', eveningDay(now));
 
   for (const member of ctx.guild.members.cache.values()) ctx.tracker.syncCategory(member, dayOf(now));

@@ -1,4 +1,4 @@
-// Tâches programmées : la prison chaque jour à minuit UTC, et les classements à 19 h 45 UTC (GMT).
+// Tâches programmées : la prison chaque jour à minuit UTC, et les classements le soir (voir EVENING_HOUR).
 
 import {
   RANKING_SIZES,
@@ -167,7 +167,7 @@ export function createJobs(ctx, handlers) {
     await announce(channels.allTime, allTimeMessage({ sections }));
   }
 
-  // Publications de 19 h 45 UTC (les clôtures sont publiées à part, voir tick).
+  // Publications du soir, à 20 h 30 GMT (les clôtures sont publiées à part, voir tick).
   // top-7 : lancement le lundi, classement du jour du mardi au samedi.
   // top-30 : lancement le 1er, classement le dimanche, rappel les 10, 20 et 25 du mois.
   // top-all-time et récap des récompenses dans show-up : le dimanche.

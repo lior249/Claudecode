@@ -1,7 +1,7 @@
 // Tous les textes publiés par PlugBot.
 
 import { DAYS_TO_LEAVE_PRISON, FINAL_PRISON_DAYS, WARNING_DAYS_BEFORE } from './stats.js';
-import { WEEK_MS, dayAndMonth, monthName } from './time.js';
+import { EVENING_HOUR, EVENING_MINUTE, WEEK_MS, dayAndMonth, monthName } from './time.js';
 
 export const MAX_LENGTH = 2000;
 // Nombre maximum de mentions par message groupé, pour rester sous la limite de Discord.
@@ -16,8 +16,9 @@ export const REWARDS = {
   monthWinner: "−35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement",
 };
 
-// Heure des publications et de la fin des challenges, telle qu'affichée aux membres.
-const EVENING = '19 h 45 (GMT)';
+// Heure des publications et de la fin des challenges, telle qu'affichée aux membres : « 20 h 30 ».
+const EVENING_TIME = `${EVENING_HOUR} h${EVENING_MINUTE ? ` ${String(EVENING_MINUTE).padStart(2, '0')}` : ''}`;
+const EVENING = `${EVENING_TIME} (GMT)`;
 
 // Tous les messages des salons top et le récap du dimanche commencent par @everyone :
 // tout le serveur est notifié.
@@ -231,10 +232,9 @@ function endLabel(kind, end) {
 }
 
 function periodLabel(kind, start, end) {
-  const time = EVENING.replace(' (GMT)', '');
   return kind === 'week'
-    ? `Depuis dimanche ${time} et jusqu'à dimanche prochain ${EVENING}`
-    : `Depuis le ${dayAndMonth(start)} à ${time} et jusqu'au ${dayAndMonth(end)} à ${EVENING}`;
+    ? `Depuis dimanche ${EVENING_TIME} et jusqu'à dimanche prochain ${EVENING}`
+    : `Depuis le ${dayAndMonth(start)} à ${EVENING_TIME} et jusqu'au ${dayAndMonth(end)} à ${EVENING}`;
 }
 
 // Lundi (semaine) ou le 1er (mois), le soir : annonce du challenge standard, qui a démarré la veille au soir.

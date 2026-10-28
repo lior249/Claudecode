@@ -9,7 +9,7 @@ Les points marqués *(proposé)* sont des propositions en attente de confirmatio
 
 - PlugBot est un **bot à part**. Il ne se mélange pas avec le bot actuel qui envoie les notifications de paiement.
 - Tous ses salons sont **publics** : tout le monde voit qui a posté, qui gagne et qui est en prison. Les membres sont mentionnés publiquement. Aucun message privé.
-- Toutes les heures sont en **temps universel (GMT)**. Une journée va de minuit à minuit GMT. Les publications et la fin des challenges sont à **19 h 45 GMT**.
+- Toutes les heures sont en **temps universel (GMT)**. Une journée va de minuit à minuit GMT. Les publications et la fin des challenges sont à **20 h 30 GMT**.
 - Le suivi part de **zéro** au lancement : seuls les résultats postés après l'arrivée du bot comptent.
 
 ## Catégories de membres
@@ -33,7 +33,7 @@ Les points marqués *(proposé)* sont des propositions en attente de confirmatio
 | ➕ **show-up** | Le journal : chaque show-up, chaque point retiré, chaque rôle 🔥🔥🔥 gagné, et le récap des récompenses le dimanche. |
 | 💸 **top-7** | Le challenge de la semaine : lancement, classement du jour et clôture. |
 | 💎 **top-30** | Le challenge du mois : lancement, points d'étape et clôture. |
-| **top-all-time** | Le classement all-time, chaque dimanche à 19 h 45 GMT. |
+| **top-all-time** | Le classement all-time, chaque dimanche à 20 h 30 GMT. |
 | 🤢 **la-prison** | Les alertes, les entrées en prison et les sorties. |
 | 💎 **bonus-top7**, **bonus-top30**, **bonus-21j** | Les bénéfices de chaque récompense. Chaque salon n'est visible qu'avec le rôle correspondant. Géré par le porteur de projet : PlugBot ne fait que les mentionner. |
 | **guide-serveur** | Le fonctionnement des classements et de la prison. PlugBot le mentionne. |
@@ -109,7 +109,7 @@ Chaque gagnant reçoit un message qui ne notifie que lui, et l'envoie vers son s
 
 ### Récap du dimanche
 
-Chaque dimanche à 19 h 45 GMT, dans show-up, avec @everyone :
+Chaque dimanche à 20 h 30 GMT, dans show-up, avec @everyone :
 
 > @everyone
 > 🏆 **Voici ce que tu gagnes en postant tes résultats sur la plateforme :**
@@ -135,15 +135,15 @@ Les challenges personnalisés sont annoncés à la main par le porteur de projet
 
 | Challenge | Période | Taille |
 |---|---|---|
-| Semaine (top-7) | du **dimanche 19 h 45** au **dimanche 19 h 45** suivant (GMT) | top 5 Accompagnement + top 5 Free |
-| Mois (top-30) | du **dernier jour du mois précédent à 19 h 45** au **dernier jour du mois à 19 h 45** (GMT) | top 10 Accompagnement + top 10 Free |
+| Semaine (top-7) | du **dimanche 20 h 30** au **dimanche 20 h 30** suivant (GMT) | top 5 Accompagnement + top 5 Free |
+| Mois (top-30) | du **dernier jour du mois précédent à 20 h 30** au **dernier jour du mois à 20 h 30** (GMT) | top 10 Accompagnement + top 10 Free |
 | All-time | depuis le lancement, sans fin | top 10 Accompagnement + top 10 Free |
 
-Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence. L'annonce du lancement arrive un jour plus tard (lundi 19 h 45, ou le 1er à 19 h 45), pour ne pas enchaîner trop d'annonces le même soir.
+Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence. L'annonce du lancement arrive un jour plus tard (lundi 20 h 30, ou le 1er à 20 h 30), pour ne pas enchaîner trop d'annonces le même soir.
 
 **Tous les messages des salons top-7, top-30 et top-all-time commencent par @everyone** : tout le serveur est notifié.
 
-### Calendrier (toujours à 19 h 45 GMT)
+### Calendrier (toujours à 20 h 30 GMT)
 
 | Salon | Quand | Message |
 |---|---|---|
@@ -163,7 +163,7 @@ Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence
 
 > @everyone
 > ⚡ **Le challenge de la semaine est lancé !**
-> Depuis dimanche 19 h 45 et jusqu'à dimanche prochain 19 h 45 (GMT), chaque résultat posté dans #flex-resultats te rapporte 1 point.
+> Depuis dimanche 20 h 30 et jusqu'à dimanche prochain 20 h 30 (GMT), chaque résultat posté dans #flex-resultats te rapporte 1 point.
 > Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.
 > Accompagnement et Free ont chacun leur classement.
 >
@@ -171,7 +171,7 @@ Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence
 
 > @everyone
 > ⚡ **Challenge de la semaine — classement du jour**
-> Plus que 4 jours avant la fin, dimanche à 19 h 45 (GMT). Chaque résultat compte : rien n'est encore joué !
+> Plus que 4 jours avant la fin, dimanche à 20 h 30 (GMT). Chaque résultat compte : rien n'est encore joué !
 >
 > **Accompagnement**
 > 1. @Membre — 6 points
@@ -185,7 +185,7 @@ Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence
 
 > @everyone
 > ★ **Le challenge du mois de novembre 2026 est lancé !**
-> Depuis le 31 octobre à 19 h 45 et jusqu'au 30 novembre à 19 h 45 (GMT), chaque résultat posté dans #flex-resultats te rapporte 1 point.
+> Depuis le 31 octobre à 20 h 30 et jusqu'au 30 novembre à 20 h 30 (GMT), chaque résultat posté dans #flex-resultats te rapporte 1 point.
 > C'est le début du mois : participe à ce challenge pour obtenir tes résultats !
 > Accompagnement et Free ont chacun leur classement.
 >
@@ -195,7 +195,7 @@ Le classement provisoire du mois suit le même modèle que le classement du jour
 
 > @everyone
 > ★ **Rappel : challenge du mois de novembre 2026**
-> Plus que 20 jours avant la fin, le 30 novembre à 19 h 45 (GMT).
+> Plus que 20 jours avant la fin, le 30 novembre à 20 h 30 (GMT).
 > Participe à ce challenge pour obtenir tes résultats : chaque résultat posté dans #flex-resultats te rapporte 1 point.
 >
 > ★ À la fin du mois, le meilleur Free remporte @★plug30★ : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !

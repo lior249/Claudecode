@@ -104,7 +104,7 @@ npm test
 - `src/index.js` : démarrage et événements Discord.
 - `src/handlers.js` : résultats postés, ❌ de l'admin, messages supprimés, changements de rôle.
 - `src/prison.js` : entrées et sorties de prison (rôle Prisonnier, récompenses mises de côté).
-- `src/jobs.js` : prison (chaque jour à minuit UTC), publications de 19 h 45 GMT (top-7, top-30, top-all-time, récap), messages aux gagnants.
+- `src/jobs.js` : prison (chaque jour à minuit UTC), publications de 20 h 30 GMT (top-7, top-30, top-all-time, récap), messages aux gagnants.
 - `src/checks.js` : vérification des permissions au démarrage.
 - `src/sync.js` : premier lancement et rattrapage après une coupure.
 - `src/stats.js` : calculs des chaînes, de la prison et des classements.

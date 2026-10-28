@@ -210,13 +210,13 @@ describe('messages', () => {
   });
 
   it('lance le challenge de la semaine le lundi, avec @everyone', () => {
-    const text = challengeLaunchMessage({ kind: 'week', start: Date.UTC(2026, 10, 1, 19, 45), end: Date.UTC(2026, 10, 8, 19, 45), config });
+    const text = challengeLaunchMessage({ kind: 'week', start: Date.UTC(2026, 10, 1, 20, 30), end: Date.UTC(2026, 10, 8, 20, 30), config });
     assert.equal(
       text,
       [
         '@everyone',
         '⚡ **Le challenge de la semaine est lancé !**',
-        "Depuis dimanche 19 h 45 et jusqu'à dimanche prochain 19 h 45 (GMT), chaque résultat posté dans <#res> te rapporte 1 point.",
+        "Depuis dimanche 20 h 30 et jusqu'à dimanche prochain 20 h 30 (GMT), chaque résultat posté dans <#res> te rapporte 1 point.",
         'Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.',
         'Accompagnement et Free ont chacun leur classement.',
         '',
@@ -226,20 +226,20 @@ describe('messages', () => {
   });
 
   it('lance le challenge du mois le 1er', () => {
-    const text = challengeLaunchMessage({ kind: 'month', start: Date.UTC(2026, 9, 31, 19, 45), end: Date.UTC(2026, 10, 30, 19, 45), config });
+    const text = challengeLaunchMessage({ kind: 'month', start: Date.UTC(2026, 9, 31, 20, 30), end: Date.UTC(2026, 10, 30, 20, 30), config });
     assert.match(text, /^@everyone\n★ \*\*Le challenge du mois de novembre 2026 est lancé !\*\*/);
-    assert.match(text, /\nDepuis le 31 octobre à 19 h 45 et jusqu'au 30 novembre à 19 h 45 \(GMT\), chaque résultat/);
+    assert.match(text, /\nDepuis le 31 octobre à 20 h 30 et jusqu'au 30 novembre à 20 h 30 \(GMT\), chaque résultat/);
     assert.match(text, /participe à ce challenge pour obtenir tes résultats/);
     assert.match(text, /<@&p30> : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !$/);
   });
 
   it('rappelle le challenge du mois sans classement', () => {
     assert.equal(
-      monthReminderMessage({ daysLeft: 20, end: Date.UTC(2026, 10, 30, 19, 45), config }),
+      monthReminderMessage({ daysLeft: 20, end: Date.UTC(2026, 10, 30, 20, 30), config }),
       [
         '@everyone',
         '★ **Rappel : challenge du mois de novembre 2026**',
-        'Plus que 20 jours avant la fin, le 30 novembre à 19 h 45 (GMT).',
+        'Plus que 20 jours avant la fin, le 30 novembre à 20 h 30 (GMT).',
         'Participe à ce challenge pour obtenir tes résultats : chaque résultat posté dans <#res> te rapporte 1 point.',
         '',
         "★ À la fin du mois, le meilleur Free remporte <@&p30> : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !",
@@ -255,10 +255,10 @@ describe('messages', () => {
         { category: 'free', entries: [{ userId: '1', score: 4 }] },
       ],
       daysLeft: 5,
-      end: Date.UTC(2026, 10, 8, 19, 45),
+      end: Date.UTC(2026, 10, 8, 20, 30),
       config,
     });
-    assert.match(text, /^@everyone\n⚡ \*\*Challenge de la semaine — classement du jour\*\*\nPlus que 5 jours avant la fin, dimanche à 19 h 45 \(GMT\)/);
+    assert.match(text, /^@everyone\n⚡ \*\*Challenge de la semaine — classement du jour\*\*\nPlus que 5 jours avant la fin, dimanche à 20 h 30 \(GMT\)/);
     assert.match(text, /\*\*Accompagnement\*\*\n_Personne pour l'instant\. Sois le premier !_/);
     assert.match(text, /\*\*Free\*\*\n1\. <@1> — 4 points/);
     assert.match(standingsMessage({ kind: 'week', sections: [], daysLeft: 1, end: 0, config }), /Dernier jour avant la fin/);
