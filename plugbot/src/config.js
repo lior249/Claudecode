@@ -43,6 +43,13 @@ export function loadConfig() {
       // Facultatif : sans lui, le top all-time n'est pas publié.
       allTime: optional('ALLTIME_CHANNEL_ID', null),
     },
+    // Salons seulement mentionnés dans les messages : PlugBot n'a pas besoin d'y avoir accès.
+    links: {
+      bonusWeek: required('BONUS_WEEK_CHANNEL_ID'),
+      bonusMonth: required('BONUS_MONTH_CHANNEL_ID'),
+      bonusStreak: required('BONUS_STREAK_CHANNEL_ID'),
+      guide: required('GUIDE_CHANNEL_ID'),
+    },
     roles: {
       free: required('FREE_ROLE_ID'),
       plug: required('PLUG_ROLE_ID'),

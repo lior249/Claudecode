@@ -104,6 +104,7 @@ function setup() {
       prison: 'c-prison',
       allTime: 'c-alltime',
     },
+    links: { bonusWeek: 'c-bonus7', bonusMonth: 'c-bonus30', bonusStreak: 'c-bonus21', guide: 'c-guide' },
     roles: ROLES,
     streakRoleDays: 21,
     adminIds: new Set([ADMIN]),
@@ -141,6 +142,8 @@ async function goTo(env, timestamp) {
 // Jour `day` après le lancement, à `hour` heures UTC (le jour 0 est le mercredi 28 octobre).
 const at = (day, hour) => LAUNCH + day * DAY_MS + (hour - 10) * 60 * 60 * 1000;
 const afterMidnight = (day) => at(day, 0) + 60_000;
+// 19 h 45 UTC, l'heure des publications du soir.
+const evening = (day) => at(day, 19) + 45 * 60_000;
 
 async function post(env, userId, options) {
   const message = fakeMessage(env.channels.results, userId, options);
@@ -169,11 +172,14 @@ describe('scénario PlugBot', () => {
     const first = await post(env, '1');
     assert.deepEqual(first.reacted, ['❗']);
     assert.match(env.channels.showup.sent.at(-1), /<@1> vient de show up/);
-    assert.match(env.channels.showup.sent.at(-1), /Semaine : \*\*1 point\*\* \(1er Free\)/);
+    assert.match(env.channels.showup.sent.at(-1), /Classement semaine : \*\*1 point\*\* — 1er du classement Free/);
 
     await post(env, '2');
     await post(env, '2');
-    assert.match(env.channels.showup.sent.at(-1), /Semaine : \*\*2 points\*\* \(1er Free\) · 🏅 Total : \*\*2 points\*\*/);
+    assert.match(
+      env.channels.showup.sent.at(-1),
+      /📅 Classement semaine : \*\*2 points\*\* — 1er du classement Free\n🗓️ Classement mois : \*\*2 points\*\* — 1er du classement Free\n🏅 Classement total : \*\*2 points\*\* — 1er du classement Free/,
+    );
     // Plusieurs résultats le même jour : un seul jour de chaîne.
     assert.match(env.channels.showup.sent.at(-1), /Chaîne : \*\*1 jour d'affilée\*\*/);
   });
@@ -235,8 +241,14 @@ describe('scénario PlugBot', () => {
     await goTo(env, afterMidnight(22));
     assert.equal(
       env.channels.prison.sent.at(-1),
-      "🔒 <@1>, <@2> et <@3> viennent d'entrer en prison : 21 jours sans show-up.\n" +
-        "Pour sortir : 3 jours de show-up d'affilée dans <#c-res>.",
+      [
+        '🔒 **Tu viens de rejoindre la prison : 21 jours sans show-up.**',
+        "Voici comment en sortir : poste un résultat dans <#c-res> pendant 3 jours d'affilée.",
+        'Si tu veux plus de détails, va voir <#c-guide>.',
+        '',
+        'Voici ceux qui viennent de rejoindre la prison :',
+        '<@1> <@2> <@3>',
+      ].join('\n'),
     );
     assert.ok(member.roles.cache.has(ROLES.prisoner));
     assert.ok(!member.roles.cache.has(ROLES.weekWinner), 'les récompenses sont bloquées en prison');
@@ -256,7 +268,7 @@ describe('scénario PlugBot', () => {
 
     // Les autres atteignent le dernier palier.
     await goTo(env, afterMidnight(31));
-    assert.match(env.channels.prison.sent.at(-1), /^🔒 <@2> et <@3> sont définitivement en prison : 30 jours/);
+    assert.match(env.channels.prison.sent.at(-1), /^🔒 \*\*Définitivement en prison : 30 jours sans show-up\.\*\*[\s\S]*\n<@2> <@3>$/);
   });
 
   it("Accompagnement : alerte à 10 jours, prison à 15", async () => {
@@ -266,7 +278,7 @@ describe('scénario PlugBot', () => {
     await goTo(env, afterMidnight(11));
     assert.match(env.channels.prison.sent.at(-1), /^⚠️/);
     await goTo(env, afterMidnight(16));
-    assert.match(env.channels.prison.sent.at(-1), /^🔒 <@1> vient d'entrer en prison : 15 jours sans show-up\./);
+    assert.match(env.channels.prison.sent.at(-1), /^🔒 \*\*Tu viens de rejoindre la prison : 15 jours sans show-up\.\*\*[\s\S]*\n<@1>$/);
   });
 
   it('remet le compteur à zéro quand le membre change de rôle', async () => {
@@ -281,7 +293,7 @@ describe('scénario PlugBot', () => {
     await goTo(env, afterMidnight(35));
     assert.ok(!env.channels.prison.sent.some((m) => m.startsWith('🔒')));
     await goTo(env, afterMidnight(36));
-    assert.match(env.channels.prison.sent.at(-1), /^🔒 <@1> vient d'entrer en prison : 21 jours/);
+    assert.match(env.channels.prison.sent.at(-1), /^🔒 \*\*Tu viens de rejoindre la prison : 21 jours[\s\S]*\n<@1>$/);
   });
 
   it('un changement de rôle ne fait pas sortir de prison', async () => {
@@ -322,7 +334,7 @@ describe('scénario PlugBot', () => {
     await goTo(env, afterMidnight(28));
     assert.ok(!env.channels.prison.sent.some((m) => m.startsWith('🔒')));
     await goTo(env, afterMidnight(29));
-    assert.match(env.channels.prison.sent.at(-1), /<@1> vient d'entrer en prison/);
+    assert.match(env.channels.prison.sent.at(-1), /Tu viens de rejoindre la prison[\s\S]*\n<@1>$/);
   });
 
   it('donne le rôle 🔥🔥🔥 à 21 jours et le retire dès que la chaîne casse', async () => {
@@ -332,7 +344,11 @@ describe('scénario PlugBot', () => {
       await post(env, '1');
     }
     assert.ok(member.roles.cache.has(ROLES.streak));
-    assert.match(env.channels.showup.sent.at(-1), /atteint \*\*21 jours d'affilée\*\* et débloque <@&role-feu>/);
+    assert.equal(
+      env.channels.showup.sent.at(-1),
+      "🎉 Hourra <@1> ! Tu viens de gagner le challenge des 21 jours d'affilée (🔥🔥🔥).\nTu gagnes −15 % sur la formation.\nRetrouve tes bénéfices dans <#c-bonus21>.",
+    );
+    assert.deepEqual(env.channels.showup.allowed.at(-1), { users: ['1'] }, 'seul le gagnant est notifié');
     await goTo(env, afterMidnight(22));
     assert.ok(!member.roles.cache.has(ROLES.streak), 'la chaîne est brisée après un jour manqué');
   });
@@ -343,16 +359,16 @@ describe('scénario PlugBot', () => {
     const three = env.addMember('3', [ROLES.plug]);
 
     // Semaine incomplète du lancement : pas de clôture le dimanche 1er novembre.
-    await goTo(env, Date.UTC(2026, 10, 1, 18));
+    await goTo(env, Date.UTC(2026, 10, 1, 19, 45));
     assert.equal(env.channels.week.sent.length, 0);
 
     // Pas de pause : dès dimanche 18 h, les résultats comptent pour la nouvelle semaine.
     await goTo(env, at(5, 12));
     await post(env, '1');
     await post(env, '1');
-    assert.match(env.channels.showup.sent.at(-1), /Semaine : \*\*2 points\*\* \(1er Free\)/);
+    assert.match(env.channels.showup.sent.at(-1), /Classement semaine : \*\*2 points\*\* — 1er du classement Free/);
 
-    await goTo(env, at(5, 18));
+    await goTo(env, evening(5));
     assert.equal(env.channels.week.sent.length, 1);
     assert.match(env.channels.week.sent[0], /^@everyone\n⚡ \*\*Le challenge de la semaine est lancé !\*\*/);
     assert.deepEqual(env.channels.week.allowed[0], { parse: ['everyone', 'users'] }, 'tout le serveur est notifié');
@@ -364,16 +380,16 @@ describe('scénario PlugBot', () => {
       await post(env, '1');
       await post(env, '2');
       await post(env, '3');
-      await goTo(env, at(day, 18));
+      await goTo(env, evening(day));
     }
     assert.equal(env.channels.week.sent.length, 6);
     assert.match(env.channels.week.sent[1], /classement du jour\*\*\nPlus que 5 jours avant la fin/);
     assert.match(env.channels.week.sent[1], /\*\*Free\*\*\n1\. <@1> — 4 points\n2\. <@2> — 1 point/);
     assert.match(env.channels.week.sent[5], /Dernier jour avant la fin/);
 
-    await goTo(env, Date.UTC(2026, 10, 8, 17, 59));
+    await goTo(env, Date.UTC(2026, 10, 8, 19, 44));
     assert.equal(env.channels.week.sent.length, 6);
-    await goTo(env, Date.UTC(2026, 10, 8, 18));
+    await goTo(env, Date.UTC(2026, 10, 8, 19, 45));
 
     assert.equal(
       env.channels.week.sent.at(-1),
@@ -396,10 +412,25 @@ describe('scénario PlugBot', () => {
     assert.ok(one.roles.cache.has(ROLES.weekWinner));
     assert.ok(!three.roles.cache.has(ROLES.weekWinner), "l'accompagnement ne gagne pas la réduction");
 
+    // Le récap des récompenses part dans show-up, avec @everyone.
+    const recap = env.channels.showup.sent.findLast((m) => m.includes('Voici ce que tu gagnes'));
+    assert.match(recap, /^@everyone\n🏆/);
+    assert.match(recap, /regarde <#c-guide>\.$/);
+
+    // 3 minutes après la clôture, un message pour le seul gagnant Free.
+    await goTo(env, Date.UTC(2026, 10, 8, 19, 47));
+    assert.match(env.channels.week.sent.at(-1), /^@everyone\n⚡ \*\*Classement de la semaine/);
+    await goTo(env, Date.UTC(2026, 10, 8, 19, 48));
+    assert.equal(
+      env.channels.week.sent.at(-1),
+      '🎉 Hourra <@1> ! Tu viens de gagner le challenge de la semaine (top 7).\nTu gagnes −25 % sur la formation.\nRetrouve tes bénéfices dans <#c-bonus7>.',
+    );
+    assert.deepEqual(env.channels.week.allowed.at(-1), { users: ['1'] });
+
     // La nouvelle semaine démarre tout de suite.
     await post(env, '1');
-    assert.match(env.channels.showup.sent.at(-1), /Semaine : \*\*1 point\*\*/);
-    assert.match(env.channels.showup.sent.at(-1), /Total : \*\*13 points\*\*/);
+    assert.match(env.channels.showup.sent.at(-1), /Classement semaine : \*\*1 point\*\*/);
+    assert.match(env.channels.showup.sent.at(-1), /Classement total : \*\*13 points\*\*/);
   });
 
   it('top-30 : lancement le 1er, classement le dimanche, rappels, clôture le dernier jour', async () => {
@@ -409,7 +440,7 @@ describe('scénario PlugBot', () => {
     env.addMember('5', [ROLES.free]);
 
     // Mois incomplet du lancement : pas de clôture le 31 octobre.
-    await goTo(env, Date.UTC(2026, 9, 31, 18));
+    await goTo(env, Date.UTC(2026, 9, 31, 19, 45));
     assert.equal(env.channels.month.sent.length, 0);
 
     // Novembre : jours 4 (1er novembre) à 33 (30 novembre).
@@ -421,7 +452,7 @@ describe('scénario PlugBot', () => {
       // Le membre 5 poste 3 jours puis disparaît : il est en prison à la fin du mois.
       if (day <= 6) await post(env, '5');
     }
-    await goTo(env, Date.UTC(2026, 10, 30, 18));
+    await goTo(env, Date.UTC(2026, 10, 30, 19, 45));
 
     const sent = env.channels.month.sent;
     assert.match(sent[0], /^@everyone\n★ \*\*Le challenge du mois de novembre 2026 est lancé !\*\*/);
@@ -441,11 +472,14 @@ describe('scénario PlugBot', () => {
       /\*\*Accompagnement\*\*\n1\. <@3> — 10 points\n\n\*\*Free\*\*\n1\. <@1> — 30 points\n2\. <@2> — 15 points/,
     );
     assert.doesNotMatch(final, /<@5>/);
-    assert.match(final, /🏆 <@3> remporte le classement Accompagnement !\n★ <@1> remporte <@&role-plug30> : −35 % sur la formation !$/);
+    assert.match(final, /🏆 <@3> remporte le classement Accompagnement !\n★ <@1> remporte <@&role-plug30> : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !$/);
     assert.ok(one.roles.cache.has(ROLES.monthWinner));
+
+    await goTo(env, Date.UTC(2026, 10, 30, 19, 48));
+    assert.match(env.channels.month.sent.at(-1), /^🎉 Hourra <@1> ! Tu viens de gagner le challenge du mois \(top 30\)\.[\s\S]*<#c-bonus30>\.$/);
   });
 
-  it('publie le top all-time chaque dimanche à 18 h', async () => {
+  it('publie le top all-time chaque dimanche à 19 h 45', async () => {
     env.addMember('1', [ROLES.free]);
     env.addMember('3', [ROLES.plug]);
     await post(env, '1');
@@ -453,15 +487,15 @@ describe('scénario PlugBot', () => {
     await post(env, '1');
     await post(env, '3');
 
-    await goTo(env, Date.UTC(2026, 10, 1, 17, 59));
+    await goTo(env, Date.UTC(2026, 10, 1, 19, 44));
     assert.equal(env.channels.allTime.sent.length, 0);
-    await goTo(env, Date.UTC(2026, 10, 1, 18));
+    await goTo(env, Date.UTC(2026, 10, 1, 19, 45));
     assert.equal(env.channels.allTime.sent.length, 1);
     assert.match(env.channels.allTime.sent[0], /^@everyone\n👑 \*\*Classement all-time\*\*/);
     assert.match(env.channels.allTime.sent[0], /\*\*Accompagnement\*\*\n1\. <@3> — 1 point\n\n\*\*Free\*\*\n1\. <@1> — 3 points/);
     assert.deepEqual(env.channels.allTime.allowed[0], { parse: ['everyone', 'users'] });
 
-    await goTo(env, Date.UTC(2026, 10, 2, 18));
+    await goTo(env, Date.UTC(2026, 10, 2, 19, 45));
     assert.equal(env.channels.allTime.sent.length, 1, 'seulement le dimanche');
   });
 

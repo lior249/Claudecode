@@ -10,7 +10,7 @@ const PERMISSION_LABELS = {
 
 const CHANNEL_NEEDS = {
   results: ['ViewChannel', 'ReadMessageHistory', 'AddReactions'],
-  showup: ['ViewChannel', 'SendMessages'],
+  showup: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
   week: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
   month: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
   prison: ['ViewChannel', 'SendMessages'],

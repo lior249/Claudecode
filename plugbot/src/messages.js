@@ -9,8 +9,19 @@ const MENTIONS_PER_MESSAGE = 50;
 
 export const CATEGORY_LABELS = { free: 'Free', plug: 'Accompagnement' };
 
-// Réduction sur la formation débloquée par chaque rôle (en %).
-export const DISCOUNTS = { streak: 15, weekWinner: 25, monthWinner: 35 };
+// Ce que débloque chaque rôle de récompense.
+export const REWARDS = {
+  streak: '−15 % sur la formation',
+  weekWinner: '−25 % sur la formation',
+  monthWinner: "−35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement",
+};
+
+// Heure des publications et de la fin des challenges, telle qu'affichée aux membres.
+const EVENING = '19 h 45 (GMT)';
+
+// Tous les messages des salons top et le récap du dimanche commencent par @everyone :
+// tout le serveur est notifié.
+const EVERYONE = '@everyone';
 
 export function mention(userId) {
   return `<@${userId}>`;
@@ -44,19 +55,32 @@ function inGroups(userIds) {
   return groups;
 }
 
+// Un texte suivi de la liste des membres concernés. Si la liste est trop longue,
+// la suite part dans d'autres messages.
+function withMentionList(header, userIds) {
+  return inGroups(userIds).map((group, index) => {
+    const mentions = group.map(mention).join(' ');
+    return index === 0 ? `${header}\n${mentions}` : mentions;
+  });
+}
+
 function totals({ total, week }) {
   return `🏅 Total : **${plural(total, 'point')}** · 📅 Semaine : **${plural(week, 'point')}**`;
 }
 
 // --- #show-up ---
 
-export function showupMessage({ userId, chain, week, total, rank, category, prison }) {
-  const weekPart = rank
-    ? `**${plural(week, 'point')}** (${ordinal(rank)} ${CATEGORY_LABELS[category]})`
-    : `**${plural(week, 'point')}**`;
+// week, month, total : { points, rank }. Le rang est celui de la catégorie du membre (0 = hors classement).
+export function showupMessage({ userId, chain, category, prison, week, month, total }) {
+  const ranking = (emoji, name, { points, rank }) =>
+    `${emoji} Classement ${name} : **${plural(points, 'point')}** — ` +
+    (rank ? `${ordinal(rank)} du classement ${CATEGORY_LABELS[category]}` : 'hors classement');
   const lines = [
     `🔥 ${mention(userId)} vient de show up !`,
-    `⛓️ Chaîne : **${plural(chain, 'jour')} d'affilée** · 📅 Semaine : ${weekPart} · 🏅 Total : **${plural(total, 'point')}**`,
+    `⛓️ Chaîne : **${plural(chain, 'jour')} d'affilée**`,
+    ranking('📅', 'semaine', week),
+    ranking('🗓️', 'mois', month),
+    ranking('🏅', 'total', total),
   ];
   if (prison.inPrison && prison.daysToLeave > 0) {
     lines.push(
@@ -78,17 +102,46 @@ export function deletedMessage({ userId, total, week }) {
   return `🗑️ ${mention(userId)} a supprimé son résultat : son point de show-up est retiré.\n${totals({ total, week })}`;
 }
 
-export function streakRewardMessage(userId, config) {
-  return (
-    `🔥 ${mention(userId)} atteint **${config.streakRoleDays} jours d'affilée** et débloque ` +
-    `${roleMention(config.roles.streak)} : −${DISCOUNTS.streak} % sur la formation !`
-  );
+// Message au gagnant d'une récompense (reward : streak, weekWinner ou monthWinner).
+// Il ne notifie que le gagnant et l'envoie vers son salon bonus, réservé au rôle gagné.
+export function winnerMessage(reward, userId, config) {
+  const challenges = {
+    streak: `le challenge des ${config.streakRoleDays} jours d'affilée (🔥🔥🔥)`,
+    weekWinner: 'le challenge de la semaine (top 7)',
+    monthWinner: 'le challenge du mois (top 30)',
+  };
+  const bonusChannels = { streak: 'bonusStreak', weekWinner: 'bonusWeek', monthWinner: 'bonusMonth' };
+  return [
+    `🎉 Hourra ${mention(userId)} ! Tu viens de gagner ${challenges[reward]}.`,
+    `Tu gagnes ${REWARDS[reward]}.`,
+    `Retrouve tes bénéfices dans ${channelMention(config.links[bonusChannels[reward]])}.`,
+  ].join('\n');
+}
+
+// Chaque dimanche soir, dans #show-up.
+export function weeklyRecapMessage(config) {
+  const { roles, links, streakRoleDays } = config;
+  return [
+    EVERYONE,
+    '🏆 **Voici ce que tu gagnes en postant tes résultats sur la plateforme :**',
+    '',
+    '★ **Top 30** : le top 30 récapitule les 10 meilleurs membres du serveur sur les 30 derniers jours. ' +
+      `Termine 1er du classement Free et tu gagnes le rôle ${roleMention(roles.monthWinner)}, qui te débloque ${REWARDS.monthWinner}.`,
+    '',
+    '⚡ **Top 7** : le top 7 récapitule les 5 meilleurs membres du serveur sur les 7 derniers jours. ' +
+      `Termine 1er du classement Free et tu gagnes le rôle ${roleMention(roles.weekWinner)}, qui te débloque ${REWARDS.weekWinner}.`,
+    '',
+    `🔥 **${streakRoleDays} jours d'affilée** : poste un résultat tous les jours pendant ${streakRoleDays} jours d'affilée ` +
+      `et tu gagnes le rôle ${roleMention(roles.streak)}, qui te débloque ${REWARDS.streak}.`,
+    '',
+    "⚠️ Attention : tous les membres inactifs qui ne passent pas à l'action vont intégrer la prison.",
+    '',
+    `Pour comprendre ces classements en détail, regarde ${channelMention(links.guide)}.`,
+  ].join('\n');
 }
 
 // --- #la-prison ---
 
-// Le texte d'alerte, suivi de la liste des membres concernés.
-// Si la liste est trop longue, la suite part dans d'autres messages.
 export function prisonWarningMessages(userIds, config) {
   const header = [
     '⚠️ **Alerte : tu vas en prison.**',
@@ -99,31 +152,35 @@ export function prisonWarningMessages(userIds, config) {
     '',
     `Voici tous ceux qui iront en prison dans ${WARNING_DAYS_BEFORE} jours s'ils ne postent aucun résultat :`,
   ].join('\n');
-  return inGroups(userIds).map((group, index) => {
-    const mentions = group.map(mention).join(' ');
-    return index === 0 ? `${header}\n${mentions}` : mentions;
-  });
+  return withMentionList(header, userIds);
 }
 
 function wayOutOfPrison(config) {
-  return `Pour sortir : ${DAYS_TO_LEAVE_PRISON} jours de show-up d'affilée dans ${channelMention(config.channels.results)}.`;
+  return [
+    `Voici comment en sortir : poste un résultat dans ${channelMention(config.channels.results)} pendant ${DAYS_TO_LEAVE_PRISON} jours d'affilée.`,
+    `Si tu veux plus de détails, va voir ${channelMention(config.links.guide)}.`,
+  ].join('\n');
 }
 
 // Un message par groupe de membres qui entrent en prison le même jour après le même délai.
 export function prisonEntryMessages(days, userIds, config) {
-  return inGroups(userIds).map(
-    (group) =>
-      `🔒 ${frenchList(group.map(mention))} ${group.length > 1 ? "viennent d'entrer" : "vient d'entrer"} en prison : ` +
-      `${days} jours sans show-up.\n${wayOutOfPrison(config)}`,
-  );
+  const header = [
+    `🔒 **Tu viens de rejoindre la prison : ${days} jours sans show-up.**`,
+    wayOutOfPrison(config),
+    '',
+    'Voici ceux qui viennent de rejoindre la prison :',
+  ].join('\n');
+  return withMentionList(header, userIds);
 }
 
 export function prisonFinalMessages(userIds, config) {
-  return inGroups(userIds).map(
-    (group) =>
-      `🔒 ${frenchList(group.map(mention))} ${group.length > 1 ? 'sont' : 'est'} définitivement en prison : ` +
-      `${FINAL_PRISON_DAYS} jours sans show-up.\n${wayOutOfPrison(config)}`,
-  );
+  const header = [
+    `🔒 **Définitivement en prison : ${FINAL_PRISON_DAYS} jours sans show-up.**`,
+    wayOutOfPrison(config),
+    '',
+    'Voici ceux qui sont maintenant définitivement en prison :',
+  ].join('\n');
+  return withMentionList(header, userIds);
 }
 
 export function prisonExitMessage(userId) {
@@ -166,23 +223,21 @@ function sectionLines(sections, empty) {
 
 function prizeLine(kind, config, prefix) {
   const { emoji, role } = CHALLENGES[kind];
-  return `${emoji} ${prefix} ${roleMention(config.roles[role])} : −${DISCOUNTS[role]} % sur la formation !`;
+  return `${emoji} ${prefix} ${roleMention(config.roles[role])} : ${REWARDS[role]} !`;
 }
 
 function endLabel(kind, end) {
-  return kind === 'week' ? 'dimanche à 18 h (UTC)' : `le ${dayAndMonth(end)} à 18 h (UTC)`;
+  return kind === 'week' ? `dimanche à ${EVENING}` : `le ${dayAndMonth(end)} à ${EVENING}`;
 }
 
 function periodLabel(kind, start, end) {
+  const time = EVENING.replace(' (GMT)', '');
   return kind === 'week'
-    ? 'Depuis dimanche 18 h et jusqu’à dimanche prochain 18 h (UTC)'
-    : `Depuis le ${dayAndMonth(start)} à 18 h et jusqu'au ${dayAndMonth(end)} à 18 h (UTC)`;
+    ? `Depuis dimanche ${time} et jusqu'à dimanche prochain ${EVENING}`
+    : `Depuis le ${dayAndMonth(start)} à ${time} et jusqu'au ${dayAndMonth(end)} à ${EVENING}`;
 }
 
-// Tous les messages des salons top commencent par @everyone : tout le serveur est notifié.
-const EVERYONE = '@everyone';
-
-// Lundi 18 h (semaine) ou le 1er à 18 h (mois) : annonce du challenge standard, qui a démarré la veille à 18 h.
+// Lundi (semaine) ou le 1er (mois), le soir : annonce du challenge standard, qui a démarré la veille au soir.
 export function challengeLaunchMessage({ kind, start, end, config }) {
   const { emoji } = CHALLENGES[kind];
   const title = kind === 'week' ? 'Le challenge de la semaine est lancé !' : `Le challenge du mois de ${monthName(end)} est lancé !`;
@@ -244,7 +299,7 @@ export function rankingMessage({ kind, title, congrats, sections, config }) {
   return lines.join('\n');
 }
 
-// Chaque dimanche à 18 h, dans #top-all-time.
+// Chaque dimanche soir, dans #top-all-time.
 export function allTimeMessage({ sections }) {
   return [
     EVERYONE,

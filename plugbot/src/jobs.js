@@ -1,4 +1,4 @@
-// Tâches programmées : la prison chaque jour à minuit UTC, et les classements à 18 h UTC.
+// Tâches programmées : la prison chaque jour à minuit UTC, et les classements à 19 h 45 UTC (GMT).
 
 import {
   RANKING_SIZES,
@@ -12,12 +12,15 @@ import {
   prisonWarningMessages,
   rankingMessage,
   standingsMessage,
+  weeklyRecapMessage,
+  winnerMessage,
 } from './messages.js';
 import { announce, send } from './send.js';
 import { DAYS_TO_LEAVE_PRISON, FINAL_PRISON_DAYS, leaderboard, needsWarning } from './stats.js';
 import {
+  ALL_TIME,
   DAY_MS,
-  EVENING_HOUR,
+  EVENING_MS,
   dayOf,
   eveningDay,
   lastMonthEnd,
@@ -31,6 +34,8 @@ import {
 const CATEGORIES = ['plug', 'free'];
 // Jours du mois où le top-30 reçoit un rappel du challenge.
 const MONTH_REMINDER_DAYS = [10, 20, 25];
+// Le message au gagnant part 3 minutes après la clôture.
+const WINNER_MESSAGE_DELAY_MS = 3 * 60 * 1000;
 
 export function createJobs(ctx, handlers) {
   const { config, db, tracker, guild, channels, prison } = ctx;
@@ -114,22 +119,38 @@ export function createJobs(ctx, handlers) {
     return CATEGORIES.map((category) => ({ category, entries: leaderboard(rows, category).slice(0, size) }));
   }
 
-  // Fin d'un challenge : classement final, et le rôle de la période pour le gagnant Free.
+  // Fin d'un challenge : classement final, puis le rôle de la période et un message pour le gagnant Free.
   async function runRanking(kind, range, now) {
     if (startedBeforeLaunch(range)) return;
     const sections = await sectionsFor(range, now, RANKING_SIZES[kind]);
-
-    const freeWinner = guild.members.cache.get(sections.find((s) => s.category === 'free').entries[0]?.userId);
-    const roleId = kind === 'week' ? config.roles.weekWinner : config.roles.monthWinner;
-    if (freeWinner && !freeWinner.roles.cache.has(roleId)) {
-      await freeWinner.roles
-        .add(roleId, 'Gagnant du classement')
-        .catch((error) => console.error(`[PlugBot] Impossible de donner le rôle de gagnant :`, error.message));
-    }
+    const channel = kind === 'week' ? 'week' : 'month';
+    const reward = kind === 'week' ? 'weekWinner' : 'monthWinner';
 
     const title = kind === 'week' ? 'Classement de la semaine' : `Classement du mois — ${monthName(range.end)}`;
     const content = rankingMessage({ kind, title, congrats: congratulations(range.start), sections, config });
-    await announce(kind === 'week' ? channels.week : channels.month, content);
+    await announce(channels[channel], content);
+
+    const freeWinner = guild.members.cache.get(sections.find((s) => s.category === 'free').entries[0]?.userId);
+    if (!freeWinner) return;
+    if (!freeWinner.roles.cache.has(config.roles[reward])) {
+      await freeWinner.roles
+        .add(config.roles[reward], 'Gagnant du classement')
+        .catch((error) => console.error(`[PlugBot] Impossible de donner le rôle de gagnant :`, error.message));
+    }
+    db.schedule(channel, winnerMessage(reward, freeWinner.id, config), [freeWinner.id], now + WINNER_MESSAGE_DELAY_MS);
+  }
+
+  // Envoie les messages programmés dont l'heure est passée. Chacun est retiré avant l'envoi :
+  // en cas d'erreur, il n'est pas envoyé deux fois.
+  async function sendDueMessages(now) {
+    for (const message of db.dueMessages(now)) {
+      db.removeScheduled(message.id);
+      try {
+        await send(channels[message.channel], message.content, message.notify);
+      } catch (error) {
+        console.error('[PlugBot] Échec d’un message programmé :', error);
+      }
+    }
   }
 
   // Point d'étape d'un challenge en cours, au soir `evening`.
@@ -142,20 +163,20 @@ export function createJobs(ctx, handlers) {
 
   async function runAllTime(now) {
     if (!channels.allTime) return;
-    const sections = await sectionsFor({ start: 0, end: Number.MAX_SAFE_INTEGER }, now, RANKING_SIZES.allTime);
+    const sections = await sectionsFor(ALL_TIME, now, RANKING_SIZES.allTime);
     await announce(channels.allTime, allTimeMessage({ sections }));
   }
 
-  // Publications de 18 h UTC (les clôtures sont publiées à part, voir tick).
+  // Publications de 19 h 45 UTC (les clôtures sont publiées à part, voir tick).
   // top-7 : lancement le lundi, classement du jour du mardi au samedi.
   // top-30 : lancement le 1er, classement le dimanche, rappel les 10, 20 et 25 du mois.
-  // top-all-time : le dimanche.
+  // top-all-time et récap des récompenses dans show-up : le dimanche.
   // Rien n'est publié pour une semaine ou un mois commencé avant le lancement du bot.
   async function runEvening(day, now) {
     const date = new Date(day * DAY_MS);
     const weekday = date.getUTCDay(); // 0 = dimanche, 1 = lundi
     const dayOfMonth = date.getUTCDate();
-    const evening = day * DAY_MS + EVENING_HOUR * 60 * 60 * 1000;
+    const evening = day * DAY_MS + EVENING_MS;
 
     const week = weekRange(evening);
     if (!startedBeforeLaunch(week)) {
@@ -166,7 +187,7 @@ export function createJobs(ctx, handlers) {
       }
     }
 
-    // Le dernier jour du mois à 18 h, `month` est déjà le mois suivant (il démarre ce soir) :
+    // Le dernier jour du mois au soir, `month` est déjà le mois suivant (il démarre ce soir) :
     // la clôture suffit.
     const month = monthRange(evening);
     if (!startedBeforeLaunch(month) && evening > month.start) {
@@ -180,7 +201,10 @@ export function createJobs(ctx, handlers) {
       }
     }
 
-    if (weekday === 0) await runAllTime(now);
+    if (weekday === 0) {
+      await runAllTime(now);
+      await announce(channels.showup, weeklyRecapMessage(config));
+    }
   }
 
   // Lance une tâche une seule fois par période. La date est enregistrée avant l'envoi :
@@ -211,7 +235,9 @@ export function createJobs(ctx, handlers) {
     );
 
     const evening = eveningDay(now);
-    await once('last_evening_day', evening, 'publications de 18 h', () => runEvening(evening, now));
+    await once('last_evening_day', evening, 'publications du soir', () => runEvening(evening, now));
+
+    await sendDueMessages(now);
   }
 
   return { tick, runDaily, runRanking, runEvening, checkTeamReleases };

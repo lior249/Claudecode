@@ -9,7 +9,7 @@ Les points marqués *(proposé)* sont des propositions en attente de confirmatio
 
 - PlugBot est un **bot à part**. Il ne se mélange pas avec le bot actuel qui envoie les notifications de paiement.
 - Tous ses salons sont **publics** : tout le monde voit qui a posté, qui gagne et qui est en prison. Les membres sont mentionnés publiquement. Aucun message privé.
-- Toutes les heures sont en **temps universel (UTC)**. Une journée va de minuit à minuit UTC.
+- Toutes les heures sont en **temps universel (GMT)**. Une journée va de minuit à minuit GMT. Les publications et la fin des challenges sont à **19 h 45 GMT**.
 - Le suivi part de **zéro** au lancement : seuls les résultats postés après l'arrivée du bot comptent.
 
 ## Catégories de membres
@@ -30,11 +30,13 @@ Les points marqués *(proposé)* sont des propositions en attente de confirmatio
 | Salon | Ce qui s'y passe |
 |---|---|
 | 🎮 **flex-resultats** | Les membres y postent leurs résultats. |
-| ➕ **show-up** | Le journal : chaque show-up, chaque point retiré, chaque rôle 🔥🔥🔥 gagné. |
+| ➕ **show-up** | Le journal : chaque show-up, chaque point retiré, chaque rôle 🔥🔥🔥 gagné, et le récap des récompenses le dimanche. |
 | 💸 **top-7** | Le challenge de la semaine : lancement, classement du jour et clôture. |
 | 💎 **top-30** | Le challenge du mois : lancement, points d'étape et clôture. |
-| **top-all-time** | Le classement all-time, chaque dimanche à 18 h UTC. |
+| **top-all-time** | Le classement all-time, chaque dimanche à 19 h 45 GMT. |
 | 🤢 **la-prison** | Les alertes, les entrées en prison et les sorties. |
+| 💎 **bonus-top7**, **bonus-top30**, **bonus-21j** | Les bénéfices de chaque récompense. Chaque salon n'est visible qu'avec le rôle correspondant. Géré par le porteur de projet : PlugBot ne fait que les mentionner. |
+| **guide-serveur** | Le fonctionnement des classements et de la prison. PlugBot le mentionne. |
 
 Seul PlugBot écrit dans show-up, top-7, top-30, top-all-time et la-prison.
 
@@ -47,9 +49,12 @@ Seul PlugBot écrit dans show-up, top-7, top-30, top-all-time et la-prison.
 - PlugBot met **❗** sur chaque résultat compté, puis l'annonce dans show-up :
 
   > 🔥 @Membre vient de show up !
-  > ⛓️ Chaîne : **12 jours d'affilée** · 📅 Semaine : **9 points** (3e Free) · 🏅 Total : **148 points**
+  > ⛓️ Chaîne : **12 jours d'affilée**
+  > 📅 Classement semaine : **9 points** — 3e du classement Free
+  > 🗓️ Classement mois : **31 points** — 44e du classement Free
+  > 🏅 Classement total : **148 points** — 449e du classement Free
 
-  Un membre en prison n'a pas de rang : PlugBot lui rappelle combien de jours il lui reste pour sortir.
+  Le rang est celui de la catégorie du membre (Free ou Accompagnement). Un membre en prison est « hors classement » : PlugBot lui rappelle combien de jours il lui reste pour sortir.
 
 ## Vérification par l'admin
 
@@ -65,22 +70,59 @@ Le porteur de projet est le seul dont les réactions comptent. Il passe sur les 
 
 ## Récompenses
 
-Les récompenses sont des **rôles**. Chacun donne une réduction sur la formation, et elles se cumulent :
+Les récompenses sont des **rôles**. Les réductions sur la formation se cumulent :
 
-| Rôle | Comment l'obtenir | Réduction |
-|---|---|---|
-| 🔥🔥🔥 | **21 jours** de show-up d'affilée | −15 % |
-| ⚡plug7⚡ | Gagner le **classement Free de la semaine** | −25 % |
-| ★plug30★ | Gagner le **classement Free du mois** | −35 % |
+| Rôle | Comment l'obtenir | Ce qu'il débloque | Salon bonus |
+|---|---|---|---|
+| 🔥🔥🔥 | **21 jours** de show-up d'affilée | −15 % sur la formation | bonus-21j |
+| ⚡plug7⚡ | Gagner le **classement Free de la semaine** | −25 % sur la formation | bonus-top7 |
+| ★plug30★ | Gagner le **classement Free du mois** | −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement | bonus-top30 |
 
 - Avec les trois rôles, la réduction totale est de **−75 %** : il reste **25 %** à payer.
 - Les réductions sont annoncées publiquement.
 - Les rôles ouvrent l'accès au salon des codes de réduction. Ce salon et les codes sont gérés par le porteur de projet.
 - Chaque réduction ne s'utilise qu'une fois, même si le membre gagne plusieurs fois le même classement.
 - Le gagnant de l'accompagnement est félicité publiquement, sans réduction : il est déjà dans l'accompagnement. Sa récompense se règle directement avec les membres de l'accompagnement, en dehors de PlugBot.
-- Le rôle 🔥🔥🔥 est retiré dès que la chaîne est brisée. Quand un membre l'obtient, PlugBot l'annonce dans show-up :
+- Le rôle 🔥🔥🔥 est retiré dès que la chaîne est brisée.
 
-  > 🔥 @Membre atteint **21 jours d'affilée** et débloque @🔥🔥🔥 : −15 % sur la formation !
+### Messages aux gagnants
+
+Chaque gagnant reçoit un message qui ne notifie que lui, et l'envoie vers son salon bonus :
+
+| Récompense | Salon | Quand |
+|---|---|---|
+| ⚡plug7⚡ | top-7 | 3 minutes après la clôture de la semaine |
+| ★plug30★ | top-30 | 3 minutes après la clôture du mois |
+| 🔥🔥🔥 | show-up | tout de suite, juste après son message de show-up |
+
+> 🎉 Hourra @Membre ! Tu viens de gagner le challenge du mois (top 30).
+> Tu gagnes −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement.
+> Retrouve tes bénéfices dans #bonus-top30.
+
+> 🎉 Hourra @Membre ! Tu viens de gagner le challenge de la semaine (top 7).
+> Tu gagnes −25 % sur la formation.
+> Retrouve tes bénéfices dans #bonus-top7.
+
+> 🎉 Hourra @Membre ! Tu viens de gagner le challenge des 21 jours d'affilée (🔥🔥🔥).
+> Tu gagnes −15 % sur la formation.
+> Retrouve tes bénéfices dans #bonus-21j.
+
+### Récap du dimanche
+
+Chaque dimanche à 19 h 45 GMT, dans show-up, avec @everyone :
+
+> @everyone
+> 🏆 **Voici ce que tu gagnes en postant tes résultats sur la plateforme :**
+>
+> ★ **Top 30** : le top 30 récapitule les 10 meilleurs membres du serveur sur les 30 derniers jours. Termine 1er du classement Free et tu gagnes le rôle @★plug30★, qui te débloque −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement.
+>
+> ⚡ **Top 7** : le top 7 récapitule les 5 meilleurs membres du serveur sur les 7 derniers jours. Termine 1er du classement Free et tu gagnes le rôle @⚡plug7⚡, qui te débloque −25 % sur la formation.
+>
+> 🔥 **21 jours d'affilée** : poste un résultat tous les jours pendant 21 jours d'affilée et tu gagnes le rôle @🔥🔥🔥, qui te débloque −15 % sur la formation.
+>
+> ⚠️ Attention : tous les membres inactifs qui ne passent pas à l'action vont intégrer la prison.
+>
+> Pour comprendre ces classements en détail, regarde #guide-serveur.
 
 - *(proposé)* ⚡plug7⚡ et ★plug30★ sont gardés pour de bon. Ils sont seulement mis de côté pendant un séjour en prison, puis rendus à la sortie.
 
@@ -93,15 +135,15 @@ Les challenges personnalisés sont annoncés à la main par le porteur de projet
 
 | Challenge | Période | Taille |
 |---|---|---|
-| Semaine (top-7) | du **dimanche 18 h** au **dimanche 18 h** suivant (UTC) | top 5 Accompagnement + top 5 Free |
-| Mois (top-30) | du **dernier jour du mois précédent à 18 h** au **dernier jour du mois à 18 h** (UTC) | top 10 Accompagnement + top 10 Free |
+| Semaine (top-7) | du **dimanche 19 h 45** au **dimanche 19 h 45** suivant (GMT) | top 5 Accompagnement + top 5 Free |
+| Mois (top-30) | du **dernier jour du mois précédent à 19 h 45** au **dernier jour du mois à 19 h 45** (GMT) | top 10 Accompagnement + top 10 Free |
 | All-time | depuis le lancement, sans fin | top 10 Accompagnement + top 10 Free |
 
-Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence. L'annonce du lancement arrive un jour plus tard (lundi 18 h, ou le 1er à 18 h), pour ne pas enchaîner trop d'annonces le même soir.
+Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence. L'annonce du lancement arrive un jour plus tard (lundi 19 h 45, ou le 1er à 19 h 45), pour ne pas enchaîner trop d'annonces le même soir.
 
 **Tous les messages des salons top-7, top-30 et top-all-time commencent par @everyone** : tout le serveur est notifié.
 
-### Calendrier (toujours à 18 h UTC)
+### Calendrier (toujours à 19 h 45 GMT)
 
 | Salon | Quand | Message |
 |---|---|---|
@@ -113,6 +155,7 @@ Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence
 | top-30 | les 10, 20 et 25 | Rappel du challenge, sans classement |
 | top-30 | le dernier jour du mois | Clôture : classement final, ★plug30★ pour le gagnant Free |
 | top-all-time | dimanche | Classement all-time |
+| show-up | dimanche | Récap des récompenses |
 
 - Si le 1er, le 10, le 20 ou le 25 tombe un dimanche, c'est le lancement ou le classement provisoire qui part, pas les deux. Le dernier jour du mois, seule la clôture part dans top-30.
 
@@ -120,7 +163,7 @@ Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence
 
 > @everyone
 > ⚡ **Le challenge de la semaine est lancé !**
-> Depuis dimanche 18 h et jusqu'à dimanche prochain 18 h (UTC), chaque résultat posté dans #flex-resultats te rapporte 1 point.
+> Depuis dimanche 19 h 45 et jusqu'à dimanche prochain 19 h 45 (GMT), chaque résultat posté dans #flex-resultats te rapporte 1 point.
 > Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.
 > Accompagnement et Free ont chacun leur classement.
 >
@@ -128,7 +171,7 @@ Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence
 
 > @everyone
 > ⚡ **Challenge de la semaine — classement du jour**
-> Plus que 4 jours avant la fin, dimanche à 18 h (UTC). Chaque résultat compte : rien n'est encore joué !
+> Plus que 4 jours avant la fin, dimanche à 19 h 45 (GMT). Chaque résultat compte : rien n'est encore joué !
 >
 > **Accompagnement**
 > 1. @Membre — 6 points
@@ -142,20 +185,20 @@ Il n'y a **aucune pause** : dès qu'un challenge se termine, le suivant commence
 
 > @everyone
 > ★ **Le challenge du mois de novembre 2026 est lancé !**
-> Depuis le 31 octobre à 18 h et jusqu'au 30 novembre à 18 h (UTC), chaque résultat posté dans #flex-resultats te rapporte 1 point.
+> Depuis le 31 octobre à 19 h 45 et jusqu'au 30 novembre à 19 h 45 (GMT), chaque résultat posté dans #flex-resultats te rapporte 1 point.
 > C'est le début du mois : participe à ce challenge pour obtenir tes résultats !
 > Accompagnement et Free ont chacun leur classement.
 >
-> ★ Le meilleur Free du mois remporte @★plug30★ : −35 % sur la formation !
+> ★ Le meilleur Free du mois remporte @★plug30★ : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !
 
 Le classement provisoire du mois suit le même modèle que le classement du jour (« Challenge du mois de novembre 2026 — classement provisoire »).
 
 > @everyone
 > ★ **Rappel : challenge du mois de novembre 2026**
-> Plus que 20 jours avant la fin, le 30 novembre à 18 h (UTC).
+> Plus que 20 jours avant la fin, le 30 novembre à 19 h 45 (GMT).
 > Participe à ce challenge pour obtenir tes résultats : chaque résultat posté dans #flex-resultats te rapporte 1 point.
 >
-> ★ À la fin du mois, le meilleur Free remporte @★plug30★ : −35 % sur la formation !
+> ★ À la fin du mois, le meilleur Free remporte @★plug30★ : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !
 
 > @everyone
 > ⚡ **Classement de la semaine**
@@ -211,13 +254,17 @@ Le classement provisoire du mois suit le même modèle que le classement du jour
 
 2. **Entrée en prison** (21 jours pour les Free, 15 pour l'accompagnement) : PlugBot donne le rôle **💔Prisonnier💔**, met de côté ⚡plug7⚡ et ★plug30★, et l'annonce :
 
-   > 🔒 @Membre vient d'entrer en prison : 21 jours sans show-up.
-   > Pour sortir : 3 jours de show-up d'affilée dans #flex-resultats.
+   > 🔒 **Tu viens de rejoindre la prison : 21 jours sans show-up.**
+   > Voici comment en sortir : poste un résultat dans #flex-resultats pendant 3 jours d'affilée.
+   > Si tu veux plus de détails, va voir #guide-serveur.
+   >
+   > Voici ceux qui viennent de rejoindre la prison :
+   > @Membre1 @Membre2 @Membre3
 
-3. *(proposé)* **30 jours** sans show-up : « @Membre est définitivement en prison ». PlugBot n'écrit plus rien ensuite.
+3. *(proposé)* **30 jours** sans show-up : même message, avec le titre « Définitivement en prison : 30 jours sans show-up ». PlugBot n'écrit plus rien ensuite.
 
 - Le rôle Prisonnier coupe les accès principaux du Discord, sauf la-prison et flex-resultats. Ces permissions sont réglées sur Discord.
-- Chaque message regroupe tous les membres qui atteignent la même étape le même jour. La vérification se fait chaque jour juste après minuit UTC.
+- Chaque message regroupe tous les membres qui atteignent la même étape le même jour. La vérification se fait chaque jour juste après minuit GMT.
 - Conséquence du départ à zéro : 22 jours après le lancement, tous les Free qui n'ont rien posté entrent en prison en même temps. Pour l'accompagnement, c'est 16 jours après le lancement.
 
 ### Sortir de prison

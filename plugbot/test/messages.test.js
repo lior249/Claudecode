@@ -14,14 +14,18 @@ import {
   showupMessage,
   splitMessage,
   standingsMessage,
-  streakRewardMessage,
+  weeklyRecapMessage,
+  winnerMessage,
 } from '../src/messages.js';
 
 const config = {
   channels: { results: 'res' },
+  links: { bonusWeek: 'b7', bonusMonth: 'b30', bonusStreak: 'b21', guide: 'guide' },
   roles: { streak: 'feu', weekWinner: 'p7', monthWinner: 'p30', prisoner: 'pri' },
   streakRoleDays: 21,
 };
+
+const COACHING = "−35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement";
 
 describe('messages', () => {
   it('accorde le pluriel', () => {
@@ -41,19 +45,25 @@ describe('messages', () => {
     assert.equal(frenchList(['a', 'b', 'c']), 'a, b et c');
   });
 
-  it('annonce un show-up avec la chaîne, la semaine, le rang et le total', () => {
+  it('annonce un show-up, une information par ligne, avec les rangs de la semaine, du mois et du total', () => {
     const text = showupMessage({
       userId: '1',
       chain: 12,
-      week: 9,
-      total: 148,
-      rank: 3,
       category: 'free',
       prison: { inPrison: false },
+      week: { points: 9, rank: 3 },
+      month: { points: 31, rank: 44 },
+      total: { points: 148, rank: 449 },
     });
     assert.equal(
       text,
-      "🔥 <@1> vient de show up !\n⛓️ Chaîne : **12 jours d'affilée** · 📅 Semaine : **9 points** (3e Free) · 🏅 Total : **148 points**",
+      [
+        '🔥 <@1> vient de show up !',
+        "⛓️ Chaîne : **12 jours d'affilée**",
+        '📅 Classement semaine : **9 points** — 3e du classement Free',
+        '🗓️ Classement mois : **31 points** — 44e du classement Free',
+        '🏅 Classement total : **148 points** — 449e du classement Free',
+      ].join('\n'),
     );
   });
 
@@ -61,26 +71,50 @@ describe('messages', () => {
     const text = showupMessage({
       userId: '1',
       chain: 1,
-      week: 1,
-      total: 30,
-      rank: 0,
       category: 'plug',
       prison: { inPrison: true, daysToLeave: 2 },
+      week: { points: 1, rank: 0 },
+      month: { points: 1, rank: 0 },
+      total: { points: 30, rank: 0 },
     });
+    assert.match(text, /Classement total : \*\*30 points\*\* — hors classement/);
     assert.match(text, /Toujours en prison : encore \*\*2 jours\*\*/);
-    assert.doesNotMatch(text, /Accompagnement/);
   });
 
   it("affiche le rang de l'accompagnement", () => {
-    const text = showupMessage({ userId: '1', chain: 2, week: 3, total: 3, rank: 1, category: 'plug', prison: { inPrison: false } });
-    assert.match(text, /\(1er Accompagnement\)/);
+    const text = showupMessage({
+      userId: '1',
+      chain: 2,
+      category: 'plug',
+      prison: { inPrison: false },
+      week: { points: 3, rank: 1 },
+      month: { points: 3, rank: 1 },
+      total: { points: 3, rank: 1 },
+    });
+    assert.match(text, /— 1er du classement Accompagnement/);
   });
 
-  it('annonce le rôle de chaîne et sa réduction', () => {
+  it('envoie chaque gagnant vers son salon bonus', () => {
     assert.equal(
-      streakRewardMessage('1', config),
-      "🔥 <@1> atteint **21 jours d'affilée** et débloque <@&feu> : −15 % sur la formation !",
+      winnerMessage('monthWinner', '1', config),
+      [
+        '🎉 Hourra <@1> ! Tu viens de gagner le challenge du mois (top 30).',
+        `Tu gagnes ${COACHING}.`,
+        'Retrouve tes bénéfices dans <#b30>.',
+      ].join('\n'),
     );
+    assert.match(winnerMessage('weekWinner', '1', config), /le challenge de la semaine \(top 7\)\.\nTu gagnes −25 % sur la formation\.\n.*<#b7>/);
+    assert.match(winnerMessage('streak', '1', config), /le challenge des 21 jours d'affilée \(🔥🔥🔥\)\.\nTu gagnes −15 % sur la formation\.\n.*<#b21>/);
+  });
+
+  it('récapitule les récompenses le dimanche, avec @everyone', () => {
+    const text = weeklyRecapMessage(config);
+    assert.match(text, /^@everyone\n🏆 \*\*Voici ce que tu gagnes en postant tes résultats sur la plateforme :\*\*/);
+    assert.match(text, /★ \*\*Top 30\*\* : le top 30 récapitule les 10 meilleurs membres du serveur sur les 30 derniers jours\. Termine 1er du classement Free et tu gagnes le rôle <@&p30>, qui te débloque −35 %/);
+    assert.match(text, /⚡ \*\*Top 7\*\* : .*<@&p7>, qui te débloque −25 % sur la formation\./);
+    assert.match(text, /🔥 \*\*21 jours d'affilée\*\* : .*<@&feu>, qui te débloque −15 % sur la formation\./);
+    assert.match(text, /⚠️ Attention : tous les membres inactifs qui ne passent pas à l'action vont intégrer la prison\./);
+    assert.match(text, /Pour comprendre ces classements en détail, regarde <#guide>\.$/);
   });
 
   it("alerte 5 jours avant la prison, puis liste les membres concernés", () => {
@@ -107,12 +141,19 @@ describe('messages', () => {
     for (const message of messages) assert.ok(message.length <= 2000);
   });
 
-  it('annonce les entrées en prison avec le délai et la seule façon de sortir', () => {
-    assert.deepEqual(prisonEntryMessages(21, ['1'], config), [
-      "🔒 <@1> vient d'entrer en prison : 21 jours sans show-up.\nPour sortir : 3 jours de show-up d'affilée dans <#res>.",
+  it('annonce les entrées en prison, comment en sortir et où lire le guide', () => {
+    assert.deepEqual(prisonEntryMessages(21, ['1', '2'], config), [
+      [
+        '🔒 **Tu viens de rejoindre la prison : 21 jours sans show-up.**',
+        "Voici comment en sortir : poste un résultat dans <#res> pendant 3 jours d'affilée.",
+        'Si tu veux plus de détails, va voir <#guide>.',
+        '',
+        'Voici ceux qui viennent de rejoindre la prison :',
+        '<@1> <@2>',
+      ].join('\n'),
     ]);
-    assert.match(prisonEntryMessages(15, ['1', '2'], config)[0], /^🔒 <@1> et <@2> viennent d'entrer en prison : 15 jours/);
-    assert.match(prisonFinalMessages(['1', '2'], config)[0], /^🔒 <@1> et <@2> sont définitivement en prison : 30 jours/);
+    assert.match(prisonEntryMessages(15, ['1'], config)[0], /^🔒 \*\*Tu viens de rejoindre la prison : 15 jours sans show-up\.\*\*/);
+    assert.match(prisonFinalMessages(['1', '2'], config)[0], /^🔒 \*\*Définitivement en prison : 30 jours sans show-up\.\*\*[\s\S]*\n<@1> <@2>$/);
   });
 
   it('découpe les longues listes sous la limite de Discord', () => {
@@ -165,17 +206,17 @@ describe('messages', () => {
       config,
     });
     assert.match(text, /\*\*Accompagnement\*\*\n_Personne pour cette période._/);
-    assert.match(text, /★ <@1> remporte <@&p30> : −35 % sur la formation !$/);
+    assert.match(text, /★ <@1> remporte <@&p30> : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !$/);
   });
 
   it('lance le challenge de la semaine le lundi, avec @everyone', () => {
-    const text = challengeLaunchMessage({ kind: 'week', start: Date.UTC(2026, 10, 1, 18), end: Date.UTC(2026, 10, 8, 18), config });
+    const text = challengeLaunchMessage({ kind: 'week', start: Date.UTC(2026, 10, 1, 19, 45), end: Date.UTC(2026, 10, 8, 19, 45), config });
     assert.equal(
       text,
       [
         '@everyone',
         '⚡ **Le challenge de la semaine est lancé !**',
-        'Depuis dimanche 18 h et jusqu’à dimanche prochain 18 h (UTC), chaque résultat posté dans <#res> te rapporte 1 point.',
+        "Depuis dimanche 19 h 45 et jusqu'à dimanche prochain 19 h 45 (GMT), chaque résultat posté dans <#res> te rapporte 1 point.",
         'Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.',
         'Accompagnement et Free ont chacun leur classement.',
         '',
@@ -185,23 +226,23 @@ describe('messages', () => {
   });
 
   it('lance le challenge du mois le 1er', () => {
-    const text = challengeLaunchMessage({ kind: 'month', start: Date.UTC(2026, 9, 31, 18), end: Date.UTC(2026, 10, 30, 18), config });
+    const text = challengeLaunchMessage({ kind: 'month', start: Date.UTC(2026, 9, 31, 19, 45), end: Date.UTC(2026, 10, 30, 19, 45), config });
     assert.match(text, /^@everyone\n★ \*\*Le challenge du mois de novembre 2026 est lancé !\*\*/);
-    assert.match(text, /\nDepuis le 31 octobre à 18 h et jusqu'au 30 novembre à 18 h \(UTC\), chaque résultat/);
+    assert.match(text, /\nDepuis le 31 octobre à 19 h 45 et jusqu'au 30 novembre à 19 h 45 \(GMT\), chaque résultat/);
     assert.match(text, /participe à ce challenge pour obtenir tes résultats/);
-    assert.match(text, /<@&p30> : −35 %/);
+    assert.match(text, /<@&p30> : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !$/);
   });
 
   it('rappelle le challenge du mois sans classement', () => {
     assert.equal(
-      monthReminderMessage({ daysLeft: 20, end: Date.UTC(2026, 10, 30, 18), config }),
+      monthReminderMessage({ daysLeft: 20, end: Date.UTC(2026, 10, 30, 19, 45), config }),
       [
         '@everyone',
         '★ **Rappel : challenge du mois de novembre 2026**',
-        'Plus que 20 jours avant la fin, le 30 novembre à 18 h (UTC).',
+        'Plus que 20 jours avant la fin, le 30 novembre à 19 h 45 (GMT).',
         'Participe à ce challenge pour obtenir tes résultats : chaque résultat posté dans <#res> te rapporte 1 point.',
         '',
-        '★ À la fin du mois, le meilleur Free remporte <@&p30> : −35 % sur la formation !',
+        "★ À la fin du mois, le meilleur Free remporte <@&p30> : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !",
       ].join('\n'),
     );
   });
@@ -214,10 +255,10 @@ describe('messages', () => {
         { category: 'free', entries: [{ userId: '1', score: 4 }] },
       ],
       daysLeft: 5,
-      end: Date.UTC(2026, 10, 8, 18),
+      end: Date.UTC(2026, 10, 8, 19, 45),
       config,
     });
-    assert.match(text, /^@everyone\n⚡ \*\*Challenge de la semaine — classement du jour\*\*\nPlus que 5 jours avant la fin, dimanche à 18 h \(UTC\)/);
+    assert.match(text, /^@everyone\n⚡ \*\*Challenge de la semaine — classement du jour\*\*\nPlus que 5 jours avant la fin, dimanche à 19 h 45 \(GMT\)/);
     assert.match(text, /\*\*Accompagnement\*\*\n_Personne pour l'instant\. Sois le premier !_/);
     assert.match(text, /\*\*Free\*\*\n1\. <@1> — 4 points/);
     assert.match(standingsMessage({ kind: 'week', sections: [], daysLeft: 1, end: 0, config }), /Dernier jour avant la fin/);

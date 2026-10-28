@@ -7,11 +7,11 @@ import {
   removedMessage,
   restoredMessage,
   showupMessage,
-  streakRewardMessage,
+  winnerMessage,
 } from './messages.js';
 import { send } from './send.js';
 import { isProof, leaderboard } from './stats.js';
-import { dayOf, weekRange } from './time.js';
+import { ALL_TIME, dayOf, monthRange, weekRange } from './time.js';
 
 export const PENDING_EMOJI = '❗';
 export const REJECT_EMOJI = '❌';
@@ -57,7 +57,7 @@ export function createHandlers(ctx) {
       await send(channels.prison, prisonExitMessage(userId), [userId]);
     }
     if ((await syncStreakRole(member, row?.chain ?? 0)) === 'added') {
-      await send(channels.showup, streakRewardMessage(userId, config), [userId]);
+      await send(channels.showup, winnerMessage('streak', userId, config), [userId]);
     }
   }
 
@@ -72,11 +72,26 @@ export function createHandlers(ctx) {
 
     await message.react(PENDING_EMOJI).catch((error) => console.error('[PlugBot] Réaction ❗ impossible :', error.message));
 
+    // Points et rang du membre dans sa catégorie, pour la semaine, le mois et le total.
     const now = Date.now();
-    const rows = tracker.snapshot(guild.members.cache, now);
-    const row = rows.get(member.id);
-    const rank = leaderboard([...rows.values()], row.category).findIndex((entry) => entry.userId === member.id) + 1;
-    await send(channels.showup, showupMessage({ ...row, week: row.points, rank }), [member.id]);
+    const standing = (range) => {
+      const rows = [...tracker.snapshot(guild.members.cache, now, range).values()];
+      const row = rows.find((candidate) => candidate.userId === member.id);
+      const rank = leaderboard(rows, row.category).findIndex((entry) => entry.userId === member.id) + 1;
+      return { row, points: row.points, rank };
+    };
+    const week = standing(weekRange(now));
+    const { row } = week;
+    const content = showupMessage({
+      userId: member.id,
+      chain: row.chain,
+      category: row.category,
+      prison: row.prison,
+      week,
+      month: standing(monthRange(now)),
+      total: standing(ALL_TIME),
+    });
+    await send(channels.showup, content, [member.id]);
     await settle(member.id);
   }
 

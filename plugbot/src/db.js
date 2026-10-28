@@ -42,6 +42,16 @@ const SCHEMA = `
     reset_day INTEGER
   );
 
+  -- Messages à envoyer plus tard (par exemple au gagnant, 3 minutes après la clôture).
+  -- channel : nom du salon dans les réglages ; notify : membres notifiés, séparés par des virgules.
+  CREATE TABLE IF NOT EXISTS scheduled (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel TEXT NOT NULL,
+    content TEXT NOT NULL,
+    notify  TEXT NOT NULL DEFAULT '',
+    send_at INTEGER NOT NULL
+  );
+
   -- Réglages internes : date de lancement, dernier message lu, dernières publications.
   CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
@@ -82,6 +92,9 @@ export function openDatabase(path) {
     removePrison: db.prepare('DELETE FROM prison WHERE user_id = ?'),
     alertDays: db.prepare('SELECT user_id, day FROM alerts'),
     setAlert: db.prepare('INSERT OR REPLACE INTO alerts (user_id, day) VALUES (?, ?)'),
+    schedule: db.prepare('INSERT INTO scheduled (channel, content, notify, send_at) VALUES (?, ?, ?, ?)'),
+    dueMessages: db.prepare('SELECT * FROM scheduled WHERE send_at <= ? ORDER BY send_at, id'),
+    removeScheduled: db.prepare('DELETE FROM scheduled WHERE id = ?'),
     memberStates: db.prepare('SELECT * FROM members'),
     getMemberState: db.prepare('SELECT * FROM members WHERE user_id = ?'),
     setMemberState: db.prepare('INSERT OR REPLACE INTO members (user_id, category, reset_day) VALUES (?, ?, ?)'),
@@ -180,6 +193,21 @@ export function openDatabase(path) {
     setAlert(userId, day) {
       statements.setAlert.run(userId, day);
     },
+    schedule(channel, content, notifiedUserIds, sendAt) {
+      statements.schedule.run(channel, content, notifiedUserIds.join(','), sendAt);
+    },
+    dueMessages(now) {
+      return statements.dueMessages.all(now).map((row) => ({
+        id: row.id,
+        channel: row.channel,
+        content: row.content,
+        notify: row.notify ? row.notify.split(',') : [],
+      }));
+    },
+    removeScheduled(id) {
+      statements.removeScheduled.run(id);
+    },
+
     memberStates() {
       return new Map(statements.memberStates.all().map((row) => [row.user_id, memberState(row)]));
     },
