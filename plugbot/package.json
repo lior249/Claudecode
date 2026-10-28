@@ -11,6 +11,7 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/index.js",
     "apercu": "node --disable-warning=ExperimentalWarning src/preview.js",
+    "effacer-apercu": "node --disable-warning=ExperimentalWarning src/preview.js --effacer",
     "test": "node --disable-warning=ExperimentalWarning --test"
   },
   "dependencies": {

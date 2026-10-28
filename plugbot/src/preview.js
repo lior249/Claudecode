@@ -1,5 +1,6 @@
 // Aperçu : publie un exemple de chaque message de PlugBot dans un salon de test, sans notifier personne.
 // Utilisation : npm run apercu -- <identifiant du salon de test>
+// Pour effacer cet aperçu : npm run effacer-apercu -- <identifiant du salon>
 
 import { pathToFileURL } from 'node:url';
 import { REST, Routes } from 'discord.js';
@@ -23,6 +24,14 @@ import {
 } from './messages.js';
 import { PRISON_DAYS } from './stats.js';
 import { monthName, monthRange, weekRange } from './time.js';
+
+// Chaque message d'aperçu commence par ce texte : c'est ainsi qu'on les retrouve pour les effacer.
+export const PREVIEW_PREFIX = '🧪 **Aperçu — ';
+
+// Seuls les messages d'aperçu publiés par PlugBot lui-même peuvent être effacés.
+export function isPreviewMessage(message, botId) {
+  return message.author?.id === botId && message.content.startsWith(PREVIEW_PREFIX);
+}
 
 // Chaque exemple : [où et quand il est publié, texte]. Les membres d'exemple sont tous l'admin.
 export function previewMessages(config, now = Date.now()) {
@@ -84,17 +93,10 @@ export function previewMessages(config, now = Date.now()) {
   ];
 }
 
-async function main() {
-  const channelId = process.argv[2];
-  if (!/^\d+$/.test(channelId ?? '')) {
-    console.error("Indique l'identifiant du salon de test : npm run apercu -- 123456789012345678");
-    process.exit(1);
-  }
-  const config = loadConfig();
-  const rest = new REST().setToken(config.token);
+async function sendPreview(rest, config, channelId) {
   const examples = previewMessages(config);
   for (const [where, content] of examples) {
-    for (const part of splitMessage(`🧪 **Aperçu — ${where}**\n${content}`)) {
+    for (const part of splitMessage(`${PREVIEW_PREFIX}${where}**\n${content}`)) {
       // Aucune mention ne notifie personne, @everyone compris.
       await rest.post(Routes.channelMessages(channelId), { body: { content: part, allowed_mentions: { parse: [] } } });
     }
@@ -102,10 +104,34 @@ async function main() {
   console.log(`[PlugBot] Aperçu envoyé : ${examples.length} messages.`);
 }
 
+// Efface les messages d'aperçu parmi les 100 derniers messages du salon.
+async function erasePreview(rest, channelId) {
+  const bot = await rest.get(Routes.user());
+  const messages = await rest.get(Routes.channelMessages(channelId), { query: new URLSearchParams({ limit: '100' }) });
+  const previews = messages.filter((message) => isPreviewMessage(message, bot.id));
+  for (const message of previews) await rest.delete(Routes.channelMessage(channelId, message.id));
+  console.log(`[PlugBot] Aperçu effacé : ${previews.length} messages supprimés.`);
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const erase = args.includes('--effacer');
+  const channelId = args.find((arg) => /^\d+$/.test(arg));
+  if (!channelId) {
+    const command = erase ? 'effacer-apercu' : 'apercu';
+    console.error(`Indique l'identifiant du salon : npm run ${command} -- 123456789012345678`);
+    process.exit(1);
+  }
+  const config = loadConfig();
+  const rest = new REST().setToken(config.token);
+  if (erase) await erasePreview(rest, channelId);
+  else await sendPreview(rest, config, channelId);
+}
+
 // Lancé avec « npm run apercu » (et non importé, par exemple par les tests).
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
-    console.error("[PlugBot] Impossible d'envoyer l'aperçu :", error.message);
+    console.error("[PlugBot] L'aperçu n'a pas pu être envoyé ou effacé :", error.message);
     process.exit(1);
   });
 }

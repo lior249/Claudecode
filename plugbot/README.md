@@ -105,6 +105,12 @@ npm run apercu -- IDENTIFIANT_DU_SALON
 
 Les exemples sont publiés dans ce salon, sans notifier personne (même le texte @everyone ne fait sonner personne). Le bot n'a pas besoin d'être arrêté.
 
+Pour effacer cet aperçu d'un coup (seuls les messages « 🧪 Aperçu » publiés par PlugBot sont supprimés) :
+
+```bash
+npm run effacer-apercu -- IDENTIFIANT_DU_SALON
+```
+
 ## Pour les développeurs
 
 ```bash

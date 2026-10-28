@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { splitMessage } from '../src/messages.js';
-import { previewMessages } from '../src/preview.js';
+import { PREVIEW_PREFIX, isPreviewMessage, previewMessages } from '../src/preview.js';
 
 const config = {
   channels: { results: 'res' },
@@ -21,5 +21,12 @@ describe('aperçu', () => {
       assert.ok(splitMessage(content).length >= 1);
     }
     assert.match(examples.find(([where]) => where.startsWith('top-30 — lancement'))[1], /octobre 2026/);
+  });
+
+  it("n'efface que les messages d'aperçu publiés par PlugBot", () => {
+    const preview = `${PREVIEW_PREFIX}top-7 — lancement**\n@everyone`;
+    assert.ok(isPreviewMessage({ author: { id: 'bot' }, content: preview }, 'bot'));
+    assert.ok(!isPreviewMessage({ author: { id: 'bot' }, content: '@everyone\n⚡ **Classement de la semaine**' }, 'bot'));
+    assert.ok(!isPreviewMessage({ author: { id: 'membre' }, content: preview }, 'bot'));
   });
 });
