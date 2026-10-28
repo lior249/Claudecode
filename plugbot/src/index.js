@@ -1,11 +1,13 @@
 // Point d'entrée de PlugBot.
 
+import { dirname, join } from 'node:path';
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import { findPermissionProblems } from './checks.js';
 import { loadConfig } from './config.js';
 import { openDatabase } from './db.js';
 import { createHandlers } from './handlers.js';
 import { createJobs } from './jobs.js';
+import { acquireLock } from './lock.js';
 import { createPrison } from './prison.js';
 import { createQueue } from './queue.js';
 import { startup } from './sync.js';
@@ -14,6 +16,16 @@ import { createTracker } from './tracker.js';
 const TICK_MS = 60 * 1000;
 
 const config = loadConfig();
+
+const otherPid = acquireLock(join(dirname(config.databasePath), 'plugbot.pid'));
+if (otherPid) {
+  console.error(
+    `[PlugBot] Un autre PlugBot tourne déjà (processus ${otherPid}) : celui-ci s'arrête pour ne pas tout publier deux fois.\n` +
+      '[PlugBot] Tape « pm2 list » pour voir les PlugBot lancés, et « pm2 delete <numéro> » pour supprimer le doublon.',
+  );
+  process.exit(1);
+}
+
 const db = openDatabase(config.databasePath);
 const tracker = createTracker({ config, db });
 const enqueue = createQueue();

@@ -75,10 +75,13 @@ Pour qu'il tourne en permanence et redémarre tout seul, on utilise pm2 :
 
 ```bash
 npm install -g pm2
-pm2 start npm --name plugbot -- start
+pm2 start src/index.js --name plugbot --node-args="--disable-warning=ExperimentalWarning"
 pm2 save
 pm2 startup
 ```
+
+Ne lance jamais `pm2 start` une deuxième fois, ni `npm start` pendant que pm2 tourne : il y aurait deux PlugBot, et chaque message partirait deux fois.
+PlugBot refuse d'ailleurs de démarrer si un autre tourne déjà. `pm2 list` doit toujours montrer une seule ligne `plugbot`.
 
 Commandes utiles : `pm2 logs plugbot` (voir ce que fait le bot), `pm2 restart plugbot` (redémarrer).
 

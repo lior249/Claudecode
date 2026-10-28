@@ -62,6 +62,8 @@ const SCHEMA = `
 export function openDatabase(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
+  // Si la base est occupée un instant, attendre jusqu'à 5 secondes au lieu d'échouer.
+  db.exec('PRAGMA busy_timeout = 5000;');
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
 
