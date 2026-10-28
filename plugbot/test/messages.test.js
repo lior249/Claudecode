@@ -233,6 +233,12 @@ describe('messages', () => {
     assert.match(text, /<@&p30> : −35 % sur la formation et une participation gratuite à un live coaching avec les membres de l'accompagnement !$/);
   });
 
+  it("écrit « d'octobre » mais « de novembre »", () => {
+    const launch = (end) => challengeLaunchMessage({ kind: 'month', start: end - 30 * 86400000, end, config });
+    assert.match(launch(Date.UTC(2026, 9, 31, 20, 30)), /Le challenge du mois d'octobre 2026 est lancé/);
+    assert.match(launch(Date.UTC(2026, 10, 30, 20, 30)), /Le challenge du mois de novembre 2026 est lancé/);
+  });
+
   it('rappelle le challenge du mois sans classement', () => {
     assert.equal(
       monthReminderMessage({ daysLeft: 20, end: Date.UTC(2026, 10, 30, 20, 30), config }),

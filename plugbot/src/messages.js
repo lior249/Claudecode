@@ -227,6 +227,12 @@ function prizeLine(kind, config, prefix) {
   return `${emoji} ${prefix} ${roleMention(config.roles[role])} : ${REWARDS[role]} !`;
 }
 
+// « de novembre 2026 », mais « d'octobre 2026 » devant une voyelle.
+function ofMonth(end) {
+  const name = monthName(end);
+  return /^[aeiou]/i.test(name) ? `d'${name}` : `de ${name}`;
+}
+
 function endLabel(kind, end) {
   return kind === 'week' ? `dimanche à ${EVENING}` : `le ${dayAndMonth(end)} à ${EVENING}`;
 }
@@ -240,7 +246,7 @@ function periodLabel(kind, start, end) {
 // Lundi (semaine) ou le 1er (mois), le soir : annonce du challenge standard, qui a démarré la veille au soir.
 export function challengeLaunchMessage({ kind, start, end, config }) {
   const { emoji } = CHALLENGES[kind];
-  const title = kind === 'week' ? 'Le challenge de la semaine est lancé !' : `Le challenge du mois de ${monthName(end)} est lancé !`;
+  const title = kind === 'week' ? 'Le challenge de la semaine est lancé !' : `Le challenge du mois ${ofMonth(end)} est lancé !`;
   return [
     EVERYONE,
     `${emoji} **${title}**`,
@@ -257,7 +263,7 @@ export function challengeLaunchMessage({ kind, start, end, config }) {
 // Classement en cours de challenge : tous les soirs du mardi au samedi (semaine), le dimanche (mois).
 export function standingsMessage({ kind, sections, daysLeft, end, config }) {
   const { emoji } = CHALLENGES[kind];
-  const title = kind === 'week' ? 'Challenge de la semaine — classement du jour' : `Challenge du mois de ${monthName(end)} — classement provisoire`;
+  const title = kind === 'week' ? 'Challenge de la semaine — classement du jour' : `Challenge du mois ${ofMonth(end)} — classement provisoire`;
   const remaining = daysLeft <= 1 ? 'Dernier jour' : `Plus que ${daysLeft} jours`;
   return [
     EVERYONE,
@@ -273,7 +279,7 @@ export function standingsMessage({ kind, sections, daysLeft, end, config }) {
 export function monthReminderMessage({ daysLeft, end, config }) {
   return [
     EVERYONE,
-    `★ **Rappel : challenge du mois de ${monthName(end)}**`,
+    `★ **Rappel : challenge du mois ${ofMonth(end)}**`,
     `Plus que ${daysLeft} jours avant la fin, ${endLabel('month', end)}.`,
     `Participe à ce challenge pour obtenir tes résultats : chaque résultat posté dans ${channelMention(config.channels.results)} te rapporte 1 point.`,
     '',

@@ -95,6 +95,16 @@ pm2 restart plugbot
 
 Les données sont enregistrées dans `data/plugbot.db`. C'est le seul fichier à sauvegarder.
 
+## Aperçu des messages
+
+Pour voir un exemple de chaque message de PlugBot sans attendre, crée un salon de test privé (visible seulement par toi et PlugBot), puis, depuis le dossier `Claudecode/plugbot` :
+
+```bash
+npm run apercu -- IDENTIFIANT_DU_SALON
+```
+
+Les exemples sont publiés dans ce salon, sans notifier personne (même le texte @everyone ne fait sonner personne). Le bot n'a pas besoin d'être arrêté.
+
 ## Pour les développeurs
 
 ```bash
@@ -108,4 +118,5 @@ npm test
 - `src/checks.js` : vérification des permissions au démarrage.
 - `src/sync.js` : premier lancement et rattrapage après une coupure.
 - `src/stats.js` : calculs des chaînes, de la prison et des classements.
-- `src/messages.js` : tous les textes publiés par le bot, et les pourcentages de réduction.
+- `src/messages.js` : tous les textes publiés par le bot, et les récompenses.
+- `src/preview.js` : l'aperçu de tous les messages (`npm run apercu`).
