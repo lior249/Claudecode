@@ -1,6 +1,7 @@
 // Point d'entrée de PlugBot.
 
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
+import { findPermissionProblems } from './checks.js';
 import { loadConfig } from './config.js';
 import { openDatabase } from './db.js';
 import { createHandlers } from './handlers.js';
@@ -47,6 +48,13 @@ client.once(Events.ClientReady, (readyClient) =>
     await guild.members.fetch();
     const ctx = { config, db, tracker, guild, channels: await fetchChannels(guild) };
     ctx.prison = createPrison(ctx);
+
+    const problems = findPermissionProblems(ctx);
+    if (problems.length > 0) {
+      console.error(`[PlugBot] Permissions à corriger sur Discord :\n${problems.map((problem) => `  - ${problem}`).join('\n')}`);
+    } else {
+      console.log('[PlugBot] Permissions OK.');
+    }
 
     const ready = createHandlers(ctx);
     const jobs = createJobs(ctx, ready);
