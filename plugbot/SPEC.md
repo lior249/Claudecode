@@ -7,135 +7,141 @@ Les points marqués *(proposé)* sont des propositions en attente de confirmatio
 
 ## Principes
 
-- PlugBot est un **bot à part**. Il ne se mélange pas avec le bot actuel qui envoie les notifications de paiement : c'est une autre application Discord, avec ses propres salons.
-- Tous les salons de PlugBot sont **publics** : tout le monde voit qui a posté et où chacun en est. Les membres sont mentionnés publiquement, y compris en prison.
-- Les consignes sur la façon de poster sont données par le porteur de projet. C'est sur cette base qu'il retire des points.
+- PlugBot est un **bot à part**. Il ne se mélange pas avec le bot actuel qui envoie les notifications de paiement.
+- Tous ses salons sont **publics** : tout le monde voit qui a posté, qui gagne et qui est en prison. Les membres sont mentionnés publiquement.
 - Toutes les heures sont en **temps universel (UTC)**. Une journée va de minuit à minuit UTC.
+- Le suivi part de **zéro** au lancement : seuls les résultats postés après l'arrivée du bot comptent.
 
 ## Catégories de membres
 
-| Catégorie | Qui | Classements |
+| Catégorie | Rôle | Membres (octobre 2026) |
 |---|---|---|
-| **Plug** | Membres de l'accompagnement : rôle **@TikTok** | #éloges-plug |
-| **Free** | Membres gratuits : rôle **@Free** | #éloges-free |
+| **Free** | @Free | 293 |
+| **Plug** (l'accompagnement) | @TikTok | 22 |
 
-- Un membre sans le rôle @TikTok ne compte jamais dans les classements Plug.
-- Un membre qui a les deux rôles compte en Plug. Un membre qui n'a aucun des deux (nouveaux arrivants, bots) n'est pas suivi.
+- Les deux catégories ont des classements séparés. Un membre qui a les deux rôles compte en Plug.
+- Les membres sans aucun de ces deux rôles ne sont pas suivis. Les rôles **Plugged®** et **Approuvé** sont donnés à la main et ne sont pas utilisés par PlugBot.
 - *(proposé)* Le porteur de projet n'est pas suivi : il ne gagne pas de points et ne va pas en prison.
 - *(proposé)* Les classements utilisent le **rôle actuel** du membre, et tous ses points le suivent.
-  Un membre free qui rejoint l'accompagnement passe dans les classements Plug avec tous ses points.
-- Les membres qui ont quitté le serveur n'apparaissent plus dans les classements ni en prison.
 
 ## Salons
 
 | Salon | Ce qui s'y passe |
 |---|---|
-| **#résultats** | Les membres y postent leurs résultats. |
-| **#show-up** | Le journal : chaque show-up et chaque point retiré. |
-| **#éloges-free** | Les classements des membres Free, chaque dimanche à 18 h UTC. |
-| **#éloges-plug** | Les classements des membres Plug, chaque dimanche à 18 h UTC. |
-| **#prison** | Les entrées en prison, les paliers et les sorties. |
+| 🎮 **flex-resultats** | Les membres y postent leurs résultats. |
+| ➕ **show-up** | Le journal : chaque show-up, chaque point retiré, chaque rôle 🔥🔥🔥 gagné. |
+| 💸 **top-7** | Le classement de la semaine, chaque dimanche à 18 h UTC. |
+| 💎 **top-30** | Le classement du mois, le dernier jour du mois à 18 h UTC. |
+| 🤢 **la-prison** | Les alertes, les entrées en prison et les sorties. |
+| **sortir-de-la-prison** | Les tickets pour justifier une absence. Géré par l'équipe, pas par PlugBot. |
+
+Seul PlugBot écrit dans show-up, top-7, top-30 et la-prison.
 
 ## Points et chaîne
 
-- **Chaque message** posté dans **#résultats** avec au moins une image rapporte **1 point de show-up**. Le point est compté tout de suite, sans attendre de vérification.
-- Plusieurs résultats le même jour rapportent plusieurs points. Le mode lent du salon (un message toutes les 15 minutes) est réglé directement sur Discord.
-- *(proposé)* Les vidéos comptent aussi, comme les images. Un message avec plusieurs images ne rapporte qu'un point.
-- La **chaîne** compte les **jours d'affilée** avec au moins un show-up. Dix résultats le même jour ne font qu'un jour de chaîne.
-  Dès qu'un jour est manqué, la chaîne est brisée, mais les points restent. On peut donc avoir des centaines de points et une chaîne d'un jour.
-- PlugBot met la réaction **❗** sur chaque résultat compté, pour signaler qu'il reste à vérifier.
-- PlugBot écrit aussitôt dans **#show-up**, en mentionnant le membre :
+- **Chaque message** posté dans flex-resultats avec au moins une image rapporte **1 point de show-up**. Le point est compté tout de suite.
+- Plusieurs résultats le même jour rapportent plusieurs points. Le mode lent du salon (un message toutes les 15 minutes) est réglé sur Discord.
+- *(proposé)* Les vidéos comptent aussi. Un message avec plusieurs images ne rapporte qu'un point.
+- La **chaîne** compte les **jours d'affilée** avec au moins un show-up. Dix résultats le même jour ne font qu'un jour de chaîne. Dès qu'un jour est manqué, la chaîne est brisée, mais les points restent.
+- PlugBot met **❗** sur chaque résultat compté, puis l'annonce dans show-up :
 
   > 🔥 @Membre vient de show up !
   > ⛓️ Chaîne : **12 jours d'affilée** · 📅 Semaine : **9 points** (3e Free) · 🏅 Total : **148 points**
 
-  Le rang indiqué est celui du classement de la semaine dans sa catégorie. Un membre en prison n'a pas de rang : PlugBot lui rappelle combien de jours il lui reste pour sortir.
-
-## Rôle de chaîne
-
-- Les membres réguliers reçoivent automatiquement un **rôle de chaîne** (par exemple 🔥🔥🔥), retiré dès que la chaîne est brisée.
-- *(proposé)* Le rôle est donné à partir de **7 jours d'affilée**. Ce nombre se règle facilement.
-- Le porteur de projet crée le rôle sur Discord. Le rôle de PlugBot doit être placé au-dessus de lui dans la liste des rôles.
+  Un membre en prison n'a pas de rang : PlugBot lui rappelle combien de jours il lui reste pour sortir.
 
 ## Vérification par l'admin
 
-Le porteur de projet est le seul admin dont les réactions comptent. Il passe sur les résultats marqués ❗ :
+Le porteur de projet est le seul dont les réactions comptent. Il passe sur les résultats marqués ❗ :
 
 - **👍** : le show-up est confirmé. PlugBot ne fait rien.
-- **❌** : PlugBot retire le point et l'écrit dans **#show-up** :
+- **❌** : PlugBot retire le point et l'écrit dans show-up, en mentionnant le membre. Le nom de l'admin s'affiche sans qu'il soit notifié.
 
   > ❌ Le point de show-up de @Membre a été retiré par @Admin.
   > 🏅 Total : **147 points** · 📅 Semaine : **8 points**
 
-  Le membre est notifié. Le nom de l'admin s'affiche, mais l'admin n'est pas notifié. Aucune raison n'est demandée.
+- *(proposé)* Si l'admin enlève sa ❌, le point est rendu. Si le membre supprime son résultat, le point est retiré. Les deux sont annoncés dans show-up.
 
-Règles complémentaires :
+## Récompenses
 
-- Les réactions des autres membres sont ignorées.
-- *(proposé)* Si l'admin enlève sa ❌, le point est rendu, et PlugBot l'annonce dans #show-up.
-- *(proposé)* Si le membre supprime son résultat, le point est retiré automatiquement, et PlugBot l'annonce dans #show-up.
-- Un point retiré après la publication d'un classement est enlevé des totaux, mais le classement déjà publié n'est pas republié.
+Les récompenses sont des **rôles**. Chacun donne une réduction sur la formation, et elles se cumulent :
 
-## La semaine
+| Rôle | Comment l'obtenir | Réduction |
+|---|---|---|
+| 🔥🔥🔥 | **21 jours** de show-up d'affilée | −15 % |
+| ⚡plug7⚡ | Gagner le **classement de la semaine** | −25 % |
+| ★plug30★ | Gagner le **classement du mois** | −35 % |
 
-- Les classements sont publiés **chaque dimanche à 18 h UTC**.
-- *(proposé)* La semaine va du dimanche 18 h UTC au dimanche 18 h UTC suivant. Le classement publié couvre exactement la semaine, et les points de la semaine repartent à zéro juste après.
+- Avec les trois rôles, la réduction totale est de **−75 %** : il reste **25 %** à payer.
+- Les rôles ouvrent l'accès au salon des codes de réduction. Ce salon et les codes sont gérés par le porteur de projet.
+- Chaque réduction ne s'utilise qu'une fois, même si le membre gagne plusieurs fois le même classement.
+- Le rôle 🔥🔥🔥 est retiré dès que la chaîne est brisée. Quand un membre l'obtient, PlugBot l'annonce dans show-up :
+
+  > 🔥 @Membre atteint **21 jours d'affilée** et débloque @🔥🔥🔥 : −15 % sur la formation !
+
+- *(proposé)* ⚡plug7⚡ et ★plug30★ sont gardés pour de bon. Ils sont seulement mis de côté pendant un séjour en prison, puis rendus à la sortie.
+- *(proposé)* Le gagnant d'un classement est le **premier de chaque catégorie** : un gagnant Free et un gagnant Plug.
+
+## Classements
+
+| Salon | Période | Publication | Taille |
+|---|---|---|---|
+| top-7 | du dimanche 18 h au dimanche 18 h suivant | chaque dimanche à 18 h UTC | top 5 Free + top 5 Plug |
+| top-30 | du dernier jour du mois précédent à 18 h au dernier jour du mois à 18 h | le dernier jour du mois à 18 h UTC | top 10 Free + top 10 Plug |
+
+- Un seul message par publication, qui mentionne tous les membres classés et annonce les gagnants :
+
+  > ⚡ **Classement de la semaine**
+  > Énorme travail, bravo à tous ceux qui se sont montrés !
+  >
+  > **Free**
+  > 1. @Membre — 12 points
+  > …
+  >
+  > **Plug**
+  > 1. @Membre — 9 points
+  > …
+  >
+  > ⚡ @Membre et @Membre remportent @⚡plug7⚡ : −25 % sur la formation !
+
+- Les membres **en prison** n'apparaissent dans aucun classement, même s'ils ont des points.
+- À points égaux, le plus gros total all-time passe devant, puis celui qui a atteint son score le premier.
+- *(proposé)* La semaine et le mois du lancement sont incomplets : ils ne sont pas publiés. Le premier top-7 couvre la première semaine entière, le premier top-30 le premier mois entier.
+  Sinon, quelqu'un pourrait gagner −35 % avec trois jours de posts.
 
 ## La prison
 
 - PlugBot ne s'occupe d'un membre pour la prison qu'après **7 jours entiers** passés sur le serveur.
-- Un membre suivi qui ne fait aucun show-up pendant **3 jours entiers** entre en prison.
-- Tant qu'il est en prison, il **n'apparaît dans aucun classement** : ni la semaine, ni all-time, même s'il était premier. Ses show-ups sont toujours annoncés dans #show-up, et ses points continuent de compter.
-- Pour **sortir de prison**, quel que soit le palier, il faut faire un show-up **3 jours d'affilée**. Trois résultats le même jour ne suffisent pas.
-  Au troisième jour, PlugBot l'annonce dans #prison :
+- **10 jours** sans show-up : alerte dans la-prison. Elle mentionne le membre et lui dit exactement ce qui l'attend dans 5 jours.
 
-  > 🔓 @Membre sort de prison après 3 jours de show-up d'affilée !
+  > ⚠️ @Membre : 10 jours sans show-up.
+  > Encore 5 jours sans résultat et c'est la prison : le rôle @Prisonnier, plus le droit d'écrire ailleurs que dans la prison, et plus aucun accès aux récompenses (@🔥🔥🔥, @⚡plug7⚡, @★plug30★).
+  > Un seul résultat dans #flex-resultats suffit pour l'éviter.
 
-PlugBot écrit dans **#prison** à chaque palier, en mentionnant les membres concernés :
+- **15 jours** sans show-up : entrée en prison. PlugBot donne le rôle **💔Prisonnier💔**, met de côté ⚡plug7⚡ et ★plug30★, et l'annonce :
 
-| Jours sans show-up | Message |
-|---|---|
-| 3 | « @Membre vient d'entrer en prison : aucun show-up depuis 3 jours. » |
-| 6 | « @Membre s'enfonce dans la prison : 6 jours sans show-up. » |
-| 10 | « @Membre est toujours en prison : 10 jours sans show-up. » |
-| 15 | « @Membre croupit en prison : 15 jours sans show-up. » |
-| 30 | « @Membre est définitivement en prison : 30 jours sans show-up. » |
+  > 🔒 @Membre vient d'entrer en prison : 15 jours sans show-up.
+  > Pour sortir : 3 jours de show-up d'affilée dans #flex-resultats, ou un ticket dans #sortir-de-la-prison pour justifier ton absence.
 
-- Après 30 jours, PlugBot n'écrit plus rien. Chaque palier n'est annoncé qu'une fois par séjour en prison.
-- La vérification se fait **chaque jour juste après minuit UTC**. Les membres qui atteignent le même palier le même jour sont regroupés dans un seul message qui les mentionne tous.
-- Exemple : dernier show-up le lundi, rien mardi, mercredi et jeudi. Le membre entre en prison dans la nuit de jeudi à vendredi.
-- *(proposé)* Le suivi part de zéro au lancement du bot : les anciens messages de #résultats ne comptent pas.
-  Pour un membre qui n'a jamais posté, on compte à partir du lendemain du lancement, ou de la fin de ses 7 premiers jours s'il arrive après.
-  Conséquence : 4 jours après le lancement, tous ceux qui n'ont rien posté entrent en prison en même temps.
+- *(proposé)* **30 jours** sans show-up : « @Membre est définitivement en prison ». PlugBot n'écrit plus rien ensuite.
+- Le rôle Prisonnier bloque l'écriture partout, sauf dans la prison, le salon des tickets et flex-resultats. Ces permissions sont réglées sur Discord.
+- Chaque message regroupe tous les membres qui atteignent la même étape le même jour. La vérification se fait chaque jour juste après minuit UTC.
+- Conséquence du départ à zéro : 16 jours après le lancement, tous ceux qui n'ont rien posté entrent en prison en même temps.
 
-## Les classements du dimanche 18 h UTC
+### Sortir de prison
 
-Chaque dimanche à 18 h UTC, PlugBot publie **un seul message** dans **#éloges-free**, et un autre dans **#éloges-plug**.
-Chaque message ne concerne que sa catégorie et contient trois classements :
+Il y a deux façons de sortir :
 
-1. **Top 10 de la semaine** : les points de la semaine.
-2. **Top 10 all-time** : le total des points depuis le lancement.
-3. **Top 10 de la prison** : les membres en prison depuis le plus longtemps.
+1. **Poster 3 jours d'affilée** dans flex-resultats. Trois résultats le même jour ne suffisent pas. Au troisième jour, PlugBot retire le rôle Prisonnier, rend les récompenses mises de côté et l'annonce :
 
-Tous les membres listés sont **mentionnés**. Un membre peut apparaître dans deux classements.
-Le message commence par des félicitations, avec un texte qui change d'une semaine à l'autre.
+   > 🔓 @Membre sort de prison après 3 jours de show-up d'affilée !
 
-> 🏆 **Les éloges de la semaine — Free**
-> Énorme semaine, bravo à tous ceux qui se sont montrés !
->
-> **🔥 Top 10 de la semaine**
-> 1. @Membre — 12 points
-> …
->
-> **👑 Top 10 all-time**
-> 1. @Membre — 148 points
-> …
->
-> **🔒 Top 10 de la prison**
-> 1. @Membre — en prison depuis 24 jours
-> …
+2. **Ouvrir un ticket** dans sortir-de-la-prison et justifier son absence (problème de santé, par exemple). Si l'équipe accepte, elle **retire le rôle Prisonnier à la main**.
+   PlugBot s'en rend compte, rend les récompenses mises de côté, l'annonce, et le compteur de la prison repart de zéro :
 
-- *(proposé)* **Égalités** : dans le top de la semaine, on départage par le total all-time, puis par celui qui a atteint son score le premier. Dans le top all-time, celui qui a atteint son total le premier passe devant.
+   > 🔓 @Membre a été libéré de prison par l'équipe.
+
+   Si l'absence n'est pas justifiée, l'équipe ne touche à rien : le membre doit poster 3 jours d'affilée.
 
 ## Coupures
 
@@ -143,8 +149,5 @@ Si le bot redémarre, il rattrape ce qui s'est passé pendant son absence :
 
 - les résultats postés pendant la coupure ;
 - les ❌ posées ou retirées et les résultats supprimés pendant les 7 derniers jours ;
-- une vérification de la prison ou un classement du dimanche qu'il aurait manqué.
-
-## Idées pour plus tard
-
-- D'autres rôles bonus selon les points (par exemple 100, 500, 1 000 points).
+- les rôles Prisonnier retirés par l'équipe ;
+- une vérification de la prison ou un classement qu'il aurait manqué.

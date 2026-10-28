@@ -5,6 +5,7 @@ import { loadConfig } from './config.js';
 import { openDatabase } from './db.js';
 import { createHandlers } from './handlers.js';
 import { createJobs } from './jobs.js';
+import { createPrison } from './prison.js';
 import { createQueue } from './queue.js';
 import { startup } from './sync.js';
 import { createTracker } from './tracker.js';
@@ -45,11 +46,12 @@ client.once(Events.ClientReady, (readyClient) =>
     const guild = await readyClient.guilds.fetch(config.guildId);
     await guild.members.fetch();
     const ctx = { config, db, tracker, guild, channels: await fetchChannels(guild) };
+    ctx.prison = createPrison(ctx);
 
     const ready = createHandlers(ctx);
     const jobs = createJobs(ctx, ready);
     try {
-      await startup(ctx, ready);
+      await startup(ctx, ready, jobs);
     } catch (error) {
       console.error('[PlugBot] Rattrapage incomplet au démarrage :', error);
     }
@@ -65,6 +67,7 @@ client.on(Events.MessageCreate, (message) => enqueue(() => handlers?.onNewMessag
 client.on(Events.MessageReactionAdd, (reaction, user) => enqueue(() => handlers?.onReactionAdd(reaction, user)));
 client.on(Events.MessageReactionRemove, (reaction, user) => enqueue(() => handlers?.onReactionRemove(reaction, user)));
 client.on(Events.MessageDelete, (message) => enqueue(() => handlers?.onMessageDelete(message)));
+client.on(Events.GuildMemberUpdate, (_oldMember, member) => enqueue(() => handlers?.onMemberUpdate(member)));
 client.on(Events.MessageBulkDelete, (messages) =>
   enqueue(async () => {
     for (const message of messages.values()) await handlers?.onMessageDelete(message);

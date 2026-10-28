@@ -26,7 +26,7 @@ function optional(name, fallback) {
 export function loadConfig() {
   loadEnvFile();
 
-  const streakRoleDays = Number(optional('STREAK_ROLE_DAYS', '7'));
+  const streakRoleDays = Number(optional('STREAK_ROLE_DAYS', '21'));
   if (!Number.isInteger(streakRoleDays) || streakRoleDays < 1) {
     throw new Error('STREAK_ROLE_DAYS doit être un nombre entier supérieur ou égal à 1.');
   }
@@ -37,14 +37,19 @@ export function loadConfig() {
     channels: {
       results: required('RESULTS_CHANNEL_ID'),
       showup: required('SHOWUP_CHANNEL_ID'),
-      elogesFree: required('ELOGES_FREE_CHANNEL_ID'),
-      elogesPlug: required('ELOGES_PLUG_CHANNEL_ID'),
+      week: required('WEEK_CHANNEL_ID'),
+      month: required('MONTH_CHANNEL_ID'),
       prison: required('PRISON_CHANNEL_ID'),
     },
+    // Salon des tickets pour sortir de prison : seulement mentionné dans les messages.
+    prisonExitChannelId: optional('PRISON_EXIT_CHANNEL_ID', null),
     roles: {
       free: required('FREE_ROLE_ID'),
       plug: required('PLUG_ROLE_ID'),
-      streak: optional('STREAK_ROLE_ID', null),
+      streak: required('STREAK_ROLE_ID'),
+      weekWinner: required('WEEK_WINNER_ROLE_ID'),
+      monthWinner: required('MONTH_WINNER_ROLE_ID'),
+      prisoner: required('PRISONER_ROLE_ID'),
     },
     streakRoleDays,
     adminIds: new Set(

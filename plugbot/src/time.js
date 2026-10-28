@@ -20,3 +20,26 @@ export function weekRange(timestamp) {
   const start = weekStart(timestamp);
   return { start, end: start + WEEK_MS };
 }
+
+// Fin d'un mois : son dernier jour à 18 h UTC. `month` peut déborder (-1 = décembre de l'année d'avant).
+function monthEnd(year, month) {
+  return Date.UTC(year, month + 1, 0, 18);
+}
+
+// Début du mois en cours : la dernière fin de mois passée.
+export function monthStart(timestamp) {
+  const date = new Date(timestamp);
+  const end = monthEnd(date.getUTCFullYear(), date.getUTCMonth());
+  return timestamp >= end ? end : monthEnd(date.getUTCFullYear(), date.getUTCMonth() - 1);
+}
+
+export function monthRange(timestamp) {
+  const start = monthStart(timestamp);
+  const next = new Date(start + DAY_MS);
+  return { start, end: monthEnd(next.getUTCFullYear(), next.getUTCMonth()) };
+}
+
+// « novembre 2026 » pour le mois qui se termine à `end`.
+export function monthName(end) {
+  return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(end);
+}

@@ -18,10 +18,25 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS showups_by_user ON showups (user_id, created_at);
   CREATE INDEX IF NOT EXISTS showups_by_date ON showups (created_at);
 
-  -- Membres annoncés en prison, avec le dernier palier annoncé.
+  -- Membres en prison : dernier palier annoncé, rôle Prisonnier donné ou non,
+  -- et rôles de récompense mis de côté pendant la prison (séparés par des virgules).
   CREATE TABLE IF NOT EXISTS prison (
+    user_id         TEXT PRIMARY KEY,
+    level           INTEGER NOT NULL,
+    has_role        INTEGER NOT NULL DEFAULT 0,
+    suspended_roles TEXT NOT NULL DEFAULT ''
+  );
+
+  -- Dernière alerte « bientôt la prison » envoyée à chaque membre (numéro du jour UTC).
+  CREATE TABLE IF NOT EXISTS alerts (
     user_id TEXT PRIMARY KEY,
-    level   INTEGER NOT NULL
+    day     INTEGER NOT NULL
+  );
+
+  -- Dernière libération de prison par l'équipe (numéro du jour UTC).
+  CREATE TABLE IF NOT EXISTS pardons (
+    user_id TEXT PRIMARY KEY,
+    day     INTEGER NOT NULL
   );
 
   -- Réglages internes : date de lancement, dernier message lu, dernières publications.
@@ -56,13 +71,29 @@ export function openDatabase(path) {
       "SELECT COUNT(*) AS count FROM showups WHERE status = 'valid' AND user_id = ? AND created_at >= ? AND created_at < ?",
     ),
     validDays: db.prepare(`SELECT DISTINCT user_id, created_at / ${DAY_MS} AS day FROM showups WHERE status = 'valid'`),
-    prisonLevels: db.prepare('SELECT user_id, level FROM prison'),
-    getPrisonLevel: db.prepare('SELECT level FROM prison WHERE user_id = ?'),
-    setPrisonLevel: db.prepare(
-      'INSERT INTO prison (user_id, level) VALUES (?, ?) ON CONFLICT (user_id) DO UPDATE SET level = excluded.level',
-    ),
+    prisonRecords: db.prepare('SELECT * FROM prison'),
+    getPrison: db.prepare('SELECT * FROM prison WHERE user_id = ?'),
+    addPrison: db.prepare('INSERT OR REPLACE INTO prison (user_id, level, suspended_roles) VALUES (?, ?, ?)'),
+    setPrisonLevel: db.prepare('UPDATE prison SET level = ? WHERE user_id = ?'),
+    markPrisonRole: db.prepare('UPDATE prison SET has_role = 1 WHERE user_id = ?'),
     removePrison: db.prepare('DELETE FROM prison WHERE user_id = ?'),
+    alertDays: db.prepare('SELECT user_id, day FROM alerts'),
+    setAlert: db.prepare('INSERT OR REPLACE INTO alerts (user_id, day) VALUES (?, ?)'),
+    pardonDays: db.prepare('SELECT user_id, day FROM pardons'),
+    setPardon: db.prepare('INSERT OR REPLACE INTO pardons (user_id, day) VALUES (?, ?)'),
   };
+
+  function prisonRecord(row) {
+    return {
+      level: row.level,
+      hasRole: row.has_role === 1,
+      suspendedRoles: row.suspended_roles ? row.suspended_roles.split(',') : [],
+    };
+  }
+
+  function dayMap(rows) {
+    return new Map(rows.map((row) => [row.user_id, row.day]));
+  }
 
   function countsMap(rows) {
     return new Map(rows.map((row) => [row.user_id, { count: row.count, reachedAt: row.reached_at }]));
@@ -112,17 +143,37 @@ export function openDatabase(path) {
       return days;
     },
 
-    prisonLevels() {
-      return new Map(statements.prisonLevels.all().map((row) => [row.user_id, row.level]));
+    prisonRecords() {
+      return new Map(statements.prisonRecords.all().map((row) => [row.user_id, prisonRecord(row)]));
     },
-    getPrisonLevel(userId) {
-      return statements.getPrisonLevel.get(userId)?.level ?? null;
+    getPrison(userId) {
+      const row = statements.getPrison.get(userId);
+      return row ? prisonRecord(row) : null;
+    },
+    addPrison(userId, level, suspendedRoles) {
+      statements.addPrison.run(userId, level, suspendedRoles.join(','));
     },
     setPrisonLevel(userId, level) {
-      statements.setPrisonLevel.run(userId, level);
+      statements.setPrisonLevel.run(level, userId);
+    },
+    markPrisonRole(userId) {
+      statements.markPrisonRole.run(userId);
     },
     removePrison(userId) {
       statements.removePrison.run(userId);
+    },
+
+    alertDays() {
+      return dayMap(statements.alertDays.all());
+    },
+    setAlert(userId, day) {
+      statements.setAlert.run(userId, day);
+    },
+    pardonDays() {
+      return dayMap(statements.pardonDays.all());
+    },
+    setPardon(userId, day) {
+      statements.setPardon.run(userId, day);
     },
 
     close() {

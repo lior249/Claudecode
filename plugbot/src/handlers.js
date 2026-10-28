@@ -1,4 +1,5 @@
-// Réactions aux événements du salon #résultats : nouveau résultat, ❌ d'un admin, message supprimé.
+// Réactions aux événements Discord : nouveau résultat, ❌ de l'admin, message supprimé,
+// rôle Prisonnier retiré par l'équipe.
 
 import {
   deletedMessage,
@@ -6,10 +7,11 @@ import {
   removedMessage,
   restoredMessage,
   showupMessage,
-  splitMessage,
+  streakRewardMessage,
 } from './messages.js';
-import { isProof, weeklyLeaderboard } from './stats.js';
-import { weekRange } from './time.js';
+import { send } from './send.js';
+import { isProof, leaderboard } from './stats.js';
+import { dayOf, weekRange } from './time.js';
 
 export const PENDING_EMOJI = '❗';
 export const REJECT_EMOJI = '❌';
@@ -18,32 +20,31 @@ function isNewer(id, than) {
   return than === null || BigInt(id) > BigInt(than);
 }
 
-// Envoie un texte en le découpant si besoin. Sans liste, tous les membres mentionnés sont notifiés.
-export async function send(channel, content, notifiedUserIds) {
-  const allowedMentions = notifiedUserIds ? { users: notifiedUserIds } : { parse: ['users'] };
-  for (const part of splitMessage(content)) {
-    await channel.send({ content: part, allowedMentions });
-  }
-}
-
 export function createHandlers(ctx) {
-  const { config, db, tracker, guild, channels } = ctx;
+  const { config, db, tracker, guild, channels, prison } = ctx;
 
   async function findMember(userId) {
     return guild.members.cache.get(userId) ?? (await guild.members.fetch(userId).catch(() => null));
   }
 
+  // Donne ou retire le rôle de chaîne. Renvoie 'added', 'removed' ou null.
   async function syncStreakRole(member, chain) {
     const roleId = config.roles.streak;
-    if (!roleId) return;
     const wanted = chain >= config.streakRoleDays && tracker.isTracked(member);
     const has = member.roles.cache.has(roleId);
     try {
-      if (wanted && !has) await member.roles.add(roleId, 'Chaîne de show-up');
-      if (!wanted && has) await member.roles.remove(roleId, 'Chaîne de show-up brisée');
+      if (wanted && !has) {
+        await member.roles.add(roleId, 'Chaîne de show-up');
+        return 'added';
+      }
+      if (!wanted && has) {
+        await member.roles.remove(roleId, 'Chaîne de show-up brisée');
+        return 'removed';
+      }
     } catch (error) {
       console.error(`[PlugBot] Impossible de modifier le rôle de chaîne de ${member.user.tag} :`, error.message);
     }
+    return null;
   }
 
   // Après un changement de points : sortie de prison éventuelle et rôle de chaîne.
@@ -51,11 +52,13 @@ export function createHandlers(ctx) {
     const member = await findMember(userId);
     if (!member) return;
     const row = tracker.snapshot(new Map([[member.id, member]]), Date.now()).get(member.id);
-    if (!row?.prison.inPrison && db.getPrisonLevel(userId) !== null) {
-      db.removePrison(userId);
+    if (row && !row.prison.inPrison && db.getPrison(userId)) {
+      await prison.free(member);
       await send(channels.prison, prisonExitMessage(userId), [userId]);
     }
-    await syncStreakRole(member, row?.chain ?? 0);
+    if ((await syncStreakRole(member, row?.chain ?? 0)) === 'added') {
+      await send(channels.showup, streakRewardMessage(userId, config), [userId]);
+    }
   }
 
   async function onNewMessage(message) {
@@ -71,8 +74,8 @@ export function createHandlers(ctx) {
 
     const rows = tracker.snapshot(guild.members.cache, Date.now());
     const row = rows.get(member.id);
-    const rank = weeklyLeaderboard([...rows.values()], row.category).findIndex((entry) => entry.userId === member.id) + 1;
-    await send(channels.showup, showupMessage({ ...row, rank }), [member.id]);
+    const rank = leaderboard([...rows.values()], row.category).findIndex((entry) => entry.userId === member.id) + 1;
+    await send(channels.showup, showupMessage({ ...row, week: row.points, rank }), [member.id]);
     await settle(member.id);
   }
 
@@ -126,6 +129,10 @@ export function createHandlers(ctx) {
     },
     async onMessageDelete(message) {
       if (message.channelId === config.channels.results) await markDeleted(message.id);
+    },
+    async onMemberUpdate(member) {
+      const current = guild.members.cache.get(member.id) ?? member;
+      if (prison.wasReleasedByTeam(current)) await prison.releaseByTeam(current, dayOf(Date.now()));
     },
   };
 }

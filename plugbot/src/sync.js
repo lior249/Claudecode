@@ -2,7 +2,7 @@
 
 import { SnowflakeUtil } from 'discord.js';
 import { REJECT_EMOJI } from './handlers.js';
-import { DAY_MS, dayOf, weekStart } from './time.js';
+import { DAY_MS, dayOf, monthStart, weekStart } from './time.js';
 
 // Les ❌ ajoutées ou retirées et les messages supprimés sont rattrapés sur cette période.
 const RECONCILE_MS = 7 * DAY_MS;
@@ -12,22 +12,24 @@ function bySnowflake(a, b) {
   return diff < 0n ? -1 : diff > 0n ? 1 : 0;
 }
 
-export async function startup(ctx, handlers) {
+export async function startup(ctx, handlers, jobs) {
   const { db, channels } = ctx;
   const now = Date.now();
 
-  // Premier lancement : on part de zéro, les anciens messages de #résultats ne comptent pas.
+  // Premier lancement : on part de zéro, les anciens messages de #flex-resultats ne comptent pas.
   if (db.getMeta('launch_day') === null) {
     const latest = await channels.results.messages.fetch({ limit: 1 });
     db.setMeta('results_cursor', latest.first()?.id ?? SnowflakeUtil.generate({ timestamp: now }).toString());
     db.setMeta('last_daily_day', dayOf(now));
     db.setMeta('last_week_boundary', weekStart(now));
+    db.setMeta('last_month_boundary', monthStart(now));
     db.setMeta('launch_day', dayOf(now));
     console.log('[PlugBot] Premier lancement : le suivi commence maintenant.');
   }
 
   await catchUpNewMessages(ctx, handlers);
   await reconcileRecent(ctx, handlers, now - RECONCILE_MS);
+  await jobs.checkTeamReleases(dayOf(now));
 }
 
 // Compte les résultats postés pendant que le bot était éteint.

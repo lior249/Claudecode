@@ -1,6 +1,6 @@
 # PlugBot
 
-Bot Discord qui suit les show-ups des membres : points, chaînes, prison et classements du dimanche.
+Bot Discord qui suit les show-ups des membres : points, chaînes, récompenses, prison et classements.
 Le fonctionnement complet est décrit dans [`SPEC.md`](SPEC.md).
 
 ## 1. Créer le bot sur Discord
@@ -20,10 +20,22 @@ Le fonctionnement complet est décrit dans [`SPEC.md`](SPEC.md).
 
 ## 2. Préparer le serveur
 
-- Créer les salons #résultats, #show-up, #éloges-free, #éloges-plug et #prison, s'ils n'existent pas encore.
-- Vérifier que PlugBot peut voir ces cinq salons et écrire dans les quatre salons d'annonces.
-- Créer le rôle de chaîne (par exemple 🔥🔥🔥), puis, dans **Paramètres du serveur > Rôles**, glisser le rôle de PlugBot **au-dessus** de ce rôle.
-- Mode lent de #résultats : 15 minutes, réglé dans les paramètres du salon.
+**Rôles.** Dans **Paramètres du serveur > Rôles**, glisser le rôle **PlugBot au-dessus** de 🔥🔥🔥, ⚡plug7⚡, ★plug30★ et 💔Prisonnier💔. Sinon, Discord l'empêche de les donner.
+
+**Salons.**
+
+- PlugBot doit pouvoir voir flex-resultats, et voir et écrire dans show-up, top-7, top-30 et la-prison.
+- Les membres doivent pouvoir lire ces quatre salons, sans y écrire.
+- flex-resultats : mode lent de 15 minutes.
+
+**Le rôle Prisonnier.** Il doit empêcher d'écrire partout, sauf dans la-prison, le salon des tickets et flex-resultats. Attention à une règle de Discord :
+quand un salon **autorise** explicitement un rôle (par exemple Free) à écrire, cette autorisation l'emporte sur l'**interdiction** posée sur le rôle Prisonnier.
+
+- Le droit d'écrire doit venir des réglages généraux du rôle (Paramètres du serveur > Rôles), pas d'une autorisation posée sur le salon.
+- Dans chaque catégorie de salons, ajouter le rôle Prisonnier avec **Envoyer des messages : ✗**.
+- Dans la-prison, le salon des tickets et flex-resultats, ajouter le rôle Prisonnier avec **Envoyer des messages : ✓**.
+
+Le salon des codes de réduction ne doit être visible que pour 🔥🔥🔥, ⚡plug7⚡ et ★plug30★. Pas besoin d'y bloquer le Prisonnier : PlugBot lui retire ces rôles pendant la prison.
 
 ## 3. Installer sur le VPS
 
@@ -61,8 +73,9 @@ npm test
 ```
 
 - `src/index.js` : démarrage et événements Discord.
-- `src/handlers.js` : résultats postés, ❌ de l'admin, messages supprimés.
-- `src/jobs.js` : prison (chaque jour à minuit UTC) et éloges (dimanche 18 h UTC).
+- `src/handlers.js` : résultats postés, ❌ de l'admin, messages supprimés, libérations par l'équipe.
+- `src/prison.js` : entrées et sorties de prison (rôle Prisonnier, récompenses mises de côté).
+- `src/jobs.js` : prison (chaque jour à minuit UTC), top-7 (dimanche 18 h UTC), top-30 (dernier jour du mois à 18 h UTC).
 - `src/sync.js` : premier lancement et rattrapage après une coupure.
 - `src/stats.js` : calculs des chaînes, de la prison et des classements.
-- `src/messages.js` : tous les textes publiés par le bot.
+- `src/messages.js` : tous les textes publiés par le bot, et les pourcentages de réduction.

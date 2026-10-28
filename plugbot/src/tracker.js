@@ -16,27 +16,28 @@ export function createTracker({ config, db }) {
   }
 
   // Une ligne par membre suivi, calculée à l'instant `now`.
-  // `week` permet de calculer les points d'une semaine précise (par défaut, la semaine en cours).
-  function snapshot(members, now, week = weekRange(now)) {
+  // `points` compte les show-ups de la période `range` (par défaut, la semaine en cours).
+  function snapshot(members, now, range = weekRange(now)) {
     const today = dayOf(now);
     const launchDay = Number(db.getMeta('launch_day'));
     const days = db.validDays();
+    const pardons = db.pardonDays();
     const totals = db.totals();
-    const weekly = db.countsBetween(week.start, week.end);
+    const counts = db.countsBetween(range.start, range.end);
     const rows = new Map();
     for (const member of members.values()) {
       if (!isTracked(member)) continue;
       const memberDays = days.get(member.id) ?? new Set();
+      const startDay = trackingStartDay(member.joinedTimestamp, launchDay, pardons.get(member.id));
       rows.set(member.id, {
         userId: member.id,
         member,
         category: categoryOf(member),
         chain: chainLength(memberDays, today),
-        prison: prisonState(memberDays, trackingStartDay(member.joinedTimestamp, launchDay), today),
+        prison: prisonState(memberDays, startDay, today),
         total: totals.get(member.id)?.count ?? 0,
-        totalReachedAt: totals.get(member.id)?.reachedAt ?? 0,
-        week: weekly.get(member.id)?.count ?? 0,
-        weekReachedAt: weekly.get(member.id)?.reachedAt ?? 0,
+        points: counts.get(member.id)?.count ?? 0,
+        pointsReachedAt: counts.get(member.id)?.reachedAt ?? 0,
       });
     }
     return rows;

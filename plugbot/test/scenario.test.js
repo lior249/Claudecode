@@ -6,11 +6,19 @@ import { SnowflakeUtil } from 'discord.js';
 import { openDatabase } from '../src/db.js';
 import { createHandlers } from '../src/handlers.js';
 import { createJobs } from '../src/jobs.js';
+import { createPrison } from '../src/prison.js';
 import { startup } from '../src/sync.js';
 import { createTracker } from '../src/tracker.js';
 import { DAY_MS } from '../src/time.js';
 
-const ROLES = { free: 'role-free', plug: 'role-tiktok', streak: 'role-feu' };
+const ROLES = {
+  free: 'role-free',
+  plug: 'role-tiktok',
+  streak: 'role-feu',
+  weekWinner: 'role-plug7',
+  monthWinner: 'role-plug30',
+  prisoner: 'role-prisonnier',
+};
 const ADMIN = '900';
 // Mercredi 28 octobre 2026, 10 h UTC.
 const LAUNCH = Date.UTC(2026, 9, 28, 10);
@@ -83,9 +91,10 @@ function fakeMessage(channel, author, { attachment = 'image/png' } = {}) {
 function setup() {
   const config = {
     guildId: 'guild',
-    channels: { results: 'c-res', showup: 'c-log', elogesFree: 'c-free', elogesPlug: 'c-plug', prison: 'c-prison' },
+    channels: { results: 'c-res', showup: 'c-log', week: 'c-top7', month: 'c-top30', prison: 'c-prison' },
+    prisonExitChannelId: 'c-ticket',
     roles: ROLES,
-    streakRoleDays: 3,
+    streakRoleDays: 21,
     adminIds: new Set([ADMIN]),
   };
   const db = openDatabase(':memory:');
@@ -99,6 +108,7 @@ function setup() {
   };
   const channels = Object.fromEntries(Object.entries(config.channels).map(([name, id]) => [name, fakeChannel(id)]));
   const ctx = { config, db, tracker, guild, channels };
+  ctx.prison = createPrison(ctx);
   const handlers = createHandlers(ctx);
   const jobs = createJobs(ctx, handlers);
   const addMember = (...args) => {
@@ -115,7 +125,9 @@ async function goTo(env, timestamp) {
   await env.jobs.tick();
 }
 
+// Jour `day` après le lancement, à `hour` heures UTC (le jour 0 est le mercredi 28 octobre).
 const at = (day, hour) => LAUNCH + day * DAY_MS + (hour - 10) * 60 * 60 * 1000;
+const afterMidnight = (day) => at(day, 0) + 60_000;
 
 async function post(env, userId, options) {
   const message = fakeMessage(env.channels.results, userId, options);
@@ -129,7 +141,7 @@ describe('scénario PlugBot', () => {
   beforeEach(async () => {
     mock.timers.enable({ apis: ['Date'], now: LAUNCH });
     env = setup();
-    await startup(env.ctx, env.handlers);
+    await startup(env.ctx, env.handlers, env.jobs);
   });
 
   afterEach(() => {
@@ -190,85 +202,159 @@ describe('scénario PlugBot', () => {
     assert.equal(env.db.totals().get('1'), undefined);
   });
 
-  it("envoie en prison après 3 jours sans show-up et libère après 3 jours d'affilée", async () => {
-    env.addMember('1', [ROLES.free]);
+  it("alerte à 10 jours, emprisonne à 15 et libère après 3 jours d'affilée", async () => {
+    const member = env.addMember('1', [ROLES.free, ROLES.weekWinner]);
     env.addMember('2', [ROLES.free]);
     env.addMember('3', [ROLES.free]);
     await post(env, '3'); // jour 0 : seul le membre 3 poste
 
-    await goTo(env, at(3, 0) + 60_000);
+    await goTo(env, afterMidnight(10));
     assert.equal(env.channels.prison.sent.length, 0, 'le suivi commence le lendemain du lancement');
+    await goTo(env, afterMidnight(11));
+    assert.equal(env.channels.prison.sent.length, 1);
+    assert.match(env.channels.prison.sent[0], /^⚠️ <@1>, <@2> et <@3> : 10 jours sans show-up\./);
+    await goTo(env, afterMidnight(12));
+    assert.equal(env.channels.prison.sent.length, 1, 'une seule alerte par absence');
 
-    await goTo(env, at(4, 0) + 60_000);
-    assert.deepEqual(env.channels.prison.sent, [
-      "🔒 <@1>, <@2> et <@3> viennent d'entrer en prison : aucun show-up depuis 3 jours.\nPour sortir : 3 jours de show-up d'affilée.",
-    ]);
+    await goTo(env, afterMidnight(16));
+    assert.match(env.channels.prison.sent.at(-1), /^🔒 <@1>, <@2> et <@3> viennent d'entrer en prison : 15 jours/);
+    assert.match(env.channels.prison.sent.at(-1), /ou un ticket dans <#c-ticket>/);
+    assert.ok(member.roles.cache.has(ROLES.prisoner));
+    assert.ok(!member.roles.cache.has(ROLES.weekWinner), 'les récompenses sont bloquées en prison');
 
-    // Le membre 1 poste 3 jours de suite : il sort au 3e post.
-    await goTo(env, at(4, 12));
-    await post(env, '1');
-    assert.match(env.channels.showup.sent.at(-1), /encore \*\*2 jours\*\*/);
-    await goTo(env, at(5, 12));
-    await post(env, '1');
-    await goTo(env, at(6, 12));
+    // Le membre 1 poste 3 jours de suite : il sort au 3e post et retrouve ses récompenses.
+    for (const day of [16, 17]) {
+      await goTo(env, at(day, 12));
+      await post(env, '1');
+    }
+    assert.match(env.channels.showup.sent.at(-1), /encore \*\*1 jour\*\*/);
+    await goTo(env, at(18, 12));
     await post(env, '1');
     assert.equal(env.channels.prison.sent.at(-1), "🔓 <@1> sort de prison après 3 jours de show-up d'affilée !");
+    assert.ok(!member.roles.cache.has(ROLES.prisoner));
+    assert.ok(member.roles.cache.has(ROLES.weekWinner));
 
-    // Les autres s'enfoncent : palier de 6 jours.
-    await goTo(env, at(7, 0) + 60_000);
-    assert.match(env.channels.prison.sent.at(-1), /^🔒 <@2> et <@3> s'enfoncent dans la prison : 6 jours/);
+    // Les autres atteignent le dernier palier.
+    await goTo(env, afterMidnight(31));
+    assert.match(env.channels.prison.sent.at(-1), /^🔒 <@2> et <@3> sont définitivement en prison : 30 jours/);
+  });
+
+  it("libère un membre quand l'équipe retire le rôle Prisonnier", async () => {
+    const member = env.addMember('1', [ROLES.free]);
+    await goTo(env, afterMidnight(16));
+    assert.ok(member.roles.cache.has(ROLES.prisoner));
+
+    member.roles.cache.delete(ROLES.prisoner);
+    await env.handlers.onMemberUpdate(member);
+    assert.equal(env.channels.prison.sent.at(-1), "🔓 <@1> a été libéré de prison par l'équipe.");
+
+    // Le suivi repart de zéro : pas de retour en prison le lendemain.
+    await goTo(env, afterMidnight(17));
+    assert.ok(!member.roles.cache.has(ROLES.prisoner));
+    assert.equal(env.channels.prison.sent.at(-1), "🔓 <@1> a été libéré de prison par l'équipe.");
+  });
+
+  it("repère aussi une libération par l'équipe faite pendant une coupure", async () => {
+    const member = env.addMember('1', [ROLES.free]);
+    await goTo(env, afterMidnight(16));
+    member.roles.cache.delete(ROLES.prisoner);
+    await goTo(env, afterMidnight(17));
+    assert.match(env.channels.prison.sent.at(-1), /a été libéré de prison par l'équipe/);
   });
 
   it("n'applique la prison qu'après 7 jours entiers sur le serveur", async () => {
     env.addMember('1', [ROLES.free], at(0, 15)); // arrive le jour du lancement à 15 h
-    await goTo(env, at(10, 0) + 60_000);
-    assert.equal(env.channels.prison.sent.length, 0);
-    await goTo(env, at(11, 0) + 60_000);
+    await goTo(env, afterMidnight(22));
+    assert.ok(!env.channels.prison.sent.some((m) => m.startsWith('🔒')));
+    await goTo(env, afterMidnight(23));
     assert.match(env.channels.prison.sent.at(-1), /<@1> vient d'entrer en prison/);
   });
 
-  it('donne et retire le rôle de chaîne', async () => {
+  it('donne le rôle 🔥🔥🔥 à 21 jours et le retire dès que la chaîne casse', async () => {
     const member = env.addMember('1', [ROLES.free]);
-    for (const day of [0, 1, 2]) {
+    for (let day = 0; day < 21; day++) {
       await goTo(env, at(day, 12));
       await post(env, '1');
     }
     assert.ok(member.roles.cache.has(ROLES.streak));
-    await goTo(env, at(4, 0) + 60_000);
+    assert.match(env.channels.showup.sent.at(-1), /atteint \*\*21 jours d'affilée\*\* et débloque <@&role-feu>/);
+    await goTo(env, afterMidnight(22));
     assert.ok(!member.roles.cache.has(ROLES.streak), 'la chaîne est brisée après un jour manqué');
   });
 
-  it('publie les éloges le dimanche à 18 h UTC, sans les membres en prison', async () => {
-    env.addMember('1', [ROLES.free]);
+  it('publie le top-7 le dimanche à 18 h UTC et donne ⚡plug7⚡ aux gagnants', async () => {
+    const one = env.addMember('1', [ROLES.free]);
     env.addMember('2', [ROLES.free]);
-    env.addMember('3', [ROLES.plug]);
-    env.addMember('4', [ROLES.free]);
-    await post(env, '1');
-    await post(env, '1');
-    await post(env, '2');
-    await post(env, '3');
-    // Le membre 4 n'a jamais posté. Les autres postent chaque jour jusqu'à dimanche.
-    for (const day of [1, 2, 3]) {
+    const three = env.addMember('3', [ROLES.plug]);
+
+    // Semaine incomplète du lancement : pas de classement le dimanche 1er novembre.
+    await goTo(env, Date.UTC(2026, 10, 1, 18));
+    assert.equal(env.channels.week.sent.length, 0);
+
+    // Semaine du 1er au 8 novembre (jours 5 à 10).
+    for (let day = 5; day <= 10; day++) {
       await goTo(env, at(day, 12));
-      for (const id of ['1', '2', '3']) await post(env, id);
+      await post(env, '1');
+      await post(env, '1');
+      await post(env, '2');
+      await post(env, '3');
     }
+    await goTo(env, Date.UTC(2026, 10, 8, 17, 59));
+    assert.equal(env.channels.week.sent.length, 0);
+    await goTo(env, Date.UTC(2026, 10, 8, 18));
 
-    await goTo(env, Date.UTC(2026, 10, 1, 17, 59));
-    assert.equal(env.channels.elogesFree.sent.length, 0);
-    await goTo(env, Date.UTC(2026, 10, 1, 18, 0));
-
-    const free = env.channels.elogesFree.sent.join('\n');
-    assert.match(free, /Les éloges de la semaine — Free/);
-    assert.match(free, /Top 10 de la semaine\*\*\n1\. <@1> — 5 points\n2\. <@2> — 4 points\n\n/);
-    assert.match(free, /Top 10 de la prison\*\*\n1\. <@4> — en prison depuis 1 jour/);
-    const plug = env.channels.elogesPlug.sent.join('\n');
-    assert.match(plug, /1\. <@3> — 4 points/);
-    assert.doesNotMatch(plug, /<@1>/);
+    assert.equal(
+      env.channels.week.sent.join('\n'),
+      [
+        '⚡ **Classement de la semaine**',
+        env.channels.week.sent[0].split('\n')[1],
+        '',
+        '**Free**',
+        '1. <@1> — 12 points',
+        '2. <@2> — 6 points',
+        '',
+        '**Plug**',
+        '1. <@3> — 6 points',
+        '',
+        '⚡ <@1> et <@3> remportent <@&role-plug7> : −25 % sur la formation !',
+      ].join('\n'),
+    );
+    assert.ok(one.roles.cache.has(ROLES.weekWinner));
+    assert.ok(three.roles.cache.has(ROLES.weekWinner));
 
     // Les points de la semaine repartent à zéro juste après.
     await post(env, '1');
     assert.match(env.channels.showup.sent.at(-1), /Semaine : \*\*1 point\*\*/);
-    assert.match(env.channels.showup.sent.at(-1), /Total : \*\*6 points\*\*/);
+    assert.match(env.channels.showup.sent.at(-1), /Total : \*\*13 points\*\*/);
+  });
+
+  it('publie le top-30 le dernier jour du mois, sans les membres en prison', async () => {
+    const one = env.addMember('1', [ROLES.free]);
+    env.addMember('2', [ROLES.free]);
+    env.addMember('3', [ROLES.plug]);
+    env.addMember('5', [ROLES.free]);
+
+    // Mois incomplet du lancement : pas de classement le 31 octobre.
+    await goTo(env, Date.UTC(2026, 9, 31, 18));
+    assert.equal(env.channels.month.sent.length, 0);
+
+    // Novembre : jours 4 (1er novembre) à 33 (30 novembre).
+    for (let day = 4; day <= 33; day++) {
+      await goTo(env, at(day, 12));
+      await post(env, '1');
+      if (day % 2 === 0) await post(env, '2');
+      if (day % 3 === 0) await post(env, '3');
+      // Le membre 5 poste 3 jours puis disparaît : il est en prison à la fin du mois.
+      if (day <= 6) await post(env, '5');
+    }
+    await goTo(env, Date.UTC(2026, 10, 30, 18));
+
+    const text = env.channels.month.sent.join('\n');
+    assert.match(text, /^★ \*\*Classement du mois — novembre 2026\*\*/);
+    assert.match(text, /\*\*Free\*\*\n1\. <@1> — 30 points\n2\. <@2> — 15 points\n\n\*\*Plug\*\*\n1\. <@3> — 10 points/);
+    assert.doesNotMatch(text, /<@5>/);
+    assert.match(text, /★ <@1> et <@3> remportent <@&role-plug30> : −35 % sur la formation !/);
+    assert.ok(one.roles.cache.has(ROLES.monthWinner));
   });
 
   it('rattrape au démarrage les résultats et les ❌ arrivés pendant une coupure', async () => {
@@ -281,7 +367,7 @@ describe('scénario PlugBot', () => {
       users: { fetch: async () => new FakeCollection([[ADMIN, { id: ADMIN }]]) },
     });
 
-    await startup(env.ctx, env.handlers);
+    await startup(env.ctx, env.handlers, env.jobs);
     assert.deepEqual(missed.reacted, ['❗']);
     assert.equal(env.db.getShowup(counted.id).status, 'rejected');
     assert.equal(env.db.getShowup(missed.id).status, 'valid');

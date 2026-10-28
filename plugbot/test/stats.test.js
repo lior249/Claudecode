@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  allTimeLeaderboard,
   chainLength,
   isProof,
-  prisonLeaderboard,
+  leaderboard,
+  needsWarning,
   prisonLevel,
   prisonState,
   trackingStartDay,
-  weeklyLeaderboard,
 } from '../src/stats.js';
-import { DAY_MS, dayOf, weekRange, weekStart } from '../src/time.js';
+import { DAY_MS, dayOf, monthName, monthRange, monthStart, weekRange, weekStart } from '../src/time.js';
 
 const days = (...list) => new Set(list);
+const range = (from, to) => new Set(Array.from({ length: to - from + 1 }, (_, i) => from + i));
 
 describe('time', () => {
   it('les semaines commencent le dimanche à 18 h UTC', () => {
@@ -21,6 +21,20 @@ describe('time', () => {
     assert.equal(weekStart(Date.UTC(2026, 10, 1, 18)), Date.UTC(2026, 10, 1, 18));
     const { start, end } = weekRange(Date.UTC(2026, 9, 28));
     assert.equal(end - start, 7 * DAY_MS);
+  });
+
+  it('les mois se terminent le dernier jour à 18 h UTC', () => {
+    assert.equal(monthStart(Date.UTC(2026, 9, 31, 17, 59)), Date.UTC(2026, 8, 30, 18));
+    assert.equal(monthStart(Date.UTC(2026, 9, 31, 18)), Date.UTC(2026, 9, 31, 18));
+    assert.deepEqual(monthRange(Date.UTC(2026, 10, 15)), {
+      start: Date.UTC(2026, 9, 31, 18),
+      end: Date.UTC(2026, 10, 30, 18),
+    });
+    assert.deepEqual(monthRange(Date.UTC(2027, 0, 10)), {
+      start: Date.UTC(2026, 11, 31, 18),
+      end: Date.UTC(2027, 0, 31, 18),
+    });
+    assert.equal(monthName(Date.UTC(2026, 10, 30, 18)), 'novembre 2026');
   });
 
   it('les jours changent à minuit UTC', () => {
@@ -60,95 +74,92 @@ describe('trackingStartDay', () => {
     assert.equal(trackingStartDay(10 * DAY_MS, 50), 51);
     assert.equal(trackingStartDay(null, 50), 51);
   });
+  it("repart de zéro le lendemain d'une libération par l'équipe", () => {
+    assert.equal(trackingStartDay(10 * DAY_MS, 50, 80), 81);
+  });
 });
 
 describe('prisonState', () => {
-  it('entre en prison après 3 jours entiers sans show-up', () => {
-    assert.equal(prisonState(days(10), 10, 13).inPrison, false);
-    const state = prisonState(days(10), 10, 14);
+  it('entre en prison après 15 jours entiers sans show-up', () => {
+    assert.equal(prisonState(days(10), 10, 25).inPrison, false);
+    const state = prisonState(days(10), 10, 26);
     assert.equal(state.inPrison, true);
-    assert.equal(state.entryDay, 14);
-    assert.equal(state.missed, 3);
+    assert.equal(state.entryDay, 26);
+    assert.equal(state.missed, 15);
   });
 
-  it("un membre qui n'a jamais posté entre en prison 3 jours après le début du suivi", () => {
-    assert.equal(prisonState(days(), 20, 22).inPrison, false);
-    assert.equal(prisonState(days(), 20, 23).inPrison, true);
+  it("un membre qui n'a jamais posté entre en prison 15 jours après le début du suivi", () => {
+    assert.equal(prisonState(days(), 20, 34).inPrison, false);
+    assert.equal(prisonState(days(), 20, 35).inPrison, true);
   });
 
   it("sort de prison au 3e jour de show-up d'affilée, dès le post", () => {
-    // Dernier show-up le jour 10, prison le jour 14, puis show-ups les jours 14, 15, 16.
-    assert.equal(prisonState(days(10, 14, 15), 10, 15).inPrison, true);
-    assert.equal(prisonState(days(10, 14, 15), 10, 15).daysToLeave, 1);
-    assert.equal(prisonState(days(10, 14, 15, 16), 10, 16).inPrison, false);
+    // Dernier show-up le jour 10, prison le jour 26, puis show-ups les jours 26, 27, 28.
+    assert.equal(prisonState(days(10, 26, 27), 10, 27).inPrison, true);
+    assert.equal(prisonState(days(10, 26, 27), 10, 27).daysToLeave, 1);
+    assert.equal(prisonState(days(10, 26, 27, 28), 10, 28).inPrison, false);
   });
 
-  it("reste en prison sans 3 jours d'affilée", () => {
-    const state = prisonState(days(10, 14, 16, 18, 20), 10, 21);
+  it("reste en prison sans 3 jours d'affilée, même avec plusieurs posts le même jour", () => {
+    const state = prisonState(days(10, 26, 28, 30, 32), 10, 33);
     assert.equal(state.inPrison, true);
-    // Le jour 20 compte : il lui reste aujourd'hui et demain.
+    // Le jour 32 compte : il lui reste aujourd'hui et demain.
     assert.equal(state.daysToLeave, 2);
   });
 
-  it('compte les jours sans show-up pour les paliers', () => {
-    const state = prisonState(days(10), 10, 21);
-    assert.equal(state.missed, 10);
-    assert.equal(prisonLevel(state.missed), 10);
+  it('un membre régulier ne va jamais en prison', () => {
+    assert.equal(prisonState(range(10, 60), 10, 60).inPrison, false);
   });
 });
 
 describe('prisonLevel', () => {
   it('donne le palier atteint', () => {
-    assert.equal(prisonLevel(2), 0);
-    assert.equal(prisonLevel(3), 3);
-    assert.equal(prisonLevel(7), 6);
-    assert.equal(prisonLevel(14), 10);
+    assert.equal(prisonLevel(14), 0);
+    assert.equal(prisonLevel(15), 15);
     assert.equal(prisonLevel(29), 15);
     assert.equal(prisonLevel(45), 30);
   });
 });
 
-describe('classements', () => {
+describe('needsWarning', () => {
+  const free = (missed) => ({ inPrison: false, missed });
+  it('alerte à partir de 10 jours sans show-up', () => {
+    assert.equal(needsWarning(free(9), 100, null), false);
+    assert.equal(needsWarning(free(10), 100, null), true);
+  });
+  it('une seule alerte par absence', () => {
+    assert.equal(needsWarning(free(11), 101, 100), false);
+    // Nouvelle absence commencée après la dernière alerte.
+    assert.equal(needsWarning(free(10), 140, 100), true);
+  });
+  it("pas d'alerte en prison", () => {
+    assert.equal(needsWarning({ inPrison: true, missed: 12 }, 100, null), false);
+  });
+});
+
+describe('leaderboard', () => {
   const free = { inPrison: false };
   const rows = [
-    { userId: 'a', category: 'free', prison: free, week: 5, weekReachedAt: 30, total: 20, totalReachedAt: 30 },
-    { userId: 'b', category: 'free', prison: free, week: 5, weekReachedAt: 10, total: 40, totalReachedAt: 10 },
-    { userId: 'c', category: 'free', prison: free, week: 5, weekReachedAt: 20, total: 40, totalReachedAt: 20 },
-    { userId: 'd', category: 'plug', prison: free, week: 9, weekReachedAt: 5, total: 90, totalReachedAt: 5 },
-    {
-      userId: 'e',
-      category: 'free',
-      prison: { inPrison: true, entryDay: 95, missed: 5 },
-      week: 0,
-      weekReachedAt: 0,
-      total: 99,
-      totalReachedAt: 1,
-    },
-    { userId: 'f', category: 'free', prison: free, week: 0, weekReachedAt: 0, total: 0, totalReachedAt: 0 },
+    { userId: 'a', category: 'free', prison: free, points: 5, pointsReachedAt: 30, total: 20 },
+    { userId: 'b', category: 'free', prison: free, points: 5, pointsReachedAt: 10, total: 40 },
+    { userId: 'c', category: 'free', prison: free, points: 5, pointsReachedAt: 20, total: 40 },
+    { userId: 'd', category: 'plug', prison: free, points: 9, pointsReachedAt: 5, total: 90 },
+    { userId: 'e', category: 'free', prison: { inPrison: true }, points: 8, pointsReachedAt: 1, total: 99 },
+    { userId: 'f', category: 'free', prison: free, points: 0, pointsReachedAt: 0, total: 0 },
   ];
 
-  it('départage la semaine par le total, puis par celui qui a atteint son score le premier', () => {
+  it('départage par le total, puis par celui qui a atteint son score le premier', () => {
     assert.deepEqual(
-      weeklyLeaderboard(rows, 'free').map((e) => e.userId),
+      leaderboard(rows, 'free').map((e) => e.userId),
       ['b', 'c', 'a'],
     );
   });
 
-  it('exclut les membres en prison et ceux qui ont 0 point', () => {
+  it('exclut les membres en prison et ceux qui ont 0 point, et sépare les catégories', () => {
     assert.deepEqual(
-      allTimeLeaderboard(rows, 'free').map((e) => e.userId),
-      ['b', 'c', 'a'],
-    );
-  });
-
-  it('sépare les catégories', () => {
-    assert.deepEqual(
-      weeklyLeaderboard(rows, 'plug').map((e) => e.userId),
+      leaderboard(rows, 'plug').map((e) => e.userId),
       ['d'],
     );
-  });
-
-  it('classe la prison par ancienneté', () => {
-    assert.deepEqual(prisonLeaderboard(rows, 'free', 100), [{ userId: 'e', score: 6, missed: 5 }]);
+    assert.ok(!leaderboard(rows, 'free').some((e) => e.userId === 'e' || e.userId === 'f'));
   });
 });

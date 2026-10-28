@@ -1,14 +1,23 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  elogesMessage,
   frenchList,
   ordinal,
   plural,
   prisonLevelMessages,
+  prisonWarningMessages,
+  rankingMessage,
   showupMessage,
   splitMessage,
+  streakRewardMessage,
 } from '../src/messages.js';
+
+const config = {
+  channels: { results: 'res' },
+  prisonExitChannelId: 'exit',
+  roles: { streak: 'feu', weekWinner: 'p7', monthWinner: 'p30', prisoner: 'pri' },
+  streakRoleDays: 21,
+};
 
 describe('messages', () => {
   it('accorde le pluriel', () => {
@@ -58,33 +67,64 @@ describe('messages', () => {
     assert.doesNotMatch(text, /Plug/);
   });
 
-  it('regroupe les membres qui atteignent le même palier', () => {
-    assert.deepEqual(prisonLevelMessages(3, ['1']), [
-      "🔒 <@1> vient d'entrer en prison : aucun show-up depuis 3 jours.\nPour sortir : 3 jours de show-up d'affilée.",
-    ]);
-    assert.match(prisonLevelMessages(6, ['1', '2'])[0], /^🔒 <@1> et <@2> s'enfoncent dans la prison : 6 jours/);
+  it('annonce le rôle de chaîne et sa réduction', () => {
+    assert.equal(
+      streakRewardMessage('1', config),
+      "🔥 <@1> atteint **21 jours d'affilée** et débloque <@&feu> : −15 % sur la formation !",
+    );
   });
 
-  it('découpe les longues listes de prison sous la limite de Discord', () => {
-    const ids = Array.from({ length: 150 }, (_, i) => String(100000000000000000n + BigInt(i)));
-    const messages = prisonLevelMessages(30, ids);
-    assert.equal(messages.length, 3);
+  it("alerte 5 jours avant la prison en disant ce qui va arriver", () => {
+    const [text] = prisonWarningMessages(['1', '2'], config);
+    assert.match(text, /^⚠️ <@1> et <@2> : 10 jours sans show-up\./);
+    assert.match(text, /Encore 5 jours sans résultat et c'est la prison : le rôle <@&pri>/);
+    assert.match(text, /<@&feu>, <@&p7>, <@&p30>/);
+    assert.match(text, /Un seul résultat dans <#res> suffit/);
+  });
+
+  it('regroupe les entrées en prison et explique comment sortir', () => {
+    assert.deepEqual(prisonLevelMessages(15, ['1'], config), [
+      "🔒 <@1> vient d'entrer en prison : 15 jours sans show-up.\n" +
+        "Pour sortir : 3 jours de show-up d'affilée dans <#res>, ou un ticket dans <#exit> pour justifier ton absence.",
+    ]);
+    assert.match(prisonLevelMessages(30, ['1', '2'], config)[0], /^🔒 <@1> et <@2> sont définitivement en prison/);
+  });
+
+  it('découpe les longues listes sous la limite de Discord', () => {
+    const ids = Array.from({ length: 290 }, (_, i) => String(100000000000000000n + BigInt(i)));
+    const messages = prisonLevelMessages(15, ids, config);
+    assert.equal(messages.length, 6);
     for (const message of messages) assert.ok(message.length <= 2000);
   });
 
-  it('publie les trois classements dans un seul message', () => {
-    const text = elogesMessage({
-      category: 'plug',
+  it('publie le classement avec les deux catégories et les gagnants', () => {
+    const text = rankingMessage({
+      kind: 'week',
+      title: 'Classement de la semaine',
       congrats: 'Bravo !',
-      weekly: [{ userId: '1', score: 12 }],
-      allTime: [{ userId: '2', score: 148 }],
-      prison: [{ userId: '3', score: 24 }],
+      sections: [
+        { category: 'free', entries: [{ userId: '1', score: 12 }, { userId: '2', score: 1 }] },
+        { category: 'plug', entries: [] },
+      ],
+      winners: ['1'],
+      config,
     });
-    assert.match(text, /Les éloges de la semaine — Plug/);
-    assert.match(text, /1\. <@1> — 12 points/);
-    assert.match(text, /1\. <@2> — 148 points/);
-    assert.match(text, /1\. <@3> — en prison depuis 24 jours/);
-    assert.ok(text.length <= 2000);
+    assert.equal(
+      text,
+      [
+        '⚡ **Classement de la semaine**',
+        'Bravo !',
+        '',
+        '**Free**',
+        '1. <@1> — 12 points',
+        '2. <@2> — 1 point',
+        '',
+        '**Plug**',
+        '_Personne pour cette période._',
+        '',
+        '⚡ <@1> remporte <@&p7> : −25 % sur la formation !',
+      ].join('\n'),
+    );
   });
 
   it('découpe un texte trop long sans couper les lignes', () => {
