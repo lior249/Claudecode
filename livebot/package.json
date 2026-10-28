@@ -1,0 +1,19 @@
+{
+  "name": "livebot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bot Discord qui annonce les lives de l'accompagnement avec un sondage de présence.",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "apercu": "node src/preview.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0"
+  }
+}
