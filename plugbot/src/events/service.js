@@ -333,20 +333,15 @@ export function createEventService({ config, db, events, guild, channels }) {
     const state = readJson('live_confirmation');
     const today = state?.day === slot.day ? state : null;
     if (today && (today.status !== 'pending' || today.lastSlot >= slot.slot)) return;
+    // Le créneau est noté avant l'envoi : si Discord refuse, PlugBot réessaie au créneau suivant,
+    // pas chaque minute.
+    const next = { day: slot.day, liveAt: slot.liveAt, status: 'pending', lastSlot: slot.slot, messageIds: today?.messageIds ?? [] };
+    db.setMeta('live_confirmation', JSON.stringify(next));
     const message = await reminderChannel.send({
       content: confirmationQuestion({ adminId, liveAt: slot.liveAt, first: !today }),
       allowedMentions: { users: [adminId] },
     });
-    db.setMeta(
-      'live_confirmation',
-      JSON.stringify({
-        day: slot.day,
-        liveAt: slot.liveAt,
-        status: 'pending',
-        lastSlot: slot.slot,
-        messageIds: [...(today?.messageIds ?? []), message.id],
-      }),
-    );
+    db.setMeta('live_confirmation', JSON.stringify({ ...next, messageIds: [...next.messageIds, message.id] }));
     await message.react(CONFIRM).catch(() => {});
     await message.react(REFUSE).catch(() => {});
   }
@@ -380,8 +375,12 @@ export function createEventService({ config, db, events, guild, channels }) {
     return (await onPlanningReaction(reaction)) || (await onConfirmationReaction(reaction, now));
   }
 
-  // Publie le panneau en haut du salon de création, s'il n'y est pas déjà.
-  async function ensurePanel() {
+  // Le panneau est-il en place ? Sinon, PlugBot réessaie à chaque tick (par exemple après une
+  // correction des permissions) et ne signale le problème qu'une fois.
+  let panelReady = false;
+  let panelFailed = false;
+
+  async function publishPanel() {
     const content = panelMessage({ reminderChannelId: channels.planningReminder?.id });
     const id = db.getMeta('events_panel_message');
     const existing = id ? await channels.planning.messages.fetch(id).catch(() => null) : null;
@@ -394,7 +393,28 @@ export function createEventService({ config, db, events, guild, channels }) {
     await panel.pin().catch(() => {});
   }
 
+  // Publie le panneau en haut du salon de création, s'il n'y est pas déjà. Ne lève jamais d'erreur.
+  async function ensurePanel() {
+    try {
+      await publishPanel();
+    } catch (error) {
+      if (!panelFailed) {
+        console.error(
+          `[PlugBot] Le panneau des événements n'a pas pu être publié dans #${channels.planning.name} : ${error.message}. ` +
+            'Vérifie que PlugBot a accès à ce salon (voir le salon, envoyer des messages, voir les anciens messages). ' +
+            'Il réessaie chaque minute.',
+        );
+      }
+      panelFailed = true;
+      return;
+    }
+    if (panelFailed) console.log('[PlugBot] Panneau des événements publié.');
+    panelReady = true;
+    panelFailed = false;
+  }
+
   async function tick(now) {
+    if (!panelReady) await ensurePanel();
     await planningTick(now);
     await confirmationTick(now);
     await sendDueReminders(now);

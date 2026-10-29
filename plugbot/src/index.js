@@ -77,13 +77,6 @@ client.once(Events.ClientReady, (readyClient) =>
     await guild.members.fetch();
     const ctx = { config, db, tracker, events, guild, channels: await fetchChannels(guild) };
     ctx.prison = createPrison(ctx);
-    if (ctx.channels.planning && ctx.channels.announceFree && ctx.channels.announcePlug) {
-      ctx.eventService = createEventService(ctx);
-      await ctx.eventService.ensurePanel();
-      onInteraction = createInteractionHandler(ctx, ctx.eventService);
-    } else {
-      console.warn('[PlugBot] Planification des événements désactivée : PLANNING_CHANNEL_ID, ANNOUNCE_FREE_CHANNEL_ID ou ANNOUNCE_PLUG_CHANNEL_ID manque dans .env (ou le salon est introuvable).');
-    }
 
     if (!ctx.channels.allTime) console.warn('[PlugBot] ALLTIME_CHANNEL_ID absent du .env : le top all-time ne sera pas publié.');
     const problems = findPermissionProblems(ctx);
@@ -91,6 +84,16 @@ client.once(Events.ClientReady, (readyClient) =>
       console.error(`[PlugBot] Permissions à corriger sur Discord :\n${problems.map((problem) => `  - ${problem}`).join('\n')}`);
     } else {
       console.log('[PlugBot] Permissions OK.');
+    }
+
+    // La planification des événements ne doit jamais empêcher le reste de PlugBot de démarrer :
+    // si le panneau ne peut pas être publié, PlugBot le signale et réessaie chaque minute.
+    if (ctx.channels.planning && ctx.channels.announceFree && ctx.channels.announcePlug) {
+      ctx.eventService = createEventService(ctx);
+      await ctx.eventService.ensurePanel();
+      onInteraction = createInteractionHandler(ctx, ctx.eventService);
+    } else {
+      console.warn('[PlugBot] Planification des événements désactivée : PLANNING_CHANNEL_ID, ANNOUNCE_FREE_CHANNEL_ID ou ANNOUNCE_PLUG_CHANNEL_ID manque dans .env (ou le salon est introuvable).');
     }
 
     const ready = createHandlers(ctx);

@@ -19,6 +19,7 @@ let nextId = 1;
 function fakeTextChannel(id) {
   const channel = {
     id,
+    name: id,
     sent: [],
     send: async (payload) => {
       const message = typeof payload === 'string' ? { content: payload } : payload;
@@ -237,7 +238,11 @@ describe('planification des événements', () => {
   it('demande le planning le dimanche dans le salon des rappels, et relance jusqu’à « J’ai fini »', async () => {
     const reminders = env.channels.planningReminder;
     await env.service.tick(Date.UTC(2026, 10, 1, 9));
-    assert.equal(env.channels.planning.sent.length, 0, 'rien dans le salon de création');
+    assert.deepEqual(
+      env.channels.planning.sent.map((m) => m.content.split('\n')[0]),
+      ['🎛️ **Créer un événement — panneau PlugBot**'],
+      'dans le salon de création, seulement le panneau',
+    );
     assert.match(reminders.sent[0].content, /^<@900>\n📅 \*\*Planning de la semaine du lundi 2 novembre au dimanche 8 novembre\*\*/);
     assert.match(reminders.sent[0].content, /mercredi 4 novembre à 22 h 00 \(GMT\) et vendredi 6 novembre à 22 h 00 \(GMT\)/);
     assert.match(reminders.sent[0].content, /👍 \*\*Oui\*\*, j'ai des événements à créer\n👎 \*\*Non\*\*, rien à créer cette semaine/);
@@ -357,6 +362,25 @@ describe('planification des événements', () => {
     assert.equal(env.channels.planning.sent.length, 1);
     assert.match(env.channels.planning.sent[0].content, /^🎛️ \*\*Créer un événement — panneau PlugBot\*\*/);
     assert.match(env.channels.planning.sent[0].content, /Les rappels pour planifier tes événements arrivent dans <#rappels>\.$/);
+  });
+
+  it('continue sans panneau si Discord le refuse, puis le publie dès que c’est possible', async (t) => {
+    const errors = [];
+    t.mock.method(console, 'error', (message) => errors.push(message));
+    t.mock.method(console, 'log', () => {});
+    const planning = env.channels.planning;
+    const send = planning.send;
+    planning.send = async () => {
+      throw Object.assign(new Error('Missing Access'), { code: 50001 });
+    };
+    await env.service.ensurePanel();
+    await env.service.tick(NOW);
+    assert.equal(errors.length, 1, 'signalé une seule fois');
+    assert.match(errors[0], /Le panneau des événements n'a pas pu être publié dans #planning : Missing Access\./);
+
+    planning.send = send;
+    await env.service.tick(NOW + 60_000);
+    assert.match(planning.sent[0].content, /Créer un événement/);
   });
 
   it('ouvre un ou plusieurs tickets depuis le panneau', async () => {
