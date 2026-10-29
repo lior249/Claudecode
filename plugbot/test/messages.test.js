@@ -1,25 +1,26 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  allTimeMessage,
+  boardEmbed,
   challengeLaunchMessage,
+  dailyRankingMessage,
   frenchList,
   monthReminderMessage,
   ordinal,
   plural,
+  prisonCountdownMessage,
   prisonEntryMessages,
   prisonFinalMessages,
-  prisonWarningMessages,
   rankingMessage,
   showupMessage,
   splitMessage,
-  standingsMessage,
   weeklyRecapMessage,
   winnerMessage,
 } from '../src/messages.js';
+import { ALL_TIME } from '../src/time.js';
 
 const config = {
-  channels: { results: 'res' },
+  channels: { results: 'res', month: 'top30', allTime: 'alltime' },
   links: { bonusWeek: 'b7', bonusMonth: 'b30', bonusStreak: 'b21', guide: 'guide' },
   roles: { streak: 'feu', weekWinner: 'p7', monthWinner: 'p30', prisoner: 'pri' },
   streakRoleDays: 21,
@@ -111,34 +112,37 @@ describe('messages', () => {
     const text = weeklyRecapMessage(config);
     assert.match(text, /^@everyone\n🏆 \*\*Voici ce que tu gagnes en postant tes résultats sur la plateforme :\*\*/);
     assert.match(text, /★ \*\*Top 30\*\* : le top 30 récapitule les 10 meilleurs membres du serveur sur les 30 derniers jours\. Termine 1er du classement Free et tu gagnes le rôle <@&p30>, qui te débloque −35 %/);
-    assert.match(text, /⚡ \*\*Top 7\*\* : .*<@&p7>, qui te débloque −25 % sur la formation\./);
+    assert.match(text, /⚡ \*\*Top 7\*\* : le top 7 récapitule les 10 meilleurs .*<@&p7>, qui te débloque −25 % sur la formation\./);
     assert.match(text, /🔥 \*\*21 jours d'affilée\*\* : .*<@&feu>, qui te débloque −15 % sur la formation\./);
     assert.match(text, /⚠️ Attention : tous les membres inactifs qui ne passent pas à l'action vont intégrer la prison\./);
     assert.match(text, /Pour comprendre ces classements en détail, regarde <#guide>\.$/);
   });
 
-  it("alerte 5 jours avant la prison, puis liste les membres concernés", () => {
-    assert.deepEqual(prisonWarningMessages(['1', '2'], config), [
+  it('compte à rebours de la prison : chaque membre sous le nombre de jours qu’il lui reste, le plus urgent d’abord', () => {
+    assert.equal(
+      prisonCountdownMessage([{ daysLeft: 1, userIds: ['1'] }, { daysLeft: 4, userIds: ['2', '3'] }], config),
       [
-        '⚠️ **Alerte : tu vas en prison.**',
-        "Dans 5 jours, tu iras en prison, parce que tu n'as posté aucun résultat montrant que tu es actif sur TikTok.",
-        'Si tu veux éviter ça, poste une vidéo et envoie le résultat dans les 5 jours qui viennent. Sinon, tu rejoindras la prison.',
+        '⚠️ **Alerte : tu vas bientôt aller en prison.**',
+        "Ça fait trop longtemps que tu n'as posté aucun résultat montrant que tu es actif sur TikTok.",
         '(La prison te coupe tous les accès principaux du Discord : écrire dans les salons, rejoindre les lives, accéder aux réductions, etc.)',
         'Pour éviter que ça arrive, envoie juste un seul résultat dans <#res>, le plus vite possible.',
+        'Pour comprendre exactement ce que signifie aller en prison, regarde <#guide>.',
         '',
-        "Voici tous ceux qui iront en prison dans 5 jours s'ils ne postent aucun résultat :",
-        '<@1> <@2>',
+        "🚨 Il te reste **1 jour** avant d'aller en prison : c'est ton dernier jour, poste avant minuit (GMT) !",
+        '<@1>',
+        '',
+        "⏳ Il te reste **4 jours** avant d'aller en prison :",
+        '<@2> <@3>',
       ].join('\n'),
-    ]);
+    );
   });
 
-  it("continue la liste de l'alerte dans d'autres messages si elle est trop longue", () => {
-    const ids = Array.from({ length: 120 }, (_, i) => String(100000000000000000n + BigInt(i)));
-    const messages = prisonWarningMessages(ids, config);
-    assert.equal(messages.length, 3);
-    assert.match(messages[0], /^⚠️/);
-    assert.match(messages[1], /^<@/);
-    for (const message of messages) assert.ok(message.length <= 2000);
+  it('découpe un long compte à rebours sous la limite de Discord', () => {
+    const ids = Array.from({ length: 290 }, (_, i) => String(100000000000000000n + BigInt(i)));
+    const parts = splitMessage(prisonCountdownMessage([{ daysLeft: 5, userIds: ids }], config));
+    assert.ok(parts.length > 1);
+    assert.ok(parts.every((part) => part.length <= 2000));
+    assert.equal(parts.join('\n').match(/<@\d+>/g).length, 290, 'personne ne disparaît');
   });
 
   it('annonce les entrées en prison, comment en sortir et où lire le guide', () => {
@@ -217,7 +221,7 @@ describe('messages', () => {
         '@everyone',
         '⚡ **Le challenge de la semaine est lancé !**',
         "Depuis dimanche 20 h 30 et jusqu'à dimanche prochain 20 h 30 (GMT), chaque résultat posté dans <#res> te rapporte 1 point.",
-        'Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.',
+        'Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement en direct, en bas du salon, se met à jour à chaque résultat posté.',
         'Accompagnement et Free ont chacun leur classement.',
         '',
         '⚡ Le meilleur Free de la semaine remporte <@&p7> : −25 % sur la formation !',
@@ -253,27 +257,45 @@ describe('messages', () => {
     );
   });
 
-  it('publie le classement du jour avec les jours restants', () => {
-    const text = standingsMessage({
-      kind: 'week',
-      sections: [
-        { category: 'plug', entries: [] },
-        { category: 'free', entries: [{ userId: '1', score: 4 }] },
-      ],
-      daysLeft: 5,
-      end: Date.UTC(2026, 10, 8, 20, 30),
-      config,
-    });
-    assert.match(text, /^@everyone\n⚡ \*\*Challenge de la semaine — classement du jour\*\*\nPlus que 5 jours avant la fin, dimanche à 20 h 30 \(GMT\)/);
-    assert.match(text, /\*\*Accompagnement\*\*\n_Personne pour l'instant\. Sois le premier !_/);
-    assert.match(text, /\*\*Free\*\*\n1\. <@1> — 4 points/);
-    assert.match(standingsMessage({ kind: 'week', sections: [], daysLeft: 1, end: 0, config }), /Dernier jour avant la fin/);
+  it('invite tout le monde à consulter son classement le soir, avec les premiers et un rappel de la prison', () => {
+    assert.equal(
+      dailyRankingMessage({ leaders: [{ category: 'plug', userId: '3' }, { category: 'free', userId: '1' }], config }),
+      [
+        '@everyone',
+        '📊 **Venez consulter votre classement pour voir où vous vous trouvez !**',
+        '👇 Le classement de la semaine est juste en dessous. Retrouvez aussi celui du mois dans <#top30> et le classement all-time dans <#alltime>.',
+        '',
+        '🥇 En tête cette semaine : <@3> (Accompagnement) et <@1> (Free). Bravo !',
+        '',
+        "⚠️ Tous ceux qui n'ont rien posté : vous allez probablement aller en prison d'ici 21 jours (15 jours pour l'accompagnement). Commencez à poster vos résultats dans <#res> !",
+      ].join('\n'),
+    );
+    assert.doesNotMatch(dailyRankingMessage({ leaders: [], config }), /En tête/);
   });
 
-  it('publie le top all-time', () => {
-    const text = allTimeMessage({ sections: [{ category: 'plug', entries: [{ userId: '3', score: 140 }] }, { category: 'free', entries: [] }] });
-    assert.match(text, /^@everyone\n👑 \*\*Classement all-time\*\*/);
-    assert.match(text, /\*\*Accompagnement\*\*\n1\. <@3> — 140 points/);
+  it('affiche le classement en direct dans un encadré, sans notifier personne', () => {
+    const sections = [
+      { category: 'plug', entries: [] },
+      { category: 'free', entries: Array.from({ length: 4 }, (_, i) => ({ userId: String(i + 1), score: 10 - i })) },
+    ];
+    const end = Date.UTC(2026, 10, 8, 20, 30);
+    const week = boardEmbed({ kind: 'week', sections, range: { start: end - 7 * 86400000, end }, trial: false, config });
+    assert.equal(week.title, '⚡ Top 7 — challenge de la semaine');
+    assert.match(week.description, /^Mis à jour en direct, à chaque résultat posté dans <#res>\.\n⏳ Fin : dimanche 8 novembre à 20 h 30 \(GMT\), <t:1794169800:R>\./);
+    assert.match(week.description, /⚡ Le meilleur Free de la semaine remporte <@&p7> : −25 % sur la formation !$/);
+    assert.deepEqual(week.fields, [
+      { name: 'Accompagnement', value: "_Personne pour l'instant. Sois le premier !_" },
+      { name: 'Free', value: '🥇 <@1> — 10 points\n🥈 <@2> — 9 points\n🥉 <@3> — 8 points\n4. <@4> — 7 points' },
+    ]);
+
+    const month = boardEmbed({ kind: 'month', sections, range: { start: 0, end: Date.UTC(2026, 9, 31, 20, 30) }, trial: true, config });
+    assert.equal(month.title, "★ Top 30 — challenge du mois d'octobre 2026");
+    assert.match(month.description, /le 31 octobre à 20 h 30 \(GMT\)/);
+    assert.match(month.description, /🧪 PlugBot est arrivé en cours de mois : ce classement est un essai/);
+
+    const allTime = boardEmbed({ kind: 'allTime', sections, range: ALL_TIME, trial: false, config });
+    assert.equal(allTime.title, '👑 Top all-time');
+    assert.doesNotMatch(allTime.description, /Fin/);
   });
 
   it('découpe un texte trop long sans couper les lignes', () => {

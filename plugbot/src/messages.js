@@ -1,6 +1,6 @@
 // Tous les textes publiés par PlugBot.
 
-import { DAYS_TO_LEAVE_PRISON, FINAL_PRISON_DAYS, WARNING_DAYS_BEFORE } from './stats.js';
+import { DAYS_TO_LEAVE_PRISON, FINAL_PRISON_DAYS, PRISON_DAYS } from './stats.js';
 import { EVENING_HOUR, EVENING_MINUTE, WEEK_MS, dayAndMonth, monthName } from './time.js';
 
 export const MAX_LENGTH = 2000;
@@ -20,7 +20,7 @@ export const REWARDS = {
 const EVENING_TIME = `${EVENING_HOUR} h${EVENING_MINUTE ? ` ${String(EVENING_MINUTE).padStart(2, '0')}` : ''}`;
 const EVENING = `${EVENING_TIME} (GMT)`;
 
-// Tous les messages des salons top et le récap du dimanche commencent par @everyone :
+// Les annonces des salons top et le récap du dimanche commencent par @everyone :
 // tout le serveur est notifié.
 const EVERYONE = '@everyone';
 
@@ -126,10 +126,10 @@ export function weeklyRecapMessage(config) {
     EVERYONE,
     '🏆 **Voici ce que tu gagnes en postant tes résultats sur la plateforme :**',
     '',
-    '★ **Top 30** : le top 30 récapitule les 10 meilleurs membres du serveur sur les 30 derniers jours. ' +
+    `★ **Top 30** : le top 30 récapitule les ${CHALLENGES.month.size} meilleurs membres du serveur sur les 30 derniers jours. ` +
       `Termine 1er du classement Free et tu gagnes le rôle ${roleMention(roles.monthWinner)}, qui te débloque ${REWARDS.monthWinner}.`,
     '',
-    '⚡ **Top 7** : le top 7 récapitule les 5 meilleurs membres du serveur sur les 7 derniers jours. ' +
+    `⚡ **Top 7** : le top 7 récapitule les ${CHALLENGES.week.size} meilleurs membres du serveur sur les 7 derniers jours. ` +
       `Termine 1er du classement Free et tu gagnes le rôle ${roleMention(roles.weekWinner)}, qui te débloque ${REWARDS.weekWinner}.`,
     '',
     `🔥 **${streakRoleDays} jours d'affilée** : poste un résultat tous les jours pendant ${streakRoleDays} jours d'affilée ` +
@@ -143,17 +143,26 @@ export function weeklyRecapMessage(config) {
 
 // --- #la-prison ---
 
-export function prisonWarningMessages(userIds, config) {
-  const header = [
-    '⚠️ **Alerte : tu vas en prison.**',
-    `Dans ${WARNING_DAYS_BEFORE} jours, tu iras en prison, parce que tu n'as posté aucun résultat montrant que tu es actif sur TikTok.`,
-    `Si tu veux éviter ça, poste une vidéo et envoie le résultat dans les ${WARNING_DAYS_BEFORE} jours qui viennent. Sinon, tu rejoindras la prison.`,
+// Chaque jour à 18 h : les membres à 5 jours ou moins de la prison, chacun mentionné sous le nombre
+// de jours qu'il lui reste. groups : [{ daysLeft, userIds }], du plus urgent au moins urgent.
+export function prisonCountdownMessage(groups, config) {
+  const lines = [
+    '⚠️ **Alerte : tu vas bientôt aller en prison.**',
+    "Ça fait trop longtemps que tu n'as posté aucun résultat montrant que tu es actif sur TikTok.",
     '(La prison te coupe tous les accès principaux du Discord : écrire dans les salons, rejoindre les lives, accéder aux réductions, etc.)',
     `Pour éviter que ça arrive, envoie juste un seul résultat dans ${channelMention(config.channels.results)}, le plus vite possible.`,
-    '',
-    `Voici tous ceux qui iront en prison dans ${WARNING_DAYS_BEFORE} jours s'ils ne postent aucun résultat :`,
-  ].join('\n');
-  return withMentionList(header, userIds);
+    `Pour comprendre exactement ce que signifie aller en prison, regarde ${channelMention(config.links.guide)}.`,
+  ];
+  for (const { daysLeft, userIds } of groups) {
+    lines.push(
+      '',
+      daysLeft === 1
+        ? "🚨 Il te reste **1 jour** avant d'aller en prison : c'est ton dernier jour, poste avant minuit (GMT) !"
+        : `⏳ Il te reste **${plural(daysLeft, 'jour')}** avant d'aller en prison :`,
+      ...inGroups(userIds).map((group) => group.map(mention).join(' ')),
+    );
+  }
+  return lines.join('\n');
 }
 
 function wayOutOfPrison(config) {
@@ -192,7 +201,7 @@ export function prisonReleaseMessage(userId) {
   return `🔓 ${mention(userId)} a été libéré de prison par l'équipe.`;
 }
 
-// --- #top-7 et #top-30 ---
+// --- #top-7, #top-30 et #top-all-time ---
 
 const CONGRATULATIONS = [
   'Énorme travail, bravo à tous ceux qui se sont montrés !',
@@ -207,7 +216,7 @@ export function congratulations(periodStart) {
 }
 
 const CHALLENGES = {
-  week: { emoji: '⚡', role: 'weekWinner', size: 5 },
+  week: { emoji: '⚡', role: 'weekWinner', size: 10 },
   month: { emoji: '★', role: 'monthWinner', size: 10 },
 };
 
@@ -234,7 +243,7 @@ function ofMonth(end) {
 }
 
 function endLabel(kind, end) {
-  return kind === 'week' ? `dimanche à ${EVENING}` : `le ${dayAndMonth(end)} à ${EVENING}`;
+  return `${kind === 'week' ? 'dimanche' : 'le'} ${dayAndMonth(end)} à ${EVENING}`;
 }
 
 function periodLabel(kind, start, end) {
@@ -252,26 +261,11 @@ export function challengeLaunchMessage({ kind, start, end, config }) {
     `${emoji} **${title}**`,
     `${periodLabel(kind, start, end)}, chaque résultat posté dans ${channelMention(config.channels.results)} te rapporte 1 point.`,
     kind === 'week'
-      ? 'Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement est mis à jour tous les soirs.'
+      ? 'Poste chaque jour pour montrer que tu es actif sur TikTok. Le classement en direct, en bas du salon, se met à jour à chaque résultat posté.'
       : "C'est le début du mois : participe à ce challenge pour obtenir tes résultats !",
     'Accompagnement et Free ont chacun leur classement.',
     '',
     prizeLine(kind, config, kind === 'week' ? 'Le meilleur Free de la semaine remporte' : 'Le meilleur Free du mois remporte'),
-  ].join('\n');
-}
-
-// Classement en cours de challenge : tous les soirs du mardi au samedi (semaine), le dimanche (mois).
-export function standingsMessage({ kind, sections, daysLeft, end, config }) {
-  const { emoji } = CHALLENGES[kind];
-  const title = kind === 'week' ? 'Challenge de la semaine — classement du jour' : `Challenge du mois ${ofMonth(end)} — classement provisoire`;
-  const remaining = daysLeft <= 1 ? 'Dernier jour' : `Plus que ${daysLeft} jours`;
-  return [
-    EVERYONE,
-    `${emoji} **${title}**`,
-    `${remaining} avant la fin, ${endLabel(kind, end)}. Chaque résultat compte : rien n'est encore joué !`,
-    ...sectionLines(sections, "_Personne pour l'instant. Sois le premier !_"),
-    '',
-    prizeLine(kind, config, kind === 'week' ? 'À la fin de la semaine, le meilleur Free remporte' : 'À la fin du mois, le meilleur Free remporte'),
   ].join('\n');
 }
 
@@ -305,18 +299,70 @@ export function rankingMessage({ kind, title, congrats, sections, config }) {
   return lines.join('\n');
 }
 
-// Chaque dimanche soir, dans #top-all-time.
-export function allTimeMessage({ sections }) {
-  return [
+// Du mardi au samedi à 20 h 30, dans #top-7, juste au-dessus du classement en direct.
+// leaders : le premier de chaque catégorie cette semaine ({ category, userId }, l'accompagnement d'abord).
+export function dailyRankingMessage({ leaders, config }) {
+  const { channels } = config;
+  const others = [`celui du mois dans ${channelMention(channels.month)}`];
+  if (channels.allTime) others.push(`le classement all-time dans ${channelMention(channels.allTime)}`);
+  const lines = [
     EVERYONE,
-    '👑 **Classement all-time**',
-    'Les membres les plus réguliers depuis le lancement de PlugBot. Chaque résultat posté te fait monter !',
-    ...sectionLines(sections, "_Personne pour l'instant._"),
+    '📊 **Venez consulter votre classement pour voir où vous vous trouvez !**',
+    `👇 Le classement de la semaine est juste en dessous. Retrouvez aussi ${frenchList(others)}.`,
+  ];
+  if (leaders.length > 0) {
+    const names = leaders.map(({ category, userId }) => `${mention(userId)} (${CATEGORY_LABELS[category]})`);
+    lines.push('', `🥇 En tête cette semaine : ${frenchList(names)}. Bravo !`);
+  }
+  lines.push(
     '',
-    "Les membres en prison n'apparaissent pas dans ce classement.",
-  ].join('\n');
+    `⚠️ Tous ceux qui n'ont rien posté : vous allez probablement aller en prison d'ici ${PRISON_DAYS.free} jours ` +
+      `(${PRISON_DAYS.plug} jours pour l'accompagnement). Commencez à poster vos résultats dans ${channelMention(channels.results)} !`,
+  );
+  return lines.join('\n');
 }
 
+const MEDALS = ['🥇', '🥈', '🥉'];
+const BOARD_COLORS = { week: 0xf1c40f, month: 0x9b59b6, allTime: 0xe67e22 };
+
+function boardLines(entries) {
+  if (entries.length === 0) return "_Personne pour l'instant. Sois le premier !_";
+  return entries
+    .map((entry, index) => `${MEDALS[index] ?? `${index + 1}.`} ${mention(entry.userId)} — ${plural(entry.score, 'point')}`)
+    .join('\n');
+}
+
+// Le classement en direct d'un salon top (kind : week, month ou allTime), sous forme d'encadré.
+// Le même message est modifié à chaque changement : les membres cités ne sont jamais notifiés.
+// trial : le challenge a commencé avant l'arrivée de PlugBot, il ne donne pas de récompense.
+export function boardEmbed({ kind, sections, range, trial, config }) {
+  const live = `Mis à jour en direct, à chaque résultat posté dans ${channelMention(config.channels.results)}.`;
+  let title;
+  let description;
+  if (kind === 'allTime') {
+    title = '👑 Top all-time';
+    description = ['Les membres les plus réguliers depuis le lancement de PlugBot.', live];
+  } else {
+    const { emoji } = CHALLENGES[kind];
+    title = kind === 'week' ? `${emoji} Top 7 — challenge de la semaine` : `${emoji} Top 30 — challenge du mois ${ofMonth(range.end)}`;
+    // <t:…:R> : Discord affiche le temps restant (« dans 3 jours ») et le tient à jour tout seul.
+    description = [live, `⏳ Fin : ${endLabel(kind, range.end)}, <t:${Math.floor(range.end / 1000)}:R>.`, ''];
+    description.push(
+      trial
+        ? `🧪 PlugBot est arrivé en cours de ${kind === 'week' ? 'semaine' : 'mois'} : ce classement est un essai et ne donne pas de récompense. Le premier vrai challenge commence à la fin de celui-ci.`
+        : prizeLine(kind, config, kind === 'week' ? 'Le meilleur Free de la semaine remporte' : 'Le meilleur Free du mois remporte'),
+    );
+  }
+  return {
+    color: BOARD_COLORS[kind],
+    title,
+    description: description.join('\n'),
+    fields: sections.map(({ category, entries }) => ({ name: CATEGORY_LABELS[category], value: boardLines(entries) })),
+    footer: { text: "Les membres en prison n'apparaissent pas dans les classements." },
+  };
+}
+
+// Nombre de membres affichés dans chaque catégorie de chaque classement.
 export const RANKING_SIZES = { week: CHALLENGES.week.size, month: CHALLENGES.month.size, allTime: 10 };
 
 // Découpe un texte trop long en plusieurs messages, sans couper les lignes.

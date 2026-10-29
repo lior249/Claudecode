@@ -7,6 +7,8 @@ export const WEEK_MS = 7 * DAY_MS;
 export const EVENING_HOUR = 20;
 export const EVENING_MINUTE = 30;
 export const EVENING_MS = (EVENING_HOUR * 60 + EVENING_MINUTE) * 60 * 1000;
+// Heure du compte à rebours de la prison, en temps universel (GMT).
+export const PRISON_COUNTDOWN_HOUR = 18;
 // Toute la période depuis le lancement, pour le classement all-time.
 export const ALL_TIME = { start: 0, end: Number.MAX_SAFE_INTEGER };
 
@@ -60,7 +62,8 @@ export function monthName(end) {
   return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(end);
 }
 
-// « 30 novembre »
+// « 30 novembre », et « 1er novembre » pour le premier du mois.
 export function dayAndMonth(timestamp) {
-  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(timestamp);
+  const text = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(timestamp);
+  return text.replace(/^1 /, '1er ');
 }

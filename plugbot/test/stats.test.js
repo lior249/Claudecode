@@ -3,10 +3,10 @@ import { describe, it } from 'node:test';
 import {
   PRISON_DAYS,
   chainLength,
+  countdownDays,
   isProof,
   leaderboard,
   missedDays,
-  needsWarning,
   trackingStartDay,
 } from '../src/stats.js';
 import {
@@ -49,6 +49,7 @@ describe('time', () => {
     });
     assert.equal(monthName(Date.UTC(2026, 10, 30, 20, 30)), 'novembre 2026');
     assert.equal(dayAndMonth(Date.UTC(2026, 10, 30, 20, 30)), '30 novembre');
+    assert.equal(dayAndMonth(Date.UTC(2026, 10, 1, 20, 30)), '1er novembre');
   });
 
   it('les jours changent à minuit UTC, et le soir à 20 h 30', () => {
@@ -112,20 +113,16 @@ describe('missedDays', () => {
   });
 });
 
-describe('needsWarning', () => {
-  it("alerte 5 jours avant la prison : à 16 jours pour les Free, à 10 pour l'accompagnement", () => {
-    assert.equal(needsWarning(15, PRISON_DAYS.free, 100, null), false);
-    assert.equal(needsWarning(16, PRISON_DAYS.free, 100, null), true);
-    assert.equal(needsWarning(9, PRISON_DAYS.plug, 100, null), false);
-    assert.equal(needsWarning(10, PRISON_DAYS.plug, 100, null), true);
+describe('countdownDays', () => {
+  it("compte à rebours sur les 5 derniers jours : à 16 jours sans show-up pour les Free, à 10 pour l'accompagnement", () => {
+    assert.equal(countdownDays(15, PRISON_DAYS.free), null);
+    assert.equal(countdownDays(16, PRISON_DAYS.free), 5);
+    assert.equal(countdownDays(20, PRISON_DAYS.free), 1);
+    assert.equal(countdownDays(9, PRISON_DAYS.plug), null);
+    assert.equal(countdownDays(10, PRISON_DAYS.plug), 5);
   });
-  it('une seule alerte par absence', () => {
-    assert.equal(needsWarning(17, 21, 101, 100), false);
-    // Nouvelle absence commencée après la dernière alerte.
-    assert.equal(needsWarning(16, 21, 140, 100), true);
-  });
-  it("pas d'alerte une fois le délai atteint", () => {
-    assert.equal(needsWarning(21, 21, 100, null), false);
+  it('plus de compte à rebours une fois le délai atteint', () => {
+    assert.equal(countdownDays(21, PRISON_DAYS.free), null);
   });
 });
 

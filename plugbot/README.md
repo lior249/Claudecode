@@ -26,6 +26,7 @@ Le fonctionnement complet est décrit dans [`SPEC.md`](SPEC.md).
 
 - PlugBot doit pouvoir voir flex-resultats, et voir et écrire dans show-up, top-7, top-30, top-all-time et la-prison.
 - Dans show-up, top-7, top-30 et top-all-time, PlugBot doit aussi pouvoir **mentionner @everyone, @here et tous les rôles** : les annonces notifient tout le serveur.
+- Dans top-7, top-30 et top-all-time, PlugBot doit aussi pouvoir **intégrer des liens** et **voir les anciens messages** : le classement en direct est un encadré, que PlugBot retrouve et modifie.
 - PlugBot n'a pas besoin d'accès aux salons bonus-top7, bonus-top30, bonus-21j et guide-serveur : il les mentionne seulement.
 - Les membres doivent pouvoir lire ces cinq salons, sans y écrire.
 - flex-resultats : mode lent de 15 minutes.
@@ -129,7 +130,8 @@ npm test
 - `src/index.js` : démarrage et événements Discord.
 - `src/handlers.js` : résultats postés, ❌ de l'admin, messages supprimés, changements de rôle.
 - `src/prison.js` : entrées et sorties de prison (rôle Prisonnier, récompenses mises de côté).
-- `src/jobs.js` : prison (chaque jour à minuit UTC), publications de 20 h 30 GMT (top-7, top-30, top-all-time, récap), messages aux gagnants.
+- `src/jobs.js` : prison (chaque jour à minuit UTC), compte à rebours de la prison (18 h GMT), publications de 20 h 30 GMT (top-7, top-30, récap), messages aux gagnants.
+- `src/boards.js` : les classements en direct, un message modifié à chaque changement dans top-7, top-30 et top-all-time.
 - `src/checks.js` : vérification des permissions au démarrage.
 - `src/sync.js` : premier lancement et rattrapage après une coupure.
 - `src/stats.js` : calculs des chaînes, de la prison et des classements.

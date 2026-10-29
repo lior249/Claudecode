@@ -4,6 +4,7 @@ const PERMISSION_LABELS = {
   ViewChannel: 'Voir le salon',
   SendMessages: 'Envoyer des messages',
   ReadMessageHistory: "Voir les anciens messages",
+  EmbedLinks: 'Intégrer des liens',
   AddReactions: 'Ajouter des réactions',
   MentionEveryone: 'Mentionner @everyone, @here et tous les rôles',
   SendPolls: 'Créer des sondages',
@@ -15,10 +16,12 @@ const PERMISSION_LABELS = {
 const CHANNEL_NEEDS = {
   results: ['ViewChannel', 'ReadMessageHistory', 'AddReactions'],
   showup: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
-  week: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
-  month: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
+  // Salons top : le classement en direct est un encadré (« Intégrer des liens »), retrouvé après un
+  // redémarrage (« Voir les anciens messages »).
+  week: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'EmbedLinks', 'MentionEveryone'],
+  month: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'EmbedLinks', 'MentionEveryone'],
   prison: ['ViewChannel', 'SendMessages'],
-  allTime: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
+  allTime: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'EmbedLinks', 'MentionEveryone'],
   planning: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AddReactions', 'CreatePublicThreads', 'SendMessagesInThreads', 'ManageThreads'],
   announceFree: ['ViewChannel', 'SendMessages', 'MentionEveryone', 'SendPolls'],
   announcePlug: ['ViewChannel', 'SendMessages', 'MentionEveryone', 'SendPolls'],

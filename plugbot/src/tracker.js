@@ -1,7 +1,10 @@
 // Relie la base de données aux membres du serveur : catégorie, chaîne, prison, points.
 
-import { DAYS_TO_LEAVE_PRISON, PRISON_DAYS, chainLength, missedDays, trackingStartDay } from './stats.js';
+import { DAYS_TO_LEAVE_PRISON, PRISON_DAYS, chainLength, leaderboard, missedDays, trackingStartDay } from './stats.js';
 import { dayOf, weekRange } from './time.js';
+
+// L'accompagnement est toujours affiché avant les Free.
+const CATEGORIES = ['plug', 'free'];
 
 export function createTracker({ config, db }) {
   function categoryOf(member) {
@@ -61,5 +64,11 @@ export function createTracker({ config, db }) {
     return rows;
   }
 
-  return { categoryOf, isTracked, syncCategory, snapshot };
+  // Les classements de la période `range` : les `size` premiers de chaque catégorie, l'accompagnement d'abord.
+  function rankings(members, now, range, size) {
+    const rows = [...snapshot(members, now, range).values()];
+    return CATEGORIES.map((category) => ({ category, entries: leaderboard(rows, category).slice(0, size) }));
+  }
+
+  return { categoryOf, isTracked, syncCategory, snapshot, rankings };
 }

@@ -47,18 +47,20 @@ export function createHandlers(ctx) {
     return null;
   }
 
-  // Après un changement de points : sortie de prison éventuelle et rôle de chaîne.
+  // Après un changement de points : sortie de prison éventuelle, rôle de chaîne et classements en direct.
   async function settle(userId) {
     const member = await findMember(userId);
-    if (!member) return;
-    const row = tracker.snapshot(new Map([[member.id, member]]), Date.now()).get(member.id);
-    if (row?.prison.inPrison && row.prison.daysToLeave === 0) {
-      await prison.free(member);
-      await send(channels.prison, prisonExitMessage(userId), [userId]);
+    if (member) {
+      const row = tracker.snapshot(new Map([[member.id, member]]), Date.now()).get(member.id);
+      if (row?.prison.inPrison && row.prison.daysToLeave === 0) {
+        await prison.free(member);
+        await send(channels.prison, prisonExitMessage(userId), [userId]);
+      }
+      if ((await syncStreakRole(member, row?.chain ?? 0)) === 'added') {
+        await send(channels.showup, winnerMessage('streak', userId, config), [userId]);
+      }
     }
-    if ((await syncStreakRole(member, row?.chain ?? 0)) === 'added') {
-      await send(channels.showup, winnerMessage('streak', userId, config), [userId]);
-    }
+    await ctx.boards?.refresh(Date.now());
   }
 
   async function onNewMessage(message) {

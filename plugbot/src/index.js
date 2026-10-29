@@ -2,6 +2,7 @@
 
 import { dirname, join } from 'node:path';
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
+import { createBoards } from './boards.js';
 import { findPermissionProblems } from './checks.js';
 import { loadConfig } from './config.js';
 import { openDatabase } from './db.js';
@@ -99,6 +100,9 @@ client.once(Events.ClientReady, (readyClient) =>
     } catch (error) {
       console.error('[PlugBot] Rattrapage incomplet au démarrage :', error);
     }
+    // Créés après le rattrapage : les classements en direct sont mis à jour une fois, au premier tick,
+    // et non à chaque résultat rattrapé.
+    ctx.boards = createBoards(ctx);
     handlers = ready;
     eventService = ctx.eventService ?? null;
 

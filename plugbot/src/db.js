@@ -27,12 +27,6 @@ const SCHEMA = `
     suspended_roles TEXT NOT NULL DEFAULT ''
   );
 
-  -- Dernière alerte « bientôt la prison » envoyée à chaque membre (numéro du jour UTC).
-  CREATE TABLE IF NOT EXISTS alerts (
-    user_id TEXT PRIMARY KEY,
-    day     INTEGER NOT NULL
-  );
-
   -- Catégorie de chaque membre (free, plug, ou NULL s'il n'a plus de rôle suivi),
   -- et dernier jour où le compteur de la prison a été remis à zéro (numéro du jour UTC) :
   -- changement de rôle ou libération par l'équipe.
@@ -52,7 +46,8 @@ const SCHEMA = `
     send_at INTEGER NOT NULL
   );
 
-  -- Réglages internes : date de lancement, dernier message lu, dernières publications.
+  -- Réglages internes : date de lancement, dernier message lu, dernières publications,
+  -- messages des classements en direct.
   CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -92,8 +87,6 @@ export function openDatabase(path) {
     setPrisonLevel: db.prepare('UPDATE prison SET level = ? WHERE user_id = ?'),
     markPrisonRole: db.prepare('UPDATE prison SET has_role = 1 WHERE user_id = ?'),
     removePrison: db.prepare('DELETE FROM prison WHERE user_id = ?'),
-    alertDays: db.prepare('SELECT user_id, day FROM alerts'),
-    setAlert: db.prepare('INSERT OR REPLACE INTO alerts (user_id, day) VALUES (?, ?)'),
     schedule: db.prepare('INSERT INTO scheduled (channel, content, notify, send_at) VALUES (?, ?, ?, ?)'),
     dueMessages: db.prepare('SELECT * FROM scheduled WHERE send_at <= ? ORDER BY send_at, id'),
     removeScheduled: db.prepare('DELETE FROM scheduled WHERE id = ?'),
@@ -111,10 +104,6 @@ export function openDatabase(path) {
       hasRole: row.has_role === 1,
       suspendedRoles: row.suspended_roles ? row.suspended_roles.split(',') : [],
     };
-  }
-
-  function dayMap(rows) {
-    return new Map(rows.map((row) => [row.user_id, row.day]));
   }
 
   function memberState(row) {
@@ -192,12 +181,6 @@ export function openDatabase(path) {
       statements.removePrison.run(userId);
     },
 
-    alertDays() {
-      return dayMap(statements.alertDays.all());
-    },
-    setAlert(userId, day) {
-      statements.setAlert.run(userId, day);
-    },
     schedule(channel, content, notifiedUserIds, sendAt) {
       statements.schedule.run(channel, content, notifiedUserIds.join(','), sendAt);
     },

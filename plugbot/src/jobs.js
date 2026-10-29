@@ -1,26 +1,26 @@
-// Tâches programmées : la prison chaque jour à minuit UTC, et les classements le soir (voir EVENING_HOUR).
+// Tâches programmées : la prison chaque jour à minuit UTC, le compte à rebours de la prison à 18 h,
+// les annonces du soir (voir EVENING_HOUR) et les classements en direct.
 
 import {
   RANKING_SIZES,
-  allTimeMessage,
   challengeLaunchMessage,
   congratulations,
+  dailyRankingMessage,
   monthReminderMessage,
+  prisonCountdownMessage,
   prisonEntryMessages,
   prisonExitMessage,
   prisonFinalMessages,
-  prisonWarningMessages,
   rankingMessage,
-  standingsMessage,
   weeklyRecapMessage,
   winnerMessage,
 } from './messages.js';
 import { announce, send } from './send.js';
-import { DAYS_TO_LEAVE_PRISON, FINAL_PRISON_DAYS, leaderboard, needsWarning } from './stats.js';
+import { DAYS_TO_LEAVE_PRISON, FINAL_PRISON_DAYS, countdownDays } from './stats.js';
 import {
-  ALL_TIME,
   DAY_MS,
   EVENING_MS,
+  PRISON_COUNTDOWN_HOUR,
   dayOf,
   eveningDay,
   lastMonthEnd,
@@ -30,8 +30,6 @@ import {
   weekRange,
 } from './time.js';
 
-// L'accompagnement est toujours affiché avant les Free.
-const CATEGORIES = ['plug', 'free'];
 // Jours du mois où le top-30 reçoit un rappel du challenge.
 const MONTH_REMINDER_DAYS = [10, 20, 25];
 // Le message au gagnant part 3 minutes après la clôture.
@@ -56,8 +54,6 @@ export function createJobs(ctx, handlers) {
 
     const rows = tracker.snapshot(guild.members.cache, now);
     const records = db.prisonRecords();
-    const alerts = db.alertDays();
-    const warnings = [];
     const entries = new Map(); // délai (15 ou 21 jours) -> membres
     const finals = [];
     const exits = [];
@@ -81,11 +77,6 @@ export function createJobs(ctx, handlers) {
       if (state.missed >= state.limit) {
         await prison.imprison(row.member, state.limit);
         entries.set(state.limit, [...(entries.get(state.limit) ?? []), userId]);
-        continue;
-      }
-      if (needsWarning(state.missed, state.limit, today, alerts.get(userId))) {
-        db.setAlert(userId, today);
-        warnings.push(userId);
       }
     }
     // Membres partis du serveur ou qui ont perdu leur rôle : on les oublie sans annonce.
@@ -93,7 +84,6 @@ export function createJobs(ctx, handlers) {
       if (!rows.has(userId)) db.removePrison(userId);
     }
 
-    for (const content of prisonWarningMessages(warnings, config)) await send(channels.prison, content);
     for (const [days, userIds] of [...entries].sort(([a], [b]) => a - b)) {
       for (const content of prisonEntryMessages(days, userIds, config)) await send(channels.prison, content);
     }
@@ -112,17 +102,11 @@ export function createJobs(ctx, handlers) {
     return range.start < Number(db.getMeta('launch_day')) * DAY_MS;
   }
 
-  // Les listes de chaque catégorie, l'accompagnement d'abord.
-  async function sectionsFor(range, now, size) {
-    await guild.members.fetch();
-    const rows = [...tracker.snapshot(guild.members.cache, now, range).values()];
-    return CATEGORIES.map((category) => ({ category, entries: leaderboard(rows, category).slice(0, size) }));
-  }
-
   // Fin d'un challenge : classement final, puis le rôle de la période et un message pour le gagnant Free.
   async function runRanking(kind, range, now) {
     if (startedBeforeLaunch(range)) return;
-    const sections = await sectionsFor(range, now, RANKING_SIZES[kind]);
+    await guild.members.fetch();
+    const sections = tracker.rankings(guild.members.cache, now, range, RANKING_SIZES[kind]);
     const channel = kind === 'week' ? 'week' : 'month';
     const reward = kind === 'week' ? 'weekWinner' : 'monthWinner';
 
@@ -153,25 +137,34 @@ export function createJobs(ctx, handlers) {
     }
   }
 
-  // Point d'étape d'un challenge en cours, au soir `evening`.
-  async function runStandings(kind, range, evening, now) {
-    const sections = await sectionsFor(range, now, RANKING_SIZES[kind]);
-    const daysLeft = Math.round((range.end - evening) / DAY_MS);
-    const content = standingsMessage({ kind, sections, daysLeft, end: range.end, config });
-    await announce(kind === 'week' ? channels.week : channels.month, content);
+  // Chaque jour à 18 h, dans #la-prison : chaque membre à 5 jours ou moins de la prison est mentionné,
+  // avec le nombre de jours qu'il lui reste.
+  async function runPrisonCountdown(now) {
+    const groups = new Map(); // jours restants -> membres
+    for (const row of tracker.snapshot(guild.members.cache, now).values()) {
+      const daysLeft = row.prison.inPrison ? null : countdownDays(row.prison.missed, row.prison.limit);
+      if (daysLeft !== null) groups.set(daysLeft, [...(groups.get(daysLeft) ?? []), row.userId]);
+    }
+    if (groups.size === 0) return;
+    const sorted = [...groups].sort(([a], [b]) => a - b).map(([daysLeft, userIds]) => ({ daysLeft, userIds }));
+    await send(channels.prison, prisonCountdownMessage(sorted, config));
   }
 
-  async function runAllTime(now) {
-    if (!channels.allTime) return;
-    const sections = await sectionsFor(ALL_TIME, now, RANKING_SIZES.allTime);
-    await announce(channels.allTime, allTimeMessage({ sections }));
+  // Annonce du soir dans #top-7 : venez voir votre classement, avec le premier de chaque catégorie.
+  async function runDailyRanking(range, now) {
+    const leaders = tracker
+      .rankings(guild.members.cache, now, range, 1)
+      .filter(({ entries }) => entries.length > 0)
+      .map(({ category, entries }) => ({ category, userId: entries[0].userId }));
+    await announce(channels.week, dailyRankingMessage({ leaders, config }));
   }
 
   // Publications du soir, à 20 h 30 GMT (les clôtures sont publiées à part, voir tick).
-  // top-7 : lancement le lundi, classement du jour du mardi au samedi.
-  // top-30 : lancement le 1er, classement le dimanche, rappel les 10, 20 et 25 du mois.
-  // top-all-time et récap des récompenses dans show-up : le dimanche.
-  // Rien n'est publié pour une semaine ou un mois commencé avant le lancement du bot.
+  // top-7 : lancement le lundi, « venez consulter votre classement » du mardi au samedi.
+  // top-30 : lancement le 1er, rappel les 10, 20 et 25 du mois.
+  // show-up : récap des récompenses le dimanche.
+  // Les lancements et les rappels ne sont pas publiés pour une semaine ou un mois commencé avant
+  // le lancement du bot. Les classements eux-mêmes sont en direct (voir boards.js).
   async function runEvening(day, now) {
     const date = new Date(day * DAY_MS);
     const weekday = date.getUTCDay(); // 0 = dimanche, 1 = lundi
@@ -179,12 +172,10 @@ export function createJobs(ctx, handlers) {
     const evening = day * DAY_MS + EVENING_MS;
 
     const week = weekRange(evening);
-    if (!startedBeforeLaunch(week)) {
-      if (weekday === 1) {
-        await announce(channels.week, challengeLaunchMessage({ kind: 'week', ...week, config }));
-      } else if (weekday >= 2 && weekday <= 6) {
-        await runStandings('week', week, evening, now);
-      }
+    if (weekday === 1 && !startedBeforeLaunch(week)) {
+      await announce(channels.week, challengeLaunchMessage({ kind: 'week', ...week, config }));
+    } else if (weekday >= 2 && weekday <= 6) {
+      await runDailyRanking(week, now);
     }
 
     // Le dernier jour du mois au soir, `month` est déjà le mois suivant (il démarre ce soir) :
@@ -194,17 +185,12 @@ export function createJobs(ctx, handlers) {
       const daysLeft = Math.round((month.end - evening) / DAY_MS);
       if (dayOfMonth === 1) {
         await announce(channels.month, challengeLaunchMessage({ kind: 'month', ...month, config }));
-      } else if (weekday === 0) {
-        await runStandings('month', month, evening, now);
       } else if (MONTH_REMINDER_DAYS.includes(dayOfMonth)) {
         await announce(channels.month, monthReminderMessage({ daysLeft, end: month.end, config }));
       }
     }
 
-    if (weekday === 0) {
-      await runAllTime(now);
-      await announce(channels.showup, weeklyRecapMessage(config));
-    }
+    if (weekday === 0) await announce(channels.showup, weeklyRecapMessage(config));
   }
 
   // Lance une tâche une seule fois par période. La date est enregistrée avant l'envoi :
@@ -219,10 +205,12 @@ export function createJobs(ctx, handlers) {
     }
   }
 
-  // Appelée chaque minute. Rattrape aussi une publication manquée pendant une coupure.
+  // Appelée chaque minute. Rattrape aussi une publication manquée pendant une coupure
+  // (le compte à rebours de la prison, seulement le jour même).
   async function tick() {
     const now = Date.now();
-    await once('last_daily_day', dayOf(now), 'vérification de la prison', () => runDaily(now));
+    const today = dayOf(now);
+    await once('last_daily_day', today, 'vérification de la prison', () => runDaily(now));
 
     const weekEnd = lastWeekEnd(now);
     await once('last_week_boundary', weekEnd, 'classement de la semaine', () =>
@@ -234,10 +222,16 @@ export function createJobs(ctx, handlers) {
       runRanking('month', monthRange(monthEnd - 1), now),
     );
 
+    if (now >= today * DAY_MS + PRISON_COUNTDOWN_HOUR * 60 * 60 * 1000) {
+      await once('last_prison_countdown_day', today, 'compte à rebours de la prison', () => runPrisonCountdown(now));
+    }
+
     const evening = eveningDay(now);
     await once('last_evening_day', evening, 'publications du soir', () => runEvening(evening, now));
 
     await sendDueMessages(now);
+    // En dernier : le classement en direct repasse sous les messages publiés juste avant.
+    await ctx.boards?.refresh(now);
 
     if (ctx.eventService) {
       try {
@@ -248,5 +242,5 @@ export function createJobs(ctx, handlers) {
     }
   }
 
-  return { tick, runDaily, runRanking, runEvening, checkTeamReleases };
+  return { tick, runDaily, runRanking, runEvening, runPrisonCountdown, checkTeamReleases };
 }

@@ -4,7 +4,7 @@ import { dayOf } from './time.js';
 
 // Jours entiers sans show-up avant la prison, selon la catégorie du membre.
 export const PRISON_DAYS = { free: 21, plug: 15 };
-// L'alerte part 5 jours avant la prison.
+// Le compte à rebours de la prison commence 5 jours avant.
 export const WARNING_DAYS_BEFORE = 5;
 // Dernier message de prison : « définitivement en prison ».
 export const FINAL_PRISON_DAYS = 30;
@@ -49,11 +49,12 @@ export function missedDays(days, startDay, today) {
   return missed;
 }
 
-// Alerte 5 jours avant la prison, une seule fois par absence.
-export function needsWarning(missed, prisonDays, today, lastWarningDay) {
-  if (missed < prisonDays - WARNING_DAYS_BEFORE || missed >= prisonDays) return false;
-  const absenceStart = today - missed;
-  return lastWarningDay == null || lastWarningDay < absenceStart;
+// Jours qu'il reste au membre pour poster avant la prison, la journée en cours comprise.
+// 1 : c'est son dernier jour, il entre en prison à minuit s'il ne poste pas.
+// Renvoie null en dehors du compte à rebours (plus de 5 jours, ou délai déjà atteint).
+export function countdownDays(missed, prisonDays) {
+  const daysLeft = prisonDays - missed;
+  return daysLeft >= 1 && daysLeft <= WARNING_DAYS_BEFORE ? daysLeft : null;
 }
 
 // Tri d'un classement : le score, puis le départage, puis celui qui a atteint son score le premier.
