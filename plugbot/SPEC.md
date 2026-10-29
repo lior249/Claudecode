@@ -53,6 +53,9 @@ Seul PlugBot écrit dans show-up, top-7, top-30, top-all-time et la-prison.
   > 📅 Classement semaine : **9 points** — 3e du classement Free
   > 🗓️ Classement mois : **31 points** — 44e du classement Free
   > 🏅 Classement total : **148 points** — 449e du classement Free
+  >
+  > 🏆 Regarde les classements #top-7 et #top-30 pour savoir si tu es dans le top 10 ou pas. Seuls les meilleurs gagneront des prix, alors n'abandonne pas !
+  > 📖 Pour en savoir plus, regarde #guide-serveur.
 
   Le rang est celui de la catégorie du membre (Free ou Accompagnement). Un membre en prison est « hors classement » : PlugBot lui rappelle combien de jours il lui reste pour sortir.
 

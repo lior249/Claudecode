@@ -54,6 +54,7 @@ export function previewMessages(config, now = Date.now()) {
         week: { points: 9, rank: 3 },
         month: { points: 31, rank: 44 },
         total: { points: 148, rank: 449 },
+        config,
       }),
     ],
     ['show-up — quand tu mets ❌ sur un résultat', removedMessage({ userId: me, adminId: me, total: 147, week: 8 })],

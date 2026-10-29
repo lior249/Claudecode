@@ -23,6 +23,7 @@ const CHANNEL_NEEDS = {
   prison: ['ViewChannel', 'SendMessages'],
   allTime: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'EmbedLinks', 'MentionEveryone'],
   planning: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AddReactions', 'CreatePublicThreads', 'SendMessagesInThreads', 'ManageThreads'],
+  planningReminder: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AddReactions'],
   announceFree: ['ViewChannel', 'SendMessages', 'MentionEveryone', 'SendPolls'],
   announcePlug: ['ViewChannel', 'SendMessages', 'MentionEveryone', 'SendPolls'],
 };

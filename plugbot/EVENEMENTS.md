@@ -8,42 +8,72 @@ Toutes les heures sont en **GMT**.
 
 ## 1. Le fonctionnement
 
-### Le salon de planification
+### Les deux salons
 
-Un salon privé, **#plugbot-planning**, visible seulement par toi et PlugBot. C'est là que PlugBot te pose ses questions.
+Deux salons privés, visibles seulement par toi et PlugBot :
 
-En haut du salon, PlugBot épingle un **panneau** :
+| Salon | À quoi il sert |
+|---|---|
+| **Création d'événements** | Le panneau, épinglé en haut, et les tickets. Tu y crées un événement **quand tu veux**. |
+| **Rappels d'événements** | Les questions de PlugBot : le planning de la semaine, « as-tu fini ? », et les lives de l'accompagnement. |
+
+En haut du salon de création, PlugBot épingle un **panneau** :
 
 - **un bouton par type de live** (14 boutons) : un clic ouvre un ticket pour ce live ;
 - **un menu** pour ouvrir plusieurs tickets d'un coup : coche tous les types que tu veux, un ticket s'ouvre pour chacun ;
-- **✅ Planning terminé** : à cliquer quand tu as fini de planifier la semaine (plus de relance) ;
+- **✅ J'ai fini de créer mes événements** : plus de rappel pour planifier cette semaine ;
 - **📋 Événements à venir** : la liste des événements programmés, avec un lien vers leur ticket.
 
-### La demande du planning
+### Les rappels pour planifier
 
-PlugBot te demande le programme de la semaine qui commence le lundi :
+Dans le salon des rappels, PlugBot te demande le programme de la semaine qui commence le lundi :
 
 | Jour | Heures |
 |---|---|
-| Dimanche | 9 h, puis 15 h et 18 h si tu n'as pas cliqué sur « Planning terminé » |
-| Lundi | 9 h, 15 h et 18 h si tu n'as toujours pas cliqué |
+| Dimanche | 9 h, 15 h et 18 h |
+| Lundi | 9 h, 15 h et 18 h |
 
-Il s'arrête dès que tu cliques sur **✅ Planning terminé**, et ne relance plus après le lundi 18 h.
+Il te relance à chaque créneau **jusqu'à ce que tu dises que tu as fini**, et ne relance plus après le lundi 18 h.
 
 > @toi
 > 📅 **Planning de la semaine du lundi 2 novembre au dimanche 8 novembre**
-> Salut ! Quels événements sont prévus cette semaine ?
+> Salut ! As-tu des événements à créer cette semaine ?
 > Déjà au programme : 🔴 Live accompagnement — mercredi 4 novembre à 22 h 00 (GMT) et vendredi 6 novembre à 22 h 00 (GMT).
+> Déjà programmés :
+> • 🎓 **Les accroches qui retiennent** — jeudi 5 novembre à 22 h 00 (GMT)
 >
-> Crée tes lives avec le panneau en haut du salon (un ticket par live), puis clique sur **✅ Planning terminé**.
+> 👍 **Oui**, j'ai des événements à créer
+> 👎 **Non**, rien à créer cette semaine (plus de rappel)
+>
+> Je te le redemande le dimanche et le lundi à 9 h, 15 h et 18 h, jusqu'à ce que tu cliques sur **✅ J'ai fini de créer mes événements**.
+
+Tu réponds en réagissant au message :
+
+- **👍** : « 👌 Parfait ! Va directement dans #création-d'événements et crée ton événement. » Les relances continuent tant que tu n'as pas dit que tu as fini.
+- **👎** : rien à créer cette semaine, plus de relance. Tu peux toujours créer un événement quand tu veux.
 
 Les relances :
 
-> @toi ⏰ Petit rappel : le planning de la semaine n'est pas encore fait. Utilise le panneau en haut du salon, puis clique sur **✅ Planning terminé**.
+> @toi ⏰ **Petit rappel : tu n'as pas encore fini de créer tes événements de la semaine.**
+> As-tu des événements à créer ?
+> 👍 **Oui**, j'ai des événements à créer
+> 👎 **Non**, rien à créer cette semaine (plus de rappel)
+>
+> Quand tu as fini, clique sur **✅ J'ai fini de créer mes événements**.
+
+**Après chaque événement validé**, PlugBot te demande dans le salon des rappels :
+
+> @toi ✅ **🎓 Les accroches qui retiennent** est programmé : jeudi 5 novembre à 22 h 00 (GMT).
+> Est-ce que tu as fini de créer tes événements ?
+>
+> [✅ J'ai fini de créer mes événements] [➕ Je crée un autre événement]
+
+- **✅ J'ai fini de créer mes événements** : plus de relance cette semaine.
+- **➕ Je crée un autre événement** : « Parfait ! Va directement dans #création-d'événements et crée ton prochain événement. » Les relances continuent.
 
 ### Un ticket par événement
 
-Chaque ticket est un **fil** dans #plugbot-planning. Il contient deux messages :
+Chaque ticket est un **fil** dans le salon de création. Il contient deux messages :
 
 1. **Les réglages**, avec des menus :
    - **Public** : Free ou Accompagnement (absent pour le coaching gratuit, réservé aux Free, et pour le live accompagnement). Il décide du salon d'annonce : annonces free ou annonces accompagnement.
@@ -62,7 +92,8 @@ Un rappel déjà passé au moment de la validation est ignoré. Par exemple, pas
 Dès que tu cliques sur **✅ Valider** :
 - l'événement Discord est créé ;
 - l'annonce part tout de suite ;
-- les autres rappels sont programmés.
+- les autres rappels sont programmés ;
+- PlugBot te demande, dans le salon des rappels, si tu as fini de créer tes événements.
 
 **Le ticket reste ouvert jusqu'à la fin du live**, pour que tu puisses encore le modifier. Les boutons deviennent :
 
@@ -73,7 +104,7 @@ Dès que tu cliques sur **✅ Valider** :
 
 ### Les lives de l'accompagnement (mercredi et vendredi, 22 h)
 
-Le jour du live, à **9 h**, PlugBot te demande dans #plugbot-planning si le live est maintenu. Il relance à 12 h et 15 h si tu n'as pas répondu.
+Le jour du live, à **9 h**, PlugBot te demande dans le salon des rappels si le live est maintenu. Il relance à 12 h et 15 h si tu n'as pas répondu.
 
 > @toi 🔴 **Live accompagnement ce soir à 22 h 00 (GMT)** : il est maintenu ?
 > Réagis avec 👍 pour le confirmer ou ❌ pour l'annuler. PlugBot prévient ensuite les membres de l'accompagnement.

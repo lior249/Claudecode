@@ -12,7 +12,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { AUDIENCES, LIVE_TYPES, MENTIONS, REMINDERS, audiencesOf, liveType } from './catalog.js';
-import { ticketSummary } from './render.js';
+import { DONE_LABEL, ticketSummary } from './render.js';
 
 // Identifiants des boutons et menus : « ev:<action>:<numéro de l'événement> ».
 export function customId(action, eventId = '') {
@@ -32,11 +32,12 @@ function rows(components, perRow) {
   return result;
 }
 
-const PLANNING_DONE_BUTTON = () =>
-  new ButtonBuilder().setCustomId(customId('planningDone')).setLabel('Planning terminé').setEmoji('✅').setStyle(ButtonStyle.Success);
+const doneButton = (action) =>
+  new ButtonBuilder().setCustomId(customId(action)).setLabel(DONE_LABEL).setEmoji('✅').setStyle(ButtonStyle.Success);
 
-// Le panneau, en haut du salon de planification : un bouton par type de live.
-export function panelMessage() {
+// Le panneau, épinglé en haut du salon de création : un bouton par type de live, utilisable à tout moment.
+// reminderChannelId : le salon où arrivent les rappels pour planifier.
+export function panelMessage({ reminderChannelId } = {}) {
   const typeButtons = LIVE_TYPES.map((type) =>
     new ButtonBuilder().setCustomId(customId(`open-${type.key}`)).setLabel(type.label).setEmoji(type.emoji).setStyle(ButtonStyle.Secondary),
   );
@@ -48,15 +49,16 @@ export function panelMessage() {
     .addOptions(LIVE_TYPES.map((type) => ({ label: type.label, value: type.key, emoji: type.emoji })));
   return {
     content: [
-      '🎛️ **Panneau de planification PlugBot**',
-      'Clique sur un type de live pour ouvrir un ticket. Chaque ticket = un live.',
+      '🎛️ **Créer un événement — panneau PlugBot**',
+      'Clique sur un type de live pour ouvrir un ticket, quand tu veux. Chaque ticket = un live.',
       "Pour en créer plusieurs d'un coup, choisis-les dans le menu.",
+      ...(reminderChannelId ? [`Les rappels pour planifier tes événements arrivent dans <#${reminderChannelId}>.`] : []),
     ].join('\n'),
     components: [
       ...rows(typeButtons, 5),
       new ActionRowBuilder().addComponents(many),
       new ActionRowBuilder().addComponents(
-        PLANNING_DONE_BUTTON(),
+        doneButton('planningDone'),
         new ButtonBuilder().setCustomId(customId('list')).setLabel('Événements à venir').setEmoji('📋').setStyle(ButtonStyle.Primary),
       ),
     ],
@@ -64,7 +66,17 @@ export function panelMessage() {
 }
 
 export function planningPromptComponents() {
-  return [new ActionRowBuilder().addComponents(PLANNING_DONE_BUTTON())];
+  return [new ActionRowBuilder().addComponents(doneButton('planningDone'))];
+}
+
+// Sous la question « Est-ce que tu as fini de créer tes événements ? ».
+export function finishedQuestionComponents() {
+  return [
+    new ActionRowBuilder().addComponents(
+      doneButton('finished'),
+      new ButtonBuilder().setCustomId(customId('another')).setLabel('Je crée un autre événement').setEmoji('➕').setStyle(ButtonStyle.Primary),
+    ),
+  ];
 }
 
 const EDITABLE = new Set(['draft', 'scheduled']);

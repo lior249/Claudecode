@@ -92,6 +92,7 @@ export function createHandlers(ctx) {
       week,
       month: standing(monthRange(now)),
       total: standing(ALL_TIME),
+      config,
     });
     await send(channels.showup, content, [member.id]);
     await settle(member.id);

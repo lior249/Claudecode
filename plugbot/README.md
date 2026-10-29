@@ -43,12 +43,13 @@ Le salon des codes de réduction ne doit être visible que pour 🔥🔥🔥, �
 
 **La planification des événements** (voir [`EVENEMENTS.md`](EVENEMENTS.md)) :
 
-- Crée un salon privé **plugbot-planning**, visible seulement par toi et PlugBot.
+- Crée deux salons privés, visibles seulement par toi et PlugBot : un pour **créer les événements** (le panneau et les tickets) et un pour **les rappels** (les questions de PlugBot).
 - Dans **Paramètres du serveur > Rôles > PlugBot**, active **Gérer les événements**.
-- Dans plugbot-planning, PlugBot doit pouvoir : voir le salon, envoyer des messages, voir les anciens messages, ajouter des réactions, **créer des fils publics**, **envoyer des messages dans les fils** et **gérer les fils**.
+- Dans le salon de création, PlugBot doit pouvoir : voir le salon, envoyer des messages, voir les anciens messages, ajouter des réactions, **créer des fils publics**, **envoyer des messages dans les fils** et **gérer les fils**.
+- Dans le salon des rappels : voir le salon, envoyer des messages, voir les anciens messages et ajouter des réactions.
 - Dans les deux salons d'annonces (free et accompagnement) : voir le salon, envoyer des messages, **mentionner @everyone, @here et tous les rôles** et **créer des sondages**.
 - Pour un live dans un salon « stage », PlugBot doit aussi pouvoir **gérer les salons**, **rendre muets des membres** et **déplacer des membres** dans ce salon.
-- Ajoute les trois identifiants dans `.env` : `PLANNING_CHANNEL_ID`, `ANNOUNCE_FREE_CHANNEL_ID`, `ANNOUNCE_PLUG_CHANNEL_ID`.
+- Ajoute les quatre identifiants dans `.env` : `PLANNING_CHANNEL_ID` (création), `PLANNING_REMINDER_CHANNEL_ID` (rappels), `ANNOUNCE_FREE_CHANNEL_ID` et `ANNOUNCE_PLUG_CHANNEL_ID`.
 
 ## 3. Installer sur le VPS
 

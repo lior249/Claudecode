@@ -177,22 +177,65 @@ export function previewSchedule(event, reminders, now) {
   return lines.join('\n');
 }
 
-// --- Planning de la semaine ---
+// --- Planning de la semaine (salon des rappels) ---
 
-export function planningPrompt({ adminId, week, recurring, first }) {
+export const DONE_LABEL = "J'ai fini de créer mes événements";
+const PLANNING_ANSWERS = ["👍 **Oui**, j'ai des événements à créer", '👎 **Non**, rien à créer cette semaine (plus de rappel)'];
+
+// La demande du planning, avec 👍 et 👎 en réaction. planned : les événements déjà programmés cette semaine.
+export function planningPrompt({ adminId, week, recurring, planned, first }) {
   const monday = week * 24 * 60 * 60 * 1000;
   const sunday = monday + 6 * 24 * 60 * 60 * 1000;
   if (!first) {
-    return `<@${adminId}> ⏰ Petit rappel : le planning de la semaine n'est pas encore fait. Utilise le panneau en haut du salon, puis clique sur **✅ Planning terminé**.`;
+    return [
+      `<@${adminId}> ⏰ **Petit rappel : tu n'as pas encore fini de créer tes événements de la semaine.**`,
+      'As-tu des événements à créer ?',
+      ...PLANNING_ANSWERS,
+      '',
+      `Quand tu as fini, clique sur **✅ ${DONE_LABEL}**.`,
+    ].join('\n');
   }
-  return [
+  const lines = [
     `<@${adminId}>`,
     `📅 **Planning de la semaine du ${formatDate(monday)} au ${formatDate(sunday)}**`,
-    'Salut ! Quels événements sont prévus cette semaine ?',
+    'Salut ! As-tu des événements à créer cette semaine ?',
     `Déjà au programme : 🔴 Live accompagnement — ${recurring.map((at) => formatDateTime(at)).join(' et ')}.`,
+  ];
+  if (planned.length > 0) {
+    lines.push('Déjà programmés :', ...planned.map((event) => `• ${liveType(event.type).emoji} **${event.title}** — ${formatDateTime(event.startAt)}`));
+  }
+  lines.push(
     '',
-    'Crée tes lives avec le panneau en haut du salon (un ticket par live), puis clique sur **✅ Planning terminé**.',
+    ...PLANNING_ANSWERS,
+    '',
+    `Je te le redemande le dimanche et le lundi à 9 h, 15 h et 18 h, jusqu'à ce que tu cliques sur **✅ ${DONE_LABEL}**.`,
+  );
+  return lines.join('\n');
+}
+
+// Réponses à 👍 et 👎 sur la demande du planning.
+export function planningYesMessage(planningChannelId) {
+  return `👌 Parfait ! Va directement dans <#${planningChannelId}> et crée ton événement : clique sur le type de live dans le panneau épinglé en haut du salon.`;
+}
+
+export function planningNoMessage(planningChannelId) {
+  return `✅ C'est noté : rien à créer cette semaine, je ne te relance plus. Si une idée arrive, tu peux créer un événement quand tu veux dans <#${planningChannelId}>.`;
+}
+
+// Après chaque événement validé, dans le salon des rappels.
+export function finishedQuestion({ adminId, event }) {
+  return [
+    `<@${adminId}> ✅ **${liveType(event.type).emoji} ${event.title}** est programmé : ${formatDateTime(event.startAt)}.`,
+    'Est-ce que tu as fini de créer tes événements ?',
   ].join('\n');
+}
+
+export function planningDoneMessage() {
+  return "✅ C'est noté : tu as fini de créer tes événements, je ne te relance plus cette semaine. Les annonces et les rappels de tes événements partiront aux heures prévues.";
+}
+
+export function anotherEventMessage(planningChannelId) {
+  return `➕ Parfait ! Va directement dans <#${planningChannelId}> et crée ton prochain événement.`;
 }
 
 // --- Lives de l'accompagnement (mercredi et vendredi) ---

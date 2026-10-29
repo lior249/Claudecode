@@ -20,7 +20,7 @@ import {
 import { ALL_TIME } from '../src/time.js';
 
 const config = {
-  channels: { results: 'res', month: 'top30', allTime: 'alltime' },
+  channels: { results: 'res', week: 'top7', month: 'top30', allTime: 'alltime' },
   links: { bonusWeek: 'b7', bonusMonth: 'b30', bonusStreak: 'b21', guide: 'guide' },
   roles: { streak: 'feu', weekWinner: 'p7', monthWinner: 'p30', prisoner: 'pri' },
   streakRoleDays: 21,
@@ -55,6 +55,7 @@ describe('messages', () => {
       week: { points: 9, rank: 3 },
       month: { points: 31, rank: 44 },
       total: { points: 148, rank: 449 },
+      config,
     });
     assert.equal(
       text,
@@ -64,6 +65,9 @@ describe('messages', () => {
         '📅 Classement semaine : **9 points** — 3e du classement Free',
         '🗓️ Classement mois : **31 points** — 44e du classement Free',
         '🏅 Classement total : **148 points** — 449e du classement Free',
+        '',
+        "🏆 Regarde les classements <#top7> et <#top30> pour savoir si tu es dans le top 10 ou pas. Seuls les meilleurs gagneront des prix, alors n'abandonne pas !",
+        '📖 Pour en savoir plus, regarde <#guide>.',
       ].join('\n'),
     );
   });
@@ -77,6 +81,7 @@ describe('messages', () => {
       week: { points: 1, rank: 0 },
       month: { points: 1, rank: 0 },
       total: { points: 30, rank: 0 },
+      config,
     });
     assert.match(text, /Classement total : \*\*30 points\*\* — hors classement/);
     assert.match(text, /Toujours en prison : encore \*\*2 jours\*\*/);
@@ -91,6 +96,7 @@ describe('messages', () => {
       week: { points: 3, rank: 1 },
       month: { points: 3, rank: 1 },
       total: { points: 3, rank: 1 },
+      config,
     });
     assert.match(text, /— 1er du classement Accompagnement/);
   });

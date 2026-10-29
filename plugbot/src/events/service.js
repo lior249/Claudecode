@@ -1,5 +1,7 @@
 // Le cœur de la planification : tickets, validation, événements Discord, rappels, planning de la semaine
 // et confirmation des lives de l'accompagnement.
+// Deux salons privés : celui de création (le panneau et les tickets) et celui des rappels (les questions
+// de PlugBot : planning de la semaine, « as-tu fini ? », lives de l'accompagnement).
 
 import { ChannelType, GuildScheduledEventEntityType, GuildScheduledEventPrivacyLevel, ThreadAutoArchiveDuration } from 'discord.js';
 import { REMINDERS, audiencesOf, liveType } from './catalog.js';
@@ -10,19 +12,23 @@ import {
   confirmationQuestion,
   discordDescription,
   eventMessage,
+  finishedQuestion,
   liveCancelledMessage,
   liveConfirmedMessage,
   mentions,
   missingFields,
+  planningNoMessage,
   planningPrompt,
+  planningYesMessage,
   previewSchedule,
 } from './render.js';
 import { confirmationSlot, endOf, planningSlot, recurringLivesOfWeek, reminderSchedule } from './schedule.js';
-import { controlMessage, panelMessage, planningPromptComponents, settingsMessage } from './ui.js';
+import { controlMessage, finishedQuestionComponents, panelMessage, planningPromptComponents, settingsMessage } from './ui.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const CONFIRM = '👍';
+const DECLINE = '👎';
 const REFUSE = '❌';
 
 function toPoll({ question, answers }, durationHours) {
@@ -32,6 +38,8 @@ function toPoll({ question, answers }, durationHours) {
 export function createEventService({ config, db, events, guild, channels }) {
   const context = { config, guildId: guild.id };
   const adminId = [...config.adminIds][0];
+  // Sans salon des rappels, les questions de PlugBot arrivent dans le salon de création.
+  const reminderChannel = channels.planningReminder ?? channels.planning;
 
   function readJson(key) {
     const value = db.getMeta(key);
@@ -145,6 +153,14 @@ export function createEventService({ config, db, events, guild, channels }) {
     }
     events.setReminders(event.id, reminderSchedule(scheduled, now));
     await refreshTicket(event.id);
+    // L'événement est créé : une question qui ne part pas ne doit pas faire croire à un échec.
+    await reminderChannel
+      .send({
+        content: finishedQuestion({ adminId, event: scheduled }),
+        components: finishedQuestionComponents(),
+        allowedMentions: { users: [adminId] },
+      })
+      .catch((error) => console.error('[PlugBot] Question « as-tu fini ? » non envoyée :', error.message));
     return null;
   }
 
@@ -251,30 +267,62 @@ export function createEventService({ config, db, events, guild, channels }) {
 
   // --- Planning de la semaine ---
 
-  // La semaine planifiée quand tu cliques sur « Planning terminé » : celle qui commence le lundi
-  // suivant, ou la semaine en cours si on est lundi.
+  // La semaine concernée quand tu dis avoir fini : le dimanche, celle qui commence le lendemain ;
+  // du lundi au samedi, la semaine en cours.
   function planningWeek(now) {
     const day = Math.floor(now / DAY_MS);
     const weekday = new Date(now).getUTCDay();
-    return weekday === 1 ? day : day + ((8 - weekday) % 7 || 7);
+    return weekday === 0 ? day + 1 : day - (weekday - 1);
   }
 
+  // « J'ai fini de créer mes événements » : plus de rappel pour planifier cette semaine.
   function markPlanningDone(now) {
     db.setMeta('planning_done_week', planningWeek(now));
   }
 
+  function plannedDuring(week) {
+    const start = week * DAY_MS;
+    return events.upcoming().filter((event) => event.startAt >= start && event.startAt < start + 7 * DAY_MS);
+  }
+
+  // Demande du planning le dimanche et le lundi, à chaque créneau, jusqu'à « J'ai fini » ou 👎.
   async function planningTick(now) {
     const slot = planningSlot(now);
     if (!slot || Number(db.getMeta('planning_done_week')) === slot.week) return;
     if (Number(db.getMeta('planning_last_slot')) >= slot.slot) return;
-    const first = Number(db.getMeta('planning_prompted_week')) !== slot.week;
     db.setMeta('planning_last_slot', slot.slot);
-    db.setMeta('planning_prompted_week', slot.week);
-    await channels.planning.send({
-      content: planningPrompt({ adminId, week: slot.week, recurring: recurringLivesOfWeek(slot.week), first }),
+    const prompts = readJson('planning_prompts');
+    const earlier = prompts?.week === slot.week ? prompts.messageIds : [];
+    const message = await reminderChannel.send({
+      content: planningPrompt({
+        adminId,
+        week: slot.week,
+        recurring: recurringLivesOfWeek(slot.week),
+        planned: plannedDuring(slot.week),
+        first: earlier.length === 0,
+      }),
       components: planningPromptComponents(),
       allowedMentions: { users: [adminId] },
     });
+    db.setMeta('planning_prompts', JSON.stringify({ week: slot.week, messageIds: [...earlier, message.id] }));
+    await message.react(CONFIRM).catch(() => {});
+    await message.react(DECLINE).catch(() => {});
+  }
+
+  // 👍 sur la demande du planning : PlugBot t'envoie créer tes événements, et continue de te relancer.
+  // 👎 : rien à créer cette semaine, plus de relance.
+  async function onPlanningReaction(reaction) {
+    const prompts = readJson('planning_prompts');
+    if (!prompts?.messageIds.includes(reaction.message.id)) return false;
+    const name = reaction.emoji.name ?? '';
+    if (name.startsWith(CONFIRM)) {
+      await reminderChannel.send(planningYesMessage(channels.planning.id));
+      return true;
+    }
+    if (!name.startsWith(DECLINE)) return false;
+    db.setMeta('planning_done_week', prompts.week);
+    await reminderChannel.send(planningNoMessage(channels.planning.id));
+    return true;
   }
 
   // --- Lives de l'accompagnement ---
@@ -285,7 +333,7 @@ export function createEventService({ config, db, events, guild, channels }) {
     const state = readJson('live_confirmation');
     const today = state?.day === slot.day ? state : null;
     if (today && (today.status !== 'pending' || today.lastSlot >= slot.slot)) return;
-    const message = await channels.planning.send({
+    const message = await reminderChannel.send({
       content: confirmationQuestion({ adminId, liveAt: slot.liveAt, first: !today }),
       allowedMentions: { users: [adminId] },
     });
@@ -303,9 +351,8 @@ export function createEventService({ config, db, events, guild, channels }) {
     await message.react(REFUSE).catch(() => {});
   }
 
-  // 👍 ou ❌ de l'admin sur la question du jour : PlugBot prévient les membres de l'accompagnement.
-  async function onConfirmationReaction(reaction, user, now) {
-    if (!config.adminIds.has(user.id)) return false;
+  // 👍 ou ❌ sur la question du jour : PlugBot prévient les membres de l'accompagnement.
+  async function onConfirmationReaction(reaction, now) {
     const state = readJson('live_confirmation');
     if (!state || state.status !== 'pending' || !state.messageIds.includes(reaction.message.id) || now >= state.liveAt) return false;
     const name = reaction.emoji.name ?? '';
@@ -323,19 +370,26 @@ export function createEventService({ config, db, events, guild, channels }) {
     } else {
       await channels.announcePlug.send({ content: liveCancelledMessage({ liveAt: state.liveAt, config }), allowedMentions });
     }
-    await channels.planning.send(confirmed ? "✅ C'est noté : le live de ce soir est annoncé." : "❌ C'est noté : les membres sont prévenus que le live est annulé.");
+    await reminderChannel.send(confirmed ? "✅ C'est noté : le live de ce soir est annoncé." : "❌ C'est noté : les membres sont prévenus que le live est annulé.");
     return true;
   }
 
-  // Publie le panneau en haut du salon de planification, s'il n'y est pas déjà.
+  // Réaction de l'admin dans le salon des rappels. Renvoie true si elle répondait à une question de PlugBot.
+  async function onReaction(reaction, user, now) {
+    if (!config.adminIds.has(user.id)) return false;
+    return (await onPlanningReaction(reaction)) || (await onConfirmationReaction(reaction, now));
+  }
+
+  // Publie le panneau en haut du salon de création, s'il n'y est pas déjà.
   async function ensurePanel() {
+    const content = panelMessage({ reminderChannelId: channels.planningReminder?.id });
     const id = db.getMeta('events_panel_message');
     const existing = id ? await channels.planning.messages.fetch(id).catch(() => null) : null;
     if (existing) {
-      await existing.edit(panelMessage());
+      await existing.edit(content);
       return;
     }
-    const panel = await channels.planning.send(panelMessage());
+    const panel = await channels.planning.send(content);
     db.setMeta('events_panel_message', panel.id);
     await panel.pin().catch(() => {});
   }
@@ -356,7 +410,7 @@ export function createEventService({ config, db, events, guild, channels }) {
     preview,
     upcomingList,
     markPlanningDone,
-    onConfirmationReaction,
+    onReaction,
     ensurePanel,
     tick,
   };

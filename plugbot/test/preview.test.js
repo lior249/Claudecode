@@ -4,7 +4,7 @@ import { splitMessage } from '../src/messages.js';
 import { PREVIEW_PREFIX, isPreviewMessage, previewMessages } from '../src/preview.js';
 
 const config = {
-  channels: { results: 'res', month: 'top30', allTime: 'alltime' },
+  channels: { results: 'res', week: 'top7', month: 'top30', allTime: 'alltime' },
   links: { bonusWeek: 'b7', bonusMonth: 'b30', bonusStreak: 'b21', guide: 'guide' },
   roles: { streak: 'feu', weekWinner: 'p7', monthWinner: 'p30', prisoner: 'pri' },
   streakRoleDays: 21,

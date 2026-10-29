@@ -44,6 +44,8 @@ export function loadConfig() {
       allTime: optional('ALLTIME_CHANNEL_ID', null),
       // Facultatifs : sans eux, la planification des événements est désactivée.
       planning: optional('PLANNING_CHANNEL_ID', null),
+      // Facultatif : sans lui, les rappels pour planifier arrivent dans le salon de création.
+      planningReminder: optional('PLANNING_REMINDER_CHANNEL_ID', null),
       announceFree: optional('ANNOUNCE_FREE_CHANNEL_ID', null),
       announcePlug: optional('ANNOUNCE_PLUG_CHANNEL_ID', null),
     },

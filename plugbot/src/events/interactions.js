@@ -4,6 +4,7 @@
 import { MessageFlags } from 'discord.js';
 import { REMINDERS } from './catalog.js';
 import { parseDate, parseDuration, parseTime } from './format.js';
+import { anotherEventMessage, planningDoneMessage } from './render.js';
 import { cancelConfirmation, infoModal, linkModal, parseCustomId } from './ui.js';
 
 const PRIVATE = MessageFlags.Ephemeral;
@@ -23,11 +24,16 @@ export function readInfoForm(fields, now) {
   return { changes: { title, startAt: day + time, durationMin, details: fields.details.trim() } };
 }
 
-export function createInteractionHandler({ config, events }, service) {
+export function createInteractionHandler({ config, events, channels }, service) {
   async function privately(interaction, content, extra = {}) {
     const payload = { content, flags: PRIVATE, ...extra };
     if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
     else await interaction.reply(payload);
+  }
+
+  // Répond sous la question du salon des rappels, et retire ses boutons.
+  async function answer(interaction, content) {
+    await interaction.update({ content: `${interaction.message.content}\n\n${content}`, components: [] });
   }
 
   // Enregistre un réglage du ticket, puis met le ticket à jour.
@@ -64,7 +70,14 @@ export function createInteractionHandler({ config, events }, service) {
     switch (action) {
       case 'planningDone':
         service.markPlanningDone(now);
-        await privately(interaction, '✅ Planning terminé : plus de relance cette semaine. Les rappels partiront aux heures prévues.');
+        await privately(interaction, planningDoneMessage());
+        return;
+      case 'finished':
+        service.markPlanningDone(now);
+        await answer(interaction, planningDoneMessage());
+        return;
+      case 'another':
+        await answer(interaction, anotherEventMessage(channels.planning.id));
         return;
       case 'list':
         await privately(interaction, service.upcomingList());

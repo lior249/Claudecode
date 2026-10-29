@@ -81,7 +81,12 @@ function setup() {
       fetch: async (id) => ({ id, scheduledStartTimestamp: START, channelId: 'vocal', entityMetadata: null }),
     },
   };
-  const channels = { planning, announceFree: fakeTextChannel('free'), announcePlug: fakeTextChannel('plug') };
+  const channels = {
+    planning,
+    planningReminder: fakeTextChannel('rappels'),
+    announceFree: fakeTextChannel('free'),
+    announcePlug: fakeTextChannel('plug'),
+  };
   const ctx = { config, db, events, guild, channels };
   const service = createEventService(ctx);
   return { ...ctx, service, threads, scheduled, onInteraction: createInteractionHandler(ctx, service) };
@@ -154,6 +159,17 @@ describe('planification des événements', () => {
     );
     assert.equal(thread.name, '🎓 Les accroches qui retiennent — jeudi 5 novembre');
     assert.match(thread.sent[1].content, /Statut :\*\* ✅ Programmé/);
+
+    // Dans le salon des rappels : « Est-ce que tu as fini de créer tes événements ? »
+    const [question] = env.channels.planningReminder.sent;
+    assert.equal(
+      question.content,
+      '<@900> ✅ **🎓 Les accroches qui retiennent** est programmé : jeudi 5 novembre à 22 h 00 (GMT).\nEst-ce que tu as fini de créer tes événements ?',
+    );
+    assert.deepEqual(
+      question.components[0].components.map((button) => button.data.custom_id),
+      ['ev:finished:', 'ev:another:'],
+    );
   });
 
   it('envoie les rappels à l’heure, puis le sondage d’avis, et ferme le ticket', async () => {
@@ -218,55 +234,120 @@ describe('planification des événements', () => {
     assert.equal(env.channels.announceFree.sent.length, 2, 'plus aucun rappel');
   });
 
-  it('demande le planning le dimanche et relance jusqu’à « Planning terminé »', async () => {
-    const planning = env.channels.planning;
+  it('demande le planning le dimanche dans le salon des rappels, et relance jusqu’à « J’ai fini »', async () => {
+    const reminders = env.channels.planningReminder;
     await env.service.tick(Date.UTC(2026, 10, 1, 9));
-    assert.match(planning.sent[0].content, /^<@900>\n📅 \*\*Planning de la semaine du lundi 2 novembre au dimanche 8 novembre\*\*/);
-    assert.match(planning.sent[0].content, /mercredi 4 novembre à 22 h 00 \(GMT\) et vendredi 6 novembre à 22 h 00 \(GMT\)/);
+    assert.equal(env.channels.planning.sent.length, 0, 'rien dans le salon de création');
+    assert.match(reminders.sent[0].content, /^<@900>\n📅 \*\*Planning de la semaine du lundi 2 novembre au dimanche 8 novembre\*\*/);
+    assert.match(reminders.sent[0].content, /mercredi 4 novembre à 22 h 00 \(GMT\) et vendredi 6 novembre à 22 h 00 \(GMT\)/);
+    assert.match(reminders.sent[0].content, /👍 \*\*Oui\*\*, j'ai des événements à créer\n👎 \*\*Non\*\*, rien à créer cette semaine/);
+    assert.deepEqual(reminders.sent[0].reactions, ['👍', '👎']);
     await env.service.tick(Date.UTC(2026, 10, 1, 9, 30));
-    assert.equal(planning.sent.length, 1);
+    assert.equal(reminders.sent.length, 1);
     await env.service.tick(Date.UTC(2026, 10, 1, 15));
-    assert.match(planning.sent[1].content, /Petit rappel/);
+    assert.match(reminders.sent[1].content, /Petit rappel : tu n'as pas encore fini de créer tes événements/);
 
     env.service.markPlanningDone(Date.UTC(2026, 10, 1, 16));
     await env.service.tick(Date.UTC(2026, 10, 1, 18));
     await env.service.tick(Date.UTC(2026, 10, 2, 9));
-    assert.equal(planning.sent.length, 2, 'plus de relance');
+    assert.equal(reminders.sent.length, 2, 'plus de relance');
   });
 
   it('relance aussi le lundi, puis s’arrête', async () => {
-    const planning = env.channels.planning;
+    const reminders = env.channels.planningReminder;
     for (const hour of [9, 15, 18]) await env.service.tick(Date.UTC(2026, 10, 1, hour));
     for (const hour of [9, 15, 18]) await env.service.tick(Date.UTC(2026, 10, 2, hour));
     await env.service.tick(Date.UTC(2026, 10, 3, 9));
-    assert.equal(planning.sent.length, 6);
+    assert.equal(reminders.sent.length, 6);
+  });
+
+  it('👍 sur la demande du planning : envoie créer les événements, et continue de relancer', async () => {
+    const reminders = env.channels.planningReminder;
+    const { eventId } = await fillTicket(env, 'masterclass');
+    await env.service.validate(eventId, NOW);
+    await env.service.tick(Date.UTC(2026, 10, 1, 9));
+    const prompt = reminders.sent.at(-1);
+    assert.match(prompt.content, /Déjà programmés :\n• 🎓 \*\*Les accroches qui retiennent\*\* — jeudi 5 novembre à 22 h 00 \(GMT\)/);
+
+    const react = (emoji, userId = ADMIN) => env.service.onReaction({ emoji: { name: emoji }, message: { id: prompt.id } }, { id: userId }, NOW);
+    assert.equal(await react('👍', '123'), false, 'seul l’admin répond');
+    assert.equal(await react('👍'), true);
+    assert.match(reminders.sent.at(-1).content, /^👌 Parfait ! Va directement dans <#planning> et crée ton événement/);
+
+    await env.service.tick(Date.UTC(2026, 10, 1, 15));
+    assert.match(reminders.sent.at(-1).content, /Petit rappel/, 'rien de fini : la relance continue');
+  });
+
+  it('👎 sur la demande du planning : plus de relance cette semaine', async () => {
+    const reminders = env.channels.planningReminder;
+    await env.service.tick(Date.UTC(2026, 10, 1, 9));
+    const prompt = reminders.sent.at(-1);
+    assert.equal(await env.service.onReaction({ emoji: { name: '👎🏾' }, message: { id: prompt.id } }, { id: ADMIN }, NOW), true);
+    assert.match(reminders.sent.at(-1).content, /^✅ C'est noté : rien à créer cette semaine/);
+    await env.service.tick(Date.UTC(2026, 10, 1, 15));
+    await env.service.tick(Date.UTC(2026, 10, 2, 9));
+    assert.equal(reminders.sent.length, 2);
+    // La semaine suivante, la demande revient.
+    await env.service.tick(Date.UTC(2026, 10, 8, 9));
+    assert.match(reminders.sent.at(-1).content, /Planning de la semaine du lundi 9 novembre/);
+  });
+
+  it('« Est-ce que tu as fini ? » : « Je crée un autre événement » ou « J’ai fini »', async () => {
+    const reminders = env.channels.planningReminder;
+    const click = (customId, message) => ({
+      customId,
+      message,
+      user: { id: ADMIN },
+      update: async (payload) => Object.assign(message, payload),
+    });
+
+    mock.timers.setTime(Date.UTC(2026, 10, 1, 8));
+    const first = await fillTicket(env, 'masterclass');
+    await env.service.validate(first.eventId, Date.now());
+    const question = reminders.sent.at(-1);
+    await env.onInteraction(click('ev:another:', question));
+    assert.match(question.content, /\n\n➕ Parfait ! Va directement dans <#planning> et crée ton prochain événement\.$/);
+    assert.deepEqual(question.components, [], 'les boutons disparaissent une fois répondu');
+    await env.service.tick(Date.UTC(2026, 10, 1, 9));
+    assert.match(reminders.sent.at(-1).content, /Planning de la semaine/, 'pas encore fini : la demande arrive');
+
+    const second = await fillTicket(env, 'questions');
+    await env.service.validate(second.eventId, Date.now());
+    const again = reminders.sent.at(-1);
+    await env.onInteraction(click('ev:finished:', again));
+    assert.match(again.content, /\n\n✅ C'est noté : tu as fini de créer tes événements, je ne te relance plus cette semaine\./);
+    const count = reminders.sent.length;
+    await env.service.tick(Date.UTC(2026, 10, 1, 15));
+    await env.service.tick(Date.UTC(2026, 10, 2, 9));
+    assert.equal(reminders.sent.length, count, 'plus de relance');
   });
 
   it("confirme le live de l'accompagnement avec 👍 : annonce et sondage de présence", async () => {
     await env.service.tick(Date.UTC(2026, 9, 28, 9));
-    const question = env.channels.planning.sent[0];
+    const question = env.channels.planningReminder.sent[0];
     assert.match(question.content, /Live accompagnement ce soir à 22 h 00 \(GMT\)\*\* : il est maintenu \?/);
     assert.deepEqual(question.reactions, ['👍', '❌']);
 
     const reaction = (emoji, userId) => [{ emoji: { name: emoji }, message: { id: question.id } }, { id: userId }];
-    assert.equal(await env.service.onConfirmationReaction(...reaction('👍', '123'), NOW), false, 'seul l’admin décide');
-    assert.equal(await env.service.onConfirmationReaction(...reaction('👍🏽', ADMIN), Date.UTC(2026, 9, 28, 10)), true);
+    assert.equal(await env.service.onReaction(...reaction('👍', '123'), NOW), false, 'seul l’admin décide');
+    assert.equal(await env.service.onReaction(...reaction('👍🏽', ADMIN), Date.UTC(2026, 9, 28, 10)), true);
 
     const [announcement] = env.channels.announcePlug.sent;
     assert.match(announcement.content, /^<@&r-tiktok>\n✅ \*\*Live confirmé ce soir à 22 h 00 \(GMT\) !\*\*/);
     assert.equal(announcement.poll.duration, 12);
     assert.deepEqual(announcement.allowedMentions, { roles: ['r-tiktok'] });
 
+    assert.match(env.channels.planningReminder.sent.at(-1).content, /le live de ce soir est annoncé/);
     await env.service.tick(Date.UTC(2026, 9, 28, 12));
-    assert.equal(env.channels.planning.sent.filter((m) => /maintenu/.test(m.content)).length, 1, 'plus de question une fois répondu');
+    assert.equal(env.channels.planningReminder.sent.filter((m) => /maintenu/.test(m.content)).length, 1, 'plus de question une fois répondu');
   });
 
   it("annule le live de l'accompagnement avec ❌, après une relance", async () => {
     await env.service.tick(Date.UTC(2026, 9, 30, 9));
     await env.service.tick(Date.UTC(2026, 9, 30, 12));
-    const relaunch = env.channels.planning.sent[1];
+    const relaunch = env.channels.planningReminder.sent[1];
     assert.match(relaunch.content, /⏰ Rappel/);
-    await env.service.onConfirmationReaction({ emoji: { name: '❌' }, message: { id: relaunch.id } }, { id: ADMIN }, Date.UTC(2026, 9, 30, 13));
+    await env.service.onReaction({ emoji: { name: '❌' }, message: { id: relaunch.id } }, { id: ADMIN }, Date.UTC(2026, 9, 30, 13));
     assert.match(env.channels.announcePlug.sent[0].content, /❌ \*\*Pas de live ce soir\.\*\*/);
   });
 
@@ -274,7 +355,8 @@ describe('planification des événements', () => {
     await env.service.ensurePanel();
     await env.service.ensurePanel();
     assert.equal(env.channels.planning.sent.length, 1);
-    assert.match(env.channels.planning.sent[0].content, /Panneau de planification PlugBot/);
+    assert.match(env.channels.planning.sent[0].content, /^🎛️ \*\*Créer un événement — panneau PlugBot\*\*/);
+    assert.match(env.channels.planning.sent[0].content, /Les rappels pour planifier tes événements arrivent dans <#rappels>\.$/);
   });
 
   it('ouvre un ou plusieurs tickets depuis le panneau', async () => {

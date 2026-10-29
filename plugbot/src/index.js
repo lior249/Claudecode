@@ -116,7 +116,7 @@ client.on(Events.MessageCreate, (message) => enqueue(() => handlers?.onNewMessag
 client.on(Events.MessageReactionAdd, (reaction, user) =>
   enqueue(async () => {
     await handlers?.onReactionAdd(reaction, user);
-    await eventService?.onConfirmationReaction(reaction, user, Date.now());
+    await eventService?.onReaction(reaction, user, Date.now());
   }),
 );
 // Les clics doivent recevoir une réponse en moins de 3 secondes : ils ne passent pas par la file d'attente.

@@ -72,7 +72,9 @@ function totals({ total, week }) {
 // --- #show-up ---
 
 // week, month, total : { points, rank }. Le rang est celui de la catégorie du membre (0 = hors classement).
-export function showupMessage({ userId, chain, category, prison, week, month, total }) {
+// Le message finit par un encouragement, avec les salons des classements et le guide.
+export function showupMessage({ userId, chain, category, prison, week, month, total, config }) {
+  const { channels, links } = config;
   const ranking = (emoji, name, { points, rank }) =>
     `${emoji} Classement ${name} : **${plural(points, 'point')}** — ` +
     (rank ? `${ordinal(rank)} du classement ${CATEGORY_LABELS[category]}` : 'hors classement');
@@ -88,6 +90,12 @@ export function showupMessage({ userId, chain, category, prison, week, month, to
       `🔒 Toujours en prison : encore **${plural(prison.daysToLeave, 'jour')}** de show-up d'affilée pour sortir.`,
     );
   }
+  lines.push(
+    '',
+    `🏆 Regarde les classements ${channelMention(channels.week)} et ${channelMention(channels.month)} pour savoir si tu es dans le top ${RANKING_SIZES.week} ou pas. ` +
+      "Seuls les meilleurs gagneront des prix, alors n'abandonne pas !",
+    `📖 Pour en savoir plus, regarde ${channelMention(links.guide)}.`,
+  );
   return lines.join('\n');
 }
 
