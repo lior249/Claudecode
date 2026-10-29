@@ -126,6 +126,9 @@ export function openDatabase(path) {
   }
 
   return {
+    // La connexion SQLite elle-même, pour les modules qui ont leurs propres tables (événements).
+    connection: db,
+
     getMeta(key) {
       return statements.getMeta.get(key)?.value ?? null;
     },

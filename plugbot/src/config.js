@@ -42,6 +42,10 @@ export function loadConfig() {
       prison: required('PRISON_CHANNEL_ID'),
       // Facultatif : sans lui, le top all-time n'est pas publié.
       allTime: optional('ALLTIME_CHANNEL_ID', null),
+      // Facultatifs : sans eux, la planification des événements est désactivée.
+      planning: optional('PLANNING_CHANNEL_ID', null),
+      announceFree: optional('ANNOUNCE_FREE_CHANNEL_ID', null),
+      announcePlug: optional('ANNOUNCE_PLUG_CHANNEL_ID', null),
     },
     // Salons seulement mentionnés dans les messages : PlugBot n'a pas besoin d'y avoir accès.
     links: {

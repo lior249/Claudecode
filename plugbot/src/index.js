@@ -8,6 +8,9 @@ import { openDatabase } from './db.js';
 import { createHandlers } from './handlers.js';
 import { createJobs } from './jobs.js';
 import { acquireLock } from './lock.js';
+import { createInteractionHandler } from './events/interactions.js';
+import { createEventService } from './events/service.js';
+import { createEventStore } from './events/store.js';
 import { createPrison } from './prison.js';
 import { createQueue } from './queue.js';
 import { startup } from './sync.js';
@@ -27,6 +30,7 @@ if (otherPid) {
 }
 
 const db = openDatabase(config.databasePath);
+const events = createEventStore(db.connection);
 const tracker = createTracker({ config, db });
 const enqueue = createQueue();
 
@@ -43,14 +47,25 @@ const client = new Client({
 });
 
 let handlers = null;
+let eventService = null;
+let onInteraction = null;
+
+// Salons sans lesquels PlugBot ne peut pas tourner. Les autres (top all-time, planification) sont
+// facultatifs : s'ils sont introuvables, seule leur fonction est désactivée.
+const REQUIRED_CHANNELS = new Set(['results', 'showup', 'week', 'month', 'prison']);
 
 async function fetchChannels(guild) {
   const channels = {};
   for (const [name, id] of Object.entries(config.channels)) {
     if (!id) continue;
     const channel = await guild.channels.fetch(id).catch(() => null);
-    if (!channel?.isTextBased()) throw new Error(`Salon introuvable ou sans messages : ${name} (${id})`);
-    channels[name] = channel;
+    if (channel?.isTextBased()) {
+      channels[name] = channel;
+      continue;
+    }
+    const problem = `Salon introuvable ou sans messages : ${name} (${id})`;
+    if (REQUIRED_CHANNELS.has(name)) throw new Error(problem);
+    console.error(`[PlugBot] ${problem}. Cette fonction est désactivée.`);
   }
   return channels;
 }
@@ -59,8 +74,15 @@ client.once(Events.ClientReady, (readyClient) =>
   enqueue(async () => {
     const guild = await readyClient.guilds.fetch(config.guildId);
     await guild.members.fetch();
-    const ctx = { config, db, tracker, guild, channels: await fetchChannels(guild) };
+    const ctx = { config, db, tracker, events, guild, channels: await fetchChannels(guild) };
     ctx.prison = createPrison(ctx);
+    if (ctx.channels.planning && ctx.channels.announceFree && ctx.channels.announcePlug) {
+      ctx.eventService = createEventService(ctx);
+      await ctx.eventService.ensurePanel();
+      onInteraction = createInteractionHandler(ctx, ctx.eventService);
+    } else {
+      console.warn('[PlugBot] Planification des événements désactivée : PLANNING_CHANNEL_ID, ANNOUNCE_FREE_CHANNEL_ID ou ANNOUNCE_PLUG_CHANNEL_ID manque dans .env (ou le salon est introuvable).');
+    }
 
     if (!ctx.channels.allTime) console.warn('[PlugBot] ALLTIME_CHANNEL_ID absent du .env : le top all-time ne sera pas publié.');
     const problems = findPermissionProblems(ctx);
@@ -78,6 +100,7 @@ client.once(Events.ClientReady, (readyClient) =>
       console.error('[PlugBot] Rattrapage incomplet au démarrage :', error);
     }
     handlers = ready;
+    eventService = ctx.eventService ?? null;
 
     await jobs.tick();
     setInterval(() => enqueue(jobs.tick), TICK_MS);
@@ -86,7 +109,14 @@ client.once(Events.ClientReady, (readyClient) =>
 );
 
 client.on(Events.MessageCreate, (message) => enqueue(() => handlers?.onNewMessage(message)));
-client.on(Events.MessageReactionAdd, (reaction, user) => enqueue(() => handlers?.onReactionAdd(reaction, user)));
+client.on(Events.MessageReactionAdd, (reaction, user) =>
+  enqueue(async () => {
+    await handlers?.onReactionAdd(reaction, user);
+    await eventService?.onConfirmationReaction(reaction, user, Date.now());
+  }),
+);
+// Les clics doivent recevoir une réponse en moins de 3 secondes : ils ne passent pas par la file d'attente.
+client.on(Events.InteractionCreate, (interaction) => onInteraction?.(interaction));
 client.on(Events.MessageReactionRemove, (reaction, user) => enqueue(() => handlers?.onReactionRemove(reaction, user)));
 client.on(Events.MessageDelete, (message) => enqueue(() => handlers?.onMessageDelete(message)));
 client.on(Events.GuildMemberUpdate, (_oldMember, member) => enqueue(() => handlers?.onMemberUpdate(member)));

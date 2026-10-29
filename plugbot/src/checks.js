@@ -6,6 +6,10 @@ const PERMISSION_LABELS = {
   ReadMessageHistory: "Voir les anciens messages",
   AddReactions: 'Ajouter des réactions',
   MentionEveryone: 'Mentionner @everyone, @here et tous les rôles',
+  SendPolls: 'Créer des sondages',
+  CreatePublicThreads: 'Créer des fils publics',
+  SendMessagesInThreads: 'Envoyer des messages dans les fils',
+  ManageThreads: 'Gérer les fils',
 };
 
 const CHANNEL_NEEDS = {
@@ -15,6 +19,9 @@ const CHANNEL_NEEDS = {
   month: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
   prison: ['ViewChannel', 'SendMessages'],
   allTime: ['ViewChannel', 'SendMessages', 'MentionEveryone'],
+  planning: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AddReactions', 'CreatePublicThreads', 'SendMessagesInThreads', 'ManageThreads'],
+  announceFree: ['ViewChannel', 'SendMessages', 'MentionEveryone', 'SendPolls'],
+  announcePlug: ['ViewChannel', 'SendMessages', 'MentionEveryone', 'SendPolls'],
 };
 
 // Rôles que PlugBot donne et retire lui-même.
@@ -35,6 +42,7 @@ export function findPermissionProblems({ config, guild, channels }) {
   }
 
   if (!me.permissions.has('ManageRoles')) problems.push('Il manque la permission « Gérer les rôles ».');
+  if (channels.planning && !me.permissions.has('ManageEvents')) problems.push('Il manque la permission « Gérer les événements ».');
 
   for (const [key, roleId] of Object.entries(config.roles)) {
     const role = guild.roles.cache.get(roleId);

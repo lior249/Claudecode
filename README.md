@@ -11,10 +11,4 @@ Bot Discord qui suit les show-ups des membres du serveur.
 
 - `plugbot/SPEC.md` : spécification.
 - `plugbot/README.md` : installation.
-- `plugbot/EVENEMENTS.md` : proposition pour la planification des événements et des lives (pas encore codée).
-
-# LiveBot
-
-Bot Discord qui annonce les lives de l'accompagnement (mercredi et vendredi) avec un sondage de présence.
-
-- `livebot/README.md` : installation.
+- `plugbot/EVENEMENTS.md` : planification des événements et des lives, et modèles de messages.

@@ -1,7 +1,6 @@
-# PlugBot — événements et lives (proposition)
+# PlugBot — événements et lives
 
-Ce document décrit comment PlugBot planifiera les événements de la semaine, et tous les modèles de messages.
-**Rien n'est encore codé** : relis, corrige, puis on passe au code.
+Ce document décrit comment PlugBot planifie les événements de la semaine, et tous les modèles de messages.
 
 Toutes les heures sont en **GMT**.
 
@@ -11,7 +10,14 @@ Toutes les heures sont en **GMT**.
 
 ### Le salon de planification
 
-Un salon privé, par exemple **#plugbot-planning**, visible seulement par toi et PlugBot. C'est là que PlugBot te pose ses questions.
+Un salon privé, **#plugbot-planning**, visible seulement par toi et PlugBot. C'est là que PlugBot te pose ses questions.
+
+En haut du salon, PlugBot épingle un **panneau** :
+
+- **un bouton par type de live** (14 boutons) : un clic ouvre un ticket pour ce live ;
+- **un menu** pour ouvrir plusieurs tickets d'un coup : coche tous les types que tu veux, un ticket s'ouvre pour chacun ;
+- **✅ Planning terminé** : à cliquer quand tu as fini de planifier la semaine (plus de relance) ;
+- **📋 Événements à venir** : la liste des événements programmés, avec un lien vers leur ticket.
 
 ### La demande du planning
 
@@ -19,70 +25,67 @@ PlugBot te demande le programme de la semaine qui commence le lundi :
 
 | Jour | Heures |
 |---|---|
-| Dimanche | 9 h, puis 15 h et 18 h si tu n'as pas répondu |
-| Lundi | 9 h, 15 h et 18 h si tu n'as toujours pas répondu |
+| Dimanche | 9 h, puis 15 h et 18 h si tu n'as pas cliqué sur « Planning terminé » |
+| Lundi | 9 h, 15 h et 18 h si tu n'as toujours pas cliqué |
 
-Il s'arrête dès que tu as répondu, et ne relance plus après le lundi 18 h.
+Il s'arrête dès que tu cliques sur **✅ Planning terminé**, et ne relance plus après le lundi 18 h.
 
-> 📅 **Planning de la semaine du 2 au 8 novembre**
+> @toi
+> 📅 **Planning de la semaine du lundi 2 novembre au dimanche 8 novembre**
 > Salut ! Quels événements sont prévus cette semaine ?
-> Déjà au programme : 🔴 Live accompagnement — mercredi et vendredi à 22 h 00 (GMT).
+> Déjà au programme : 🔴 Live accompagnement — mercredi 4 novembre à 22 h 00 (GMT) et vendredi 6 novembre à 22 h 00 (GMT).
 >
-> [➕ Ajouter un événement] [✅ Planning terminé] [🚫 Rien de plus cette semaine]
+> Crée tes lives avec le panneau en haut du salon (un ticket par live), puis clique sur **✅ Planning terminé**.
 
 Les relances :
 
-> ⏰ Petit rappel : le planning de la semaine n'est pas encore fait.
+> @toi ⏰ Petit rappel : le planning de la semaine n'est pas encore fait. Utilise le panneau en haut du salon, puis clique sur **✅ Planning terminé**.
 
 ### Un ticket par événement
 
-Le bouton **➕ Ajouter un événement** ouvre un **fil privé** (le ticket) dans #plugbot-planning, un par événement.
-Ça reste lisible même avec beaucoup d'événements : chaque ticket a son nom, et il se ferme une fois l'événement validé.
+Chaque ticket est un **fil** dans #plugbot-planning. Il contient deux messages :
 
-Dans le ticket, PlugBot pose les questions une par une, avec des menus et des cases à remplir (aucune IA) :
+1. **Les réglages**, avec des menus :
+   - **Public** : Free ou Accompagnement (absent pour le coaching gratuit, réservé aux Free, et pour le live accompagnement). Il décide du salon d'annonce : annonces free ou annonces accompagnement.
+   - **Lieu** : un salon vocal ou « stage » du serveur.
+   - **Texte de présentation** : les modèles prévus pour ce type et ce public, ou « Aucun modèle, seulement mon texte ».
+   - **Rôles à mentionner** : @everyone, Free, TikTok (un, plusieurs ou aucun).
+   - **Rappels** : à la création (l'annonce), 7 jours, 3 jours, 24 heures et 3 heures avant. Tout est coché au départ.
+2. **Le résumé**, avec des boutons :
+   - **📝 Sujet, date, heure** : un formulaire avec le sujet, la date (JJ/MM), l'heure en GMT (HH:MM), la durée en minutes et un texte libre pour donner envie ;
+   - **🔗 Lien externe** : un lien YouTube, Zoom, Google Meet… à la place d'un salon du serveur ;
+   - **👁️ Aperçu** : tous les messages qui partiront, avec leur date d'envoi, sans notifier personne ;
+   - **✅ Valider** et **🗑️ Supprimer** (pour un brouillon).
 
-1. **Type de live** : un menu avec les 14 types (voir plus bas).
-2. **Public** : Accompagnement ou Free. Il décide du salon d'annonce :
-   - Free : salon annonces free (`1540657873468653653`) ;
-   - Accompagnement : salon annonces accompagnement (`1551373510180347904`).
-3. **Formulaire** : sujet (titre), date, heure de début, durée, et un texte libre facultatif pour développer le sujet.
-4. **Lieu** : un menu avec les salons vocaux et « stage » du serveur, ou « Lien externe » (YouTube, Zoom, Google Meet…), comme quand on crée un événement Discord à la main.
-5. **Texte de présentation** : PlugBot propose les modèles prévus pour ce type et ce public. Tu en choisis un, ou tu écris le tien.
-6. **Rôles à mentionner** : un menu à choix multiples (@everyone, Free, TikTok…).
-7. **Rappels** : des cases à cocher, toutes cochées au départ :
-   - au moment de la création (l'annonce) ;
-   - 7 jours avant ;
-   - 3 jours avant ;
-   - 24 heures avant ;
-   - 3 heures avant.
+Un rappel déjà passé au moment de la validation est ignoré. Par exemple, pas de rappel « 7 jours avant » pour un live dans 4 jours.
 
-   Un rappel déjà passé au moment de la création est ignoré. Par exemple, pas de rappel « 7 jours avant » pour un live dans 4 jours.
-8. **Aperçu** : PlugBot montre l'événement Discord et **tous les messages** qui vont partir, avec leur date et leur heure.
-
-   [✅ Valider] [✏️ Modifier] [🗑️ Supprimer]
-
-Dès que tu valides :
+Dès que tu cliques sur **✅ Valider** :
 - l'événement Discord est créé ;
 - l'annonce part tout de suite ;
-- les autres rappels sont programmés ;
-- le ticket se ferme.
+- les autres rappels sont programmés.
 
-### La commande /event
+**Le ticket reste ouvert jusqu'à la fin du live**, pour que tu puisses encore le modifier. Les boutons deviennent :
 
-Elle affiche la liste des événements à venir. Tu en choisis un, puis :
+- **💾 Enregistrer les changements** : l'événement Discord et les rappels sont mis à jour. Si la date, l'heure ou le lieu changent, les membres sont prévenus.
+- **❌ Annuler l'événement** : l'événement et ses rappels sont supprimés, et les membres sont prévenus si l'annonce était déjà partie.
 
-- **Modifier** : date, heure, lieu, texte, rôles ou rappels. PlugBot met l'événement Discord à jour et peut annoncer le changement.
-- **Annuler** : l'événement et ses rappels sont supprimés, et un message d'annulation est publié si tu le veux.
+À la fin du live, PlugBot publie le sondage d'avis, puis ferme le ticket.
 
 ### Les lives de l'accompagnement (mercredi et vendredi, 22 h)
 
-Ce sont des événements qui reviennent chaque semaine. Ils sont déjà dans le planning du dimanche, et tu peux en enlever un.
-Le jour du live, PlugBot reconfirme aux membres de l'accompagnement qu'il y a bien live, avec un sondage de présence (voir les modèles).
+Le jour du live, à **9 h**, PlugBot te demande dans #plugbot-planning si le live est maintenu. Il relance à 12 h et 15 h si tu n'as pas répondu.
+
+> @toi 🔴 **Live accompagnement ce soir à 22 h 00 (GMT)** : il est maintenu ?
+> Réagis avec 👍 pour le confirmer ou ❌ pour l'annuler. PlugBot prévient ensuite les membres de l'accompagnement.
+
+- **👍** : PlugBot annonce le live dans le salon annonces accompagnement, en mentionnant le rôle TikTok, avec un sondage de présence qui se ferme à 22 h.
+- **❌** : PlugBot prévient les membres de l'accompagnement, dans le même salon, qu'il n'y a pas de live ce soir.
+- **Pas de réponse** : rien n'est publié.
 
 ### Après le live
 
-- **Sondage d'avis** : publié à la fin du live, dans le salon de l'annonce, ouvert 24 heures.
-- **Présences** (lives dans un salon vocal ou « stage » de Discord seulement) : PlugBot note qui était là et lui donne des points PlugBot. Pour un lien externe (YouTube, Zoom…), il ne peut pas savoir qui était présent.
+Le **sondage d'avis** est publié à la fin du live, dans le salon de l'annonce. Il reste ouvert 24 heures.
+Les points de présence ne sont pas comptés pour l'instant.
 
 ### L'heure chez toi
 
@@ -183,10 +186,10 @@ Les mots entre accolades sont remplis par PlugBot :
 > 📍 {lieu}
 > 👉 Clique sur **« Intéressé »** pour être prévenu au lancement : {lien}
 
-### Jour du live de l'accompagnement (reconfirmation)
+### Jour du live de l'accompagnement (confirmé avec 👍)
 
-> {mention}
-> ✅ **Live confirmé ce soir à 22 h 00 (GMT)**
+> @TikTok
+> ✅ **Live confirmé ce soir à 22 h 00 (GMT) !** Rendez-vous ce soir 🔥
 > Live réservé aux membres de l'accompagnement. Dis-nous dans le sondage si tu seras là 👇
 >
 > 🕒 **L'heure chez toi :**
@@ -194,15 +197,16 @@ Les mots entre accolades sont remplis par PlugBot :
 
 Avec le sondage : « Tu participes au live de ce soir ? », ✅ Oui, je serai là / ❌ Non, je ne pourrai pas. Il se ferme au début du live.
 
+### Jour du live de l'accompagnement (annulé avec ❌)
+
+> @TikTok
+> ❌ **Pas de live ce soir.** Le live de l'accompagnement prévu à 22 h 00 (GMT) est annulé. On se retrouve au prochain live !
+
 ### Fin du live (sondage d'avis)
 
 > 🙏 Merci d'avoir participé à **{titre}** ! Ton avis nous aide à faire encore mieux 👇
 
 Sondage : « Comment as-tu trouvé le live ? », 🔥 Excellent / 👍 Bien / 😐 Moyen / 👎 Décevant. Il reste ouvert 24 heures.
-
-### Présences
-
-> 🎟️ Merci aux **{nombre} membres** présents au live **{titre}** ! Chacun gagne des points PlugBot.
 
 ### Modification
 

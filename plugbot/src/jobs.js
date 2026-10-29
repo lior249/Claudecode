@@ -238,6 +238,14 @@ export function createJobs(ctx, handlers) {
     await once('last_evening_day', evening, 'publications du soir', () => runEvening(evening, now));
 
     await sendDueMessages(now);
+
+    if (ctx.eventService) {
+      try {
+        await ctx.eventService.tick(now);
+      } catch (error) {
+        console.error('[PlugBot] Échec : planification des événements.', error);
+      }
+    }
   }
 
   return { tick, runDaily, runRanking, runEvening, checkTeamReleases };

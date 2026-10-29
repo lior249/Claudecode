@@ -40,6 +40,15 @@ quand un salon **autorise** explicitement un rôle (par exemple Free) à écrire
 
 Le salon des codes de réduction ne doit être visible que pour 🔥🔥🔥, ⚡plug7⚡ et ★plug30★. Pas besoin d'y bloquer le Prisonnier : PlugBot lui retire ces rôles pendant la prison.
 
+**La planification des événements** (voir [`EVENEMENTS.md`](EVENEMENTS.md)) :
+
+- Crée un salon privé **plugbot-planning**, visible seulement par toi et PlugBot.
+- Dans **Paramètres du serveur > Rôles > PlugBot**, active **Gérer les événements**.
+- Dans plugbot-planning, PlugBot doit pouvoir : voir le salon, envoyer des messages, voir les anciens messages, ajouter des réactions, **créer des fils publics**, **envoyer des messages dans les fils** et **gérer les fils**.
+- Dans les deux salons d'annonces (free et accompagnement) : voir le salon, envoyer des messages, **mentionner @everyone, @here et tous les rôles** et **créer des sondages**.
+- Pour un live dans un salon « stage », PlugBot doit aussi pouvoir **gérer les salons**, **rendre muets des membres** et **déplacer des membres** dans ce salon.
+- Ajoute les trois identifiants dans `.env` : `PLANNING_CHANNEL_ID`, `ANNOUNCE_FREE_CHANNEL_ID`, `ANNOUNCE_PLUG_CHANNEL_ID`.
+
 ## 3. Installer sur le VPS
 
 Se connecter au VPS avec `ssh root@ADRESSE_IP`, puis taper ces commandes une par une.
@@ -126,3 +135,4 @@ npm test
 - `src/stats.js` : calculs des chaînes, de la prison et des classements.
 - `src/messages.js` : tous les textes publiés par le bot, et les récompenses.
 - `src/preview.js` : l'aperçu de tous les messages (`npm run apercu`).
+- `src/events/` : la planification des événements (panneau, tickets, rappels, lives de l'accompagnement).
