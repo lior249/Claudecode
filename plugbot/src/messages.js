@@ -73,7 +73,7 @@ function totals({ total, week }) {
 
 // week, month, total : { points, rank }. Le rang est celui de la catégorie du membre (0 = hors classement).
 // Le message finit par un encouragement, avec les salons des classements et le guide.
-export function showupMessage({ userId, chain, category, prison, week, month, total, config }) {
+export function showupMessage({ userId, chain, category, prison, week, month, total, config, prisonExitChannelId }) {
   const { channels, links } = config;
   const ranking = (emoji, name, { points, rank }) =>
     `${emoji} Classement ${name} : **${plural(points, 'point')}** — ` +
@@ -85,7 +85,10 @@ export function showupMessage({ userId, chain, category, prison, week, month, to
     ranking('🗓️', 'mois', month),
     ranking('🏅', 'total', total),
   ];
-  if (prison.inPrison && prison.daysToLeave > 0) {
+  if (prison.inPrison && prison.internal) {
+    const exit = prisonExitChannelId ? channelMention(prisonExitChannelId) : 'le salon de sortie de la prison interne';
+    lines.push(`🔒 Toujours en prison interne : pour en sortir, ouvre un ticket dans ${exit} et explique-toi.`);
+  } else if (prison.inPrison && prison.daysToLeave > 0) {
     lines.push(
       `🔒 Toujours en prison : encore **${plural(prison.daysToLeave, 'jour')}** de show-up d'affilée pour sortir.`,
     );
@@ -173,18 +176,22 @@ export function prisonCountdownMessage(groups, config) {
   return lines.join('\n');
 }
 
-function wayOutOfPrison(config) {
+// exitChannelId : pour les membres du parcours de l'accompagnement, qui sortent par un ticket de justification.
+function wayOutOfPrison(config, exitChannelId) {
+  const how = exitChannelId
+    ? `ouvre un ticket dans ${channelMention(exitChannelId)} et explique pourquoi tu n'as pas posté.`
+    : `poste un résultat dans ${channelMention(config.channels.results)} pendant ${DAYS_TO_LEAVE_PRISON} jours d'affilée.`;
   return [
-    `Voici comment en sortir : poste un résultat dans ${channelMention(config.channels.results)} pendant ${DAYS_TO_LEAVE_PRISON} jours d'affilée.`,
+    `Voici comment en sortir : ${how}`,
     `Si tu veux plus de détails, va voir ${channelMention(config.links.guide)}.`,
   ].join('\n');
 }
 
 // Un message par groupe de membres qui entrent en prison le même jour après le même délai.
-export function prisonEntryMessages(days, userIds, config) {
+export function prisonEntryMessages(days, userIds, config, exitChannelId) {
   const header = [
     `🔒 **Tu viens de rejoindre la prison : ${days} jours sans show-up.**`,
-    wayOutOfPrison(config),
+    wayOutOfPrison(config, exitChannelId),
     '',
     'Voici ceux qui viennent de rejoindre la prison :',
   ].join('\n');

@@ -11,7 +11,13 @@ const PERMISSION_LABELS = {
   CreatePublicThreads: 'Créer des fils publics',
   SendMessagesInThreads: 'Envoyer des messages dans les fils',
   ManageThreads: 'Gérer les fils',
+  ManageChannels: 'Gérer les salons',
+  CreatePrivateThreads: 'Créer des fils privés',
+  AttachFiles: 'Joindre des fichiers',
 };
+
+// Permissions générales dont PlugBot a besoin pour créer et gérer les salons du parcours.
+const JOURNEY_NEEDS = ['ManageChannels', 'ManageThreads', 'CreatePrivateThreads', 'SendMessagesInThreads', 'EmbedLinks', 'AttachFiles'];
 
 const CHANNEL_NEEDS = {
   results: ['ViewChannel', 'ReadMessageHistory', 'AddReactions'],
@@ -29,7 +35,7 @@ const CHANNEL_NEEDS = {
 };
 
 // Rôles que PlugBot donne et retire lui-même.
-const MANAGED_ROLES = ['streak', 'weekWinner', 'monthWinner', 'prisoner'];
+const MANAGED_ROLES = ['streak', 'weekWinner', 'monthWinner', 'prisoner', 'internalPrisoner'];
 
 // Renvoie la liste des problèmes, en français. Vide si tout va bien.
 export function findPermissionProblems({ config, guild, channels }) {
@@ -47,6 +53,13 @@ export function findPermissionProblems({ config, guild, channels }) {
 
   if (!me.permissions.has('ManageRoles')) problems.push('Il manque la permission « Gérer les rôles ».');
   if (channels.planning && !me.permissions.has('ManageEvents')) problems.push('Il manque la permission « Gérer les événements ».');
+  if (config.journeyCategoryId) {
+    const missing = JOURNEY_NEEDS.filter((perm) => !me.permissions.has(perm));
+    if (missing.length > 0) {
+      problems.push(`Parcours de l'accompagnement : il manque ${missing.map((perm) => `« ${PERMISSION_LABELS[perm]} »`).join(', ')}.`);
+    }
+    if (!guild.channels.cache.get(config.journeyCategoryId)) problems.push(`Catégorie de l'accompagnement introuvable (${config.journeyCategoryId}).`);
+  }
 
   for (const [key, roleId] of Object.entries(config.roles)) {
     const role = guild.roles.cache.get(roleId);

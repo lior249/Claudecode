@@ -31,6 +31,15 @@ export function loadConfig() {
     throw new Error('STREAK_ROLE_DAYS doit être un nombre entier supérieur ou égal à 1.');
   }
 
+  // Le parcours de l'accompagnement (facultatif) : actif quand ces quatre identifiants sont remplis.
+  const journeyRoles = {
+    office: optional('OFFICE_ROLE_ID', null),
+    plugged: optional('PLUGGED_ROLE_ID', null),
+    internalPrisoner: optional('INTERNAL_PRISONER_ROLE_ID', null),
+  };
+  const journeyCategoryId = optional('PLUG_CATEGORY_ID', null);
+  const journeyEnabled = Boolean(journeyCategoryId) && Object.values(journeyRoles).every(Boolean);
+
   return {
     token: required('DISCORD_TOKEN'),
     guildId: required('GUILD_ID'),
@@ -63,7 +72,10 @@ export function loadConfig() {
       weekWinner: required('WEEK_WINNER_ROLE_ID'),
       monthWinner: required('MONTH_WINNER_ROLE_ID'),
       prisoner: required('PRISONER_ROLE_ID'),
+      ...(journeyEnabled ? journeyRoles : {}),
     },
+    // Catégorie de l'accompagnement, où PlugBot crée les salons du parcours. Null : parcours désactivé.
+    journeyCategoryId: journeyEnabled ? journeyCategoryId : null,
     streakRoleDays,
     adminIds: new Set(
       required('ADMIN_USER_IDS')

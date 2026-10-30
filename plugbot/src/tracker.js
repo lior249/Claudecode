@@ -6,7 +6,9 @@ import { dayOf, weekRange } from './time.js';
 // L'accompagnement est toujours affiché avant les Free.
 const CATEGORIES = ['plug', 'free'];
 
-export function createTracker({ config, db }) {
+// journey : les parcours de l'accompagnement (facultatif). Avant l'étape Engagement, un membre du
+// parcours ne va pas en prison faute de show-up : il a son propre délai.
+export function createTracker({ config, db, journey = null }) {
   function categoryOf(member) {
     if (member.roles.cache.has(config.roles.plug)) return 'plug';
     if (member.roles.cache.has(config.roles.free)) return 'free';
@@ -37,6 +39,7 @@ export function createTracker({ config, db }) {
     const prisoners = db.prisonRecords();
     const totals = db.totals();
     const counts = db.countsBetween(range.start, range.end);
+    const preEngagement = journey?.preEngagement() ?? new Set();
     const rows = new Map();
     for (const member of members.values()) {
       if (!isTracked(member)) continue;
@@ -45,6 +48,8 @@ export function createTracker({ config, db }) {
       const chain = chainLength(memberDays, today);
       const startDay = trackingStartDay(member.joinedTimestamp, launchDay, states.get(member.id)?.resetDay);
       const inPrison = prisoners.has(member.id);
+      // Prison interne : on n'en sort pas en postant (daysToLeave reste à null).
+      const internal = prisoners.get(member.id)?.internal ?? false;
       rows.set(member.id, {
         userId: member.id,
         member,
@@ -52,9 +57,10 @@ export function createTracker({ config, db }) {
         chain,
         prison: {
           inPrison,
+          internal,
           missed: missedDays(memberDays, startDay, today),
-          limit: PRISON_DAYS[category],
-          daysToLeave: inPrison ? Math.max(0, DAYS_TO_LEAVE_PRISON - chain) : 0,
+          limit: preEngagement.has(member.id) ? Infinity : PRISON_DAYS[category],
+          daysToLeave: internal ? null : inPrison ? Math.max(0, DAYS_TO_LEAVE_PRISON - chain) : 0,
         },
         total: totals.get(member.id)?.count ?? 0,
         points: counts.get(member.id)?.count ?? 0,

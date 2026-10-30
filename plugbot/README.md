@@ -51,6 +51,26 @@ Le salon des codes de réduction ne doit être visible que pour 🔥🔥🔥, �
 - Pour un live dans un salon « stage », PlugBot doit aussi pouvoir **gérer les salons**, **rendre muets des membres** et **déplacer des membres** dans ce salon.
 - Ajoute les quatre identifiants dans `.env` : `PLANNING_CHANNEL_ID` (création), `PLANNING_REMINDER_CHANNEL_ID` (rappels), `ANNOUNCE_FREE_CHANNEL_ID` et `ANNOUNCE_PLUG_CHANNEL_ID`.
 
+**Le parcours de l'accompagnement** (voir [`PARCOURS.md`](PARCOURS.md)) :
+
+- Dans **Paramètres du serveur > Rôles > PlugBot**, active :
+  - **Gérer les salons** ;
+  - **Gérer les rôles** ;
+  - **Gérer les fils** ;
+  - **Créer des fils privés** ;
+  - **Envoyer des messages dans les fils** ;
+  - **Intégrer des liens** ;
+  - **Joindre des fichiers**.
+- Glisse le rôle PlugBot **au-dessus** du rôle Prisonnier interne.
+- PlugBot doit voir tous les salons de la catégorie de l'accompagnement : c'est lui qui les cache aux membres en prison interne.
+- Ajoute les quatre identifiants dans `.env` :
+  - `PLUG_CATEGORY_ID` (la catégorie) ;
+  - `OFFICE_ROLE_ID` ;
+  - `PLUGGED_ROLE_ID` ;
+  - `INTERNAL_PRISONER_ROLE_ID`.
+
+  PlugBot crée lui-même les 5 salons du parcours dans la catégorie.
+
 ## 3. Installer sur le VPS
 
 Se connecter au VPS avec `ssh root@ADRESSE_IP`, puis taper ces commandes une par une.
@@ -139,3 +159,4 @@ npm test
 - `src/messages.js` : tous les textes publiés par le bot, et les récompenses.
 - `src/preview.js` : l'aperçu de tous les messages (`npm run apercu`).
 - `src/events/` : la planification des événements (panneau, tickets, rappels, lives de l'accompagnement).
+- `src/journey/` : le parcours de l'accompagnement (étapes, fiches, prison interne, rappels de l'Engagement).

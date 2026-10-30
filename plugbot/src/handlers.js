@@ -52,7 +52,7 @@ export function createHandlers(ctx) {
     const member = await findMember(userId);
     if (member) {
       const row = tracker.snapshot(new Map([[member.id, member]]), Date.now()).get(member.id);
-      if (row?.prison.inPrison && row.prison.daysToLeave === 0) {
+      if (row?.prison.inPrison && !row.prison.internal && row.prison.daysToLeave === 0) {
         await prison.free(member);
         await send(channels.prison, prisonExitMessage(userId), [userId]);
       }
@@ -93,6 +93,7 @@ export function createHandlers(ctx) {
       month: standing(monthRange(now)),
       total: standing(ALL_TIME),
       config,
+      prisonExitChannelId: ctx.journey?.exitChannelId(),
     });
     await send(channels.showup, content, [member.id]);
     await settle(member.id);
@@ -154,6 +155,7 @@ export function createHandlers(ctx) {
       const current = guild.members.cache.get(member.id) ?? member;
       const today = dayOf(Date.now());
       tracker.syncCategory(current, today);
+      ctx.journey?.syncMember(current, Date.now());
       if (prison.wasReleasedByTeam(current)) await prison.releaseByTeam(current, today);
     },
   };

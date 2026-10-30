@@ -35,7 +35,7 @@ function weekday(timestamp) {
 }
 
 // Décalage (en millisecondes) entre l'heure locale et l'heure universelle à ce moment-là.
-function offsetAt(timestamp, timeZone) {
+export function offsetAt(timestamp, timeZone) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {
       timeZone,

@@ -1,5 +1,5 @@
 // Tâches programmées : la prison chaque jour à minuit UTC, le compte à rebours de la prison à 18 h,
-// les annonces du soir (voir EVENING_HOUR) et les classements en direct.
+// les annonces du soir (voir EVENING_HOUR), les classements en direct et le parcours de l'accompagnement.
 
 import {
   RANKING_SIZES,
@@ -55,6 +55,7 @@ export function createJobs(ctx, handlers) {
     const rows = tracker.snapshot(guild.members.cache, now);
     const records = db.prisonRecords();
     const entries = new Map(); // délai (15 ou 21 jours) -> membres
+    const internalEntries = new Map(); // pareil, pour les membres du parcours de l'accompagnement
     const finals = [];
     const exits = [];
 
@@ -62,6 +63,11 @@ export function createJobs(ctx, handlers) {
       const { userId, prison: state } = row;
       const record = records.get(userId);
       if (record) {
+        // Prison interne : on en sort seulement par un ticket de justification.
+        if (record.internal) {
+          if (!record.hasRole) await prison.giveRole(row.member);
+          continue;
+        }
         if (row.chain >= DAYS_TO_LEAVE_PRISON) {
           await prison.free(row.member);
           exits.push(userId);
@@ -75,8 +81,10 @@ export function createJobs(ctx, handlers) {
         continue;
       }
       if (state.missed >= state.limit) {
-        await prison.imprison(row.member, state.limit);
-        entries.set(state.limit, [...(entries.get(state.limit) ?? []), userId]);
+        const internal = Boolean(ctx.journey?.followsJourney(userId));
+        await prison.imprison(row.member, state.limit, { internal });
+        const group = internal ? internalEntries : entries;
+        group.set(state.limit, [...(group.get(state.limit) ?? []), userId]);
       }
     }
     // Membres partis du serveur ou qui ont perdu leur rôle : on les oublie sans annonce.
@@ -86,6 +94,10 @@ export function createJobs(ctx, handlers) {
 
     for (const [days, userIds] of [...entries].sort(([a], [b]) => a - b)) {
       for (const content of prisonEntryMessages(days, userIds, config)) await send(channels.prison, content);
+    }
+    for (const [days, userIds] of internalEntries) {
+      for (const content of prisonEntryMessages(days, userIds, config, ctx.journey.exitChannelId())) await send(channels.prison, content);
+      await ctx.journey.announceInternal(userIds, 'noPosts', days);
     }
     for (const content of prisonFinalMessages(finals, config)) await send(channels.prison, content);
     for (const userId of exits) await send(channels.prison, prisonExitMessage(userId), [userId]);
@@ -238,6 +250,13 @@ export function createJobs(ctx, handlers) {
         await ctx.eventService.tick(now);
       } catch (error) {
         console.error('[PlugBot] Échec : planification des événements.', error);
+      }
+    }
+    if (ctx.journey) {
+      try {
+        await ctx.journey.tick(now);
+      } catch (error) {
+        console.error("[PlugBot] Échec : parcours de l'accompagnement.", error);
       }
     }
   }

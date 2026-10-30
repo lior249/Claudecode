@@ -12,6 +12,9 @@ import { acquireLock } from './lock.js';
 import { createInteractionHandler } from './events/interactions.js';
 import { createEventService } from './events/service.js';
 import { createEventStore } from './events/store.js';
+import { createJourneyInteractions } from './journey/interactions.js';
+import { createJourney } from './journey/service.js';
+import { createJourneyStore } from './journey/store.js';
 import { createPrison } from './prison.js';
 import { createQueue } from './queue.js';
 import { startup } from './sync.js';
@@ -32,7 +35,8 @@ if (otherPid) {
 
 const db = openDatabase(config.databasePath);
 const events = createEventStore(db.connection);
-const tracker = createTracker({ config, db });
+const journeyStore = createJourneyStore(db.connection);
+const tracker = createTracker({ config, db, journey: config.journeyCategoryId ? journeyStore : null });
 const enqueue = createQueue();
 
 const client = new Client({
@@ -49,7 +53,9 @@ const client = new Client({
 
 let handlers = null;
 let eventService = null;
+let journey = null;
 let onInteraction = null;
+let onJourneyInteraction = null;
 
 // Salons sans lesquels PlugBot ne peut pas tourner. Les autres (top all-time, planification) sont
 // facultatifs : s'ils sont introuvables, seule leur fonction est désactivée.
@@ -96,6 +102,13 @@ client.once(Events.ClientReady, (readyClient) =>
       console.warn('[PlugBot] Planification des événements désactivée : PLANNING_CHANNEL_ID, ANNOUNCE_FREE_CHANNEL_ID ou ANNOUNCE_PLUG_CHANNEL_ID manque dans .env (ou le salon est introuvable).');
     }
 
+    // Le parcours de l'accompagnement : comme les événements, il ne doit jamais empêcher PlugBot de démarrer.
+    if (config.journeyCategoryId) {
+      ctx.journey = createJourney(ctx, journeyStore);
+      await ctx.journey.start(Date.now());
+      onJourneyInteraction = createJourneyInteractions(ctx, ctx.journey);
+    }
+
     const ready = createHandlers(ctx);
     const jobs = createJobs(ctx, ready);
     try {
@@ -108,6 +121,7 @@ client.once(Events.ClientReady, (readyClient) =>
     ctx.boards = createBoards(ctx);
     handlers = ready;
     eventService = ctx.eventService ?? null;
+    journey = ctx.journey ?? null;
 
     await jobs.tick();
     setInterval(() => enqueue(jobs.tick), TICK_MS);
@@ -119,6 +133,7 @@ client.on(Events.MessageCreate, (message) =>
   enqueue(async () => {
     await handlers?.onNewMessage(message);
     await eventService?.onTicketMessage(message);
+    await journey?.onMessage(message, Date.now());
   }),
 );
 client.on(Events.MessageReactionAdd, (reaction, user) =>
@@ -128,7 +143,10 @@ client.on(Events.MessageReactionAdd, (reaction, user) =>
   }),
 );
 // Les clics doivent recevoir une réponse en moins de 3 secondes : ils ne passent pas par la file d'attente.
-client.on(Events.InteractionCreate, (interaction) => onInteraction?.(interaction));
+client.on(Events.InteractionCreate, (interaction) => {
+  onInteraction?.(interaction);
+  onJourneyInteraction?.(interaction);
+});
 client.on(Events.MessageReactionRemove, (reaction, user) => enqueue(() => handlers?.onReactionRemove(reaction, user)));
 client.on(Events.MessageDelete, (message) => enqueue(() => handlers?.onMessageDelete(message)));
 client.on(Events.GuildMemberUpdate, (_oldMember, member) => enqueue(() => handlers?.onMemberUpdate(member)));

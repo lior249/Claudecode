@@ -3,7 +3,8 @@
 import { prisonReleaseMessage } from './messages.js';
 import { send } from './send.js';
 
-export function createPrison({ config, db, channels }) {
+export function createPrison(ctx) {
+  const { config, db, channels } = ctx;
   const rewardRoles = [config.roles.weekWinner, config.roles.monthWinner];
 
   async function changeRole(member, roleId, add, reason) {
@@ -22,11 +23,13 @@ export function createPrison({ config, db, channels }) {
     if (await changeRole(member, config.roles.prisoner, true, 'Entrée en prison')) db.markPrisonRole(member.id);
   }
 
-  async function imprison(member, level) {
+  // internal : membre du parcours de l'accompagnement. Il sort seulement par un ticket de justification.
+  async function imprison(member, level, { internal = false } = {}) {
     const suspended = rewardRoles.filter((roleId) => member.roles.cache.has(roleId));
-    db.addPrison(member.id, level, suspended);
+    db.addPrison(member.id, level, suspended, internal);
     for (const roleId of suspended) await changeRole(member, roleId, false, 'Entrée en prison');
     await giveRole(member);
+    if (internal) await ctx.journey?.afterImprison(member);
   }
 
   // Retire le rôle Prisonnier et rend les récompenses mises de côté.
@@ -40,6 +43,7 @@ export function createPrison({ config, db, channels }) {
       await changeRole(member, config.roles.prisoner, false, 'Sortie de prison');
     }
     for (const roleId of record.suspendedRoles) await changeRole(member, roleId, true, 'Sortie de prison');
+    if (record.internal) await ctx.journey?.afterRelease(member);
   }
 
   // L'équipe a retiré le rôle Prisonnier à la main, par exemple après une erreur.
