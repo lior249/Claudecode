@@ -22,7 +22,9 @@ const SCHEMA = `
     control_message_id  TEXT,
     discord_event_id    TEXT,
     announced           INTEGER NOT NULL DEFAULT 0,
-    created_at          INTEGER NOT NULL
+    created_at          INTEGER NOT NULL,
+    -- Message du ticket qui contient l'image de couverture (l'admin l'envoie dans le fil).
+    cover_message_id    TEXT
   );
 
   -- Rappels programmés (7d, 3d, 24h, 3h, feedback). Ils sont rédigés au moment de l'envoi.
@@ -52,7 +54,11 @@ const COLUMNS = {
   controlMessageId: 'control_message_id',
   discordEventId: 'discord_event_id',
   announced: 'announced',
+  coverMessageId: 'cover_message_id',
 };
+
+// Colonnes ajoutées après la création de la table : ajoutées aussi aux bases existantes.
+const ADDED_COLUMNS = { cover_message_id: 'TEXT' };
 
 const LISTS = new Set(['roles', 'reminders']);
 
@@ -69,6 +75,10 @@ function toEvent(row) {
 
 export function createEventStore(connection) {
   connection.exec(SCHEMA);
+  const existing = new Set(connection.prepare('PRAGMA table_info(events)').all().map((column) => column.name));
+  for (const [column, type] of Object.entries(ADDED_COLUMNS)) {
+    if (!existing.has(column)) connection.exec(`ALTER TABLE events ADD COLUMN ${column} ${type}`);
+  }
   const statements = {
     create: connection.prepare('INSERT INTO events (type, audience, created_at) VALUES (?, ?, ?)'),
     get: connection.prepare('SELECT * FROM events WHERE id = ?'),

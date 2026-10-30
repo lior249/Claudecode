@@ -115,7 +115,12 @@ client.once(Events.ClientReady, (readyClient) =>
   }),
 );
 
-client.on(Events.MessageCreate, (message) => enqueue(() => handlers?.onNewMessage(message)));
+client.on(Events.MessageCreate, (message) =>
+  enqueue(async () => {
+    await handlers?.onNewMessage(message);
+    await eventService?.onTicketMessage(message);
+  }),
+);
 client.on(Events.MessageReactionAdd, (reaction, user) =>
   enqueue(async () => {
     await handlers?.onReactionAdd(reaction, user);

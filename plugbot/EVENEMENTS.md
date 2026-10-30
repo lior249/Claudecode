@@ -87,6 +87,8 @@ Chaque ticket est un **fil** dans le salon de création. Il contient deux messag
    - **👁️ Aperçu** : tous les messages qui partiront, avec leur date d'envoi, sans notifier personne ;
    - **✅ Valider** et **🗑️ Supprimer** (pour un brouillon).
 
+**L'image de couverture** : envoie simplement une image (PNG, JPG ou GIF) dans le fil du ticket. PlugBot la met sur l'événement Discord : à la validation pour un brouillon, tout de suite pour un événement déjà programmé. Pour changer d'image, envoie-en une autre. Discord conseille au moins 800 × 320 pixels.
+
 Un rappel déjà passé au moment de la validation est ignoré. Par exemple, pas de rappel « 7 jours avant » pour un live dans 4 jours.
 
 Dès que tu cliques sur **✅ Valider** :

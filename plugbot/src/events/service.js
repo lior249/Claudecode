@@ -27,6 +27,9 @@ import { controlMessage, finishedQuestionComponents, panelMessage, planningPromp
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
+// Formats acceptés par Discord pour l'image de couverture d'un événement.
+const COVER_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif']);
+const EDITABLE = new Set(['draft', 'scheduled']);
 const CONFIRM = '👍';
 const DECLINE = '👎';
 const REFUSE = '❌';
@@ -104,6 +107,19 @@ export function createEventService({ config, db, events, guild, channels }) {
     return thread;
   }
 
+  function coverAttachment(message) {
+    return message?.attachments.find((attachment) => COVER_TYPES.has(attachment.contentType)) ?? null;
+  }
+
+  // Lien de l'image de couverture. Le message est relu à chaque fois : les liens des pièces jointes
+  // de Discord expirent au bout de quelques heures.
+  async function coverUrl(event) {
+    if (!event.coverMessageId) return null;
+    const thread = await fetchThread(event);
+    const message = await thread?.messages.fetch(event.coverMessageId).catch(() => null);
+    return coverAttachment(message)?.url ?? null;
+  }
+
   async function discordEventOptions(event) {
     const type = liveType(event.type);
     const options = {
@@ -113,6 +129,8 @@ export function createEventService({ config, db, events, guild, channels }) {
       privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
       description: discordDescription(event),
     };
+    const image = await coverUrl(event);
+    if (image) options.image = image;
     if (event.locationUrl) {
       return { ...options, entityType: GuildScheduledEventEntityType.External, entityMetadata: { location: event.locationUrl }, channel: null };
     }
@@ -132,6 +150,36 @@ export function createEventService({ config, db, events, guild, channels }) {
       'Vérifie que PlugBot a la permission « Gérer les événements » et, pour un salon « stage », ' +
       '« Gérer les salons », « Rendre muets des membres » et « Déplacer des membres » dans ce salon.'
     );
+  }
+
+  // Une image envoyée par l'admin dans un ticket devient l'image de couverture de l'événement.
+  // Renvoie true si le message a été pris en compte.
+  async function onTicketMessage(message) {
+    if (message.author?.bot || !config.adminIds.has(message.author?.id)) return false;
+    const event = events.byThread(message.channelId);
+    if (!event || !EDITABLE.has(event.status) || message.attachments.size === 0) return false;
+    const image = coverAttachment(message);
+    if (!image) {
+      await message.reply("⚠️ Pour l'image de couverture, envoie une image en PNG, JPG ou GIF.");
+      return true;
+    }
+    if (event.status === 'scheduled') {
+      try {
+        await guild.scheduledEvents.edit(event.discordEventId, { image: image.url });
+      } catch (error) {
+        await message.reply(`⚠️ ${describeDiscordError(error)}`);
+        return true;
+      }
+    }
+    events.update(event.id, { coverMessageId: message.id });
+    await message.react('🖼️').catch(() => {});
+    await message.reply(
+      event.status === 'scheduled'
+        ? "🖼️ C'est fait : l'image de couverture est sur l'événement."
+        : "🖼️ Image de couverture enregistrée : elle sera ajoutée à l'événement quand tu cliqueras sur ✅ Valider.",
+    );
+    await refreshTicket(event.id);
+    return true;
   }
 
   // Valide un brouillon : crée l'événement Discord, publie l'annonce, programme les rappels.
@@ -431,6 +479,7 @@ export function createEventService({ config, db, events, guild, channels }) {
     upcomingList,
     markPlanningDone,
     onReaction,
+    onTicketMessage,
     ensurePanel,
     tick,
   };

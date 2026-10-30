@@ -149,6 +149,7 @@ export function ticketSummary(event, { guildId }) {
     `**Texte de présentation :** ${event.template >= 0 ? `modèle ${event.template + 1}` : 'aucun modèle'}${event.details ? ' + ton texte' : ''}`,
     `**Rôles mentionnés :** ${event.roles.length ? event.roles.map((role) => MENTIONS[role]).join(', ') : 'aucun'}`,
     `**Rappels :** ${event.reminders.length ? event.reminders.map((kind) => REMINDERS[kind].label.toLowerCase()).join(', ') : 'aucun'}`,
+    `**Image de couverture :** ${event.coverMessageId ? '🖼️ ajoutée' : 'aucune — envoie une image dans ce fil pour en ajouter une'}`,
     '',
     `**Statut :** ${status}`,
   ].join('\n');

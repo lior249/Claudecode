@@ -45,7 +45,12 @@ function fakeThread(name) {
     archived: false,
     deleted: false,
     members: { add: async () => {} },
-    messages: { edit: async (id, payload) => Object.assign(thread.sent.find((m) => m.id === id), payload) },
+    // Messages postés dans le fil par l'admin (images de couverture).
+    received: new Map(),
+    messages: {
+      edit: async (id, payload) => Object.assign(thread.sent.find((m) => m.id === id), payload),
+      fetch: async (id) => thread.received.get(id) ?? null,
+    },
     setName: async (value) => (thread.name = value),
     setArchived: async (value) => (thread.archived = value),
     delete: async () => (thread.deleted = true),
@@ -91,6 +96,23 @@ function setup() {
   const ctx = { config, db, events, guild, channels };
   const service = createEventService(ctx);
   return { ...ctx, service, threads, scheduled, onInteraction: createInteractionHandler(ctx, service) };
+}
+
+// L'admin envoie une pièce jointe dans le fil d'un ticket.
+function postInThread(thread, { author = ADMIN, contentType = 'image/png' } = {}) {
+  const attachment = { contentType, url: `https://cdn.discordapp.com/attachments/${nextId}/couverture.png` };
+  const message = {
+    id: `m${nextId++}`,
+    channelId: thread.id,
+    author: { id: author, bot: false },
+    attachments: { size: 1, find: (fn) => [attachment].find(fn) },
+    replies: [],
+    reactions: [],
+    reply: async (content) => message.replies.push(content),
+    react: async (emoji) => message.reactions.push(emoji),
+  };
+  thread.received.set(message.id, message);
+  return message;
 }
 
 // Remplit un ticket comme l'admin le ferait avec les menus et le formulaire.
@@ -211,6 +233,31 @@ describe('planification des événements', () => {
     const [options] = env.scheduled.created;
     assert.equal(options.entityType, GuildScheduledEventEntityType.External);
     assert.deepEqual(options.entityMetadata, { location: 'https://youtu.be/live' });
+  });
+
+  it('prend une image envoyée dans le ticket comme image de couverture de l’événement', async () => {
+    const { thread, eventId } = await fillTicket(env);
+    assert.equal(await env.service.onTicketMessage(postInThread(thread, { author: '123' })), false, 'seul l’admin');
+    const pdf = postInThread(thread, { contentType: 'application/pdf' });
+    await env.service.onTicketMessage(pdf);
+    assert.match(pdf.replies[0], /PNG, JPG ou GIF/);
+    assert.equal(env.events.get(eventId).coverMessageId, null);
+
+    const image = postInThread(thread);
+    assert.equal(await env.service.onTicketMessage(image), true);
+    assert.match(image.replies[0], /Image de couverture enregistrée/);
+    assert.match(thread.sent[1].content, /\*\*Image de couverture :\*\* 🖼️ ajoutée/);
+
+    await env.service.validate(eventId, NOW);
+    assert.match(env.scheduled.created[0].image, /^https:\/\/cdn\.discordapp\.com\/attachments\/\d+\/couverture\.png$/);
+
+    // Événement déjà programmé : la nouvelle image part tout de suite sur l'événement Discord.
+    const second = postInThread(thread);
+    await env.service.onTicketMessage(second);
+    assert.equal(env.scheduled.edited.at(-1).id, 'ev1');
+    assert.deepEqual(Object.keys(env.scheduled.edited.at(-1).options), ['image']);
+    assert.match(second.replies[0], /l'image de couverture est sur l'événement/);
+    assert.equal(env.events.get(eventId).coverMessageId, second.id);
   });
 
   it('enregistre un changement d’horaire et prévient les membres', async () => {
