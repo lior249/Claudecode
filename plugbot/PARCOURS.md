@@ -11,7 +11,7 @@ Les heures sont en **GMT**, sauf les rappels de l'Engagement, qui suivent l'heur
 | Étape | Ce que fait le membre | Ce qu'il envoie dans son ticket | Ce que le coach note en clôturant |
 |---|---|---|---|
 | 🎬 **Visionnage** | Il remplit sa fiche et regarde toute la formation sur Whop | Une capture d'écran qui montre la formation terminée | Rien : PlugBot calcule en combien de jours il l'a finie |
-| 🧭 **Positionnement** | Il choisit sa niche, son pays cible et sa méthode CTA | Ses choix, en discutant avec le coach | La niche, le type de niche, le pays cible, la méthode CTA |
+| 🧭 **Positionnement** | Il choisit sa niche, son pays cible et sa méthode CTA | Ses choix, dans un formulaire (bouton 📝) | Il vérifie ses choix, et les corrige si besoin |
 | 🎥 **Confirmation** | Il prépare des vidéos, sans les publier | Ses vidéos (légères), autant de fois qu'il faut | Une note facultative sur sa qualité |
 | 🚀 **Engagement** | Il poste les jours qu'il a choisis | Ses posts dans #flex-resultats | — (dernière étape, elle ne se clôture pas) |
 
@@ -63,11 +63,9 @@ Quand un membre clique, la réponse n'est visible que par lui :
 Le ticket explique les 3 choses à faire :
 
 1. **Remplir sa fiche** avec le bouton 📝 :
-   - nom complet ;
-   - pays où il vit ;
-   - niveau ;
-   - matériel ;
-   - disponibilité.
+   - nom complet (à écrire) ;
+   - pays où il vit (menu déroulant : il y a 23 pays) ;
+   - niveau, matériel et disponibilité (boutons de choix).
 2. Regarder **toute** la formation sur Whop.
 3. Envoyer une capture d'écran qui montre la formation terminée.
 
@@ -82,11 +80,14 @@ En clôturant, PlugBot note **en combien de jours** il a fini : du jour où il e
 
 ### 🧭 Positionnement
 
-Le membre explique ses choix dans le ticket. En clôturant, le coach note :
+Le membre clique sur **📝 Remplir mes choix** dans son ticket. Seul le nom de la niche s'écrit ; le reste se choisit avec des boutons :
 
-- **la niche** et **le type de niche** (texte libre) ;
+- **le nom de sa niche** (à écrire) ;
+- **le type de niche** : Divertissement et humour, Éducation et tutoriels, Faits et curiosités, Histoires et storytelling, Motivation et développement personnel, Business et argent, Tech et IA, Lifestyle et voyage, Sport et jeux vidéo, Autre *(liste provisoire, à remplacer par la tienne)* ;
 - **le pays cible**, un seul : Allemagne, États-Unis, France, Royaume-Uni, Mexique, Brésil, Japon ou Corée du Sud ;
 - **la méthode CTA**, une seule : black hat, gray hat ou white hat.
+
+Ses choix s'affichent dans le ticket, et le coach est prévenu. Le membre peut les modifier avec le même bouton tant que l'étape n'est pas validée. En clôturant, le coach retrouve le même formulaire, déjà rempli, et peut corriger avant de valider.
 
 ### 🎥 Confirmation
 
@@ -100,7 +101,7 @@ En clôturant, le coach peut écrire une **note** (facultative), par exemple « 
 
 Dans son ticket, le membre clique sur **🗓️ Choisir mes jours et mes heures** :
 
-- ses **jours de post** : au moins 5 sur 7 ;
+- ses **jours de post** : au moins 5 sur 7, en cochant des cases ;
 - ses **2 heures de vérification**, dans son heure locale. Ce sont les heures où PlugBot vérifie qu'il a posté, pas des heures pour poster : il est censé avoir posté avant.
 
 Ce ticket reste ouvert : c'est là qu'il reçoit ses rappels (voir la section 7). Il peut changer son planning à tout moment, et le coach en est prévenu.
@@ -119,7 +120,9 @@ Ce ticket reste ouvert : c'est là qu'il reçoit ses rappels (voir la section 7)
    - PlugBot l'annonce au membre dans le ticket.
 4. **⏸️ Pas encore** : rien ne change.
 
-Au Visionnage, PlugBot signale si la fiche du membre est incomplète.
+Au Visionnage, PlugBot signale si la fiche du membre est incomplète ; au Positionnement, s'il n'a pas encore rempli ses choix.
+
+**Les boutons de choix** : dans tous les formulaires, les choix s'affichent en boutons (une case par option) quand il y en a 10 au plus, sinon en menu déroulant. Si l'application Discord de quelqu'un refuse ces boutons, PlugBot ouvre le même formulaire avec des menus déroulants.
 
 ---
 
