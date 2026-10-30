@@ -40,6 +40,19 @@ export const AVAILABILITY = [
   ['2-4h', '2 à 4 h par jour'],
   ['plus-4h', 'Plus de 4 h par jour'],
 ];
+// Les types de niche (liste provisoire, 10 au maximum pour tenir en boutons de choix).
+export const NICHE_TYPES = [
+  ['divertissement', '🎭 Divertissement et humour'],
+  ['education', '📚 Éducation et tutoriels'],
+  ['faits', '🧠 Faits et curiosités'],
+  ['histoires', '📖 Histoires et storytelling'],
+  ['motivation', '💪 Motivation et développement personnel'],
+  ['business', '💰 Business et argent'],
+  ['tech', '🤖 Tech et IA'],
+  ['lifestyle', '🌍 Lifestyle et voyage'],
+  ['sport-gaming', '⚽ Sport et jeux vidéo'],
+  ['autre', '✨ Autre'],
+];
 // Les pays de la monétisation : le pays cible, un seul par membre.
 export const TARGET_COUNTRIES = [
   ['allemagne', '🇩🇪 Allemagne'],

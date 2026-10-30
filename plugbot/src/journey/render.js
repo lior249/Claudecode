@@ -9,6 +9,7 @@ import {
   LEVELS,
   MIN_POST_DAYS,
   MORNING_HOUR,
+  NICHE_TYPES,
   STAGES,
   TARGET_COUNTRIES,
   WEEKDAYS,
@@ -91,12 +92,12 @@ export function stageIntro(number, { userId, deadline }) {
     case 2:
       return [
         `${mention(userId)} 🧭 **Étape 2 : Positionnement**`,
-        'Explique ici tes choix, avec ce que tu as appris dans la formation :',
-        '• ta **niche** et son type ;',
-        `• ton **pays cible**, un seul : ${TARGET_COUNTRIES.map(([, label]) => label).join(', ')} ;`,
-        `• ta **méthode CTA** : ${CTA_METHODS.map(([, label]) => label).join(', ')}.`,
+        'Avec ce que tu as appris dans la formation, clique sur **📝 Remplir mes choix** :',
+        '• le nom de ta **niche** et son type ;',
+        '• ton **pays cible**, un seul ;',
+        '• ta **méthode CTA**.',
         '',
-        'Ton coach en discute avec toi, puis valide tes choix.',
+        'Tu peux les modifier avec le même bouton. Explique-les ici si besoin : ton coach en discute avec toi, puis valide tes choix.',
         late,
       ].join('\n');
     case 3:
@@ -116,6 +117,28 @@ export function stageIntro(number, { userId, deadline }) {
         "Un seul post dans #flex-resultats avant l'une des deux suffit pour valider ta journée.",
       ].join('\n');
   }
+}
+
+function choicesLines(record) {
+  return [
+    `Niche : ${record.niche}`,
+    `Type de niche : ${labelOf(NICHE_TYPES, record.nicheType)}`,
+    `Pays cible : ${labelOf(TARGET_COUNTRIES, record.targetCountry)}`,
+    `Méthode CTA : ${labelOf(CTA_METHODS, record.ctaMethod)}`,
+  ];
+}
+
+// Publié dans le ticket quand le membre remplit ses choix, pour que le coach les voie.
+export function choicesText({ userId, record }) {
+  return [`🧭 **Les choix de ${mention(userId)}**`, ...choicesLines(record)].join('\n');
+}
+
+export function choicesNotice({ userId, threadId }) {
+  return `📥 ${mention(userId)} a rempli ses choix — 🧭 Positionnement → ${channel(threadId)}`;
+}
+
+export function missingChoices(record) {
+  return record.niche ? [] : ['ses choix (bouton 📝 Remplir mes choix)'];
 }
 
 export function profileSavedText() {
@@ -329,13 +352,10 @@ export function ficheEmbed(record, { displayName, inPrison, proofUrl, tickets })
   fields.push({
     name: '🧭 Positionnement',
     value: record.positionedAt
-      ? [
-          `Niche : ${record.niche}`,
-          `Type de niche : ${record.nicheType}`,
-          `Pays cible : ${labelOf(TARGET_COUNTRIES, record.targetCountry)}`,
-          `Méthode CTA : ${labelOf(CTA_METHODS, record.ctaMethod)}`,
-        ].join('\n')
-      : stageState(record, 2),
+      ? choicesLines(record).join('\n')
+      : record.niche
+        ? ['⏳ Choix proposés, pas encore validés :', ...choicesLines(record)].join('\n')
+        : stageState(record, 2),
   });
 
   const confirmation = record.confirmedAt ? `✅ Validée le ${onDay(record.confirmedAt)}` : stageState(record, 3);

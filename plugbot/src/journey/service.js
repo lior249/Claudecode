@@ -8,6 +8,7 @@ import { DAY_MS, dayOf } from '../time.js';
 import {
   AVAILABILITY,
   CTA_METHODS,
+  NICHE_TYPES,
   DIGEST_EVERY_DAYS,
   DIGEST_HOUR,
   ENGAGEMENT,
@@ -23,6 +24,8 @@ import {
 } from './catalog.js';
 import { atLocal, countryLabel, localClock, nextDay, timeZoneOf } from './clock.js';
 import {
+  choicesNotice,
+  choicesText,
   closeQuestion,
   dailyRecap,
   deadlineOf,
@@ -34,6 +37,7 @@ import {
   filterResultText,
   firstCheckMissedText,
   internalPrisonNotice,
+  missingChoices,
   missingProfile,
   morningText,
   planningChangedNotice,
@@ -52,6 +56,7 @@ import {
 } from './render.js';
 import {
   FILTERS,
+  choicesComponents,
   closeQuestionComponents,
   exitPanel,
   filterPanel,
@@ -291,6 +296,7 @@ export function createJourney(ctx, store) {
     const thread = await openTicket(ready.parcours, member, `${stage.emoji} ${stage.label} — ${member.displayName}`, stage.key, now);
     const intro = { content: stageIntro(number, { userId: member.id, deadline: deadlineOf(record) }), allowedMentions: { users: [member.id] } };
     if (number === 1) intro.components = profileComponents(member.id);
+    if (number === 2) intro.components = choicesComponents(member.id);
     if (number === ENGAGEMENT) intro.components = planningComponents(member.id);
     await thread.send(intro);
     return ticketOpenedText(thread.id);
@@ -308,7 +314,7 @@ export function createJourney(ctx, store) {
     const author = message.member ?? guild.members.cache.get(message.author.id);
     if (isCoach(author) && THUMBS_UP.test(message.content?.trim() ?? '')) {
       await message.channel.send({
-        content: closeQuestion({ userId: ticket.userId, stage: number, missing: number === 1 ? missingProfile(record) : [] }),
+        content: closeQuestion({ userId: ticket.userId, stage: number, missing: missing(record, number) }),
         components: closeQuestionComponents(ticket.userId, number),
         allowedMentions: { parse: [] },
       });
@@ -317,11 +323,37 @@ export function createJourney(ctx, store) {
     if (message.author.id !== ticket.userId || message.attachments.size === 0) return false;
     store.setProof(ticket.threadId, message.id);
     if (number === 3) store.update(ticket.userId, { videos: record.videos + 1 });
-    if (!ticket.lastAlertAt || now - ticket.lastAlertAt >= PROOF_ALERT_EVERY_MS) {
-      store.setAlert(ticket.threadId, now);
-      await notify(proofNotice({ userId: ticket.userId, stage: number, threadId: ticket.threadId }), { mention: true });
-    }
+    await alertCoach(ticket, proofNotice({ userId: ticket.userId, stage: number, threadId: ticket.threadId }), now);
     return true;
+  }
+
+  // Ce qui manque encore au membre pour l'étape, affiché sous la question du coach.
+  function missing(record, number) {
+    if (number === 1) return missingProfile(record);
+    if (number === 2) return missingChoices(record);
+    return [];
+  }
+
+  // Prévient le coach qu'il y a du nouveau dans un ticket, au plus une fois toutes les 10 minutes.
+  async function alertCoach(ticket, content, now) {
+    if (ticket.lastAlertAt && now - ticket.lastAlertAt < PROOF_ALERT_EVERY_MS) return;
+    store.setAlert(ticket.threadId, now);
+    await notify(content, { mention: true });
+  }
+
+  // Le membre remplit ses choix du Positionnement. Renvoie un message d'erreur, ou null.
+  async function saveChoices(userId, { niche, nicheType, target, cta }, now) {
+    const record = store.get(userId);
+    if (!record || record.stage !== 2) return "Tes choix se remplissent à l'étape Positionnement.";
+    if (!niche) return 'Écris le nom de ta niche.';
+    store.update(userId, { niche, nicheType, targetCountry: target, ctaMethod: cta });
+    const ticket = store.lastTicket(userId, stageOf(2).key);
+    const thread = ticket && !ticket.closedAt ? await fetchThread(ticket.threadId) : null;
+    if (thread) {
+      await thread.send({ content: choicesText({ userId, record: store.get(userId) }), allowedMentions: { parse: [] } });
+      await alertCoach(ticket, choicesNotice({ userId, threadId: ticket.threadId }), now);
+    }
+    return null;
   }
 
   function closeQuestionNeeded(userId, number) {
@@ -644,7 +676,7 @@ export function createJourney(ctx, store) {
   }
 
   function valueLabel(criterion, value) {
-    const lists = { target: TARGET_COUNTRIES, cta: CTA_METHODS, level: LEVELS, equipment: EQUIPMENT, availability: AVAILABILITY };
+    const lists = { target: TARGET_COUNTRIES, cta: CTA_METHODS, nicheType: NICHE_TYPES, level: LEVELS, equipment: EQUIPMENT, availability: AVAILABILITY };
     if (criterion === 'stage') return `${stageOf(Number(value)).emoji} ${stageOf(Number(value)).label}`;
     if (criterion === 'status') return STATUS_LABELS[value];
     if (criterion === 'home') return countryLabel(value);
@@ -701,6 +733,7 @@ export function createJourney(ctx, store) {
     closeStage,
     profileOf,
     saveProfile,
+    saveChoices,
     savePlanning,
     openExitTicket,
     release,

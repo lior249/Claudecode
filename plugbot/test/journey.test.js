@@ -157,11 +157,11 @@ function interaction(customId, member, extra = {}) {
   return result;
 }
 
+// Les réponses d'un formulaire : un texte ou un bouton de choix (une valeur), des cases à cocher ou un menu (une liste).
 function modalFields(values) {
   return {
-    fields: new Map(Object.keys(values).map((key) => [key, {}])),
+    fields: new Map(Object.entries(values).map(([key, value]) => [key, Array.isArray(value) ? { values: value } : { value }])),
     getTextInputValue: (key) => values[key],
-    getStringSelectValues: (key) => values[key],
   };
 }
 
@@ -297,9 +297,9 @@ describe("parcours de l'accompagnement", () => {
     assert.equal(env.store.get('1').stage, 2);
     assert.equal(env.store.get('1').watchedDays, 2, 'arrivé mercredi, validé jeudi');
 
-    await closeWithForm(alice, 2, { niche: 'Cuisine', nicheType: 'Recettes rapides', target: ['france'], cta: ['white-hat'] });
+    await closeWithForm(alice, 2, { niche: 'Cuisine', nicheType: 'education', target: 'france', cta: 'white-hat' });
     const positioned = env.store.get('1');
-    assert.deepEqual([positioned.niche, positioned.nicheType, positioned.targetCountry, positioned.ctaMethod], ['Cuisine', 'Recettes rapides', 'france', 'white-hat']);
+    assert.deepEqual([positioned.niche, positioned.nicheType, positioned.targetCountry, positioned.ctaMethod], ['Cuisine', 'education', 'france', 'white-hat']);
 
     const { submit } = await closeWithForm(alice, 3, { note: 'Très bon son.' });
     assert.match(submit.replies.at(-1).content, /Étape clôturée/);
@@ -307,6 +307,56 @@ describe("parcours de l'accompagnement", () => {
     assert.equal(engaged.stage, 4);
     assert.equal(engaged.confirmationNote, 'Très bon son.');
     assert.equal(env.db.getMemberState('1').resetDay, dayOf(Date.now()), 'la prison des 15 jours démarre à l’Engagement');
+  });
+
+  it('Positionnement : le membre remplit ses choix avec des boutons, le coach les retrouve en clôturant', async () => {
+    env.store.update('1', { stage: 2 });
+    const { thread } = await openStage(alice, 2);
+    assert.equal(thread.sent[0].components[0].components[0].data.custom_id, 'pc:choices:1:');
+
+    const open = interaction('pc:choices:1', alice);
+    await env.onInteraction(open);
+    const form = open.modal.toJSON();
+    assert.equal(form.title, 'Mes choix');
+    // Le nom de la niche s'écrit ; le reste se choisit avec des boutons.
+    assert.deepEqual(
+      form.components.map((label) => label.component.type),
+      [4, 21, 21, 21],
+    );
+    assert.equal(form.components[2].component.options.length, 8, 'les 8 pays de la monétisation');
+
+    const submit = interaction('pc:choicesSubmit:1', alice, {
+      fields: modalFields({ niche: ' Recettes africaines ', nicheType: 'education', target: 'france', cta: 'gray-hat' }),
+    });
+    await env.onInteraction(submit);
+    assert.match(text(submit.replies.at(-1)), /Tes choix sont enregistrés/);
+    assert.equal(
+      thread.sent.at(-1).content,
+      '🧭 **Les choix de <@1>**\nNiche : Recettes africaines\nType de niche : 📚 Éducation et tutoriels\nPays cible : 🇫🇷 France\nMéthode CTA : 🔘 Gray hat',
+    );
+    assert.match(env.channel('notifications-coach').sent.at(-1).content, /<@1> a rempli ses choix — 🧭 Positionnement/);
+
+    // Le coach clôture : le formulaire reprend les choix du membre, déjà cochés.
+    const question = await thumbsUp(thread);
+    assert.doesNotMatch(question.content, /incomplète/);
+    const close = interaction('pc:close:1:2', coach, { message: question });
+    await env.onInteraction(close);
+    const target = close.modal.toJSON().components[2].component.options.find((option) => option.default);
+    assert.equal(target.value, 'france');
+  });
+
+  it('ouvre les formulaires avec des menus déroulants si Discord refuse les boutons de choix', async (t) => {
+    const shown = [];
+    const open = interaction('pc:profile:1', alice, {
+      showModal: async (modal) => {
+        shown.push(modal.toJSON());
+        if (shown.length === 1) throw Object.assign(new Error('Invalid Form Body'), { status: 400 });
+      },
+    });
+    t.mock.method(console, 'warn', () => {});
+    await env.onInteraction(open);
+    assert.deepEqual(shown[0].components.map((label) => label.component.type), [4, 3, 21, 21, 21]);
+    assert.deepEqual(shown[1].components.map((label) => label.component.type), [4, 3, 3, 3, 3]);
   });
 
   it('tient une fiche par membre, mise à jour à chaque changement', async () => {

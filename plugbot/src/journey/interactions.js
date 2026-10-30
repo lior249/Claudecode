@@ -15,6 +15,37 @@ import {
 
 const PRIVATE = MessageFlags.Ephemeral;
 const COACH_ONLY = new Set(['close', 'closeForm', 'notYet', 'release', 'filter', 'filterValue']);
+const MEMBER_ONLY = new Set(['profile', 'profileSubmit', 'choices', 'choicesSubmit', 'planning', 'planningSubmit']);
+
+// Les valeurs choisies dans un formulaire, quel que soit le composant : boutons de choix (un seul),
+// cases à cocher ou menu déroulant (plusieurs).
+function picked(fields, id) {
+  const field = fields.fields.get(id);
+  if (!field) return [];
+  return field.values ?? (field.value == null ? [] : [field.value]);
+}
+
+const pickedOne = (fields, id) => picked(fields, id)[0];
+
+// Ouvre un formulaire avec des boutons de choix. Si Discord les refuse, il l'ouvre avec des menus déroulants.
+async function showForm(interaction, build) {
+  try {
+    await interaction.showModal(build({ compat: false }));
+  } catch (error) {
+    if (error.status !== 400) throw error;
+    console.warn('[PlugBot] Boutons de choix refusés par Discord : formulaire avec des menus déroulants.', error.message);
+    await interaction.showModal(build({ compat: true }));
+  }
+}
+
+function positioningAnswers(fields) {
+  return {
+    niche: fields.getTextInputValue('niche').trim(),
+    nicheType: pickedOne(fields, 'nicheType'),
+    target: pickedOne(fields, 'target'),
+    cta: pickedOne(fields, 'cta'),
+  };
+}
 
 export function createJourneyInteractions({ guild }, journey) {
   async function privately(interaction, content, extra = {}) {
@@ -40,7 +71,7 @@ export function createJourneyInteractions({ guild }, journey) {
       return;
     }
     // Les boutons d'un ticket ne servent qu'au membre du ticket.
-    if (['profile', 'profileSubmit', 'planning', 'planningSubmit'].includes(action) && userId !== interaction.user.id) {
+    if (MEMBER_ONLY.has(action) && userId !== interaction.user.id) {
       await privately(interaction, 'Ce bouton est pour le membre de ce ticket.');
       return;
     }
@@ -54,18 +85,33 @@ export function createJourneyInteractions({ guild }, journey) {
         return;
       }
       case 'profile':
-        await interaction.showModal(profileModal(userId, journey.profileOf(userId)));
+        await showForm(interaction, (options) => profileModal(userId, journey.profileOf(userId), options));
         return;
       case 'profileSubmit': {
         const { fields } = interaction;
         journey.saveProfile(userId, {
           name: fields.getTextInputValue('name').trim(),
-          home: fields.getStringSelectValues('home')[0],
-          level: fields.getStringSelectValues('level')[0],
-          equipment: fields.getStringSelectValues('equipment')[0],
-          availability: fields.getStringSelectValues('availability')[0],
+          home: pickedOne(fields, 'home'),
+          level: pickedOne(fields, 'level'),
+          equipment: pickedOne(fields, 'equipment'),
+          availability: pickedOne(fields, 'availability'),
         });
         await privately(interaction, profileSavedText());
+        return;
+      }
+      case 'choices': {
+        const record = journey.profileOf(userId);
+        if (!record || record.stage !== 2) {
+          await privately(interaction, "Tes choix se remplissent à l'étape Positionnement.");
+          return;
+        }
+        await showForm(interaction, (options) => positioningModal(userId, record, { byMember: true, ...options }));
+        return;
+      }
+      case 'choicesSubmit': {
+        await interaction.deferReply({ flags: PRIVATE });
+        const error = await journey.saveChoices(userId, positioningAnswers(interaction.fields), now);
+        await interaction.editReply(error ? `⚠️ Rien n'a été enregistré : ${error}` : '✅ Tes choix sont enregistrés. Ton coach les voit dans ton ticket.');
         return;
       }
       case 'planning': {
@@ -74,20 +120,19 @@ export function createJourneyInteractions({ guild }, journey) {
           await privately(interaction, "Le planning se choisit à l'étape Engagement.");
           return;
         }
-        await interaction.showModal(planningModal(userId, record));
+        await showForm(interaction, (options) => planningModal(userId, record, options));
         return;
       }
       case 'planningSubmit': {
         const { fields } = interaction;
         await interaction.deferReply({ flags: PRIVATE });
-        const hasHome = fields.fields?.has?.('home') ?? false;
         const error = await journey.savePlanning(
           userId,
           {
-            days: fields.getStringSelectValues('days').map(Number),
-            check1: Number(fields.getStringSelectValues('check1')[0]),
-            check2: Number(fields.getStringSelectValues('check2')[0]),
-            home: hasHome ? fields.getStringSelectValues('home')[0] : undefined,
+            days: picked(fields, 'days').map(Number),
+            check1: Number(pickedOne(fields, 'check1')),
+            check2: Number(pickedOne(fields, 'check2')),
+            home: pickedOne(fields, 'home'),
           },
           now,
         );
@@ -101,7 +146,7 @@ export function createJourneyInteractions({ guild }, journey) {
           return;
         }
         if (stage === 2) {
-          await interaction.showModal(positioningModal(userId, journey.profileOf(userId)));
+          await showForm(interaction, (options) => positioningModal(userId, journey.profileOf(userId), options));
           return;
         }
         if (stage === 3) {
@@ -116,15 +161,7 @@ export function createJourneyInteractions({ guild }, journey) {
       case 'closeForm': {
         const stage = Number(extra);
         const { fields } = interaction;
-        const details =
-          stage === 2
-            ? {
-                niche: fields.getTextInputValue('niche').trim(),
-                nicheType: fields.getTextInputValue('nicheType').trim(),
-                target: fields.getStringSelectValues('target')[0],
-                cta: fields.getStringSelectValues('cta')[0],
-              }
-            : { note: (fields.getTextInputValue('note') ?? '').trim() };
+        const details = stage === 2 ? positioningAnswers(fields) : { note: (fields.getTextInputValue('note') ?? '').trim() };
         await interaction.deferUpdate();
         const closed = await journey.closeStage(userId, stage, details, now);
         await answerBelow(interaction, closed ? `✅ Étape clôturée par <@${interaction.user.id}>.` : 'ℹ️ Cette étape est déjà clôturée.');
