@@ -67,6 +67,9 @@ export function loadConfig() {
       bonusMonth: required('BONUS_MONTH_CHANNEL_ID'),
       bonusStreak: required('BONUS_STREAK_CHANNEL_ID'),
       guide: required('GUIDE_CHANNEL_ID'),
+      // Facultatifs : visibles aussi en prison (membres normaux), et cités dans la consigne de sortie.
+      freeTraining: optional('FREE_TRAINING_CHANNEL_ID', null),
+      joinPlug: optional('JOIN_PLUG_CHANNEL_ID', null),
     },
     roles: {
       free: required('FREE_ROLE_ID'),

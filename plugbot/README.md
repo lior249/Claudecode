@@ -36,6 +36,8 @@ Le fonctionnement complet est décrit dans [`SPEC.md`](SPEC.md).
 - **flex-resultats** : on peut y poster ses résultats ;
 - **son salon de sortie**.
 
+Les membres normaux (💔Prisonnier💔) voient aussi **la formation gratuite** (`FREE_TRAINING_CHANNEL_ID`) et **rejoindre l'accompagnement** (`JOIN_PLUG_CHANNEL_ID`), pour les débutants qui ne savent pas encore par où commencer. La consigne de « sortir de prison » renvoie vers ces deux salons.
+
 Tout le reste du serveur devient invisible. Il y a deux rôles de prison :
 
 | Rôle | Pour qui | Salon de sortie | Comment en sortir |

@@ -50,7 +50,10 @@ export function createLockdown(ctx) {
       [ids.prison, READ],
       [ids.results, POST_RESULTS],
     ]);
-    if (roleId === roles.prisoner && ids.prisonExit) kept.set(ids.prisonExit, READ);
+    if (roleId === roles.prisoner) {
+      // Les membres normaux gardent aussi la formation gratuite et « rejoindre l'accompagnement ».
+      for (const id of [ids.prisonExit, config.links.freeTraining, config.links.joinPlug].filter(Boolean)) kept.set(id, READ);
+    }
     if (roleId === roles.internalPrisoner && internalExitId()) kept.set(internalExitId(), TICKETS);
     return kept;
   }

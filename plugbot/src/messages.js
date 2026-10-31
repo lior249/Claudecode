@@ -220,15 +220,29 @@ function wayOutOfPrison(config, exitChannelId) {
 
 // La consigne du salon « sortir de prison », pour les membres qui ne sont pas dans l'accompagnement.
 export function prisonExitInstructions(config) {
-  return [
+  const { channels, links } = config;
+  const visible = [channels.prison, channels.prisonExit, channels.results, links.freeTraining, links.joinPlug].filter(Boolean).map(channelMention);
+  const lines = [
     '🔓 **Comment sortir de prison**',
     "Tu es en prison parce que tu n'as posté aucun résultat depuis trop longtemps.",
-    'Pendant la prison, tu ne vois plus que la-prison, ce salon et #flex-resultats.',
+    `Pendant la prison, tu ne vois plus que ces salons : ${frenchList(visible)}.`,
     '',
-    `**Pour en sortir :** poste un résultat dans ${channelMention(config.channels.results)} **${DAYS_TO_LEAVE_PRISON} jours d'affilée**.`,
+    `**Pour en sortir :** poste un résultat dans ${channelMention(channels.results)} **${DAYS_TO_LEAVE_PRISON} jours d'affilée**.`,
     `Un résultat par jour suffit. ${DAYS_TO_LEAVE_PRISON} résultats le même jour ne comptent que pour un jour.`,
     `Au ${DAYS_TO_LEAVE_PRISON}ᵉ jour, PlugBot te libère tout seul : tu retrouves tout le serveur, et tes récompenses.`,
-  ].join('\n');
+  ];
+  if (links.freeTraining || links.joinPlug) lines.push('');
+  if (links.freeTraining) {
+    lines.push(
+      `📚 **Tu ne sais pas encore ce qu'est la monétisation TikTok, ou tu ne sais toujours pas quoi faire ?** Regarde la formation gratuite dans ${channelMention(links.freeTraining)}.`,
+    );
+  }
+  if (links.joinPlug) {
+    lines.push(
+      `🚀 **Tu veux aller plus vite ?** Rejoins l'accompagnement pour avoir les informations et les méthodes tendance du moment, les plus efficaces : ${channelMention(links.joinPlug)}.`,
+    );
+  }
+  return lines.join('\n');
 }
 
 // Un message par groupe de membres qui entrent en prison le même jour après le même délai.

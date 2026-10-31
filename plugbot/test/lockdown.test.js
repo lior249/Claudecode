@@ -78,6 +78,10 @@ function setup({ channels = [], journey = true } = {}) {
   add('c-res', 'flex-resultats', ChannelType.GuildText, { parentId: 'com' });
   add('chat', 'discussion', ChannelType.GuildText, { parentId: 'com' });
   add('vocal', 'vocal', ChannelType.GuildVoice, { parentId: 'com' });
+  add('offre', 'offre', ChannelType.GuildCategory);
+  add('training', 'formation-gratuite', ChannelType.GuildText, { parentId: 'offre' });
+  add('join', 'rejoindre-accompagnement', ChannelType.GuildText, { parentId: 'offre' });
+  add('pitch', 'temoignages', ChannelType.GuildText, { parentId: 'offre' });
   for (const [id, name, type, options] of channels) add(id, name, type, options);
   const members = new Map();
   const guild = { id: 'guild', channels: { cache }, members: { me: { id: 'bot' }, cache: members, fetch: async (id) => members.get(id) } };
@@ -85,7 +89,7 @@ function setup({ channels = [], journey = true } = {}) {
     guildId: 'guild',
     roles: journey ? ROLES : { ...ROLES, internalPrisoner: undefined },
     channels: { results: 'c-res', prison: 'c-prison', prisonExit: 'exit' },
-    links: { guide: 'c-guide' },
+    links: { guide: 'c-guide', freeTraining: 'training', joinPlug: 'join' },
     adminIds: new Set(),
   };
   const db = openDatabase(':memory:');
@@ -113,12 +117,14 @@ describe('verrou de la prison', () => {
     // 💔Prisonnier💔 : la-prison, flex-resultats (où il poste) et « sortir de prison ».
     for (const id of ['c-prison', 'c-res', 'exit']) assert.ok(sees(cache.get(id), ROLES.prisoner), id);
     assert.ok(role(cache.get('c-res'), ROLES.prisoner).allow.has(P.SendMessages | P.AttachFiles), 'il poste ses résultats pour sortir');
-    for (const id of ['chat', 'vocal', 'exit-int']) assert.ok(hidden(cache.get(id), ROLES.prisoner), id);
+    for (const id of ['chat', 'vocal', 'exit-int', 'pitch']) assert.ok(hidden(cache.get(id), ROLES.prisoner), id);
+    // Les membres normaux gardent aussi la formation gratuite et « rejoindre l'accompagnement ».
+    for (const id of ['training', 'join', 'offre']) assert.ok(sees(cache.get(id), ROLES.prisoner), id);
 
     // Prisonnier interne : pareil, mais avec « sortir de prison interne », où il ouvre son ticket.
     for (const id of ['c-prison', 'c-res', 'exit-int']) assert.ok(sees(cache.get(id), ROLES.internalPrisoner), id);
     assert.ok(role(cache.get('exit-int'), ROLES.internalPrisoner).allow.has(P.SendMessagesInThreads));
-    for (const id of ['chat', 'vocal', 'exit']) assert.ok(hidden(cache.get(id), ROLES.internalPrisoner), id);
+    for (const id of ['chat', 'vocal', 'exit', 'training', 'join', 'offre']) assert.ok(hidden(cache.get(id), ROLES.internalPrisoner), id);
 
     // Les catégories des salons gardés restent visibles ; les autres sont cachées.
     assert.ok(sees(cache.get('wall'), ROLES.prisoner) && sees(cache.get('com'), ROLES.prisoner));
@@ -187,6 +193,8 @@ describe('verrou de la prison', () => {
     assert.equal(exit.sent.length, 1);
     assert.match(exit.sent[0].content, /^🔓 \*\*Comment sortir de prison\*\*/);
     assert.match(exit.sent[0].content, /poste un résultat dans <#c-res> \*\*3 jours d'affilée\*\*/);
+    assert.match(exit.sent[0].content, /tu ne vois plus que ces salons : <#c-prison>, <#exit>, <#c-res>, <#training> et <#join>\./);
+    assert.match(exit.sent[0].content, /Regarde la formation gratuite dans <#training>\.\n🚀 \*\*Tu veux aller plus vite \?\*\* Rejoins l'accompagnement pour avoir les informations et les méthodes tendance du moment, les plus efficaces : <#join>\.$/);
   });
 
   it('suit le rôle de prison donné ou retiré à la main', async () => {
