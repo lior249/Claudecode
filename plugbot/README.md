@@ -126,6 +126,35 @@ pm2 restart plugbot
 
 Les données sont enregistrées dans `data/plugbot.db`. C'est le seul fichier à sauvegarder.
 
+## Les commandes slash
+
+Tape `/` dans n'importe quel salon : PlugBot répond en privé (seul celui qui tape la commande voit la réponse).
+
+**Pour tout le monde :**
+
+| Commande | Ce qu'elle fait |
+|---|---|
+| `/moi` | Tes points (semaine, mois, total), ton rang, ta chaîne, tes jours sans show-up et ton étape du parcours |
+| `/classement` | Le top de la semaine, du mois ou depuis le lancement, et ta place |
+
+**Pour les coachs :**
+
+| Commande | Ce qu'elle fait |
+|---|---|
+| `/evenement creer` | Ouvre le ticket d'un nouvel événement (au choix parmi les 14 types de live) |
+| `/evenement liste` | Les événements à venir |
+| `/evenement fini` | « J'ai fini de créer mes événements » : plus de rappel cette semaine |
+| `/membres` | Une liste des membres de l'accompagnement (tous, par étape, Plugged®, jamais commencé, en prison), à trier |
+| `/fiche` | La fiche d'un membre |
+| `/valider` | Clôturer l'étape en cours d'un membre (comme le 👍 dans son ticket) |
+| `/liberer` | Libérer un membre de prison (commune ou interne) |
+
+Les commandes des coachs ne sont visibles que par les admins du serveur. Pour les ouvrir au rôle Office : **Paramètres du serveur > Intégrations > PlugBot**, puis autorise le rôle Office pour chaque commande.
+
+`/evenement` n'apparaît que si la planification des événements est activée ; `/membres`, `/fiche` et `/valider`, que si le parcours de l'accompagnement l'est.
+
+Si les commandes n'apparaissent pas, `pm2 logs plugbot` donne un lien pour les autoriser : ouvre-le, choisis le serveur et valide.
+
 ## Aperçu des messages
 
 Pour voir un exemple de chaque message de PlugBot sans attendre, crée un salon de test privé (visible seulement par toi et PlugBot), puis, depuis le dossier `Claudecode/plugbot` :
@@ -154,6 +183,7 @@ npm test
 - `src/jobs.js` : prison (chaque jour à minuit UTC), compte à rebours de la prison (18 h GMT), publications de 20 h 30 GMT (top-7, top-30, récap), messages aux gagnants.
 - `src/boards.js` : les classements en direct, un message modifié à chaque changement dans top-7, top-30 et top-all-time.
 - `src/checks.js` : vérification des permissions au démarrage.
+- `src/commands.js` : les commandes slash.
 - `src/sync.js` : premier lancement et rattrapage après une coupure.
 - `src/stats.js` : calculs des chaînes, de la prison et des classements.
 - `src/messages.js` : tous les textes publiés par le bot, et les récompenses.

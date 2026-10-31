@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import { createBoards } from './boards.js';
 import { findPermissionProblems } from './checks.js';
+import { createCommands } from './commands.js';
 import { loadConfig } from './config.js';
 import { openDatabase } from './db.js';
 import { createHandlers } from './handlers.js';
@@ -56,6 +57,7 @@ let eventService = null;
 let journey = null;
 let onInteraction = null;
 let onJourneyInteraction = null;
+let onCommand = null;
 
 // Salons sans lesquels PlugBot ne peut pas tourner. Les autres (top all-time, planification) sont
 // facultatifs : s'ils sont introuvables, seule leur fonction est désactivée.
@@ -123,6 +125,10 @@ client.once(Events.ClientReady, (readyClient) =>
     eventService = ctx.eventService ?? null;
     journey = ctx.journey ?? null;
 
+    const commands = createCommands(ctx);
+    await commands.register();
+    onCommand = commands.onCommand;
+
     await jobs.tick();
     setInterval(() => enqueue(jobs.tick), TICK_MS);
     console.log(`[PlugBot] Connecté en tant que ${readyClient.user.tag}.`);
@@ -144,6 +150,10 @@ client.on(Events.MessageReactionAdd, (reaction, user) =>
 );
 // Les clics doivent recevoir une réponse en moins de 3 secondes : ils ne passent pas par la file d'attente.
 client.on(Events.InteractionCreate, (interaction) => {
+  if (interaction.isChatInputCommand?.()) {
+    onCommand?.(interaction);
+    return;
+  }
   onInteraction?.(interaction);
   onJourneyInteraction?.(interaction);
 });

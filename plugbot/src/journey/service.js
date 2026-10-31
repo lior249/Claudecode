@@ -37,6 +37,7 @@ import {
   listEmbed,
   noJourneyEmbed,
   firstCheckMissedText,
+  fromNow,
   internalPrisonNotice,
   missingChoices,
   missingProfile,
@@ -359,6 +360,25 @@ export function createJourney(ctx, store) {
       await alertCoach(ticket, choicesNotice({ userId, threadId: ticket.threadId }), now);
     }
     return null;
+  }
+
+  // La question « Clôturer l'étape ? » pour un membre (commande /valider), ou null s'il n'y a rien à clôturer.
+  function closeQuestionFor(userId) {
+    const record = store.get(userId);
+    if (!record || record.status !== 'active' || record.stage >= ENGAGEMENT) return null;
+    return {
+      content: closeQuestion({ userId, stage: record.stage, missing: missing(record, record.stage) }),
+      components: closeQuestionComponents(userId, record.stage),
+    };
+  }
+
+  // Où en est un membre dans son parcours, en une ligne (commande /moi), ou null.
+  function journeyLine(userId) {
+    const record = store.get(userId);
+    if (!record || record.status !== 'active') return null;
+    const { emoji, label } = stageOf(record.stage);
+    if (record.stage >= ENGAGEMENT) return `🧭 Parcours : ${emoji} **${label}**${record.postDays.length ? '' : " — choisis ton planning dans ton ticket d'Engagement"}.`;
+    return `🧭 Parcours : ${emoji} **${label}** — tu dois arriver à l'Engagement ${fromNow(deadlineOf(record))}.`;
   }
 
   function closeQuestionNeeded(userId, number) {
@@ -790,6 +810,8 @@ export function createJourney(ctx, store) {
     openStage,
     onMessage,
     closeQuestionNeeded,
+    closeQuestionFor,
+    journeyLine,
     closeStage,
     profileOf,
     saveProfile,

@@ -71,13 +71,19 @@ function totals({ total, week }) {
 
 // --- #show-up ---
 
+// « 📅 Classement semaine : 9 points — 3e du classement Free ». Rang 0 : hors classement.
+function rankingLine(emoji, name, { points, rank }, category) {
+  return (
+    `${emoji} Classement ${name} : **${plural(points, 'point')}** — ` +
+    (rank ? `${ordinal(rank)} du classement ${CATEGORY_LABELS[category]}` : 'hors classement')
+  );
+}
+
 // week, month, total : { points, rank }. Le rang est celui de la catégorie du membre (0 = hors classement).
 // Le message finit par un encouragement, avec les salons des classements et le guide.
 export function showupMessage({ userId, chain, category, prison, week, month, total, config, prisonExitChannelId }) {
   const { channels, links } = config;
-  const ranking = (emoji, name, { points, rank }) =>
-    `${emoji} Classement ${name} : **${plural(points, 'point')}** — ` +
-    (rank ? `${ordinal(rank)} du classement ${CATEGORY_LABELS[category]}` : 'hors classement');
+  const ranking = (emoji, name, standing) => rankingLine(emoji, name, standing, category);
   const lines = [
     `🔥 ${mention(userId)} vient de show up !`,
     `⛓️ Chaîne : **${plural(chain, 'jour')} d'affilée**`,
@@ -99,6 +105,33 @@ export function showupMessage({ userId, chain, category, prison, week, month, to
       "Seuls les meilleurs gagneront des prix, alors n'abandonne pas !",
     `📖 Pour en savoir plus, regarde ${channelMention(links.guide)}.`,
   );
+  return lines.join('\n');
+}
+
+// --- Commandes slash (réponses visibles par le membre seul) ---
+
+// /moi. prison : la ligne de prison du tracker ; journeyLine : où il en est dans le parcours (facultatif).
+export function statsMessage({ chain, category, prison, week, month, total, journeyLine }) {
+  const lines = [
+    '📊 **Tes stats**',
+    `⛓️ Chaîne : **${plural(chain, 'jour')} d'affilée**`,
+    rankingLine('📅', 'semaine', week, category),
+    rankingLine('🗓️', 'mois', month, category),
+    rankingLine('🏅', 'total', total, category),
+  ];
+  if (prison.inPrison && prison.internal) lines.push('🔒 En prison interne : pour en sortir, ouvre un ticket de justification.');
+  else if (prison.inPrison) lines.push(`🔒 En prison : encore **${plural(prison.daysToLeave, 'jour')}** de show-up d'affilée pour sortir.`);
+  else if (Number.isFinite(prison.limit)) {
+    lines.push(`🛡️ Jours sans show-up : **${prison.missed}** (la prison arrive à ${prison.limit}).`);
+  }
+  if (journeyLine) lines.push(journeyLine);
+  return lines.join('\n');
+}
+
+// /classement. me : { rank, points } du membre dans sa catégorie (rank 0 : pas classé).
+export function leaderboardMessage({ title, sections, me }) {
+  const lines = [`🏆 **Classement — ${title}**`, ...sectionLines(sections, "_Personne pour l'instant._"), ''];
+  lines.push(me?.rank ? `👤 Toi : **${ordinal(me.rank)}** avec ${plural(me.points, 'point')}.` : "👤 Tu n'es pas encore dans ce classement : poste un résultat !");
   return lines.join('\n');
 }
 
