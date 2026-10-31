@@ -49,6 +49,9 @@ export function loadConfig() {
       week: required('WEEK_CHANNEL_ID'),
       month: required('MONTH_CHANNEL_ID'),
       prison: required('PRISON_CHANNEL_ID'),
+      // Facultatifs : les salons de sortie de prison (membres normaux, et membres de l'accompagnement).
+      prisonExit: optional('PRISON_EXIT_CHANNEL_ID', null),
+      internalExit: optional('INTERNAL_EXIT_CHANNEL_ID', null),
       // Facultatif : sans lui, le top all-time n'est pas publié.
       allTime: optional('ALLTIME_CHANNEL_ID', null),
       // Facultatifs : sans eux, la planification des événements est désactivée.

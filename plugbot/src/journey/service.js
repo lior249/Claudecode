@@ -55,7 +55,6 @@ import {
   stageIntro,
   stageLockedText,
   ticketOpenedText,
-  wallText,
   weeklyRecap,
 } from './render.js';
 import {
@@ -89,7 +88,6 @@ const CHANNELS = {
   parcours: { name: 'parcours', topic: "Ton parcours dans l'accompagnement : clique sur une étape pour ouvrir ton ticket." },
   notifications: { name: 'notifications-coach', topic: 'Preuves à vérifier, prison interne, plannings et récaps (coachs seulement).' },
   fiches: { name: 'fiches-membres', topic: "Les listes et les fiches des membres de l'accompagnement (coachs seulement)." },
-  wall: { name: 'prison-interne', topic: "Les membres de l'accompagnement en retard." },
   exit: { name: 'sortir-de-la-prison-interne', topic: 'Ouvre un ticket pour sortir de la prison interne.' },
 };
 
@@ -112,7 +110,6 @@ const TICKETS_ONLY = {
   allow: [...READ, P.SendMessagesInThreads, P.AttachFiles],
   deny: [P.SendMessages, P.CreatePublicThreads, P.CreatePrivateThreads],
 };
-const READ_ONLY = { allow: READ, deny: [P.SendMessages, P.CreatePublicThreads, P.CreatePrivateThreads] };
 
 export function createJourney(ctx, store) {
   const { config, db, guild, channels, prison } = ctx;
@@ -185,14 +182,13 @@ export function createJourney(ctx, store) {
       { id: roles.office, type: OverwriteType.Role, allow: COACH_NEEDS },
     ];
     if (key === 'parcours') list.push({ id: roles.plug, type: OverwriteType.Role, ...TICKETS_ONLY });
-    if (key === 'wall') {
-      list.push({ id: roles.plug, type: OverwriteType.Role, ...READ_ONLY }, { id: roles.internalPrisoner, type: OverwriteType.Role, ...READ_ONLY });
-    }
     if (key === 'exit') list.push({ id: roles.internalPrisoner, type: OverwriteType.Role, ...TICKETS_ONLY });
     return list;
   }
 
   async function ensureChannels() {
+    // Le salon de sortie de la prison interne choisi dans .env remplace celui que PlugBot aurait créé.
+    if (config.channels.internalExit) db.setMeta('journey_channel_exit', config.channels.internalExit);
     for (const [key, { name, topic }] of Object.entries(CHANNELS)) {
       const id = db.getMeta(`journey_channel_${key}`);
       let channel = id ? (guild.channels.cache.get(id) ?? (await guild.channels.fetch(id).catch(() => null))) : null;
@@ -484,56 +480,26 @@ export function createJourney(ctx, store) {
   }
 
   // --- La prison interne ---
+  // Le rôle Prisonnier interne est donné et retiré par la prison ; le verrou de la prison cache le reste
+  // du serveur. Toutes les entrées en prison sont annoncées dans la-prison.
 
-  // Les salons de l'accompagnement, sauf #prison-interne et le salon de sortie, que le prisonnier garde.
-  function hiddenChannels() {
-    const kept = new Set([ready.wall?.id, ready.exit?.id]);
-    return [...guild.channels.cache.values()].filter(
-      (channel) => (channel.id === categoryId || channel.parentId === categoryId) && !kept.has(channel.id),
-    );
-  }
-
-  async function setHidden(userId, hidden) {
-    for (const channel of hiddenChannels()) {
-      try {
-        if (hidden) await channel.permissionOverwrites.edit(userId, { ViewChannel: false }, { reason: 'Prison interne' });
-        else await channel.permissionOverwrites.delete(userId, 'Sortie de la prison interne');
-      } catch (error) {
-        console.error(`[PlugBot] Prison interne : accès à #${channel.name} non modifié :`, error.message);
-      }
-    }
-  }
-
-  // Appelée par la prison quand un membre du parcours y entre : rôle Prisonnier interne, et
-  // l'accompagnement lui est caché (une permission par membre : un rôle ne peut pas cacher un salon
-  // qu'un autre rôle, TikTok, ouvre).
+  // Appelée par la prison quand un membre du parcours y entre.
   async function afterImprison(member) {
-    await member.roles
-      .add(roles.internalPrisoner, 'Prison interne')
-      .catch((error) => console.error('[PlugBot] Rôle Prisonnier interne non donné :', error.message));
-    await setHidden(member.id, true);
     const record = store.get(member.id);
     if (record) store.update(member.id, { prisonCount: record.prisonCount + 1 });
     await log(member.id, LOG.imprisoned);
   }
 
-  // Appelée par la prison à la sortie : tout est rendu, et le délai de 5 jours repart de zéro.
+  // Appelée par la prison à la sortie : le délai de 5 jours repart de zéro.
   async function afterRelease(member, now = Date.now()) {
-    if (member.roles.cache.has(roles.internalPrisoner)) {
-      await member.roles
-        .remove(roles.internalPrisoner, 'Sortie de la prison interne')
-        .catch((error) => console.error('[PlugBot] Rôle Prisonnier interne non retiré :', error.message));
-    }
-    await setHidden(member.id, false);
     const record = store.get(member.id);
     if (record?.stage < ENGAGEMENT) store.update(member.id, { deadlineFrom: now });
     await log(member.id, LOG.released);
   }
 
-  // Le mur des retardataires et la notification au coach. reason : deadline ou noPosts.
+  // Prévient le coach des entrées en prison interne. reason : deadline ou noPosts.
   async function announceInternal(userIds, reason, days) {
-    if (userIds.length === 0 || !ready.wall) return;
-    await send(ready.wall, wallText(reason, userIds, ready.exit.id, days));
+    if (userIds.length === 0) return;
     await notify(internalPrisonNotice(userIds, reason === 'deadline' ? `délai de ${JOURNEY_DAYS} jours dépassé` : `${days} jours sans show-up`));
   }
 
@@ -558,7 +524,8 @@ export function createJourney(ctx, store) {
     if (!db.getPrison(member.id)?.internal) return "Ce salon sert à sortir de la prison interne : tu n'y es pas.";
     const ticket = store.lastTicket(member.id, 'sortie');
     const existing = ticket && !ticket.closedAt ? await fetchThread(ticket.threadId) : null;
-    if (existing) return ticketOpenedText(existing.id);
+    // Un ticket ouvert dans un ancien salon de sortie n'est plus visible : on en ouvre un nouveau.
+    if (existing?.parentId === ready.exit.id) return ticketOpenedText(existing.id);
     const thread = await openTicket(ready.exit, member, `🔓 Sortie — ${member.displayName}`, 'sortie', now);
     await thread.send({ content: exitTicketIntro(member.id), components: releaseComponents(member.id), allowedMentions: { users: [member.id] } });
     await notify(exitTicketNotice({ userId: member.id, threadId: thread.id }), { mention: true });
@@ -860,7 +827,5 @@ export function createJourney(ctx, store) {
     openList,
     changeList,
     exitChannelId: () => ready.exit?.id ?? null,
-    // Les salons de la prison interne : le verrou de la prison n'y touche pas.
-    prisonChannelIds: () => [ready.wall?.id, ready.exit?.id].filter(Boolean),
   };
 }

@@ -36,10 +36,9 @@ PlugBot les crée lui-même dans la catégorie de l'accompagnement (TikTok plug)
 | **#parcours** | l'accompagnement | Le panneau des 4 étapes. Chaque ticket est un fil privé : le membre et les coachs. |
 | **#notifications-coach** | les coachs | Preuves à vérifier, prison interne, tickets de sortie, plannings, récaps. |
 | **#fiches-membres** | les coachs | Un panneau de boutons en haut, puis le journal des actions des membres. Les listes et les fiches s'ouvrent à la demande, visibles par le coach seul. |
-| **#prison-interne** | l'accompagnement (lecture seule) | Le mur des retardataires : PlugBot y mentionne les membres qui entrent en prison interne. |
-| **#sortir-de-la-prison-interne** | le rôle Prisonnier interne | Le bouton pour ouvrir un ticket de justification. |
+| **sortir de prison interne** | le rôle Prisonnier interne (et les coachs) | La consigne et le bouton « Je veux sortir de la prison », qui ouvre un ticket de justification. C'est ton salon (`INTERNAL_EXIT_CHANNEL_ID`) ; sans lui, PlugBot crée #sortir-de-la-prison-interne. |
 
-Si un salon est supprimé, PlugBot le recrée.
+Si un salon est supprimé, PlugBot le recrée. Les entrées en prison sont toutes annoncées dans la-prison.
 
 ---
 
@@ -52,7 +51,7 @@ Quand un membre clique, la réponse n'est visible que par lui :
 - **étape pas encore débloquée** : « 🔒 Termine d'abord l'étape 🎬 Visionnage. » ;
 - **étape en cours** : PlugBot ouvre son ticket, ou lui redonne le lien s'il est déjà ouvert ;
 - **étape validée** : « ✅ L'étape est déjà validée », avec le lien vers le ticket fermé ;
-- **en prison** : il doit d'abord s'expliquer dans #sortir-de-la-prison-interne.
+- **en prison** : il doit d'abord s'expliquer dans le salon de sortie de prison interne.
 
 ---
 
@@ -222,29 +221,26 @@ Elle arrive dans deux cas :
 
 PlugBot :
 
-- le met dans la **prison commune** : rôle 💔Prisonnier💔 et message habituel dans la-prison, avec la façon d'en sortir ;
-- lui donne le rôle **Prisonnier interne** ;
-- lui **cache tous les salons de l'accompagnement**, sauf #prison-interne et #sortir-de-la-prison-interne. Il garde les salons gratuits ;
-- le mentionne sur le mur **#prison-interne** :
-  > 🔒 **Tu n'as toujours pas atteint l'étape Engagement après 5 jours dans l'accompagnement.**
-  > Peux-tu nous expliquer pourquoi ? Ouvre un ticket dans #sortir-de-la-prison-interne pour retrouver l'accès à l'accompagnement.
+- lui donne le rôle **Prisonnier interne**, et lui seul : pas le rôle 💔Prisonnier💔 ;
+- **lui cache tout le serveur**, sauf la-prison, #flex-resultats et le salon de sortie de prison interne (voir la prison dans le README) ;
+- l'annonce dans **la-prison**, comme toutes les entrées en prison, avec la façon d'en sortir :
+  > 🔒 **Tu viens de rejoindre la prison : tu n'as pas atteint l'étape Engagement de l'accompagnement en 5 jours.**
+  > Voici comment en sortir : ouvre un ticket dans #sortir-de-prison-interne et explique pourquoi.
 - te prévient dans #notifications-coach.
-
-Pourquoi PlugBot cache les salons membre par membre : sur Discord, un rôle ne peut pas cacher un salon qu'un autre rôle (TikTok) ouvre. Le rôle Prisonnier interne sert à ouvrir #sortir-de-la-prison-interne.
 
 ### La sortie
 
 **Uniquement par un ticket de justification** : poster 3 jours d'affilée ne suffit pas.
 
-1. Le membre clique sur **📝 Ouvrir mon ticket de sortie** dans #sortir-de-la-prison-interne et s'explique.
+1. Le membre clique sur **🔓 Je veux sortir de la prison** dans le salon de sortie de prison interne, et s'explique dans son ticket.
 2. Tu es mentionné dans #notifications-coach.
 3. Dans le ticket, tu cliques sur **🔓 Libérer** quand tu le décides.
 4. PlugBot rend tout :
-   - il retire le rôle Prisonnier et le rôle Prisonnier interne, et rend l'accès à l'accompagnement ;
+   - il retire le rôle Prisonnier interne, et le serveur redevient visible ;
    - il l'annonce dans la-prison ;
    - le décompte repart de zéro : 5 nouveaux jours pour arriver à l'Engagement, ou 15 jours sans show-up à l'étape Engagement.
 
-Si tu retires toi-même le rôle 💔Prisonnier💔, PlugBot le prend comme une libération, comme pour tout le monde.
+Si tu retires toi-même le rôle Prisonnier interne, PlugBot le prend comme une libération, comme pour tout le monde.
 
 ### Le point tous les 3 jours
 

@@ -216,7 +216,7 @@ describe("parcours de l'accompagnement", () => {
   it('crée les salons du parcours dans la catégorie, avec leurs panneaux', () => {
     assert.deepEqual(
       env.created.map((channel) => channel.name),
-      ['parcours', 'notifications-coach', 'fiches-membres', 'prison-interne', 'sortir-de-la-prison-interne'],
+      ['parcours', 'notifications-coach', 'fiches-membres', 'sortir-de-la-prison-interne'],
     );
     assert.ok(env.created.every((channel) => channel.parentId === 'cat'));
     const tiktok = env.channel('parcours').createdWith.find((overwrite) => overwrite.id === ROLES.plug);
@@ -227,7 +227,9 @@ describe("parcours de l'accompagnement", () => {
 
     assert.match(env.channel('parcours').sent[0].content, /Ton parcours dans l'accompagnement/);
     assert.equal(env.channel('parcours').sent[0].components[0].components.length, 4);
-    assert.match(env.channel('sortir-de-la-prison-interne').sent[0].content, /Sortir de la prison interne/);
+    const exitPanel = env.channel('sortir-de-la-prison-interne').sent[0];
+    assert.match(exitPanel.content, /Sortir de la prison interne\*\*[\s\S]*tu dois te justifier/);
+    assert.equal(exitPanel.components[0].components[0].data.label, 'Je veux sortir de la prison');
     const panel = env.channel('fiches-membres').sent[0];
     assert.match(panel.content, /^🗂️ \*\*Fiches des membres\*\*/);
     assert.deepEqual(
@@ -518,17 +520,13 @@ describe("parcours de l'accompagnement", () => {
 
     mock.timers.setTime(NOW + 5 * DAY_MS);
     await env.journey.tick(Date.now());
-    assert.ok(alice.roles.cache.has(ROLES.prisoner) && alice.roles.cache.has(ROLES.internalPrisoner));
+    // Membre de l'accompagnement : seulement le rôle Prisonnier interne (le verrou de la prison cache le reste).
+    assert.ok(alice.roles.cache.has(ROLES.internalPrisoner) && !alice.roles.cache.has(ROLES.prisoner));
     assert.ok(env.db.getPrison('1').internal);
-    // L'accompagnement lui est caché, sauf #prison-interne et le salon de sortie.
-    for (const channel of [env.category, env.announcements, env.channel('parcours'), env.channel('fiches-membres')]) {
-      assert.deepEqual(channel.overwrites.get('1'), { ViewChannel: false }, channel.name);
-    }
-    for (const name of ['prison-interne', 'sortir-de-la-prison-interne']) assert.ok(!env.channel(name).overwrites.has('1'), name);
 
+    // Toutes les entrées en prison sont annoncées dans la-prison.
     const exitId = env.channel('sortir-de-la-prison-interne').id;
     assert.match(env.channels.prison.sent.at(-1).content, new RegExp(`^🔒 \\*\\*Tu viens de rejoindre la prison : tu n'as pas atteint l'étape Engagement de l'accompagnement en 5 jours\\.\\*\\*\\nVoici comment en sortir : ouvre un ticket dans <#${exitId}>`));
-    assert.match(env.channel('prison-interne').sent.at(-1).content, /Tu n'as toujours pas atteint l'étape Engagement après 5 jours[\s\S]*\n<@1>$/);
     assert.match(env.channel('notifications-coach').sent.at(-1).content, /Prison interne\*\* — délai de 5 jours dépassé/);
     assert.match((await openStage(alice, 1)).reply, /Tu es en prison/);
 
@@ -547,7 +545,6 @@ describe("parcours de l'accompagnement", () => {
     await env.onInteraction(interaction('pc:release:1', coach));
     assert.ok(!alice.roles.cache.has(ROLES.prisoner) && !alice.roles.cache.has(ROLES.internalPrisoner));
     assert.equal(env.db.getPrison('1'), null);
-    assert.ok(!env.category.overwrites.has('1'), "l'accompagnement est rendu");
     assert.equal(env.store.get('1').deadlineFrom, NOW + 6 * DAY_MS, 'nouveau délai de 5 jours');
     assert.match(ticket.sent.at(-1).content, /est libéré par son coach/);
     assert.ok(ticket.locked);
@@ -628,6 +625,19 @@ describe("parcours de l'accompagnement", () => {
     assert.equal(record.planningFrom, '2026-11-05');
   });
 
+  it('Plugged® ne va jamais en prison, et sort de celle où il était encore', async () => {
+    const { ctx } = env;
+    const jobs = createJobs(ctx, createHandlers(ctx));
+    const bob = env.guild.members.cache.get('3');
+    assert.equal(ctx.tracker.snapshot(env.guild.members.cache, NOW).get('3').prison.limit, Infinity);
+
+    await ctx.prison.imprison(bob, 15);
+    await jobs.runDaily(NOW);
+    assert.equal(env.db.getPrison('3'), null);
+    assert.ok(!bob.roles.cache.has(ROLES.prisoner));
+    assert.match(env.channels.prison.sent.at(-1).content, /<@3> a été libéré de prison par l'équipe/);
+  });
+
   it('avant l’Engagement, pas de prison faute de show-up ; ensuite, prison interne sans sortie en postant', async () => {
     const { ctx } = env;
     const handlers = createHandlers(ctx);
@@ -643,7 +653,7 @@ describe("parcours de l'accompagnement", () => {
     assert.ok(env.db.getPrison('1').internal);
     const exitId = env.channel('sortir-de-la-prison-interne').id;
     assert.match(env.channels.prison.sent.at(-1).content, new RegExp(`15 jours sans show-up\\.\\*\\*\\nVoici comment en sortir : ouvre un ticket dans <#${exitId}>`));
-    assert.match(env.channel('prison-interne').sent.at(-1).content, /Tu n'as rien posté depuis 15 jours/);
+    assert.match(env.channel('notifications-coach').sent.at(-1).content, /Prison interne\*\* — 15 jours sans show-up/);
 
     // 3 jours de posts ne suffisent pas : il faut un ticket.
     for (let day = 0; day < 3; day++) {

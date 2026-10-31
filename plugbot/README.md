@@ -31,24 +31,24 @@ Le fonctionnement complet est décrit dans [`SPEC.md`](SPEC.md).
 - Les membres doivent pouvoir lire ces cinq salons, sans y écrire.
 - flex-resultats : mode lent de 15 minutes.
 
-**Le rôle Prisonnier : PlugBot le règle lui-même.** Un prisonnier peut encore lire, mais il ne peut plus :
-- écrire, ni répondre ou créer des fils ;
-- réagir ;
-- créer de sondage ;
-- rejoindre un vocal ou un live.
+**La prison : PlugBot règle tout lui-même.** En prison, on ne voit plus que trois salons, avec leurs catégories :
+- **la-prison** : toutes les entrées et sorties de prison y sont annoncées ;
+- **flex-resultats** : on peut y poster ses résultats ;
+- **son salon de sortie**.
 
-Il garde seulement deux choses : poster ses résultats dans flex-resultats, et s'expliquer dans son ticket s'il est en prison interne.
+Tout le reste du serveur devient invisible. Il y a deux rôles de prison :
 
-- Au démarrage, puis chaque nuit, PlugBot pose un ✗ pour le rôle Prisonnier dans chaque catégorie et chaque salon, sauf la-prison et flex-resultats, et il ouvre flex-resultats aux prisonniers.
-- Règle de Discord : quand un salon donne un ✓ explicite à un autre rôle (par exemple Free sur « Envoyer des messages »), ce ✓ passe **avant** le ✗ du rôle Prisonnier. Dans ces salons, PlugBot pose en plus un ✗ au nom du prisonnier lui-même, qui passe avant tous les rôles. Il le retire à la sortie.
-- Ça marche aussi quand tu donnes ou retires le rôle Prisonnier à la main.
-- Pour tout verrouiller, PlugBot doit avoir lui-même, dans Paramètres du serveur > Rôles > PlugBot :
-  - **Gérer les rôles** ;
-  - **Voir les salons** ;
-  - **Envoyer des messages**, **Ajouter des réactions**, les permissions des fils et **Créer des sondages** ;
-  - **Se connecter**, pour les vocaux.
+| Rôle | Pour qui | Salon de sortie | Comment en sortir |
+|---|---|---|---|
+| 💔Prisonnier💔 | les membres normaux | sortir de prison (`PRISON_EXIT_CHANNEL_ID`) | poster 3 jours d'affilée : PlugBot y publie la consigne |
+| Prisonnier interne | les membres du parcours de l'accompagnement | sortir de prison interne (`INTERNAL_EXIT_CHANNEL_ID`) | bouton « Je veux sortir de la prison », ticket de justification, et le coach décide |
 
-  Discord n'accepte un ✗ que sur une permission que le bot a lui-même. Au démarrage, `pm2 logs plugbot` dit « le rôle Prisonnier est bloqué dans tous les salons », ou liste exactement ce qui manque.
+Les membres **Plugged®** ne vont jamais en prison.
+
+- Au démarrage, puis chaque nuit, PlugBot pose un ✗ « Voir le salon » pour les deux rôles de prison dans chaque salon et chaque catégorie, et un ✓ dans leurs salons à eux. Les salons de sortie sont cachés à tous les autres. Les coachs (Office) voient les tickets de la prison interne.
+- Règle de Discord : quand un salon donne un ✓ explicite sur « Voir le salon » à un autre rôle (par exemple TikTok), ce ✓ passe **avant** le ✗ de la prison. Dans ces salons, PlugBot cache en plus le salon au prisonnier lui-même, ce qui passe avant tous les rôles. Il le rend à la sortie.
+- Ça marche aussi quand tu donnes ou retires un rôle de prison à la main.
+- PlugBot doit avoir **Gérer les rôles** et **Voir les salons**, et être placé **au-dessus** des deux rôles de prison. Au démarrage, `pm2 logs plugbot` confirme que le verrou est posé, ou liste exactement ce qui manque.
 
 Le salon des codes de réduction ne doit être visible que pour 🔥🔥🔥, ⚡plug7⚡ et ★plug30★. Pas besoin d'y bloquer le Prisonnier : PlugBot lui retire ces rôles pendant la prison.
 
@@ -191,7 +191,7 @@ npm test
 - `src/index.js` : démarrage et événements Discord.
 - `src/handlers.js` : résultats postés, ❌ de l'admin, messages supprimés, changements de rôle.
 - `src/prison.js` : entrées et sorties de prison (rôle Prisonnier, récompenses mises de côté).
-- `src/lockdown.js` : le verrou de la prison (permissions du rôle Prisonnier, et des prisonniers là où un autre rôle passerait avant).
+- `src/lockdown.js` : le verrou de la prison (ce que voient les deux rôles de prison, et les prisonniers là où un autre rôle passerait avant).
 - `src/jobs.js` : prison (chaque jour à minuit UTC), compte à rebours de la prison (18 h GMT), publications de 20 h 30 GMT (top-7, top-30, récap), messages aux gagnants.
 - `src/boards.js` : les classements en direct, un message modifié à chaque changement dans top-7, top-30 et top-all-time.
 - `src/checks.js` : vérification des permissions au démarrage.

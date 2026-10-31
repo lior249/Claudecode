@@ -15,6 +15,10 @@ export function createTracker({ config, db, journey = null }) {
     return null;
   }
 
+  function isPlugged(member) {
+    return Boolean(config.roles.plugged) && member.roles.cache.has(config.roles.plugged);
+  }
+
   // Les bots, les admins et les membres sans rôle Free ni @TikTok ne sont pas suivis.
   function isTracked(member) {
     return !member.user.bot && !config.adminIds.has(member.id) && categoryOf(member) !== null;
@@ -59,7 +63,8 @@ export function createTracker({ config, db, journey = null }) {
           inPrison,
           internal,
           missed: missedDays(memberDays, startDay, today),
-          limit: preEngagement.has(member.id) ? Infinity : PRISON_DAYS[category],
+          // Plugged® ne va jamais en prison ; le parcours a son propre délai avant l'Engagement.
+          limit: preEngagement.has(member.id) || isPlugged(member) ? Infinity : PRISON_DAYS[category],
           daysToLeave: internal ? null : inPrison ? Math.max(0, DAYS_TO_LEAVE_PRISON - chain) : 0,
         },
         total: totals.get(member.id)?.count ?? 0,

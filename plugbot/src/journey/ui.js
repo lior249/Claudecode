@@ -180,7 +180,7 @@ export function confirmationModal(userId) {
 }
 
 export function exitPanel() {
-  return { content: exitPanelText(), components: [row(button(customId('exit'), 'Ouvrir mon ticket de sortie', '📝', ButtonStyle.Primary))] };
+  return { content: exitPanelText(), components: [row(button(customId('exit'), 'Je veux sortir de la prison', '🔓', ButtonStyle.Primary))] };
 }
 
 export function releaseComponents(userId) {

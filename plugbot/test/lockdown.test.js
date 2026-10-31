@@ -8,7 +8,15 @@ import { createPrison } from '../src/prison.js';
 import { createTracker } from '../src/tracker.js';
 
 const P = PermissionFlagsBits;
-const ROLES = { free: 'r-free', plug: 'r-tiktok', weekWinner: 'r-p7', monthWinner: 'r-p30', prisoner: 'r-pri' };
+const ROLES = {
+  free: 'r-free',
+  plug: 'r-tiktok',
+  weekWinner: 'r-p7',
+  monthWinner: 'r-p30',
+  prisoner: 'r-pri',
+  internalPrisoner: 'r-pri-int',
+  office: 'r-office',
+};
 // Toutes les permissions sauf Administrateur (qui vaut toutes les autres pour Discord).
 const ALL_BOT = new PermissionsBitField(Object.values(P).reduce((total, flag) => total | flag, 0n)).remove(P.Administrator);
 
@@ -40,23 +48,49 @@ function fakeOverwrites(initial = []) {
   return manager;
 }
 
-function setup({ bot = ALL_BOT, channels = [] } = {}) {
-  const cache = new Map();
-  const add = (id, name, type, { overwrites, botPermissions = bot } = {}) => {
-    const channel = { id, name, type, permissionOverwrites: fakeOverwrites(overwrites), permissionsFor: () => botPermissions };
-    cache.set(id, channel);
-    return channel;
+function fakeChannel(id, name, type, { parentId = null, overwrites, botPermissions = ALL_BOT } = {}) {
+  const sent = [];
+  return {
+    id,
+    name,
+    type,
+    parentId,
+    sent,
+    permissionOverwrites: fakeOverwrites(overwrites),
+    permissionsFor: () => botPermissions,
+    send: async (payload) => {
+      const message = { id: `m${sent.length + 1}`, ...payload, edit: async (changes) => Object.assign(message, changes) };
+      sent.push(message);
+      return message;
+    },
+    messages: { fetch: async (id) => sent.find((message) => message.id === id) ?? null },
   };
-  add('cat', 'communauté', ChannelType.GuildCategory);
-  add('chat', 'discussion', ChannelType.GuildText);
-  add('vocal', 'vocal', ChannelType.GuildVoice);
-  add('c-res', 'flex-resultats', ChannelType.GuildText);
-  add('c-prison', 'la-prison', ChannelType.GuildText);
+}
+
+function setup({ channels = [], journey = true } = {}) {
+  const cache = new Map();
+  const add = (...args) => cache.set(args[0], fakeChannel(...args));
+  add('wall', 'le-mur', ChannelType.GuildCategory);
+  add('c-prison', 'la-prison', ChannelType.GuildText, { parentId: 'wall' });
+  add('exit', 'sortir-de-prison', ChannelType.GuildText, { parentId: 'wall' });
+  add('exit-int', 'sortir-de-prison-interne', ChannelType.GuildText, { parentId: 'wall' });
+  add('com', 'communauté', ChannelType.GuildCategory);
+  add('c-res', 'flex-resultats', ChannelType.GuildText, { parentId: 'com' });
+  add('chat', 'discussion', ChannelType.GuildText, { parentId: 'com' });
+  add('vocal', 'vocal', ChannelType.GuildVoice, { parentId: 'com' });
   for (const [id, name, type, options] of channels) add(id, name, type, options);
   const members = new Map();
-  const guild = { id: 'guild', channels: { cache }, members: { me: { id: 'bot' }, cache: members } };
-  const config = { roles: ROLES, channels: { results: 'c-res', prison: 'c-prison' } };
-  const ctx = { config, guild, db: openDatabase(':memory:'), channels: {} };
+  const guild = { id: 'guild', channels: { cache }, members: { me: { id: 'bot' }, cache: members, fetch: async (id) => members.get(id) } };
+  const config = {
+    guildId: 'guild',
+    roles: journey ? ROLES : { ...ROLES, internalPrisoner: undefined },
+    channels: { results: 'c-res', prison: 'c-prison', prisonExit: 'exit' },
+    links: { guide: 'c-guide' },
+    adminIds: new Set(),
+  };
+  const db = openDatabase(':memory:');
+  const ctx = { config, guild, db, channels: { prison: cache.get('c-prison'), prisonExit: cache.get('exit') } };
+  if (journey) ctx.journey = { exitChannelId: () => 'exit-int', syncMember: () => {}, afterImprison: async () => {}, afterRelease: async () => {} };
   ctx.lockdown = createLockdown(ctx);
   ctx.prison = createPrison(ctx);
   return { ctx, cache, members };
@@ -67,71 +101,98 @@ function fakeMember(id, roles) {
   return { id, user: { tag: `membre${id}` }, roles: { cache, add: async (role) => cache.add(role), remove: async (role) => cache.delete(role) } };
 }
 
-const denied = (channel, id) => channel.permissionOverwrites.cache.get(id)?.deny ?? new PermissionsBitField();
+const role = (channel, id) => channel.permissionOverwrites.cache.get(id);
+const sees = (channel, id) => role(channel, id)?.allow.has(P.ViewChannel, false) ?? false;
+const hidden = (channel, id) => role(channel, id)?.deny.has(P.ViewChannel, false) ?? false;
 
 describe('verrou de la prison', () => {
-  it('interdit tout au rôle Prisonnier, dans chaque salon, sauf la prison et flex-resultats', async () => {
+  it('un prisonnier ne voit plus que la-prison, flex-resultats et son salon de sortie', async () => {
     const { ctx, cache } = setup();
-    assert.deepEqual(await ctx.lockdown.lockRole(), []);
+    assert.deepEqual(await ctx.lockdown.lockRoles(), []);
 
-    const chat = denied(cache.get('chat'), ROLES.prisoner);
-    for (const name of ['SendMessages', 'SendMessagesInThreads', 'CreatePublicThreads', 'CreatePrivateThreads', 'AddReactions', 'SendPolls']) {
-      assert.ok(chat.has(P[name]), name);
-    }
-    assert.ok(denied(cache.get('vocal'), ROLES.prisoner).has(P.Connect), 'pas de vocal');
-    assert.ok(denied(cache.get('cat'), ROLES.prisoner).has(P.Connect | P.SendMessages), 'la catégorie aussi, pour les futurs salons');
-    assert.ok(!cache.get('c-prison').permissionOverwrites.cache.has(ROLES.prisoner), 'la-prison est laissée telle quelle');
-    const results = cache.get('c-res').permissionOverwrites.cache.get(ROLES.prisoner);
-    assert.ok(results.allow.has(P.SendMessages | P.AttachFiles), 'il peut poster ses résultats pour sortir');
+    // 💔Prisonnier💔 : la-prison, flex-resultats (où il poste) et « sortir de prison ».
+    for (const id of ['c-prison', 'c-res', 'exit']) assert.ok(sees(cache.get(id), ROLES.prisoner), id);
+    assert.ok(role(cache.get('c-res'), ROLES.prisoner).allow.has(P.SendMessages | P.AttachFiles), 'il poste ses résultats pour sortir');
+    for (const id of ['chat', 'vocal', 'exit-int']) assert.ok(hidden(cache.get(id), ROLES.prisoner), id);
 
-    // Déjà en place : rien n'est renvoyé à Discord (sauf flex-resultats, toujours réglé).
-    const before = cache.get('chat').permissionOverwrites.edits;
-    await ctx.lockdown.lockRole();
-    assert.equal(cache.get('chat').permissionOverwrites.edits, before);
+    // Prisonnier interne : pareil, mais avec « sortir de prison interne », où il ouvre son ticket.
+    for (const id of ['c-prison', 'c-res', 'exit-int']) assert.ok(sees(cache.get(id), ROLES.internalPrisoner), id);
+    assert.ok(role(cache.get('exit-int'), ROLES.internalPrisoner).allow.has(P.SendMessagesInThreads));
+    for (const id of ['chat', 'vocal', 'exit']) assert.ok(hidden(cache.get(id), ROLES.internalPrisoner), id);
+
+    // Les catégories des salons gardés restent visibles ; les autres sont cachées.
+    assert.ok(sees(cache.get('wall'), ROLES.prisoner) && sees(cache.get('com'), ROLES.prisoner));
+
+    // Les salons de sortie sont cachés à tous les autres ; les coachs voient les tickets de la prison interne.
+    assert.ok(hidden(cache.get('exit'), 'guild') && hidden(cache.get('exit-int'), 'guild'));
+    assert.ok(sees(cache.get('exit-int'), ROLES.office));
+
+    // Déjà en place : rien n'est renvoyé à Discord.
+    const edits = [...cache.values()].reduce((total, channel) => total + channel.permissionOverwrites.edits, 0);
+    await ctx.lockdown.lockRoles();
+    assert.equal([...cache.values()].reduce((total, channel) => total + channel.permissionOverwrites.edits, 0), edits);
   });
 
-  it("bloque le prisonnier lui-même là où un de ses rôles a un ✓, et le débloque à la sortie", async () => {
+  it('cache aussi les salons au prisonnier lui-même là où un de ses rôles a un ✓, et les rend à la sortie', async () => {
     const { ctx, cache, members } = setup({
       channels: [
-        ['free-chat', 'chat-free', ChannelType.GuildText, { overwrites: [{ id: ROLES.free, allow: [P.ViewChannel, P.SendMessages] }] }],
-        ['plug-chat', 'chat-accompagnement', ChannelType.GuildText, { overwrites: [{ id: ROLES.plug, allow: [P.SendMessages] }] }],
+        ['free-chat', 'chat-free', ChannelType.GuildText, { overwrites: [{ id: ROLES.free, allow: [P.ViewChannel] }] }],
+        ['plug-chat', 'chat-accompagnement', ChannelType.GuildText, { overwrites: [{ id: ROLES.plug, allow: [P.ViewChannel] }] }],
       ],
     });
-    await ctx.lockdown.lockRole();
+    await ctx.lockdown.lockRoles();
     const member = fakeMember('1', [ROLES.free]);
     members.set('1', member);
-    // Une autorisation au nom du membre posée par ailleurs (par exemple la prison interne) : elle reste.
-    await cache.get('chat').permissionOverwrites.edit('1', { ViewChannel: false });
+    await cache.get('chat').permissionOverwrites.edit('1', { AttachFiles: false });
 
     await ctx.prison.imprison(member, 21);
     assert.ok(member.roles.cache.has(ROLES.prisoner));
-    const own = denied(cache.get('free-chat'), '1');
-    assert.ok(own.has(P.SendMessages) && own.has(P.AddReactions), 'son ✗ passe avant le ✓ du rôle Free');
+    assert.ok(hidden(cache.get('free-chat'), '1'), 'son ✗ passe avant le ✓ du rôle Free');
     assert.ok(!cache.get('plug-chat').permissionOverwrites.cache.has('1'), "il n'a pas le rôle TikTok : rien à faire là");
 
     await ctx.prison.free(member);
+    assert.ok(!member.roles.cache.has(ROLES.prisoner));
     assert.ok(!cache.get('free-chat').permissionOverwrites.cache.has('1'));
-    assert.ok(denied(cache.get('chat'), '1').has(P.ViewChannel), "l'autre autorisation n'est pas touchée");
+    assert.ok(role(cache.get('chat'), '1').deny.has(P.AttachFiles), "une autre autorisation n'est pas touchée");
   });
 
-  it('explique ce qu’il ne peut pas verrouiller', async () => {
-    const withoutConnect = new PermissionsBitField(ALL_BOT).remove(P.Connect);
-    const { ctx } = setup({
-      bot: withoutConnect,
-      channels: [['staff', 'staff', ChannelType.GuildText, { botPermissions: new PermissionsBitField([P.ViewChannel]) }]],
-    });
-    const problems = await ctx.lockdown.lockRole();
-    assert.deepEqual(problems, [
-      'PlugBot ne peut pas gérer les permissions de #staff : il lui faut « Voir le salon » et « Gérer les rôles » dans ces salons.',
-      "PlugBot n'a pas la permission « Se connecter », il ne peut donc pas l'interdire aux prisonniers (#communauté, #vocal). Active-la dans Paramètres du serveur > Rôles > PlugBot.",
-    ]);
+  it("un membre de l'accompagnement n'a que le rôle Prisonnier interne", async () => {
+    const { ctx, members } = setup();
+    const member = fakeMember('1', [ROLES.plug]);
+    members.set('1', member);
+    await ctx.prison.imprison(member, 0, { internal: true });
+    assert.ok(member.roles.cache.has(ROLES.internalPrisoner));
+    assert.ok(!member.roles.cache.has(ROLES.prisoner));
+    assert.equal(ctx.prison.wasReleasedByTeam(member), false);
+    member.roles.cache.delete(ROLES.internalPrisoner);
+    assert.equal(ctx.prison.wasReleasedByTeam(member), true, 'retirer le rôle Prisonnier interne à la main le libère');
   });
 
-  it('suit le rôle Prisonnier donné ou retiré à la main', async () => {
+  it("au démarrage, retire 💔Prisonnier💔 aux prisonniers de l'accompagnement (ancienne version)", async (t) => {
+    t.mock.method(console, 'log', () => {});
+    const { ctx, members } = setup();
+    const member = fakeMember('1', [ROLES.plug, ROLES.prisoner, ROLES.internalPrisoner]);
+    members.set('1', member);
+    ctx.db.addPrison('1', 0, [], true);
+    await ctx.lockdown.start();
+    assert.deepEqual([...member.roles.cache].sort(), [ROLES.internalPrisoner, ROLES.plug].sort());
+  });
+
+  it('publie la consigne de « sortir de prison » une seule fois', async (t) => {
+    t.mock.method(console, 'log', () => {});
+    const { ctx, cache } = setup();
+    await ctx.lockdown.start();
+    await ctx.lockdown.start();
+    const exit = cache.get('exit');
+    assert.equal(exit.sent.length, 1);
+    assert.match(exit.sent[0].content, /^🔓 \*\*Comment sortir de prison\*\*/);
+    assert.match(exit.sent[0].content, /poste un résultat dans <#c-res> \*\*3 jours d'affilée\*\*/);
+  });
+
+  it('suit le rôle de prison donné ou retiré à la main', async () => {
     const { ctx, cache, members } = setup({
-      channels: [['free-chat', 'chat-free', ChannelType.GuildText, { overwrites: [{ id: ROLES.free, allow: [P.SendMessages] }] }]],
+      channels: [['free-chat', 'chat-free', ChannelType.GuildText, { overwrites: [{ id: ROLES.free, allow: [P.ViewChannel] }] }]],
     });
-    ctx.config.adminIds = new Set();
     ctx.tracker = createTracker({ config: ctx.config, db: ctx.db });
     const handlers = createHandlers(ctx);
     const member = fakeMember('1', [ROLES.free]);
@@ -140,7 +201,7 @@ describe('verrou de la prison', () => {
 
     member.roles.cache.add(ROLES.prisoner);
     await handlers.onMemberUpdate(member, before);
-    assert.ok(denied(cache.get('free-chat'), '1').has(P.SendMessages), 'bloqué même sans passer par PlugBot');
+    assert.ok(hidden(cache.get('free-chat'), '1'), 'caché même sans passer par PlugBot');
 
     const jailed = { roles: { cache: new Set(member.roles.cache) } };
     member.roles.cache.delete(ROLES.prisoner);
@@ -148,10 +209,13 @@ describe('verrou de la prison', () => {
     assert.ok(!cache.get('free-chat').permissionOverwrites.cache.has('1'));
   });
 
-  it('laisse les salons de la prison interne au parcours', async () => {
-    const { ctx, cache } = setup({ channels: [['exit', 'sortir-de-la-prison-interne', ChannelType.GuildText]] });
-    ctx.journey = { prisonChannelIds: () => ['exit'] };
-    await ctx.lockdown.lockRole();
-    assert.ok(!cache.get('exit').permissionOverwrites.cache.has(ROLES.prisoner));
+  it('explique ce qu’il ne peut pas verrouiller', async () => {
+    const { ctx } = setup({
+      journey: false,
+      channels: [['staff', 'staff', ChannelType.GuildText, { botPermissions: new PermissionsBitField([P.ViewChannel]) }]],
+    });
+    assert.deepEqual(await ctx.lockdown.lockRoles(), [
+      'PlugBot ne peut pas gérer les permissions de #staff : il lui faut « Voir le salon » et « Gérer les rôles » dans ces salons.',
+    ]);
   });
 });

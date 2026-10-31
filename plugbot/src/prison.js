@@ -18,10 +18,17 @@ export function createPrison(ctx) {
     }
   }
 
-  // Donne le rôle Prisonnier et note qu'il a bien été donné. Le verrou bloque aussi le membre lui-même
-  // dans les salons où un de ses rôles passerait avant le rôle Prisonnier.
-  async function giveRole(member) {
-    if (await changeRole(member, config.roles.prisoner, true, 'Entrée en prison')) db.markPrisonRole(member.id);
+  // Le rôle de prison : 💔Prisonnier💔, ou Prisonnier interne pour les membres du parcours de l'accompagnement.
+  function prisonRole(internal) {
+    return internal ? config.roles.internalPrisoner : config.roles.prisoner;
+  }
+
+  // Donne le rôle de prison et note qu'il a bien été donné. Le verrou cache aussi le serveur au membre
+  // lui-même là où un de ses rôles passerait avant le rôle de prison.
+  async function giveRole(member, internal = false) {
+    if (await changeRole(member, prisonRole(internal), true, internal ? 'Entrée en prison interne' : 'Entrée en prison')) {
+      db.markPrisonRole(member.id);
+    }
     await ctx.lockdown?.lockMember(member);
   }
 
@@ -30,7 +37,7 @@ export function createPrison(ctx) {
     const suspended = rewardRoles.filter((roleId) => member.roles.cache.has(roleId));
     db.addPrison(member.id, level, suspended, internal);
     for (const roleId of suspended) await changeRole(member, roleId, false, 'Entrée en prison');
-    await giveRole(member);
+    await giveRole(member, internal);
     if (internal) await ctx.journey?.afterImprison(member);
   }
 
@@ -41,18 +48,18 @@ export function createPrison(ctx) {
     // La ligne est effacée avant de toucher au rôle : le bot ne prendra pas son propre retrait
     // pour une libération par l'équipe.
     db.removePrison(member.id);
-    if (member.roles.cache.has(config.roles.prisoner)) {
-      await changeRole(member, config.roles.prisoner, false, 'Sortie de prison');
+    for (const roleId of [config.roles.prisoner, config.roles.internalPrisoner].filter(Boolean)) {
+      if (member.roles.cache.has(roleId)) await changeRole(member, roleId, false, 'Sortie de prison');
     }
     for (const roleId of record.suspendedRoles) await changeRole(member, roleId, true, 'Sortie de prison');
     await ctx.lockdown?.unlockMember(member);
     if (record.internal) await ctx.journey?.afterRelease(member);
   }
 
-  // L'équipe a retiré le rôle Prisonnier à la main, par exemple après une erreur.
+  // L'équipe a retiré le rôle de prison à la main, par exemple après une erreur.
   function wasReleasedByTeam(member) {
     const record = db.getPrison(member.id);
-    return Boolean(record?.hasRole) && !member.roles.cache.has(config.roles.prisoner);
+    return Boolean(record?.hasRole) && !member.roles.cache.has(prisonRole(record.internal));
   }
 
   // Le compteur de la prison repart de zéro le lendemain de la libération.

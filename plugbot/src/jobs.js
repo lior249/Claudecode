@@ -49,8 +49,8 @@ export function createJobs(ctx, handlers) {
   async function runDaily(now) {
     const today = dayOf(now);
     await guild.members.fetch();
-    // Les salons créés depuis hier sont verrouillés pour le rôle Prisonnier.
-    await ctx.lockdown?.lockRole();
+    // Les salons créés depuis hier sont cachés aux prisonniers.
+    await ctx.lockdown?.lockRoles();
     for (const member of guild.members.cache.values()) tracker.syncCategory(member, today);
     await checkTeamReleases(today);
 
@@ -64,10 +64,15 @@ export function createJobs(ctx, handlers) {
     for (const row of rows.values()) {
       const { userId, prison: state } = row;
       const record = records.get(userId);
+      // Plugged® : jamais de prison. Un membre Plugged® qui y est encore en sort.
+      if (record && config.roles.plugged && row.member.roles.cache.has(config.roles.plugged)) {
+        await prison.releaseByTeam(row.member, today);
+        continue;
+      }
       if (record) {
         // Prison interne : on en sort seulement par un ticket de justification.
         if (record.internal) {
-          if (!record.hasRole) await prison.giveRole(row.member);
+          if (!record.hasRole) await prison.giveRole(row.member, true);
           continue;
         }
         if (row.chain >= DAYS_TO_LEAVE_PRISON) {

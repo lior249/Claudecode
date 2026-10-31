@@ -214,9 +214,20 @@ function wayOutOfPrison(config, exitChannelId) {
   const how = exitChannelId
     ? `ouvre un ticket dans ${channelMention(exitChannelId)} et explique pourquoi tu n'as pas posté.`
     : `poste un résultat dans ${channelMention(config.channels.results)} pendant ${DAYS_TO_LEAVE_PRISON} jours d'affilée.`;
+  const details = !exitChannelId && config.channels.prisonExit ? config.channels.prisonExit : config.links.guide;
+  return [`Voici comment en sortir : ${how}`, `Si tu veux plus de détails, va voir ${channelMention(details)}.`].join('\n');
+}
+
+// La consigne du salon « sortir de prison », pour les membres qui ne sont pas dans l'accompagnement.
+export function prisonExitInstructions(config) {
   return [
-    `Voici comment en sortir : ${how}`,
-    `Si tu veux plus de détails, va voir ${channelMention(config.links.guide)}.`,
+    '🔓 **Comment sortir de prison**',
+    "Tu es en prison parce que tu n'as posté aucun résultat depuis trop longtemps.",
+    'Pendant la prison, tu ne vois plus que la-prison, ce salon et #flex-resultats.',
+    '',
+    `**Pour en sortir :** poste un résultat dans ${channelMention(config.channels.results)} **${DAYS_TO_LEAVE_PRISON} jours d'affilée**.`,
+    `Un résultat par jour suffit. ${DAYS_TO_LEAVE_PRISON} résultats le même jour ne comptent que pour un jour.`,
+    `Au ${DAYS_TO_LEAVE_PRISON}ᵉ jour, PlugBot te libère tout seul : tu retrouves tout le serveur, et tes récompenses.`,
   ].join('\n');
 }
 

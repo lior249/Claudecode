@@ -158,8 +158,9 @@ export function createHandlers(ctx) {
       tracker.syncCategory(current, today);
       ctx.journey?.syncMember(current, Date.now());
       if (prison.wasReleasedByTeam(current)) await prison.releaseByTeam(current, today);
-      const isPrisoner = current.roles.cache.has(config.roles.prisoner);
-      const wasPrisoner = previous && !previous.partial ? previous.roles.cache.has(config.roles.prisoner) : isPrisoner;
+      const jailed = (someone) => [config.roles.prisoner, config.roles.internalPrisoner].some((roleId) => roleId && someone.roles.cache.has(roleId));
+      const isPrisoner = jailed(current);
+      const wasPrisoner = previous && !previous.partial ? jailed(previous) : isPrisoner;
       if (isPrisoner && !wasPrisoner) await ctx.lockdown?.lockMember(current);
       if (wasPrisoner && !isPrisoner) await ctx.lockdown?.unlockMember(current);
     },

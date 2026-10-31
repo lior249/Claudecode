@@ -282,7 +282,8 @@ L'annonce du soir, du mardi au samedi, juste au-dessus du classement en direct :
 
 3. *(proposé)* **30 jours** sans show-up : même message, avec le titre « Définitivement en prison : 30 jours sans show-up ». PlugBot n'écrit plus rien ensuite.
 
-- Le rôle Prisonnier coupe les accès principaux du Discord, sauf la-prison et flex-resultats. Ces permissions sont réglées sur Discord.
+- En prison, tout le serveur devient invisible, sauf la-prison, flex-resultats et le salon « sortir de prison », où PlugBot publie la consigne. PlugBot règle lui-même ces permissions (voir le README).
+- Les membres **Plugged®** ne vont jamais en prison. Un membre qui reçoit Plugged® alors qu'il est en prison en sort à la vérification de minuit.
 - Chaque message regroupe tous les membres qui atteignent la même étape le même jour. Les entrées en prison sont vérifiées chaque jour juste après minuit GMT.
 - Conséquence du départ à zéro : 22 jours après le lancement, tous les Free qui n'ont rien posté entrent en prison en même temps. Pour l'accompagnement, c'est 16 jours après le lancement.
 

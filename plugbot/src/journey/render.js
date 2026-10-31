@@ -266,21 +266,6 @@ export function digestText({ prisoners, soon }) {
 
 // --- La prison interne ---
 
-// Mur des retardataires (#prison-interne), visible par tout l'accompagnement.
-// reason : deadline (pas arrivé à l'Engagement à temps) ou noPosts (`days` jours sans show-up).
-export function wallText(reason, userIds, exitChannelId, days) {
-  const titles = {
-    deadline: `🔒 **Tu n'as toujours pas atteint l'étape Engagement après ${JOURNEY_DAYS} jours dans l'accompagnement.**`,
-    noPosts: `🔒 **Tu n'as rien posté depuis ${days} jours.**`,
-  };
-  return [
-    titles[reason],
-    `Peux-tu nous expliquer pourquoi ? Ouvre un ticket dans ${channel(exitChannelId)} pour retrouver l'accès à l'accompagnement.`,
-    '',
-    ...mentionLines(userIds),
-  ].join('\n');
-}
-
 // Dans la-prison, comme pour toutes les entrées en prison.
 export function deadlinePrisonText(userIds, exitChannelId) {
   return [
@@ -295,8 +280,11 @@ export function deadlinePrisonText(userIds, exitChannelId) {
 export function exitPanelText() {
   return [
     '🔓 **Sortir de la prison interne**',
-    "Tu es en prison parce que tu n'as pas avancé dans ton parcours, ou pas posté depuis trop longtemps.",
-    'Clique sur le bouton pour ouvrir un ticket et expliquer pourquoi. Ton coach te répond et décide de ta sortie.',
+    "Tu es en prison parce que tu n'as pas avancé à temps dans ton parcours de l'accompagnement, ou que tu n'as rien posté depuis trop longtemps.",
+    'Pendant la prison, tu ne vois plus que la-prison, ce salon et #flex-resultats.',
+    '',
+    "**Pour en sortir, tu dois te justifier :** clique sur **Je veux sortir de la prison**, puis explique dans ton ticket pourquoi tu n'as pas avancé.",
+    "Ton coach lit tout et décide de ta sortie. Pour l'accompagnement, poster 3 jours d'affilée ne suffit pas.",
   ].join('\n');
 }
 

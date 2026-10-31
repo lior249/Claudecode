@@ -115,7 +115,7 @@ client.once(Events.ClientReady, (readyClient) =>
     // Le verrou de la prison : le rôle Prisonnier est bloqué partout, et les prisonniers actuels aussi.
     ctx.lockdown = createLockdown(ctx);
     try {
-      await ctx.lockdown.start([...db.prisonRecords().keys()]);
+      await ctx.lockdown.start();
     } catch (error) {
       console.error('[PlugBot] Prison : le verrou n\'a pas pu être posé :', error);
     }

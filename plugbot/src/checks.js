@@ -27,6 +27,8 @@ const CHANNEL_NEEDS = {
   week: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'EmbedLinks', 'MentionEveryone'],
   month: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'EmbedLinks', 'MentionEveryone'],
   prison: ['ViewChannel', 'SendMessages'],
+  prisonExit: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'],
+  internalExit: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'CreatePrivateThreads', 'SendMessagesInThreads', 'ManageThreads'],
   allTime: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'EmbedLinks', 'MentionEveryone'],
   planning: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AddReactions', 'CreatePublicThreads', 'SendMessagesInThreads', 'ManageThreads'],
   planningReminder: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AddReactions'],
