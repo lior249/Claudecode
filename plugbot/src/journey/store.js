@@ -35,8 +35,8 @@ const SCHEMA = `
     check2            INTEGER,
     planning_from     TEXT,
     prison_count      INTEGER NOT NULL DEFAULT 0,
+    -- Ancienne fiche publiée dans #fiches-membres : PlugBot l'efface (les fiches s'ouvrent maintenant à la demande).
     fiche_message_id  TEXT,
-    -- La fiche doit être republiée (1) : PlugBot la met à jour au tick suivant.
     fiche_dirty       INTEGER NOT NULL DEFAULT 1
   );
 
@@ -125,9 +125,8 @@ export function createJourneyStore(connection) {
     all: connection.prepare('SELECT * FROM journey ORDER BY joined_at'),
     active: connection.prepare("SELECT * FROM journey WHERE status = 'active' ORDER BY joined_at"),
     preEngagement: connection.prepare("SELECT user_id FROM journey WHERE status = 'active' AND stage < 4"),
-    dirty: connection.prepare("SELECT * FROM journey WHERE fiche_dirty = 1 AND status != 'exempt' LIMIT ?"),
-    markDirty: connection.prepare('UPDATE journey SET fiche_dirty = 1 WHERE user_id = ?'),
-    markClean: connection.prepare('UPDATE journey SET fiche_dirty = 0, fiche_message_id = ? WHERE user_id = ?'),
+    oldFiches: connection.prepare('SELECT * FROM journey WHERE fiche_message_id IS NOT NULL LIMIT ?'),
+    forgetFiche: connection.prepare('UPDATE journey SET fiche_message_id = NULL WHERE user_id = ?'),
     addTicket: connection.prepare('INSERT INTO journey_tickets (thread_id, user_id, kind, opened_at) VALUES (?, ?, ?, ?)'),
     ticket: connection.prepare('SELECT * FROM journey_tickets WHERE thread_id = ?'),
     ticketsOf: connection.prepare('SELECT * FROM journey_tickets WHERE user_id = ? ORDER BY opened_at'),
@@ -147,13 +146,13 @@ export function createJourneyStore(connection) {
       statements.create.run(userId, now, now, now, status, stage);
       return toRecord(statements.get.get(userId));
     },
-    // Met à jour les champs donnés. La fiche du membre sera republiée.
+    // Met à jour les champs donnés.
     update(userId, changes) {
       const entries = Object.entries(changes);
       if (entries.length === 0) return;
       const assignments = entries.map(([key]) => `${COLUMNS[key]} = ?`).join(', ');
       const values = entries.map(([key, value]) => (key === 'postDays' ? value.join(',') : value));
-      connection.prepare(`UPDATE journey SET ${assignments}, fiche_dirty = 1 WHERE user_id = ?`).run(...values, userId);
+      connection.prepare(`UPDATE journey SET ${assignments} WHERE user_id = ?`).run(...values, userId);
     },
     all() {
       return statements.all.all().map(toRecord);
@@ -166,14 +165,12 @@ export function createJourneyStore(connection) {
     preEngagement() {
       return new Set(statements.preEngagement.all().map((row) => row.user_id));
     },
-    dirtyFiches(limit) {
-      return statements.dirty.all(limit).map(toRecord);
+    // Les membres dont l'ancienne fiche est encore publiée.
+    oldFiches(limit) {
+      return statements.oldFiches.all(limit).map(toRecord);
     },
-    markDirty(userId) {
-      statements.markDirty.run(userId);
-    },
-    ficheSaved(userId, messageId) {
-      statements.markClean.run(messageId, userId);
+    forgetFiche(userId) {
+      statements.forgetFiche.run(userId);
     },
 
     addTicket(threadId, userId, kind, now) {

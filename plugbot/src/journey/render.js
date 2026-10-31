@@ -9,11 +9,11 @@ import {
   LEVELS,
   MIN_POST_DAYS,
   MORNING_HOUR,
-  NICHE_TYPES,
   STAGES,
   TARGET_COUNTRIES,
   WEEKDAYS,
   labelOf,
+  nicheTypeLabel,
   stageOf,
 } from './catalog.js';
 import { countryLabel, hourLabel } from './clock.js';
@@ -122,7 +122,7 @@ export function stageIntro(number, { userId, deadline }) {
 function choicesLines(record) {
   return [
     `Niche : ${record.niche}`,
-    `Type de niche : ${labelOf(NICHE_TYPES, record.nicheType)}`,
+    `Type de niche : ${nicheTypeLabel(record.nicheType)}`,
     `Pays cible : ${labelOf(TARGET_COUNTRIES, record.targetCountry)}`,
     `Méthode CTA : ${labelOf(CTA_METHODS, record.ctaMethod)}`,
   ];
@@ -331,7 +331,7 @@ function stageState(record, number) {
   return '🔒 pas encore';
 }
 
-// Une fiche par membre, dans #fiches-membres. tickets : [{ kind, threadId }].
+// La fiche d'un membre, montrée au coach qui la demande. tickets : [{ kind, threadId }].
 export function ficheEmbed(record, { displayName, inPrison, proofUrl, tickets }) {
   const name = record.fullName || displayName || 'Membre';
   const status =
@@ -394,25 +394,40 @@ export function ficheEmbed(record, { displayName, inPrison, proofUrl, tickets })
 
 // --- Le filtre ---
 
-export function filterPanelText() {
+export function fichesPanelText() {
   return [
-    '🔎 **Filtrer les membres**',
-    'Choisis un critère, puis une valeur : PlugBot te montre les membres concernés (visible par toi seul).',
-    'Chaque fiche ci-dessous est mise à jour automatiquement.',
+    '🗂️ **Fiches des membres**',
+    'Choisis une liste ou un critère : la réponse n\'est visible que par toi.',
+    'Tu peux ensuite la trier, changer de page et ouvrir la fiche de chaque membre.',
   ].join('\n');
 }
 
-export function filterResultText({ title, members, guildId, fichesChannelId }) {
-  if (members.length === 0) return `🔎 **${title}** : aucun membre.`;
-  const lines = [`🔎 **${title}** : ${members.length} membre${members.length > 1 ? 's' : ''}`];
-  for (const record of members) {
-    const fiche = record.ficheMessageId ? ` · [fiche](https://discord.com/channels/${guildId}/${fichesChannelId}/${record.ficheMessageId})` : '';
-    const line = `• ${mention(record.userId)}${record.fullName ? ` (${record.fullName})` : ''} — ${stageName(record.stage)}${fiche}`;
-    if ([...lines, line].join('\n').length > 1900) {
-      lines.push(`… et ${members.length - lines.length + 1} autres.`);
-      break;
-    }
-    lines.push(line);
-  }
-  return lines.join('\n');
+// Une ligne de liste : un membre de l'accompagnement, avec son parcours s'il en a un.
+// person : { userId, name, record, plugged, inPrison }
+export function personLine(person) {
+  const where = person.plugged
+    ? '💎 Plugged®'
+    : person.record
+      ? `${stageName(person.record.stage)} depuis le ${onDay(person.record.stageSince)}`
+      : 'pas de parcours';
+  return `• **${person.name}** ${mention(person.userId)} — ${where}${person.inPrison ? ' · 🔒 en prison' : ''}`;
+}
+
+// Une page de liste, visible par le coach seul.
+export function listEmbed({ title, people, page, pages, total, sortLabel }) {
+  return {
+    color: 0x3498db,
+    title: `🗂️ ${title}`.slice(0, 256),
+    description: total === 0 ? '_Aucun membre._' : people.map(personLine).join('\n'),
+    footer: { text: `${total} membre${total > 1 ? 's' : ''} · trié ${sortLabel}${pages > 1 ? ` · page ${page + 1}/${pages}` : ''}` },
+  };
+}
+
+// La fiche d'un membre de l'accompagnement qui ne suit pas le parcours (Plugged®).
+export function noJourneyEmbed({ userId, displayName, plugged }) {
+  return {
+    color: 0xf1c40f,
+    title: `🗂️ ${displayName}`.slice(0, 256),
+    description: [mention(userId), plugged ? '💎 Plugged® : pas de parcours à suivre.' : "Ce membre n'a pas de parcours."].join('\n'),
+  };
 }

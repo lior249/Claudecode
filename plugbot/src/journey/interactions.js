@@ -1,5 +1,5 @@
 // Clics et formulaires du parcours. Le membre agit sur son propre parcours ; le coach (Office ou admin)
-// clôture les étapes, libère de la prison interne et filtre les fiches.
+// clôture les étapes, libère de la prison interne et consulte les listes et les fiches.
 
 import { MessageFlags } from 'discord.js';
 import { ENGAGEMENT } from './catalog.js';
@@ -14,7 +14,7 @@ import {
 } from './ui.js';
 
 const PRIVATE = MessageFlags.Ephemeral;
-const COACH_ONLY = new Set(['close', 'closeForm', 'notYet', 'release', 'filter', 'filterValue']);
+const COACH_ONLY = new Set(['close', 'closeForm', 'notYet', 'release', 'filter', 'filterValue', 'list', 'listSort', 'listPage', 'fiche', 'ficheUser']);
 const MEMBER_ONLY = new Set(['profile', 'profileSubmit', 'choices', 'choicesSubmit', 'planning', 'planningSubmit']);
 
 // Les valeurs choisies dans un formulaire, quel que soit le composant : boutons de choix (un seul),
@@ -187,7 +187,22 @@ export function createJourneyInteractions({ guild }, journey) {
         return;
       }
       case 'filterValue':
-        await interaction.update({ content: journey.filterResult(extra, interaction.values[0]) });
+        await interaction.update(journey.openList(interaction.user.id, { criterion: extra, value: interaction.values[0] }));
+        return;
+      case 'list':
+        await interaction.reply({ ...journey.openList(interaction.user.id, { list: extra }), flags: PRIVATE });
+        return;
+      case 'listSort':
+      case 'listPage': {
+        const change = action === 'listSort' ? { sort: interaction.values[0] } : { move: extra === 'next' ? 1 : -1 };
+        const view = journey.changeList(interaction.user.id, change);
+        if (view) await interaction.update(view);
+        else await privately(interaction, 'Cette liste a expiré (PlugBot a redémarré) : clique à nouveau sur un bouton de #fiches-membres.');
+        return;
+      }
+      case 'fiche':
+      case 'ficheUser':
+        await privately(interaction, '', { ...journey.fichePayload(interaction.values[0]), allowedMentions: { parse: [] } });
         return;
       default:
         await privately(interaction, 'Action inconnue.');

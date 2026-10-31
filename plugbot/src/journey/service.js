@@ -8,7 +8,6 @@ import { DAY_MS, dayOf } from '../time.js';
 import {
   AVAILABILITY,
   CTA_METHODS,
-  NICHE_TYPES,
   DIGEST_EVERY_DAYS,
   DIGEST_HOUR,
   ENGAGEMENT,
@@ -20,6 +19,7 @@ import {
   STAGES,
   TARGET_COUNTRIES,
   labelOf,
+  nicheTypeLabel,
   stageOf,
 } from './catalog.js';
 import { atLocal, countryLabel, localClock, nextDay, timeZoneOf } from './clock.js';
@@ -34,7 +34,8 @@ import {
   exitTicketIntro,
   exitTicketNotice,
   ficheEmbed,
-  filterResultText,
+  listEmbed,
+  noJourneyEmbed,
   firstCheckMissedText,
   internalPrisonNotice,
   missingChoices,
@@ -56,10 +57,13 @@ import {
 } from './render.js';
 import {
   FILTERS,
+  LISTS,
+  SORTS,
   choicesComponents,
   closeQuestionComponents,
   exitPanel,
-  filterPanel,
+  fichesPanel,
+  listComponents,
   parcoursPanel,
   planningComponents,
   profileComponents,
@@ -71,14 +75,16 @@ const HOUR_MS = 60 * 60 * 1000;
 const THUMBS_UP = /^👍[\u{1F3FB}-\u{1F3FF}]?$/u;
 // Une notification de preuve au plus toutes les 10 minutes par ticket.
 const PROOF_ALERT_EVERY_MS = 10 * 60 * 1000;
-// Fiches republiées à chaque tick, au plus : les autres attendent le tick suivant.
-const FICHES_PER_TICK = 10;
+// Anciennes fiches effacées du salon à chaque tick, au plus.
+const OLD_FICHES_PER_TICK = 10;
+// Membres par page dans les listes de #fiches-membres.
+const PEOPLE_PER_PAGE = 20;
 
 // Les salons créés par PlugBot dans la catégorie de l'accompagnement.
 const CHANNELS = {
   parcours: { name: 'parcours', topic: "Ton parcours dans l'accompagnement : clique sur une étape pour ouvrir ton ticket." },
   notifications: { name: 'notifications-coach', topic: 'Preuves à vérifier, prison interne, plannings et récaps (coachs seulement).' },
-  fiches: { name: 'fiches-membres', topic: "Une fiche par membre de l'accompagnement (coachs seulement)." },
+  fiches: { name: 'fiches-membres', topic: "Les listes et les fiches des membres de l'accompagnement (coachs seulement)." },
   wall: { name: 'prison-interne', topic: "Les membres de l'accompagnement en retard." },
   exit: { name: 'sortir-de-la-prison-interne', topic: 'Ouvre un ticket pour sortir de la prison interne.' },
 };
@@ -204,7 +210,7 @@ export function createJourney(ctx, store) {
       await ensureChannels();
       await ensureMessage('journey_panel_parcours', ready.parcours, parcoursPanel());
       await ensureMessage('journey_panel_exit', ready.exit, exitPanel());
-      await ensureMessage('journey_panel_filter', ready.fiches, filterPanel());
+      await ensureMessage('journey_panel_filter', ready.fiches, fichesPanel());
     } catch (error) {
       if (!setupFailed) {
         console.error(
@@ -270,7 +276,6 @@ export function createJourney(ctx, store) {
     await thread.members.add(member.id).catch(() => {});
     for (const coach of coaches()) await thread.members.add(coach.id).catch(() => {});
     store.addTicket(thread.id, member.id, kind, now);
-    store.markDirty(member.id);
     return thread;
   }
 
@@ -471,7 +476,6 @@ export function createJourney(ctx, store) {
     await setHidden(member.id, false);
     const record = store.get(member.id);
     if (record?.stage < ENGAGEMENT) store.update(member.id, { deadlineFrom: now });
-    else store.markDirty(member.id);
   }
 
   // Le mur des retardataires et la notification au coach. reason : deadline ou noPosts.
@@ -631,67 +635,69 @@ export function createJourney(ctx, store) {
     await notify(digestText({ prisoners, soon }), { mention: prisoners.length + soon.length > 0 });
   }
 
-  // --- Les fiches ---
+  // --- Les fiches et les listes (#fiches-membres) ---
 
-  async function fichesTick() {
-    for (const record of store.dirtyFiches(FICHES_PER_TICK)) {
-      const member = guild.members.cache.get(record.userId);
-      const embed = ficheEmbed(record, {
-        displayName: member?.displayName,
-        inPrison: Boolean(db.getPrison(record.userId)),
-        proofUrl: record.watchedProof ? `https://discord.com/channels/${guild.id}/${record.watchedProof}` : null,
-        tickets: store.ticketsOf(record.userId).map(({ kind, threadId }) => ({ kind, threadId })),
-      });
-      const payload = { embeds: [embed], allowedMentions: { parse: [] } };
-      let message = record.ficheMessageId ? await ready.fiches.messages.fetch(record.ficheMessageId).catch(() => null) : null;
-      if (message) await message.edit(payload);
-      else message = await ready.fiches.send(payload);
-      store.ficheSaved(record.userId, message.id);
+  // Les anciennes fiches publiées dans le salon sont effacées, 10 par minute : le salon ne garde que le panneau.
+  async function removeOldFiches() {
+    for (const record of store.oldFiches(OLD_FICHES_PER_TICK)) {
+      const message = await ready.fiches.messages.fetch(record.ficheMessageId).catch(() => null);
+      await message?.delete().catch(() => {});
+      store.forgetFiche(record.userId);
     }
   }
 
-  // --- Le filtre ---
-
-  const STATUS_LABELS = { active: 'Dans le parcours', prison: 'En prison', left: "A quitté l'accompagnement" };
-
-  function filterValue(criterion, record) {
-    switch (criterion) {
-      case 'stage':
-        return record.stage;
-      case 'status':
-        return record.status === 'left' ? 'left' : db.getPrison(record.userId) ? 'prison' : 'active';
-      case 'target':
-        return record.targetCountry;
-      case 'cta':
-        return record.ctaMethod;
-      case 'nicheType':
-        return record.nicheType;
-      case 'niche':
-        return record.niche;
-      case 'home':
-        return record.homeCountry;
-      default:
-        return record[criterion];
+  // La fiche d'un membre, pour le coach qui la demande.
+  function fichePayload(userId) {
+    const member = guild.members.cache.get(userId);
+    const record = store.get(userId);
+    const displayName = record?.fullName || member?.displayName || 'Membre';
+    if (!record || record.status === 'exempt') {
+      return { embeds: [noJourneyEmbed({ userId, displayName, plugged: Boolean(member?.roles.cache.has(roles.plugged)) })] };
     }
+    const embed = ficheEmbed(record, {
+      displayName: member?.displayName,
+      inPrison: Boolean(db.getPrison(userId)),
+      proofUrl: record.watchedProof ? `https://discord.com/channels/${guild.id}/${record.watchedProof}` : null,
+      tickets: store.ticketsOf(userId).map(({ kind, threadId }) => ({ kind, threadId })),
+    });
+    return { embeds: [embed] };
+  }
+
+  // Les clients : les membres qui ont le rôle TikTok (sauf les coachs), avec leur parcours s'ils en ont un.
+  function clients() {
+    const people = [];
+    for (const member of guild.members.cache.values()) {
+      if (member.user.bot || !member.roles.cache.has(roles.plug) || isCoach(member)) continue;
+      const record = store.get(member.id);
+      people.push({
+        userId: member.id,
+        name: record?.fullName || member.displayName,
+        joinedAt: record?.joinedAt ?? member.joinedTimestamp ?? 0,
+        record: record?.status === 'active' ? record : null,
+        plugged: member.roles.cache.has(roles.plugged),
+        inPrison: Boolean(db.getPrison(member.id)),
+      });
+    }
+    return people;
+  }
+
+  function criterionValue(criterion, record) {
+    const fields = { target: 'targetCountry', cta: 'ctaMethod', home: 'homeCountry' };
+    return record[fields[criterion] ?? criterion];
   }
 
   function valueLabel(criterion, value) {
-    const lists = { target: TARGET_COUNTRIES, cta: CTA_METHODS, nicheType: NICHE_TYPES, level: LEVELS, equipment: EQUIPMENT, availability: AVAILABILITY };
-    if (criterion === 'stage') return `${stageOf(Number(value)).emoji} ${stageOf(Number(value)).label}`;
-    if (criterion === 'status') return STATUS_LABELS[value];
+    const lists = { target: TARGET_COUNTRIES, cta: CTA_METHODS, level: LEVELS, equipment: EQUIPMENT, availability: AVAILABILITY };
+    if (criterion === 'nicheType') return nicheTypeLabel(value);
     if (criterion === 'home') return countryLabel(value);
     return lists[criterion] ? labelOf(lists[criterion], value) : value;
   }
 
-  function filterable() {
-    return store.all().filter((record) => record.status !== 'exempt');
-  }
-
-  // Les valeurs d'un critère présentes chez les membres, avec leur nombre : [valeur, texte].
+  // Les valeurs d'un critère présentes chez les clients, avec leur nombre : [valeur, texte].
   function filterOptions(criterion) {
     const counts = new Map();
-    for (const record of filterable()) {
-      const value = filterValue(criterion, record);
+    for (const { record } of clients()) {
+      const value = record ? criterionValue(criterion, record) : null;
       if (value === null || value === undefined || value === '') continue;
       counts.set(String(value), (counts.get(String(value)) ?? 0) + 1);
     }
@@ -700,14 +706,68 @@ export function createJourney(ctx, store) {
       .map(([value, count]) => [value, `${valueLabel(criterion, value)} (${count})`.slice(0, 100)]);
   }
 
-  function filterResult(criterion, value) {
-    const members = filterable().filter((record) => String(filterValue(criterion, record)) === value);
-    return filterResultText({
-      title: `${FILTERS[criterion]} : ${valueLabel(criterion, value)}`,
-      members,
-      guildId: guild.id,
-      fichesChannelId: ready.fiches.id,
-    });
+  // query : { list } (une liste du panneau) ou { criterion, value } (le menu « Filtrer par… »).
+  function select(query) {
+    const people = clients();
+    if (query.criterion) {
+      return {
+        title: `${FILTERS[query.criterion]} : ${valueLabel(query.criterion, query.value)}`,
+        people: people.filter(({ record }) => record && String(criterionValue(query.criterion, record)) === query.value),
+      };
+    }
+    const stage = /^stage(\d)$/.exec(query.list)?.[1];
+    const filters = {
+      all: () => true,
+      plugged: (person) => person.plugged,
+      never: (person) => person.record?.stage === 1 && store.ticketsOf(person.userId).length === 0,
+      prison: (person) => person.inPrison,
+    };
+    const keep = stage ? (person) => person.record?.stage === Number(stage) : filters[query.list];
+    const title = stage ? `Étape ${stage} : ${stageOf(Number(stage)).emoji} ${stageOf(Number(stage)).label}` : LISTS[query.list].label;
+    return { title, people: people.filter(keep) };
+  }
+
+  const stageRank = (person) => (person.plugged ? ENGAGEMENT + 1 : (person.record?.stage ?? 0));
+  const byName = (a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+  const SORTERS = {
+    az: byName,
+    za: (a, b) => byName(b, a),
+    oldest: (a, b) => a.joinedAt - b.joinedAt,
+    newest: (a, b) => b.joinedAt - a.joinedAt,
+    stageUp: (a, b) => stageRank(a) - stageRank(b) || byName(a, b),
+    stageDown: (a, b) => stageRank(b) - stageRank(a) || byName(a, b),
+  };
+
+  // La liste que chaque coach regarde : la recherche, le tri et la page.
+  const views = new Map();
+
+  function render(view) {
+    const { title, people } = select(view.query);
+    const sorted = people.sort(SORTERS[view.sort]);
+    const pages = Math.max(1, Math.ceil(sorted.length / PEOPLE_PER_PAGE));
+    view.page = Math.min(view.page, pages - 1);
+    const shown = sorted.slice(view.page * PEOPLE_PER_PAGE, (view.page + 1) * PEOPLE_PER_PAGE);
+    return {
+      content: '',
+      embeds: [listEmbed({ title, people: shown, page: view.page, pages, total: sorted.length, sortLabel: SORTS[view.sort] })],
+      components: listComponents({ sort: view.sort, page: view.page, pages, people: shown }),
+      allowedMentions: { parse: [] },
+    };
+  }
+
+  function openList(coachId, query) {
+    const view = { query, sort: 'az', page: 0 };
+    views.set(coachId, view);
+    return render(view);
+  }
+
+  // Tri ou page suivante. Null si le bot a redémarré depuis la recherche.
+  function changeList(coachId, { sort, move = 0 }) {
+    const view = views.get(coachId);
+    if (!view) return null;
+    if (sort) Object.assign(view, { sort, page: 0 });
+    view.page = Math.max(0, view.page + move);
+    return render(view);
   }
 
   // --- Chaque minute ---
@@ -718,7 +778,7 @@ export function createJourney(ctx, store) {
     await engagementTick(now);
     await recapTick(now);
     await digestTick(now);
-    await fichesTick();
+    await removeOldFiches();
   }
 
   return {
@@ -741,7 +801,9 @@ export function createJourney(ctx, store) {
     afterRelease,
     announceInternal,
     filterOptions,
-    filterResult,
+    fichePayload,
+    openList,
+    changeList,
     exitChannelId: () => ready.exit?.id ?? null,
   };
 }

@@ -228,7 +228,17 @@ describe("parcours de l'accompagnement", () => {
     assert.match(env.channel('parcours').sent[0].content, /Ton parcours dans l'accompagnement/);
     assert.equal(env.channel('parcours').sent[0].components[0].components.length, 4);
     assert.match(env.channel('sortir-de-la-prison-interne').sent[0].content, /Sortir de la prison interne/);
-    assert.match(env.channel('fiches-membres').sent[0].content, /Filtrer les membres/);
+    const panel = env.channel('fiches-membres').sent[0];
+    assert.match(panel.content, /^🗂️ \*\*Fiches des membres\*\*/);
+    assert.deepEqual(
+      panel.components.map((row) => row.components.map((component) => component.data.custom_id)),
+      [
+        ['pc:list::all', 'pc:list::stage1', 'pc:list::stage2', 'pc:list::stage3', 'pc:list::stage4'],
+        ['pc:list::plugged', 'pc:list::never', 'pc:list::prison'],
+        ['pc:filter::'],
+        ['pc:ficheUser::'],
+      ],
+    );
 
     // Seuls les membres TikTok sans Plugged® ni Office suivent le parcours.
     assert.equal(env.store.get('1').status, 'active');
@@ -297,9 +307,9 @@ describe("parcours de l'accompagnement", () => {
     assert.equal(env.store.get('1').stage, 2);
     assert.equal(env.store.get('1').watchedDays, 2, 'arrivé mercredi, validé jeudi');
 
-    await closeWithForm(alice, 2, { niche: 'Cuisine', nicheType: 'education', target: 'france', cta: 'white-hat' });
+    await closeWithForm(alice, 2, { niche: 'Cuisine', nicheType: 'repost-ameliore', target: 'france', cta: 'white-hat' });
     const positioned = env.store.get('1');
-    assert.deepEqual([positioned.niche, positioned.nicheType, positioned.targetCountry, positioned.ctaMethod], ['Cuisine', 'education', 'france', 'white-hat']);
+    assert.deepEqual([positioned.niche, positioned.nicheType, positioned.targetCountry, positioned.ctaMethod], ['Cuisine', 'repost-ameliore', 'france', 'white-hat']);
 
     const { submit } = await closeWithForm(alice, 3, { note: 'Très bon son.' });
     assert.match(submit.replies.at(-1).content, /Étape clôturée/);
@@ -326,13 +336,13 @@ describe("parcours de l'accompagnement", () => {
     assert.equal(form.components[2].component.options.length, 8, 'les 8 pays de la monétisation');
 
     const submit = interaction('pc:choicesSubmit:1', alice, {
-      fields: modalFields({ niche: ' Recettes africaines ', nicheType: 'education', target: 'france', cta: 'gray-hat' }),
+      fields: modalFields({ niche: ' Recettes africaines ', nicheType: 'commentary', target: 'france', cta: 'gray-hat' }),
     });
     await env.onInteraction(submit);
     assert.match(text(submit.replies.at(-1)), /Tes choix sont enregistrés/);
     assert.equal(
       thread.sent.at(-1).content,
-      '🧭 **Les choix de <@1>**\nNiche : Recettes africaines\nType de niche : 📚 Éducation et tutoriels\nPays cible : 🇫🇷 France\nMéthode CTA : 🔘 Gray hat',
+      '🧭 **Les choix de <@1>**\nNiche : Recettes africaines\nType de niche : 🎙️ Commentary\nPays cible : 🇫🇷 France\nMéthode CTA : 🔘 Gray hat',
     );
     assert.match(env.channel('notifications-coach').sent.at(-1).content, /<@1> a rempli ses choix — 🧭 Positionnement/);
 
@@ -359,41 +369,105 @@ describe("parcours de l'accompagnement", () => {
     assert.deepEqual(shown[1].components.map((label) => label.component.type), [4, 3, 3, 3, 3]);
   });
 
-  it('tient une fiche par membre, mise à jour à chaque changement', async () => {
-    await env.journey.tick(NOW);
+  it('#fiches-membres ne garde que le panneau : les anciennes fiches sont effacées', async () => {
     const fiches = env.channel('fiches-membres');
-    const fiche = fiches.sent.find((message) => message.embeds);
-    assert.equal(fiche.embeds[0].title, '🗂️ Alice');
-    assert.match(fiche.embeds[0].description, /Étape : \*\*🎬 Visionnage\*\*/);
+    const old = await fiches.send({ embeds: [{ title: 'ancienne fiche' }] });
+    old.delete = async () => fiches.sent.splice(fiches.sent.indexOf(old), 1);
+    env.db.connection.prepare('UPDATE journey SET fiche_message_id = ? WHERE user_id = ?').run(old.id, '1');
+    await env.journey.tick(NOW);
+    assert.equal(fiches.sent.length, 1, 'seul le panneau reste');
+    assert.equal(env.store.get('1').ficheMessageId, null);
+  });
 
-    env.journey.saveProfile('1', { name: 'Alice Martin', home: 'Sénégal', level: 'compte', equipment: 'telephone', availability: '1-2h' });
-    await env.journey.tick(NOW + 60_000);
-    assert.equal(fiches.sent.filter((message) => message.embeds).length, 1, 'la même fiche est modifiée');
-    assert.equal(fiche.embeds[0].title, '🗂️ Alice Martin');
-    assert.match(fiche.embeds[0].fields[0].value, /Pays : 🇸🇳 Sénégal\nNiveau : J'ai déjà un compte, sans résultats/);
+  it('montre les listes de clients, triées et par pages, avec la fiche de chacun', async () => {
+    const names = ['Zoé', 'Ali', 'Mia', 'Bea'];
+    names.forEach((name, i) => {
+      const member = env.addMember(String(10 + i), [ROLES.plug], name);
+      member.joinedTimestamp = Date.UTC(2026, 0, 1 + i);
+      env.journey.syncMember(member, NOW + i * HOUR);
+    });
+    env.store.update('11', { stage: 2 });
+    env.store.update('1', { fullName: 'Alice Martin' });
+    const list = async (key) => {
+      const click = interaction(`pc:list::${key}`, coach);
+      await env.onInteraction(click);
+      return click.replies[0];
+    };
+
+    const all = await list('all');
+    assert.equal(all.flags, 64, 'visible par le coach seul');
+    assert.equal(all.embeds[0].title, '🗂️ Tous les clients');
+    assert.deepEqual(
+      all.embeds[0].description.split('\n').map((line) => line.match(/\*\*(.+?)\*\*/)[1]),
+      ['Ali', 'Alice Martin', 'Bea', 'Bob', 'Mia', 'Zoé'],
+      'de A à Z, Plugged® compris, coachs exclus',
+    );
+    assert.match(all.embeds[0].description, /\*\*Bob\*\* <@3> — 💎 Plugged®/);
+    assert.equal(all.embeds[0].footer.text, '6 membres · trié de A à Z');
+
+    const stage2 = await list('stage2');
+    assert.equal(stage2.embeds[0].title, '🗂️ Étape 2 : 🧭 Positionnement');
+    assert.match(stage2.embeds[0].description, /^• \*\*Ali\*\* <@11> — 🧭 Positionnement depuis le <t:\d+:D>$/);
+    assert.equal((await list('plugged')).embeds[0].description.split('\n').length, 1);
+    assert.equal((await list('never')).embeds[0].description.split('\n').length, 4, 'à l’étape 1, sans aucun ticket ouvert');
+
+    await list('all');
+    const sort = interaction('pc:listSort::', coach, { values: ['za'] });
+    await env.onInteraction(sort);
+    assert.match(sort.replies[0].embeds[0].description, /^• \*\*Zoé\*\*/);
+    const newest = interaction('pc:listSort::', coach, { values: ['newest'] });
+    await env.onInteraction(newest);
+    assert.match(newest.replies[0].embeds[0].description, /^• \*\*Bea\*\*/, 'arrivée la plus récente');
+
+    // La fiche d'un membre, depuis la liste ou depuis le menu des membres du panneau.
+    const fiche = interaction('pc:fiche::', coach, { values: ['1'] });
+    await env.onInteraction(fiche);
+    assert.equal(fiche.replies[0].flags, 64);
+    assert.equal(fiche.replies[0].embeds[0].title, '🗂️ Alice Martin');
+    const plugged = interaction('pc:ficheUser::', coach, { values: ['3'] });
+    await env.onInteraction(plugged);
+    assert.match(plugged.replies[0].embeds[0].description, /Plugged® : pas de parcours/);
+
+    const refused = interaction('pc:list::all', alice);
+    await env.onInteraction(refused);
+    assert.match(text(refused.replies[0]), /Réservé aux coachs/);
+  });
+
+  it('pagine les longues listes', async () => {
+    for (let i = 0; i < 25; i++) env.journey.syncMember(env.addMember(String(100 + i), [ROLES.plug], `Membre ${String(i).padStart(2, '0')}`), NOW);
+    const click = interaction('pc:list::all', coach);
+    await env.onInteraction(click);
+    const first = click.replies[0];
+    assert.equal(first.embeds[0].description.split('\n').length, 20);
+    assert.equal(first.embeds[0].footer.text, '27 membres · trié de A à Z · page 1/2');
+    const next = interaction('pc:listPage::next', coach);
+    await env.onInteraction(next);
+    assert.equal(next.replies[0].embeds[0].description.split('\n').length, 7);
+    assert.match(next.replies[0].embeds[0].footer.text, /page 2\/2$/);
   });
 
   it('filtre les membres par critère', async () => {
-    env.store.update('1', { stage: 3, targetCountry: 'france', ctaMethod: 'white-hat', niche: 'Cuisine', nicheType: 'Recettes' });
+    env.store.update('1', { stage: 3, targetCountry: 'france', ctaMethod: 'carousel', niche: 'Cuisine', nicheType: 'commentary' });
     const dave = env.addMember('5', [ROLES.plug], 'Dave');
     env.journey.syncMember(dave, NOW);
-    env.store.update('5', { targetCountry: 'japon' });
-    await env.journey.tick(NOW);
+    env.store.update('5', { targetCountry: 'japon', nicheType: 'autre' });
 
     assert.deepEqual(env.journey.filterOptions('target'), [
       ['france', '🇫🇷 France (1)'],
       ['japon', '🇯🇵 Japon (1)'],
     ]);
-    const pick = interaction('pc:filter::', coach, { values: ['target'] });
+    assert.deepEqual(
+      env.journey.filterOptions('nicheType').map(([, label]) => label),
+      ['🎙️ Commentary (1)', '✨ Autre (1)'],
+      'les anciens choix restent lisibles',
+    );
+    const pick = interaction('pc:filter::', coach, { values: ['cta'] });
     await env.onInteraction(pick);
-    assert.equal(pick.replies[0].components[0].components[0].data.custom_id, 'pc:filterValue::target');
-    const result = interaction('pc:filterValue::target', coach, { values: ['france'] });
+    assert.equal(pick.replies[0].components[0].components[0].data.custom_id, 'pc:filterValue::cta');
+    const result = interaction('pc:filterValue::cta', coach, { values: ['carousel'] });
     await env.onInteraction(result);
-    assert.match(result.replies[0].content, /^🔎 \*\*Pays cible : 🇫🇷 France\*\* : 1 membre\n• <@1> — 🎥 Confirmation · \[fiche\]\(https:\/\/discord\.com\/channels\/guild\/\d+\/\d+\)$/);
-
-    const refused = interaction('pc:filter::', alice, { values: ['target'] });
-    await env.onInteraction(refused);
-    assert.match(text(refused.replies[0]), /Réservé aux coachs/);
+    assert.equal(result.replies[0].embeds[0].title, '🗂️ Méthode CTA : 🎠 Carousel');
+    assert.match(result.replies[0].embeds[0].description, /^• \*\*Alice\*\* <@1> — 🎥 Confirmation/);
   });
 
   it('prison interne après 5 jours sans arriver à l’Engagement, sortie par un ticket', async () => {

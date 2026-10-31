@@ -40,8 +40,14 @@ export const AVAILABILITY = [
   ['2-4h', '2 à 4 h par jour'],
   ['plus-4h', 'Plus de 4 h par jour'],
 ];
-// Les types de niche (liste provisoire, 10 au maximum pour tenir en boutons de choix).
+// Les types de contenu de la niche.
 export const NICHE_TYPES = [
+  ['commentary', '🎙️ Commentary'],
+  ['repost-ameliore', '🔁 Repost amélioré'],
+  ['special', '⭐ Spécial'],
+];
+// Types de la première liste provisoire : on les garde pour afficher les choix déjà faits.
+const OLD_NICHE_TYPES = [
   ['divertissement', '🎭 Divertissement et humour'],
   ['education', '📚 Éducation et tutoriels'],
   ['faits', '🧠 Faits et curiosités'],
@@ -65,6 +71,7 @@ export const TARGET_COUNTRIES = [
   ['coree-du-sud', '🇰🇷 Corée du Sud'],
 ];
 export const CTA_METHODS = [
+  ['carousel', '🎠 Carousel'],
   ['black-hat', '⚫ Black hat'],
   ['gray-hat', '🔘 Gray hat'],
   ['white-hat', '⚪ White hat'],
@@ -83,4 +90,8 @@ export const WEEKDAYS = [
 // Le texte affiché pour une valeur enregistrée (ou la valeur elle-même si elle n'est pas dans la liste).
 export function labelOf(list, value) {
   return list.find(([key]) => String(key) === String(value))?.[1] ?? value;
+}
+
+export function nicheTypeLabel(value) {
+  return labelOf([...NICHE_TYPES, ...OLD_NICHE_TYPES], value);
 }

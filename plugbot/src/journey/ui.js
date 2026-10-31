@@ -11,6 +11,7 @@ import {
   StringSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle,
+  UserSelectMenuBuilder,
 } from 'discord.js';
 import {
   AVAILABILITY,
@@ -24,7 +25,7 @@ import {
   WEEKDAYS,
 } from './catalog.js';
 import { HOME_COUNTRIES, hourLabel } from './clock.js';
-import { exitPanelText, filterPanelText, panelText } from './render.js';
+import { exitPanelText, fichesPanelText, panelText } from './render.js';
 
 // Identifiants des boutons et menus : « pc:<action>:<membre concerné>:<précision> ».
 export function customId(action, userId = '', extra = '') {
@@ -186,10 +187,20 @@ export function releaseComponents(userId) {
   return [row(button(customId('release', userId), 'Libérer', '🔓', ButtonStyle.Success))];
 }
 
-// Les critères du filtre de #fiches-membres.
+// Les listes de #fiches-membres, chacune avec son bouton.
+export const LISTS = {
+  all: { label: 'Tous les clients', emoji: '👥' },
+  stage1: { label: 'Étape 1', emoji: '🎬' },
+  stage2: { label: 'Étape 2', emoji: '🧭' },
+  stage3: { label: 'Étape 3', emoji: '🎥' },
+  stage4: { label: 'Étape 4', emoji: '🚀' },
+  plugged: { label: 'Plugged®', emoji: '💎' },
+  never: { label: 'Jamais commencé', emoji: '🚫' },
+  prison: { label: 'En prison', emoji: '🔒' },
+};
+
+// Les critères du menu « Filtrer par… ».
 export const FILTERS = {
-  stage: 'Étape',
-  status: 'Statut',
   target: 'Pays cible',
   cta: 'Méthode CTA',
   nicheType: 'Type de niche',
@@ -200,14 +211,64 @@ export const FILTERS = {
   availability: 'Disponibilité',
 };
 
-export function filterPanel() {
+// Les tris d'une liste.
+export const SORTS = {
+  az: 'de A à Z',
+  za: 'de Z à A',
+  oldest: 'par arrivée, du plus ancien au plus récent',
+  newest: 'par arrivée, du plus récent au plus ancien',
+  stageUp: 'par étape, croissante',
+  stageDown: 'par étape, décroissante',
+};
+
+// Le salon #fiches-membres ne contient que ce panneau : les listes et les fiches s'ouvrent pour le coach seul.
+export function fichesPanel() {
+  const listButton = (key) => button(customId('list', '', key), LISTS[key].label, LISTS[key].emoji);
   return {
-    content: filterPanelText(),
-    components: [row(select(customId('filter'), Object.entries(FILTERS), { placeholder: 'Filtrer par…' }))],
+    content: fichesPanelText(),
+    components: [
+      row(...['all', 'stage1', 'stage2', 'stage3', 'stage4'].map(listButton)),
+      row(...['plugged', 'never', 'prison'].map(listButton)),
+      row(select(customId('filter'), Object.entries(FILTERS), { placeholder: '🔎 Filtrer par critère…' })),
+      row(new UserSelectMenuBuilder().setCustomId(customId('ficheUser')).setPlaceholder("📄 Voir la fiche d'un membre…")),
+    ],
   };
 }
 
 // Les valeurs possibles d'un critère : [valeur, texte] (25 au maximum).
 export function filterValueComponents(criterion, options) {
   return [row(select(customId('filterValue', '', criterion), options.slice(0, 25), { placeholder: `${FILTERS[criterion]} :` }))];
+}
+
+// Sous une liste : le tri, les pages, et un menu pour ouvrir la fiche d'un membre de la page.
+export function listComponents({ sort, page, pages, people }) {
+  const rows = [
+    row(
+      select(
+        customId('listSort'),
+        Object.entries(SORTS).map(([key, label]) => [key, `Trier ${label}`]),
+        { selected: [sort] },
+      ),
+    ),
+  ];
+  if (pages > 1) {
+    rows.push(
+      row(
+        button(customId('listPage', '', 'prev'), 'Page précédente', '◀️').setDisabled(page === 0),
+        button(customId('listPage', '', 'next'), 'Page suivante', '▶️').setDisabled(page >= pages - 1),
+      ),
+    );
+  }
+  if (people.length > 0) {
+    rows.push(
+      row(
+        select(
+          customId('fiche'),
+          people.map((person) => [person.userId, person.name.slice(0, 100)]),
+          { placeholder: '📄 Voir la fiche de…' },
+        ),
+      ),
+    );
+  }
+  return rows;
 }

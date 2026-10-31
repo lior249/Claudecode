@@ -35,7 +35,7 @@ PlugBot les crée lui-même dans la catégorie de l'accompagnement (TikTok plug)
 |---|---|---|
 | **#parcours** | l'accompagnement | Le panneau des 4 étapes. Chaque ticket est un fil privé : le membre et les coachs. |
 | **#notifications-coach** | les coachs | Preuves à vérifier, prison interne, tickets de sortie, plannings, récaps. |
-| **#fiches-membres** | les coachs | Le filtre en haut, puis une fiche par membre, mise à jour automatiquement. |
+| **#fiches-membres** | les coachs | Seulement un panneau de boutons : les listes et les fiches s'ouvrent à la demande, visibles par le coach seul. |
 | **#prison-interne** | l'accompagnement (lecture seule) | Le mur des retardataires : PlugBot y mentionne les membres qui entrent en prison interne. |
 | **#sortir-de-la-prison-interne** | le rôle Prisonnier interne | Le bouton pour ouvrir un ticket de justification. |
 
@@ -83,9 +83,11 @@ En clôturant, PlugBot note **en combien de jours** il a fini : du jour où il e
 Le membre clique sur **📝 Remplir mes choix** dans son ticket. Seul le nom de la niche s'écrit ; le reste se choisit avec des boutons :
 
 - **le nom de sa niche** (à écrire) ;
-- **le type de niche** : Divertissement et humour, Éducation et tutoriels, Faits et curiosités, Histoires et storytelling, Motivation et développement personnel, Business et argent, Tech et IA, Lifestyle et voyage, Sport et jeux vidéo, Autre *(liste provisoire, à remplacer par la tienne)* ;
+- **le type de niche** : Commentary, Repost amélioré ou Spécial ;
 - **le pays cible**, un seul : Allemagne, États-Unis, France, Royaume-Uni, Mexique, Brésil, Japon ou Corée du Sud ;
-- **la méthode CTA**, une seule : black hat, gray hat ou white hat.
+- **la méthode CTA**, une seule : Carousel, Black hat, Gray hat ou White hat.
+
+Les choix faits avec la première liste provisoire de types de niche (par exemple « Autre ») sont gardés et restent lisibles dans les fiches et les filtres.
 
 Ses choix s'affichent dans le ticket, et le coach est prévenu. Le membre peut les modifier avec le même bouton tant que l'étape n'est pas validée. En clôturant, le coach retrouve le même formulaire, déjà rempli, et peut corriger avant de valider.
 
@@ -126,9 +128,28 @@ Au Visionnage, PlugBot signale si la fiche du membre est incomplète ; au Positi
 
 ---
 
-## 6. La fiche membre et le filtre
+## 6. Les listes et les fiches (#fiches-membres)
 
-Dans #fiches-membres, chaque membre a **une fiche**, mise à jour automatiquement. Elle contient :
+Le salon ne contient qu'**un panneau de boutons**. Tout ce qu'il ouvre n'est visible que par le coach qui a cliqué, et le salon reste propre.
+
+| Bouton | Ce qu'il montre |
+|---|---|
+| 👥 **Tous les clients** | tous les membres qui ont le rôle TikTok (Plugged® compris, coachs exclus) |
+| 🎬 **Étape 1** à 🚀 **Étape 4** | les membres du parcours à cette étape, avec la date depuis laquelle ils y sont |
+| 💎 **Plugged®** | les membres qui ont le rôle Plugged® |
+| 🚫 **Jamais commencé** | les membres à l'étape 1 qui n'ont jamais ouvert de ticket |
+| 🔒 **En prison** | les clients en prison (commune ou interne) |
+| 🔎 **Filtrer par critère…** | pays cible, méthode CTA, type de niche, niche, pays où il vit, niveau, matériel ou disponibilité : PlugBot propose les valeurs présentes, avec leur nombre |
+| 📄 **Voir la fiche d'un membre…** | la fiche du membre choisi |
+
+Sous chaque liste :
+- un menu pour **trier** : de A à Z, de Z à A, par arrivée (du plus ancien ou du plus récent), par étape (croissante ou décroissante) ;
+- des boutons **page précédente / suivante** (20 membres par page) ;
+- un menu pour **ouvrir la fiche** d'un membre de la page.
+
+Les fiches publiées dans le salon par l'ancienne version sont effacées automatiquement, 10 par minute.
+
+**La fiche d'un membre** contient :
 
 - **en tête** : son nom complet, sa date d'arrivée, son étape actuelle et son délai (ou « en prison ») ;
 - **👤 Profil** : pays, niveau, matériel, disponibilité ;
@@ -138,20 +159,6 @@ Dans #fiches-membres, chaque membre a **une fiche**, mise à jour automatiquemen
 - **🚀 Engagement** : depuis le…, jours et heures de vérification ;
 - **🔒 Prison** : nombre de passages ;
 - **🎫 Tickets** : les liens vers tous ses tickets.
-
-En haut du salon, le menu **🔎 Filtrer les membres** propose ces critères :
-- étape ;
-- statut (dans le parcours, en prison, a quitté l'accompagnement) ;
-- pays cible ;
-- méthode CTA ;
-- type de niche ;
-- niche ;
-- pays où il vit ;
-- niveau ;
-- matériel ;
-- disponibilité.
-
-Une fois le critère choisi, PlugBot propose les valeurs présentes, avec leur nombre. Il répond ensuite avec la liste des membres concernés et un lien vers chaque fiche. La réponse n'est visible que par le coach qui a filtré.
 
 ---
 
