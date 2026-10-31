@@ -49,6 +49,8 @@ export function createJobs(ctx, handlers) {
   async function runDaily(now) {
     const today = dayOf(now);
     await guild.members.fetch();
+    // Les salons créés depuis hier sont verrouillés pour le rôle Prisonnier.
+    await ctx.lockdown?.lockRole();
     for (const member of guild.members.cache.values()) tracker.syncCategory(member, today);
     await checkTeamReleases(today);
 

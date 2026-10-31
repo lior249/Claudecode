@@ -18,9 +18,11 @@ export function createPrison(ctx) {
     }
   }
 
-  // Donne le rôle Prisonnier et note qu'il a bien été donné.
+  // Donne le rôle Prisonnier et note qu'il a bien été donné. Le verrou bloque aussi le membre lui-même
+  // dans les salons où un de ses rôles passerait avant le rôle Prisonnier.
   async function giveRole(member) {
     if (await changeRole(member, config.roles.prisoner, true, 'Entrée en prison')) db.markPrisonRole(member.id);
+    await ctx.lockdown?.lockMember(member);
   }
 
   // internal : membre du parcours de l'accompagnement. Il sort seulement par un ticket de justification.
@@ -43,6 +45,7 @@ export function createPrison(ctx) {
       await changeRole(member, config.roles.prisoner, false, 'Sortie de prison');
     }
     for (const roleId of record.suspendedRoles) await changeRole(member, roleId, true, 'Sortie de prison');
+    await ctx.lockdown?.unlockMember(member);
     if (record.internal) await ctx.journey?.afterRelease(member);
   }
 

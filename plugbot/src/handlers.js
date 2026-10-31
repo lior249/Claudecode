@@ -151,12 +151,17 @@ export function createHandlers(ctx) {
       if (message.channelId === config.channels.results) await markDeleted(message.id);
     },
     // Rôle gagné ou perdu : catégorie à jour, et libération si l'équipe a retiré le rôle Prisonnier.
-    async onMemberUpdate(member) {
+    // Rôle Prisonnier donné ou retiré à la main : le verrou de la prison suit (previous : le membre avant).
+    async onMemberUpdate(member, previous) {
       const current = guild.members.cache.get(member.id) ?? member;
       const today = dayOf(Date.now());
       tracker.syncCategory(current, today);
       ctx.journey?.syncMember(current, Date.now());
       if (prison.wasReleasedByTeam(current)) await prison.releaseByTeam(current, today);
+      const isPrisoner = current.roles.cache.has(config.roles.prisoner);
+      const wasPrisoner = previous && !previous.partial ? previous.roles.cache.has(config.roles.prisoner) : isPrisoner;
+      if (isPrisoner && !wasPrisoner) await ctx.lockdown?.lockMember(current);
+      if (wasPrisoner && !isPrisoner) await ctx.lockdown?.unlockMember(current);
     },
   };
 }

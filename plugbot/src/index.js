@@ -10,6 +10,7 @@ import { openDatabase } from './db.js';
 import { createHandlers } from './handlers.js';
 import { createJobs } from './jobs.js';
 import { acquireLock } from './lock.js';
+import { createLockdown } from './lockdown.js';
 import { createInteractionHandler } from './events/interactions.js';
 import { createEventService } from './events/service.js';
 import { createEventStore } from './events/store.js';
@@ -111,6 +112,14 @@ client.once(Events.ClientReady, (readyClient) =>
       onJourneyInteraction = createJourneyInteractions(ctx, ctx.journey);
     }
 
+    // Le verrou de la prison : le rôle Prisonnier est bloqué partout, et les prisonniers actuels aussi.
+    ctx.lockdown = createLockdown(ctx);
+    try {
+      await ctx.lockdown.start([...db.prisonRecords().keys()]);
+    } catch (error) {
+      console.error('[PlugBot] Prison : le verrou n\'a pas pu être posé :', error);
+    }
+
     const ready = createHandlers(ctx);
     const jobs = createJobs(ctx, ready);
     try {
@@ -159,7 +168,7 @@ client.on(Events.InteractionCreate, (interaction) => {
 });
 client.on(Events.MessageReactionRemove, (reaction, user) => enqueue(() => handlers?.onReactionRemove(reaction, user)));
 client.on(Events.MessageDelete, (message) => enqueue(() => handlers?.onMessageDelete(message)));
-client.on(Events.GuildMemberUpdate, (_oldMember, member) => enqueue(() => handlers?.onMemberUpdate(member)));
+client.on(Events.GuildMemberUpdate, (oldMember, member) => enqueue(() => handlers?.onMemberUpdate(member, oldMember)));
 client.on(Events.MessageBulkDelete, (messages) =>
   enqueue(async () => {
     for (const message of messages.values()) await handlers?.onMessageDelete(message);

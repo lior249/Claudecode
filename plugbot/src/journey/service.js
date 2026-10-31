@@ -860,5 +860,7 @@ export function createJourney(ctx, store) {
     openList,
     changeList,
     exitChannelId: () => ready.exit?.id ?? null,
+    // Les salons de la prison interne : le verrou de la prison n'y touche pas.
+    prisonChannelIds: () => [ready.wall?.id, ready.exit?.id].filter(Boolean),
   };
 }

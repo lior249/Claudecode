@@ -31,13 +31,24 @@ Le fonctionnement complet est décrit dans [`SPEC.md`](SPEC.md).
 - Les membres doivent pouvoir lire ces cinq salons, sans y écrire.
 - flex-resultats : mode lent de 15 minutes.
 
-**Le rôle Prisonnier.** Il doit couper les accès principaux (écrire dans les salons, rejoindre les lives…), sauf dans la-prison et flex-resultats. Attention à une règle de Discord :
-quand un salon **autorise** explicitement un rôle (par exemple Free) à écrire, cette autorisation l'emporte sur l'**interdiction** posée sur le rôle Prisonnier.
+**Le rôle Prisonnier : PlugBot le règle lui-même.** Un prisonnier peut encore lire, mais il ne peut plus :
+- écrire, ni répondre ou créer des fils ;
+- réagir ;
+- créer de sondage ;
+- rejoindre un vocal ou un live.
 
-- Le droit d'écrire doit venir des réglages généraux du rôle (Paramètres du serveur > Rôles), pas d'une autorisation posée sur le salon.
-- Dans chaque catégorie de salons, ajouter le rôle Prisonnier avec **Envoyer des messages : ✗**.
-- Faire de même avec **Se connecter : ✗** pour les salons vocaux et les lives.
-- Dans la-prison et flex-resultats, ajouter le rôle Prisonnier avec **Envoyer des messages : ✓**.
+Il garde seulement deux choses : poster ses résultats dans flex-resultats, et s'expliquer dans son ticket s'il est en prison interne.
+
+- Au démarrage, puis chaque nuit, PlugBot pose un ✗ pour le rôle Prisonnier dans chaque catégorie et chaque salon, sauf la-prison et flex-resultats, et il ouvre flex-resultats aux prisonniers.
+- Règle de Discord : quand un salon donne un ✓ explicite à un autre rôle (par exemple Free sur « Envoyer des messages »), ce ✓ passe **avant** le ✗ du rôle Prisonnier. Dans ces salons, PlugBot pose en plus un ✗ au nom du prisonnier lui-même, qui passe avant tous les rôles. Il le retire à la sortie.
+- Ça marche aussi quand tu donnes ou retires le rôle Prisonnier à la main.
+- Pour tout verrouiller, PlugBot doit avoir lui-même, dans Paramètres du serveur > Rôles > PlugBot :
+  - **Gérer les rôles** ;
+  - **Voir les salons** ;
+  - **Envoyer des messages**, **Ajouter des réactions**, les permissions des fils et **Créer des sondages** ;
+  - **Se connecter**, pour les vocaux.
+
+  Discord n'accepte un ✗ que sur une permission que le bot a lui-même. Au démarrage, `pm2 logs plugbot` dit « le rôle Prisonnier est bloqué dans tous les salons », ou liste exactement ce qui manque.
 
 Le salon des codes de réduction ne doit être visible que pour 🔥🔥🔥, ⚡plug7⚡ et ★plug30★. Pas besoin d'y bloquer le Prisonnier : PlugBot lui retire ces rôles pendant la prison.
 
@@ -180,6 +191,7 @@ npm test
 - `src/index.js` : démarrage et événements Discord.
 - `src/handlers.js` : résultats postés, ❌ de l'admin, messages supprimés, changements de rôle.
 - `src/prison.js` : entrées et sorties de prison (rôle Prisonnier, récompenses mises de côté).
+- `src/lockdown.js` : le verrou de la prison (permissions du rôle Prisonnier, et des prisonniers là où un autre rôle passerait avant).
 - `src/jobs.js` : prison (chaque jour à minuit UTC), compte à rebours de la prison (18 h GMT), publications de 20 h 30 GMT (top-7, top-30, récap), messages aux gagnants.
 - `src/boards.js` : les classements en direct, un message modifié à chaque changement dans top-7, top-30 et top-all-time.
 - `src/checks.js` : vérification des permissions au démarrage.
