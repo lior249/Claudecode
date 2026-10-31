@@ -35,7 +35,7 @@ PlugBot les crée lui-même dans la catégorie de l'accompagnement (TikTok plug)
 |---|---|---|
 | **#parcours** | l'accompagnement | Le panneau des 4 étapes. Chaque ticket est un fil privé : le membre et les coachs. |
 | **#notifications-coach** | les coachs | Preuves à vérifier, prison interne, tickets de sortie, plannings, récaps. |
-| **#fiches-membres** | les coachs | Seulement un panneau de boutons : les listes et les fiches s'ouvrent à la demande, visibles par le coach seul. |
+| **#fiches-membres** | les coachs | Un panneau de boutons en haut, puis le journal des actions des membres. Les listes et les fiches s'ouvrent à la demande, visibles par le coach seul. |
 | **#prison-interne** | l'accompagnement (lecture seule) | Le mur des retardataires : PlugBot y mentionne les membres qui entrent en prison interne. |
 | **#sortir-de-la-prison-interne** | le rôle Prisonnier interne | Le bouton pour ouvrir un ticket de justification. |
 
@@ -148,6 +148,17 @@ Sous chaque liste :
 - un menu pour **ouvrir la fiche** d'un membre de la page.
 
 Les fiches publiées dans le salon par l'ancienne version sont effacées automatiquement, 10 par minute.
+
+**Le journal.** Sous le panneau, chaque action d'un membre ajoute une ligne qui le mentionne (sans le notifier), avec un bouton **📄 Voir la fiche**. Un clic ouvre sa fiche, visible par toi seul, et tu la fermes quand tu as fini. Les actions notées :
+
+- arrivée dans l'accompagnement, retour, départ (plus de rôle TikTok), rôle Plugged® reçu ;
+- ticket d'étape ouvert ;
+- fiche remplie ;
+- preuve envoyée (au plus une ligne toutes les 10 minutes par ticket) ;
+- choix du Positionnement remplis ;
+- étape validée (avec, pour le Visionnage, le nombre de jours) ;
+- planning de l'Engagement choisi ;
+- entrée en prison interne, ticket de sortie ouvert, sortie de prison.
 
 **La fiche d'un membre** contient :
 

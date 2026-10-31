@@ -379,6 +379,43 @@ describe("parcours de l'accompagnement", () => {
     assert.equal(env.store.get('1').ficheMessageId, null);
   });
 
+  it('#fiches-membres sert de journal : une ligne par action, avec un bouton pour voir la fiche', async () => {
+    const fiches = env.channel('fiches-membres');
+    assert.equal(fiches.sent.length, 1, 'au démarrage, seulement le panneau');
+
+    const { thread } = await openStage(alice, 1);
+    await env.onInteraction(
+      interaction('pc:profileSubmit:1', alice, {
+        fields: modalFields({ name: 'Alice Martin', home: ['Sénégal'], level: 'compte', equipment: 'telephone', availability: '1-2h' }),
+      }),
+    );
+    await env.journey.onMessage(
+      { id: 'p1', channelId: thread.id, author: { id: '1', bot: false }, content: '', attachments: { size: 1 }, channel: thread },
+      NOW,
+    );
+    await env.journey.closeStage('1', 1, {}, NOW);
+    const newcomer = env.addMember('7', [ROLES.plug], 'Nora');
+    env.journey.syncMember(newcomer, NOW);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const lines = fiches.sent.slice(1).map((message) => message.content);
+    assert.deepEqual(lines, [
+      '**Alice** <@1> — 🎫 a ouvert son ticket 🎬 Visionnage',
+      '**Alice Martin** <@1> — 📝 a rempli sa fiche',
+      '**Alice Martin** <@1> — 📥 a envoyé une preuve — 🎬 Visionnage',
+      "**Alice Martin** <@1> — ✅ a validé l'étape 🎬 Visionnage en 1 jour",
+      "**Nora** <@7> — 👋 arrive dans l'accompagnement : étape 🎬 Visionnage",
+    ]);
+    const line = fiches.sent[1];
+    assert.deepEqual(line.allowedMentions, { parse: [] }, 'personne n’est notifié');
+    assert.equal(line.components[0].components[0].data.custom_id, 'pc:ficheOf:1:');
+
+    const open = interaction('pc:ficheOf:1', coach);
+    await env.onInteraction(open);
+    assert.equal(open.replies[0].flags, 64, 'la fiche ne s’affiche que pour le coach');
+    assert.equal(open.replies[0].embeds[0].title, '🗂️ Alice Martin');
+  });
+
   it('montre les listes de clients, triées et par pages, avec la fiche de chacun', async () => {
     const names = ['Zoé', 'Ali', 'Mia', 'Bea'];
     names.forEach((name, i) => {

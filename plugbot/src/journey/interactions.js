@@ -14,7 +14,7 @@ import {
 } from './ui.js';
 
 const PRIVATE = MessageFlags.Ephemeral;
-const COACH_ONLY = new Set(['close', 'closeForm', 'notYet', 'release', 'filter', 'filterValue', 'list', 'listSort', 'listPage', 'fiche', 'ficheUser']);
+const COACH_ONLY = new Set(['close', 'closeForm', 'notYet', 'release', 'filter', 'filterValue', 'list', 'listSort', 'listPage', 'fiche', 'ficheUser', 'ficheOf']);
 const MEMBER_ONLY = new Set(['profile', 'profileSubmit', 'choices', 'choicesSubmit', 'planning', 'planningSubmit']);
 
 // Les valeurs choisies dans un formulaire, quel que soit le composant : boutons de choix (un seul),
@@ -89,7 +89,7 @@ export function createJourneyInteractions({ guild }, journey) {
         return;
       case 'profileSubmit': {
         const { fields } = interaction;
-        journey.saveProfile(userId, {
+        await journey.saveProfile(userId, {
           name: fields.getTextInputValue('name').trim(),
           home: pickedOne(fields, 'home'),
           level: pickedOne(fields, 'level'),
@@ -202,7 +202,11 @@ export function createJourneyInteractions({ guild }, journey) {
       }
       case 'fiche':
       case 'ficheUser':
-        await privately(interaction, '', { ...journey.fichePayload(interaction.values[0]), allowedMentions: { parse: [] } });
+      case 'ficheOf':
+        await privately(interaction, '', {
+          ...journey.fichePayload(action === 'ficheOf' ? userId : interaction.values[0]),
+          allowedMentions: { parse: [] },
+        });
         return;
       default:
         await privately(interaction, 'Action inconnue.');

@@ -235,6 +235,11 @@ export function fichesPanel() {
   };
 }
 
+// Sous chaque ligne du journal de #fiches-membres.
+export function ficheButtonComponents(userId) {
+  return [row(button(customId('ficheOf', userId), 'Voir la fiche', '📄'))];
+}
+
 // Les valeurs possibles d'un critère : [valeur, texte] (25 au maximum).
 export function filterValueComponents(criterion, options) {
   return [row(select(customId('filterValue', '', criterion), options.slice(0, 25), { placeholder: `${FILTERS[criterion]} :` }))];

@@ -399,7 +399,31 @@ export function fichesPanelText() {
     '🗂️ **Fiches des membres**',
     'Choisis une liste ou un critère : la réponse n\'est visible que par toi.',
     'Tu peux ensuite la trier, changer de page et ouvrir la fiche de chaque membre.',
+    '',
+    'En dessous, le journal : chaque action d\'un membre, avec un bouton pour voir sa fiche.',
   ].join('\n');
+}
+
+// Le journal de #fiches-membres : ce que vient de faire un membre.
+export const LOG = {
+  joined: "👋 arrive dans l'accompagnement : étape 🎬 Visionnage",
+  back: 'revient dans le parcours',
+  left: "🚪 n'a plus le rôle TikTok",
+  plugged: '💎 a reçu le rôle Plugged® : il ne suit plus le parcours',
+  exempt: "ne suit plus le parcours (coach ou admin)",
+  ticket: (stage) => `🎫 a ouvert son ticket ${stageName(stage)}`,
+  profile: '📝 a rempli sa fiche',
+  proof: (stage) => `📥 a envoyé une preuve — ${stageName(stage)}`,
+  choices: '🧭 a rempli ses choix de Positionnement',
+  closed: (stage, days) => `✅ a validé l'étape ${stageName(stage)}${days ? ` en ${days} jour${days > 1 ? 's' : ''}` : ''}`,
+  planning: (record) => `🗓️ a choisi son planning : ${planningText(record)}`,
+  imprisoned: '🔒 est entré en prison interne',
+  exitTicket: '🔓 a ouvert un ticket pour sortir de la prison interne',
+  released: '🔓 est sorti de prison',
+};
+
+export function logLine({ userId, name, text }) {
+  return `**${name}** ${mention(userId)} — ${text}`;
 }
 
 // Une ligne de liste : un membre de l'accompagnement, avec son parcours s'il en a un.

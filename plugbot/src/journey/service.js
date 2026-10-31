@@ -33,8 +33,10 @@ import {
   digestText,
   exitTicketIntro,
   exitTicketNotice,
+  LOG,
   ficheEmbed,
   listEmbed,
+  logLine,
   noJourneyEmbed,
   firstCheckMissedText,
   fromNow,
@@ -63,6 +65,7 @@ import {
   choicesComponents,
   closeQuestionComponents,
   exitPanel,
+  ficheButtonComponents,
   fichesPanel,
   listComponents,
   parcoursPanel,
@@ -135,12 +138,16 @@ export function createJourney(ctx, store) {
     return 'active';
   }
 
-  // Arrivée dans l'accompagnement, départ, ou rôle Plugged® reçu : PlugBot met le parcours à jour.
-  function syncMember(member, now) {
+  // Arrivée dans l'accompagnement, départ, ou rôle Plugged® reçu : PlugBot met le parcours à jour,
+  // et l'écrit dans le journal (sauf au démarrage : quiet).
+  function syncMember(member, now, { quiet = false } = {}) {
     const status = statusOf(member);
     const record = store.get(member.id);
+    const note = (text) => (quiet ? null : log(member.id, text));
     if (!record) {
-      if (status === 'active') store.create(member.id, now);
+      if (status !== 'active') return;
+      store.create(member.id, now);
+      note(LOG.joined);
       return;
     }
     if (record.status === status) return;
@@ -148,6 +155,20 @@ export function createJourney(ctx, store) {
     // De retour dans le parcours : le délai repart de zéro.
     if (status === 'active' && record.stage < ENGAGEMENT) changes.deadlineFrom = now;
     store.update(member.id, changes);
+    if (status === 'left') note(LOG.left);
+    else if (status === 'active') note(LOG.back);
+    else note(member.roles.cache.has(roles.plugged) ? LOG.plugged : LOG.exempt);
+  }
+
+  // Une ligne dans le journal de #fiches-membres, avec un bouton pour voir la fiche du membre.
+  // Ne lève jamais d'erreur.
+  async function log(userId, text) {
+    if (!ready.fiches) return;
+    const record = store.get(userId);
+    const name = record?.fullName || guild.members.cache.get(userId)?.displayName || 'Membre';
+    await ready.fiches
+      .send({ content: logLine({ userId, name, text }), components: ficheButtonComponents(userId), allowedMentions: { parse: [] } })
+      .catch((error) => console.error('[PlugBot] Journal des fiches :', error.message));
   }
 
   // Le membre suit le parcours : en prison, il n'en sort qu'avec un ticket de justification.
@@ -230,7 +251,7 @@ export function createJourney(ctx, store) {
   }
 
   async function start(now) {
-    for (const member of guild.members.cache.values()) syncMember(member, now);
+    for (const member of guild.members.cache.values()) syncMember(member, now, { quiet: true });
     // Les récaps démarrent à partir d'aujourd'hui (le point tous les 3 jours : dans 3 jours).
     if (db.getMeta('journey_recap_day') === null) db.setMeta('journey_recap_day', dayOf(now));
     if (db.getMeta('journey_digest_day') === null) db.setMeta('journey_digest_day', dayOf(now));
@@ -305,6 +326,7 @@ export function createJourney(ctx, store) {
     if (number === 2) intro.components = choicesComponents(member.id);
     if (number === ENGAGEMENT) intro.components = planningComponents(member.id);
     await thread.send(intro);
+    await log(member.id, LOG.ticket(number));
     return ticketOpenedText(thread.id);
   }
 
@@ -329,7 +351,9 @@ export function createJourney(ctx, store) {
     if (message.author.id !== ticket.userId || message.attachments.size === 0) return false;
     store.setProof(ticket.threadId, message.id);
     if (number === 3) store.update(ticket.userId, { videos: record.videos + 1 });
-    await alertCoach(ticket, proofNotice({ userId: ticket.userId, stage: number, threadId: ticket.threadId }), now);
+    if (await alertCoach(ticket, proofNotice({ userId: ticket.userId, stage: number, threadId: ticket.threadId }), now)) {
+      await log(ticket.userId, LOG.proof(number));
+    }
     return true;
   }
 
@@ -341,10 +365,12 @@ export function createJourney(ctx, store) {
   }
 
   // Prévient le coach qu'il y a du nouveau dans un ticket, au plus une fois toutes les 10 minutes.
+  // Renvoie true si le coach a été prévenu.
   async function alertCoach(ticket, content, now) {
-    if (ticket.lastAlertAt && now - ticket.lastAlertAt < PROOF_ALERT_EVERY_MS) return;
+    if (ticket.lastAlertAt && now - ticket.lastAlertAt < PROOF_ALERT_EVERY_MS) return false;
     store.setAlert(ticket.threadId, now);
     await notify(content, { mention: true });
+    return true;
   }
 
   // Le membre remplit ses choix du Positionnement. Renvoie un message d'erreur, ou null.
@@ -359,6 +385,7 @@ export function createJourney(ctx, store) {
       await thread.send({ content: choicesText({ userId, record: store.get(userId) }), allowedMentions: { parse: [] } });
       await alertCoach(ticket, choicesNotice({ userId, threadId: ticket.threadId }), now);
     }
+    await log(userId, LOG.choices);
     return null;
   }
 
@@ -414,6 +441,7 @@ export function createJourney(ctx, store) {
     if (ticket && !ticket.closedAt) {
       await closeThread(ticket.threadId, stageClosedText({ userId, stage: number, parcoursChannelId: ready.parcours.id }), userId, now);
     }
+    await log(userId, LOG.closed(number, changes.watchedDays));
     return true;
   }
 
@@ -421,7 +449,7 @@ export function createJourney(ctx, store) {
     return store.get(userId);
   }
 
-  function saveProfile(userId, profile) {
+  async function saveProfile(userId, profile) {
     store.update(userId, {
       fullName: profile.name,
       homeCountry: profile.home,
@@ -429,6 +457,7 @@ export function createJourney(ctx, store) {
       equipment: profile.equipment,
       availability: profile.availability,
     });
+    await log(userId, LOG.profile);
   }
 
   // Le planning de l'Engagement. Renvoie un message d'erreur, ou null.
@@ -444,6 +473,7 @@ export function createJourney(ctx, store) {
     const saved = store.get(userId);
     await sayInTicket(userId, 'engagement', planningSavedText(saved));
     await notify(planningChangedNotice({ userId, record: saved }));
+    await log(userId, LOG.planning(saved));
     return null;
   }
 
@@ -484,6 +514,7 @@ export function createJourney(ctx, store) {
     await setHidden(member.id, true);
     const record = store.get(member.id);
     if (record) store.update(member.id, { prisonCount: record.prisonCount + 1 });
+    await log(member.id, LOG.imprisoned);
   }
 
   // Appelée par la prison à la sortie : tout est rendu, et le délai de 5 jours repart de zéro.
@@ -496,6 +527,7 @@ export function createJourney(ctx, store) {
     await setHidden(member.id, false);
     const record = store.get(member.id);
     if (record?.stage < ENGAGEMENT) store.update(member.id, { deadlineFrom: now });
+    await log(member.id, LOG.released);
   }
 
   // Le mur des retardataires et la notification au coach. reason : deadline ou noPosts.
@@ -530,6 +562,7 @@ export function createJourney(ctx, store) {
     const thread = await openTicket(ready.exit, member, `🔓 Sortie — ${member.displayName}`, 'sortie', now);
     await thread.send({ content: exitTicketIntro(member.id), components: releaseComponents(member.id), allowedMentions: { users: [member.id] } });
     await notify(exitTicketNotice({ userId: member.id, threadId: thread.id }), { mention: true });
+    await log(member.id, LOG.exitTicket);
     return ticketOpenedText(thread.id);
   }
 
