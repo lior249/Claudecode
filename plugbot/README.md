@@ -28,6 +28,7 @@ Le fonctionnement complet est décrit dans [`SPEC.md`](SPEC.md).
 - Dans show-up, top-7, top-30 et top-all-time, PlugBot doit aussi pouvoir **mentionner @everyone, @here et tous les rôles** : les annonces notifient tout le serveur.
 - Dans top-7, top-30 et top-all-time, PlugBot doit aussi pouvoir **intégrer des liens** et **voir les anciens messages** : le classement en direct est un encadré, que PlugBot retrouve et modifie.
 - PlugBot n'a pas besoin d'accès aux salons bonus-top7, bonus-top30, bonus-21j et guide-serveur : il les mentionne seulement.
+- #entraide (`ENTRAIDE_CHANNEL_ID`, facultatif) : PlugBot doit pouvoir y voir le salon et les anciens messages. Un 👍 ou un ❤️ de l'équipe sur une réponse donne 1 point à son auteur (voir `SPEC.md`).
 - Les membres doivent pouvoir lire ces cinq salons, sans y écrire.
 - flex-resultats : mode lent de 15 minutes.
 

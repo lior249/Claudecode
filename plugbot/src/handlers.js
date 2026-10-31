@@ -3,6 +3,8 @@
 
 import {
   deletedMessage,
+  helpPointMessage,
+  helpPointRemovedMessage,
   prisonExitMessage,
   removedMessage,
   restoredMessage,
@@ -15,6 +17,8 @@ import { ALL_TIME, dayOf, monthRange, weekRange } from './time.js';
 
 export const PENDING_EMOJI = '❗';
 export const REJECT_EMOJI = '❌';
+// Dans #entraide, un 👍 ou un ❤️ de l'équipe donne un point à l'auteur du message.
+const isLike = (name) => (name ?? '').startsWith('👍') || (name ?? '').startsWith('❤');
 
 function isNewer(id, than) {
   return than === null || BigInt(id) > BigInt(than);
@@ -74,29 +78,86 @@ export function createHandlers(ctx) {
 
     await message.react(PENDING_EMOJI).catch((error) => console.error('[PlugBot] Réaction ❗ impossible :', error.message));
 
-    // Points et rang du membre dans sa catégorie, pour la semaine, le mois et le total.
-    const now = Date.now();
+    const { week, month, total } = standings(member, Date.now());
+    const content = showupMessage({
+      userId: member.id,
+      chain: week.row.chain,
+      category: week.row.category,
+      prison: week.row.prison,
+      week,
+      month,
+      total,
+      config,
+      prisonExitChannelId: ctx.journey?.exitChannelId(),
+    });
+    await send(channels.showup, content, [member.id]);
+    await settle(member.id);
+  }
+
+  // Points et rang du membre dans sa catégorie, pour la semaine, le mois et le total.
+  function standings(member, now) {
     const standing = (range) => {
       const rows = [...tracker.snapshot(guild.members.cache, now, range).values()];
       const row = rows.find((candidate) => candidate.userId === member.id);
       const rank = leaderboard(rows, row.category).findIndex((entry) => entry.userId === member.id) + 1;
       return { row, points: row.points, rank };
     };
-    const week = standing(weekRange(now));
-    const { row } = week;
-    const content = showupMessage({
+    return { week: standing(weekRange(now)), month: standing(monthRange(now)), total: standing(ALL_TIME) };
+  }
+
+  // L'équipe : les admins et les coachs (rôle Office).
+  function isTeam(userId) {
+    if (config.adminIds.has(userId)) return true;
+    return Boolean(config.roles.office) && Boolean(guild.members.cache.get(userId)?.roles.cache.has(config.roles.office));
+  }
+
+  function isHelpLike(reaction, user) {
+    return Boolean(config.channels.help) && reaction.message.channelId === config.channels.help && isLike(reaction.emoji.name) && isTeam(user.id);
+  }
+
+  async function fullMessage(message) {
+    return message.partial ? message.fetch().catch(() => null) : message;
+  }
+
+  // 👍 ou ❤️ de l'équipe sur une réponse dans #entraide : 1 point pour son auteur (une seule fois par message).
+  async function awardHelp(reaction, adminId) {
+    const message = await fullMessage(reaction.message);
+    if (!message || message.author?.bot) return;
+    const member = await findMember(message.author.id);
+    if (!member || !tracker.isTracked(member)) return;
+    const existing = db.getShowup(message.id);
+    if (existing?.status === 'valid') return;
+    if (existing) db.setStatus(message.id, 'valid', adminId);
+    else db.addHelpPoint(message.id, member.id, Date.now());
+
+    const { week, month, total } = standings(member, Date.now());
+    const content = helpPointMessage({
       userId: member.id,
-      chain: row.chain,
-      category: row.category,
-      prison: row.prison,
+      category: week.row.category,
       week,
-      month: standing(monthRange(now)),
-      total: standing(ALL_TIME),
+      month,
+      total,
+      messageUrl: message.url,
       config,
-      prisonExitChannelId: ctx.journey?.exitChannelId(),
     });
     await send(channels.showup, content, [member.id]);
     await settle(member.id);
+  }
+
+  // L'équipe retire son like : le point est retiré, sauf s'il reste un 👍 ou un ❤️ de l'équipe sur le message.
+  async function revokeHelp(reaction, adminId) {
+    const showup = db.getShowup(reaction.message.id);
+    if (showup?.kind !== 'help' || showup.status !== 'valid') return;
+    const message = await fullMessage(reaction.message);
+    for (const other of message?.reactions.cache.values() ?? []) {
+      if (!isLike(other.emoji.name)) continue;
+      const users = await other.users.fetch().catch(() => null);
+      if (users?.some((user) => isTeam(user.id))) return;
+    }
+    db.setStatus(showup.message_id, 'rejected', adminId);
+    const totals = db.userTotals(showup.user_id, weekRange(Date.now()));
+    await send(channels.showup, helpPointRemovedMessage({ userId: showup.user_id, ...totals }), [showup.user_id]);
+    await settle(showup.user_id);
   }
 
   async function reject(messageId, adminId) {
@@ -143,9 +204,11 @@ export function createHandlers(ctx) {
     syncStreakRole,
     async onReactionAdd(reaction, user) {
       if (isAdminRejection(reaction, user)) await reject(reaction.message.id, user.id);
+      if (isHelpLike(reaction, user)) await awardHelp(reaction, user.id);
     },
     async onReactionRemove(reaction, user) {
       if (isAdminRejection(reaction, user)) await restore(reaction.message.id, user.id);
+      if (isHelpLike(reaction, user)) await revokeHelp(reaction, user.id);
     },
     async onMessageDelete(message) {
       if (message.channelId === config.channels.results) await markDeleted(message.id);

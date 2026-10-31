@@ -133,6 +133,7 @@ function setup() {
       month: 'c-top30',
       prison: 'c-prison',
       allTime: 'c-alltime',
+      help: 'c-help',
     },
     links: { bonusWeek: 'c-bonus7', bonusMonth: 'c-bonus30', bonusStreak: 'c-bonus21', guide: 'c-guide' },
     roles: ROLES,
@@ -585,6 +586,48 @@ describe('scénario PlugBot', () => {
     await post(env, '3');
     assert.equal(boardOf(env.channels.allTime).id, id);
     assert.match(boardOf(env.channels.allTime).embeds[0].fields[0].value, /<@3> — 1 point/);
+  });
+
+  it("#entraide : un 👍 ou un ❤️ de l'admin donne 1 point, qui compte dans les classements mais pas dans la chaîne", async () => {
+    env.addMember('1', [ROLES.free]);
+    env.addMember('2', [ROLES.free]);
+    await post(env, '2');
+    const reactions = new FakeCollection();
+    const answer = {
+      id: SnowflakeUtil.generate({ timestamp: Date.now() }).toString(),
+      channelId: 'c-help',
+      partial: false,
+      author: { id: '1', bot: false },
+      url: 'https://discord.com/channels/guild/c-help/123',
+      reactions: { cache: reactions },
+    };
+    const like = (emoji) => ({ message: answer, emoji: { name: emoji } });
+
+    await env.handlers.onReactionAdd(like('👍'), { id: '2' });
+    assert.equal(env.channels.showup.sent.length, 1, "le like d'un membre ne compte pas");
+
+    await env.handlers.onReactionAdd(like('👍🏾'), { id: ADMIN });
+    const text = env.channels.showup.sent.at(-1);
+    assert.match(text, /^🤝 <@1> gagne \*\*1 point d'entraide\*\* !\nMerci pour ton aide dans <#c-help> : ta réponse a été repérée par l'équipe\. \[Voir le message\]\(https:\/\/discord\.com\/channels\/guild\/c-help\/123\)/);
+    assert.match(text, /📅 Classement semaine : \*\*1 point\*\* — 1er du classement Free/);
+    assert.match(text, /aide les autres membres dans <#c-help>.*poste tes résultats dans <#c-res>/);
+    assert.match(text, /tape \*\*\/moi\*\* ou \*\*\/classement\*\*\.$/);
+    assert.deepEqual(env.channels.showup.allowed.at(-1), { users: ['1'] }, 'seul le membre aidant est notifié');
+
+    // Un seul point par message, même avec un ❤️ en plus.
+    reactions.set('👍', { emoji: { name: '👍' }, users: { fetch: async () => new FakeCollection([[ADMIN, { id: ADMIN }]]) } });
+    await env.handlers.onReactionAdd(like('❤️'), { id: ADMIN });
+    assert.equal(env.db.totals().get('1').count, 1);
+    // Le point d'entraide ne compte pas comme un jour de chaîne (ni pour la prison).
+    assert.equal(env.db.validDays().get('1'), undefined);
+
+    // Retirer le ❤️ ne retire rien tant que le 👍 de l'admin reste ; retirer le 👍 retire le point.
+    await env.handlers.onReactionRemove(like('❤️'), { id: ADMIN });
+    assert.equal(env.db.totals().get('1').count, 1);
+    reactions.clear();
+    await env.handlers.onReactionRemove(like('👍'), { id: ADMIN });
+    assert.equal(env.db.totals().get('1'), undefined);
+    assert.match(env.channels.showup.sent.at(-1), /^↩️ Le point d'entraide de <@1> a été retiré\./);
   });
 
   it('rattrape au démarrage les résultats et les ❌ arrivés pendant une coupure', async () => {

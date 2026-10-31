@@ -6,14 +6,17 @@ import { DatabaseSync } from 'node:sqlite';
 import { DAY_MS } from './time.js';
 
 const SCHEMA = `
-  -- Un show-up par message posté dans #flex-resultats.
+  -- Un point par message : un résultat posté dans #flex-resultats (kind = result), ou une réponse
+  -- likée par l'équipe dans #entraide (kind = help). Les deux comptent dans les classements ;
+  -- seuls les résultats comptent pour la chaîne et la prison.
   -- status : valid (compté), rejected (retiré par un admin), deleted (message supprimé).
   CREATE TABLE IF NOT EXISTS showups (
     message_id TEXT PRIMARY KEY,
     user_id    TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     status     TEXT NOT NULL DEFAULT 'valid',
-    changed_by TEXT
+    changed_by TEXT,
+    kind       TEXT NOT NULL DEFAULT 'result'
   );
   CREATE INDEX IF NOT EXISTS showups_by_user ON showups (user_id, created_at);
   CREATE INDEX IF NOT EXISTS showups_by_date ON showups (created_at);
@@ -66,14 +69,17 @@ export function openDatabase(path) {
   // Colonnes ajoutées après coup : ajoutées aussi aux bases existantes.
   const prisonColumns = new Set(db.prepare('PRAGMA table_info(prison)').all().map((column) => column.name));
   if (!prisonColumns.has('internal')) db.exec('ALTER TABLE prison ADD COLUMN internal INTEGER NOT NULL DEFAULT 0');
+  const showupColumns = new Set(db.prepare('PRAGMA table_info(showups)').all().map((column) => column.name));
+  if (!showupColumns.has('kind')) db.exec("ALTER TABLE showups ADD COLUMN kind TEXT NOT NULL DEFAULT 'result'");
 
   const statements = {
     getMeta: db.prepare('SELECT value FROM meta WHERE key = ?'),
     setMeta: db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value'),
     addShowup: db.prepare('INSERT OR IGNORE INTO showups (message_id, user_id, created_at) VALUES (?, ?, ?)'),
+    addHelpPoint: db.prepare("INSERT OR IGNORE INTO showups (message_id, user_id, created_at, kind) VALUES (?, ?, ?, 'help')"),
     getShowup: db.prepare('SELECT * FROM showups WHERE message_id = ?'),
     setStatus: db.prepare('UPDATE showups SET status = ?, changed_by = ? WHERE message_id = ?'),
-    showupsSince: db.prepare("SELECT * FROM showups WHERE created_at >= ? AND status != 'deleted' ORDER BY created_at"),
+    showupsSince: db.prepare("SELECT * FROM showups WHERE created_at >= ? AND status != 'deleted' AND kind = 'result' ORDER BY created_at"),
     totals: db.prepare(
       "SELECT user_id, COUNT(*) AS count, MAX(created_at) AS reached_at FROM showups WHERE status = 'valid' GROUP BY user_id",
     ),
@@ -86,9 +92,9 @@ export function openDatabase(path) {
       "SELECT COUNT(*) AS count FROM showups WHERE status = 'valid' AND user_id = ? AND created_at >= ? AND created_at < ?",
     ),
     firstShowupBetween: db.prepare(
-      "SELECT MIN(created_at) AS first FROM showups WHERE status = 'valid' AND user_id = ? AND created_at >= ? AND created_at < ?",
+      "SELECT MIN(created_at) AS first FROM showups WHERE status = 'valid' AND kind = 'result' AND user_id = ? AND created_at >= ? AND created_at < ?",
     ),
-    validDays: db.prepare(`SELECT DISTINCT user_id, created_at / ${DAY_MS} AS day FROM showups WHERE status = 'valid'`),
+    validDays: db.prepare(`SELECT DISTINCT user_id, created_at / ${DAY_MS} AS day FROM showups WHERE status = 'valid' AND kind = 'result'`),
     prisonRecords: db.prepare('SELECT * FROM prison'),
     getPrison: db.prepare('SELECT * FROM prison WHERE user_id = ?'),
     addPrison: db.prepare('INSERT OR REPLACE INTO prison (user_id, level, suspended_roles, internal) VALUES (?, ?, ?, ?)'),
@@ -138,6 +144,10 @@ export function openDatabase(path) {
     addShowup(messageId, userId, createdAt) {
       return statements.addShowup.run(messageId, userId, createdAt).changes > 0;
     },
+    // Un point d'entraide. Renvoie false si ce message en a déjà un.
+    addHelpPoint(messageId, userId, createdAt) {
+      return statements.addHelpPoint.run(messageId, userId, createdAt).changes > 0;
+    },
     getShowup(messageId) {
       return statements.getShowup.get(messageId) ?? null;
     },
@@ -160,11 +170,11 @@ export function openDatabase(path) {
         week: statements.userCountBetween.get(userId, start, end).count,
       };
     },
-    // Heure du premier show-up du membre entre start et end, ou null.
+    // Heure du premier résultat posté par le membre entre start et end, ou null.
     firstShowupBetween(userId, start, end) {
       return statements.firstShowupBetween.get(userId, start, end).first ?? null;
     },
-    // Jours avec au moins un show-up, par membre.
+    // Jours avec au moins un résultat posté, par membre (les points d'entraide ne comptent pas).
     validDays() {
       const days = new Map();
       for (const row of statements.validDays.all()) {

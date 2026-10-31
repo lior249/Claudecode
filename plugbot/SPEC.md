@@ -30,7 +30,8 @@ Les points marqués *(proposé)* sont des propositions en attente de confirmatio
 | Salon | Ce qui s'y passe |
 |---|---|
 | 🎮 **flex-resultats** | Les membres y postent leurs résultats. |
-| ➕ **show-up** | Le journal : chaque show-up, chaque point retiré, chaque rôle 🔥🔥🔥 gagné, et le récap des récompenses le dimanche. |
+| ➕ **show-up** | Le journal : chaque show-up, chaque point d'entraide, chaque point retiré, chaque rôle 🔥🔥🔥 gagné, et le récap des récompenses le dimanche. |
+| 🤝 **entraide** | Les membres s'aident. Un 👍 ou un ❤️ de l'équipe sur une réponse donne 1 point à son auteur. |
 | 💸 **top-7** | Le challenge de la semaine : classement en direct, lancement, annonce du soir et clôture. |
 | 💎 **top-30** | Le challenge du mois : classement en direct, lancement, rappels et clôture. |
 | **top-all-time** | Le classement all-time, en direct. |
@@ -58,6 +59,26 @@ Seul PlugBot écrit dans show-up, top-7, top-30, top-all-time et la-prison.
   > 📖 Pour en savoir plus, regarde #guide-serveur.
 
   Le rang est celui de la catégorie du membre (Free ou Accompagnement). Un membre en prison est « hors classement » : PlugBot lui rappelle combien de jours il lui reste pour sortir.
+
+## Points d'entraide
+
+Dans **#entraide**, rien n'est automatique : c'est l'équipe (les admins et le rôle Office) qui repère les réponses utiles.
+
+- Un **👍** ou un **❤️** de l'équipe sur un message donne **1 point** à son auteur. Il n'y a qu'un point par message, même avec les deux réactions.
+- Le point compte dans les **classements** (top-7, top-30, all-time), exactement comme un résultat posté.
+- Il ne compte **pas** pour la chaîne, la prison ni l'Engagement : seuls les résultats postés prouvent qu'on est actif sur TikTok.
+- PlugBot l'annonce dans show-up, en ne notifiant que le membre :
+
+  > 🤝 @Membre gagne **1 point d'entraide** !
+  > Merci pour ton aide dans #entraide : ta réponse a été repérée par l'équipe. [Voir le message]
+  > 📅 Classement semaine : **9 points** — 3e du classement Free
+  > 🗓️ Classement mois : **31 points** — 44e du classement Free
+  > 🏅 Classement total : **148 points** — 449e du classement Free
+  >
+  > 💡 **Pour gagner encore des points :** aide les autres membres dans #entraide (chaque réponse utile repérée par l'équipe rapporte 1 point), et poste tes résultats dans #flex-resultats (1 point par résultat).
+  > 📊 Pour voir tes points et ton rang à tout moment, tape **/moi** ou **/classement**.
+
+- Si l'équipe retire son 👍 ou son ❤️, et qu'il n'en reste aucun de l'équipe sur le message, le point est retiré et PlugBot l'annonce dans show-up.
 
 ## Vérification par l'admin
 

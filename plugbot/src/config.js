@@ -51,6 +51,8 @@ export function loadConfig() {
       prison: required('PRISON_CHANNEL_ID'),
       // Facultatifs : les salons de sortie de prison (membres normaux, et membres de l'accompagnement).
       prisonExit: optional('PRISON_EXIT_CHANNEL_ID', null),
+      // Facultatif : #entraide, où un like de l'équipe donne un point.
+      help: optional('ENTRAIDE_CHANNEL_ID', null),
       internalExit: optional('INTERNAL_EXIT_CHANNEL_ID', null),
       // Facultatif : sans lui, le top all-time n'est pas publié.
       allTime: optional('ALLTIME_CHANNEL_ID', null),

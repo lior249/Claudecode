@@ -135,6 +135,26 @@ export function leaderboardMessage({ title, sections, me }) {
   return lines.join('\n');
 }
 
+// Un point d'entraide : un membre de l'équipe a liké une réponse de ce membre dans #entraide.
+export function helpPointMessage({ userId, category, week, month, total, messageUrl, config }) {
+  const { channels } = config;
+  return [
+    `🤝 ${mention(userId)} gagne **1 point d'entraide** !`,
+    `Merci pour ton aide dans ${channelMention(channels.help)} : ta réponse a été repérée par l'équipe. [Voir le message](${messageUrl})`,
+    rankingLine('📅', 'semaine', week, category),
+    rankingLine('🗓️', 'mois', month, category),
+    rankingLine('🏅', 'total', total, category),
+    '',
+    `💡 **Pour gagner encore des points :** aide les autres membres dans ${channelMention(channels.help)} (chaque réponse utile repérée par l'équipe rapporte 1 point), ` +
+      `et poste tes résultats dans ${channelMention(channels.results)} (1 point par résultat).`,
+    '📊 Pour voir tes points et ton rang à tout moment, tape **/moi** ou **/classement**.',
+  ].join('\n');
+}
+
+export function helpPointRemovedMessage({ userId, total, week }) {
+  return `↩️ Le point d'entraide de ${mention(userId)} a été retiré.\n${totals({ total, week })}`;
+}
+
 export function removedMessage({ userId, adminId, total, week }) {
   return `❌ Le point de show-up de ${mention(userId)} a été retiré par ${mention(adminId)}.\n${totals({ total, week })}`;
 }
