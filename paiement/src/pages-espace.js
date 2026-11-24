@@ -4,24 +4,25 @@
 const { ICONE, echapper, gabarit, formatDate, blocSupport } = require('./pages');
 
 const STYLE_GRILLE = `<style>
-  .legende { display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--doux); margin:4px 0 14px; }
+  .legende { display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:var(--doux); margin:0 0 8px; }
   .legende span { display:inline-flex; align-items:center; gap:6px; }
-  .legende i { width:14px; height:14px; border-radius:4px; display:inline-block; }
-  .jour { margin-bottom:14px; }
-  .jour h2 { display:flex; justify-content:space-between; align-items:baseline; font-size:14px; margin-bottom:8px; }
-  .jour h2 small { color:var(--doux); font-weight:500; font-size:12px; }
-  .cases { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
-  .case { position:relative; min-height:46px; border:0; border-radius:10px; font:600 13px/1.1 var(--police); cursor:pointer; padding:6px 2px;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
-  .case small { font-size:10px; font-weight:500; opacity:.75; }
-  .case.libre { background:#4a4a4a; color:#fff; }
-  .case.pris { background:#1b1b1b; color:#5f5f5f; cursor:not-allowed; }
+  .legende i { width:12px; height:12px; border-radius:3px; display:inline-block; }
+  .tableau { display:grid; grid-template-columns:38px repeat(7, 1fr); gap:3px; margin-bottom:8px; }
+  .tableau .tete { text-align:center; font:700 11px var(--police); color:var(--doux); padding-bottom:2px; line-height:1.2; }
+  .tableau .tete small { display:block; font-weight:500; font-size:10px; color:var(--gris); }
+  .tableau .tete.choisi { color:#ff8a00; }
+  .tableau .h { display:flex; flex-direction:column; justify-content:center; font:600 11px/1.1 var(--police); color:var(--doux); }
+  .tableau .h small { font-size:9px; font-weight:500; color:var(--gris); }
+  .tableau .coupure { grid-column:1 / -1; height:3px; }
+  .case { height:24px; border:0; border-radius:7px; padding:0; cursor:pointer; font:700 9px/1 var(--police); overflow:hidden; white-space:nowrap; }
+  .case.libre { background:#4a4a4a; }
+  .case.pris { background:#1b1b1b; cursor:not-allowed; }
   .case.moi { background:#ff8a00; color:#000; }
   .case.annulee { outline:2px solid var(--erreur); outline-offset:-2px; }
   .case:disabled { cursor:default; }
-  .barre-action { position:sticky; bottom:0; padding:12px 0 4px; background:linear-gradient(transparent, var(--fond) 30%); }
+  .barre-action { padding:4px 0 0; }
   .compteur { text-align:center; font-size:13px; color:var(--doux); }
-  .alerte { border:1px solid #5a4a1a; background:#1d1708; color:#f1d38a; border-radius:14px; padding:12px 14px; font-size:13px; margin-bottom:14px; }
+  .alerte { border:1px solid #5a4a1a; background:#1d1708; color:#f1d38a; border-radius:12px; padding:8px 12px; font-size:12px; margin-bottom:10px; }
   select, textarea { width:100%; padding:12px 14px; border-radius:14px; border:1px solid var(--bord-fort); background:#000; color:#fff; font:15px var(--police); }
   textarea { min-height:80px; resize:vertical; }
   .seance { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--bord); }
@@ -95,27 +96,31 @@ function pageCoaching(config, { session, grille, seances, coaching, message, int
       var p = h.split(':'); var t = (+p[0] * 60 + +p[1] + decalage + 1440) % 1440;
       return ('0' + Math.floor(t / 60)).slice(-2) + ':' + ('0' + (t % 60)).slice(-2);
     }
+    var COURTS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    var HEURES = []; D.cases.forEach(function (c) { if (HEURES.indexOf(c.heure) < 0) HEURES.push(c.heure); });
+    function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; return e; }
     function dessiner() {
       grille.innerHTML = '';
-      D.jours.forEach(function (nom, j) {
-        var bloc = document.createElement('div'); bloc.className = 'jour';
-        var titre = document.createElement('h2'); titre.textContent = nom;
-        if (choix[j] !== undefined) { var sm = document.createElement('small'); sm.textContent = choix[j] + ' GMT'; titre.appendChild(sm); }
-        bloc.appendChild(titre);
-        var cases = document.createElement('div'); cases.className = 'cases';
-        D.cases.filter(function (c) { return c.jour === j; }).forEach(function (c) {
-          var b = document.createElement('button'); b.type = 'button';
-          var mien = choix[j] === c.heure;
-          b.className = 'case ' + (mien ? 'moi' : c.etat === 'pris' ? 'pris' : 'libre');
-          b.innerHTML = c.heure + (c.etat === 'pris' ? '<small>Pris</small>' : local(c.heure) ? '<small>' + local(c.heure) + '</small>' : '');
+      grille.appendChild(el('div'));
+      COURTS.forEach(function (n, j) { grille.appendChild(el('div', 'tete' + (choix[j] !== undefined ? ' choisi' : ''), n)); });
+      HEURES.forEach(function (h, i) {
+        if (i > 0 && +h.slice(0, 2) - +HEURES[i - 1].slice(0, 2) > 1) grille.appendChild(el('div', 'coupure'));
+        var lab = el('div', 'h', h);
+        if (local(h)) lab.appendChild(el('small', '', local(h)));
+        grille.appendChild(lab);
+        for (var j = 0; j < 7; j++) (function (j) {
+          var c = D.cases.filter(function (x) { return x.jour === j && x.heure === h; })[0];
+          var mien = choix[j] === h;
+          var b = el('button', 'case ' + (mien ? 'moi' : c.etat === 'pris' ? 'pris' : 'libre'));
+          b.type = 'button';
+          b.setAttribute('aria-label', D.jours[j] + ' ' + h + (c.etat === 'pris' ? ' (pris)' : mien ? ' (choisi)' : ''));
           if (c.etat === 'pris') b.disabled = true;
-          else b.onclick = function () { if (mien) delete choix[j]; else choix[j] = c.heure; dessiner(); };
-          cases.appendChild(b);
-        });
-        bloc.appendChild(cases); grille.appendChild(bloc);
+          else b.onclick = function () { if (mien) delete choix[j]; else choix[j] = h; dessiner(); };
+          grille.appendChild(b);
+        })(j);
       });
       var n = Object.keys(choix).length;
-      document.getElementById('compteur').textContent = n + ' créneau(x) choisi(s) · minimum ' + D.min;
+      document.getElementById('compteur').textContent = n + ' créneau(x) choisi(s) · minimum ' + D.min + ' · 1 par jour';
       document.getElementById('enregistrer').disabled = n < D.min;
     }
     dessiner();
@@ -144,22 +149,21 @@ function pageCoaching(config, { session, grille, seances, coaching, message, int
     };
   })();`;
   const rappelOptions = coaching.RAPPELS_POSSIBLES.map((m) => `<option value="${m}"${m === grille.rappelMin ? ' selected' : ''}>${m >= 120 ? `${m / 60} h` : '1 h 30'} avant</option>`).join('');
-  return gabarit('Coaching privé', `${STYLE_GRILLE}
-  <p class="etiquette">Coaching privé · ${echapper(session.pseudo)}</p>
-  <h1>Mes créneaux de coaching</h1>
-  <p class="doux">Choisis <b style="color:#fff">au moins ${config.coaching.minParSemaine} créneaux par semaine</b>, un seul par jour. Ils se répètent chaque semaine. Heures en GMT${'' /* local en petit */}, ton heure locale en petit.</p>
-  ${message ? `<div class="carte"><p class="ok" style="margin:0">${echapper(message)}</p></div>` : ''}
-  <div class="alerte">Pour qu'une séance compte le jour même, réserve-la avant <b>${limite} GMT</b>. Après, elle ne commence que la semaine suivante.</div>
+  return gabarit('Coaching privé', `${STYLE_GRILLE}<style>.entete{padding:0 0 12px}.entete .logo{font-size:18px}main{padding-top:14px}</style>
+  <h1 style="font-size:19px;margin:0 0 2px">Mes créneaux de coaching</h1>
+  <p class="doux petit" style="margin-bottom:8px">${echapper(session.pseudo)} · au moins ${config.coaching.minParSemaine} par semaine, 1 par jour, chaque semaine. Heures GMT.</p>
+  ${message ? `<p class="ok petit" style="margin-bottom:8px">${echapper(message)}</p>` : ''}
+  <div class="alerte">Réserve avant <b>${limite} GMT</b> pour qu'une séance compte le jour même.</div>
   ${LEGENDE}
-  <div id="grille"></div>
-  <div class="carte">
+  <div id="grille" class="tableau"></div>
+  <div class="barre-action">
+    <p id="compteur" class="compteur" style="margin:0"></p>
+    <button id="enregistrer" class="bouton" type="button" style="margin-top:6px;min-height:46px">Enregistrer mes créneaux</button>
+  </div>
+  <div class="carte" style="padding:14px 16px;margin-top:14px">
     <label for="rappel" style="margin-top:0">Mon rappel personnalisé</label>
     <select id="rappel">${rappelOptions}</select>
-    <p class="doux petit" style="margin:8px 0 0">En plus, Bob t'envoie un rappel automatique 1 h avant chaque séance.</p>
-  </div>
-  <div class="barre-action">
-    <p id="compteur" class="compteur"></p>
-    <button id="enregistrer" class="bouton" type="button" style="margin-top:6px">Enregistrer mes créneaux</button>
+    <p class="doux petit" style="margin:6px 0 0">En plus : rappel automatique 1 h avant chaque séance.</p>
   </div>
   <div class="carte" style="margin-top:18px">
     <h2>Mes prochaines séances</h2>
@@ -191,9 +195,14 @@ function pageAdmin(config, { lundi, jours, cases, membres, annulations, coaching
     });
     document.getElementById('dlg-fermer').onclick = function () { dlg.close(); };
   })();`;
-  const grille = jours.map((j) => `<div class="jour"><h2>${echapper(j.nom)} <small>${echapper(j.date.slice(8, 10))}/${echapper(j.date.slice(5, 7))}</small></h2><div class="cases">${
-    cases.filter((c) => c.date === j.date).map((c) => `<button type="button" class="case ${c.membre ? 'moi' : 'libre'}${c.annulee ? ' annulee' : ''}"${c.membre ? ` data-cle="${echapper(c.cle)}" data-quand="${echapper(j.nom)} ${echapper(c.date)} ${echapper(c.heure)} GMT"` : ' disabled'}>${echapper(c.heure)}${c.membre ? `<small>${echapper(c.membre.court)}</small>` : ''}</button>`).join('')
-  }</div></div>`).join('');
+  const heures = coaching.creneaux;
+  const grille = `<div class="tableau"><div></div>${jours.map((j) => `<div class="tete">${echapper(j.nom.slice(0, 3))}<small>${echapper(j.date.slice(8, 10))}/${echapper(j.date.slice(5, 7))}</small></div>`).join('')}${
+    heures.map((h, i) => `${i > 0 && Number(h.slice(0, 2)) - Number(heures[i - 1].slice(0, 2)) > 1 ? '<div class="coupure"></div>' : ''}<div class="h">${echapper(h)}</div>${
+      jours.map((j) => {
+        const c = cases.find((x) => x.date === j.date && x.heure === h);
+        return `<button type="button" class="case ${c.membre ? 'moi' : 'libre'}${c.annulee ? ' annulee' : ''}"${c.membre
+          ? ` data-cle="${echapper(c.cle)}" data-quand="${echapper(j.nom)} ${echapper(c.date)} ${echapper(c.heure)} GMT" aria-label="${echapper(c.membre.court)}"` : ' disabled'}>${c.membre ? echapper(c.membre.court.slice(0, 3)) : ''}</button>`;
+      }).join('')}`).join('')}</div>`;
   const lignesMembres = membres.map((m) => `<tr><td>${echapper(m.nom)}<br><span class="doux">${echapper(m.discord_pseudo || '—')}</span></td><td>${echapper(config.offres[m.programme].nom.replace('Overmaxx ', ''))}</td><td>${m.statut === 'actif' ? '' : '<span class="erreur-form">expiré</span><br>'}${echapper(formatDate(m.acces_jusqu_au))}</td></tr>`).join('');
   const lignesAnnul = annulations.length
     ? annulations.map((a) => `<div class="seance"><div><b>${echapper(a.date)} ${echapper(a.heure)}</b> · ${echapper(a.nom)}<br><span class="doux petit">${echapper(a.justification)}</span></div></div>`).join('')
