@@ -218,12 +218,28 @@ test('Bob : rappels à 10, 5, 3 jours et 24 h, sans doublon, puis retrait du ser
     assert.match(b.d.dms[3][1], /Dernières 24 heures/);
     assert.match(b.d.dms[3][1], /repayer le prix d'entrée/);
 
+    assert.match(b.d.dms[3][1], /en attente/);
+
+    // Fin : 15 jours en attente (rôle Attente, plus de rôle Community), pas encore retiré.
     b.aller(fin + 1000);
+    await b.bob.expirations(); await b.bob.expirations();
+    assert.deepStrictEqual(b.d.kicks, []);
+    const roles = b.d.membres.get('U1').roles.cache.set;
+    assert.ok(roles.has(ROLES.attente) && !roles.has(ROLES.community));
+    assert.strictEqual(b.d.dms.filter(([id, t]) => id === 'U1' && /maintenant \*\*en attente\*\*/.test(t)).length, 1);
+    assert.ok(m.commandes.peutRenouveler('community', 'awa@example.com'), 'renouvellement encore possible pendant l\'attente');
+
+    b.aller(fin + 12.5 * JOUR); await b.bob.expirations(); await b.bob.expirations();
+    assert.strictEqual(b.d.dms.filter(([id, t]) => id === 'U1' && /Plus que \*\*3 jours\*\*/.test(t)).length, 1);
+
+    // Au bout de 15 jours : retiré du serveur.
+    b.aller(fin + 15 * JOUR + 1000);
     await b.bob.expirations();
     assert.deepStrictEqual(b.d.kicks, ['U1']);
     assert.strictEqual(m.db.prepare('SELECT statut FROM membres').get().statut, 'expire');
-    assert.ok(b.d.dms.some(([id, t]) => id === 'U1' && /terminé/.test(t)));
+    assert.ok(b.d.dms.some(([id, t]) => id === 'U1' && /repayer l'entrée/.test(t)));
     assert.ok(b.d.dms.some(([id, t]) => id === ADMIN && /retiré du serveur/.test(t)));
+    assert.ok(!m.commandes.peutRenouveler('community', 'awa@example.com'));
   } finally { await m.fermer(); }
 });
 
@@ -310,5 +326,36 @@ test('membre payé sur Whop (rôle Elite, sans fiche mobile money) : réserve, r
     await b.bob.libererCreneaux();
     assert.strictEqual(b.coaching.reserveurs().length, 0);
     assert.ok(b.d.dms.some(([id, t]) => id === ADMIN && /whopien/.test(t) && /GOAT/.test(t)));
+  } finally { await m.fermer(); }
+});
+
+test('renouvellement pendant l\'attente : rôle Community rendu, Attente retiré, accès Whop à redemander', async () => {
+  const m = await monter();
+  try {
+    const mb = await inscrire(m, 'awa@example.com', { discordId: 'U1' });
+    m.db.prepare("UPDATE membres SET whop_membership_id = 'mem_1', whop_entry_id = 'e1' WHERE id = ?").run(mb.id);
+    const fin = new Date(mb.acces_jusqu_au).getTime();
+    const b = await monterBob(m, new Date(fin + 2 * JOUR));
+    b.d.ajouter('U1', [ROLES.community]);
+    await b.bob.expirations();
+    m.db.prepare("UPDATE membres SET whop_annule_le = ? WHERE id = ?").run(new Date().toISOString(), mb.id); // coupé par la synchro Whop
+
+    // Le membre renouvelle (vraie horloge du site = maintenant ; son accès est fini depuis 2 jours dans ce scénario).
+    m.db.prepare('UPDATE membres SET acces_jusqu_au = ? WHERE id = ?').run(new Date(Date.now() - 2 * JOUR).toISOString(), mb.id);
+    const jeton = require('../src/liens').jetonMembre('awa@example.com', m.config.secretApp);
+    assert.strictEqual((await m.poster('/community/renouveler', { nom: 'Awa', email: 'awa@example.com', m: jeton })).status, 303);
+    assert.strictEqual(m.saspay.derniere().amount, '3280.00', 'toujours au prix garanti');
+    m.saspay.payer(m.saspay.derniere().id);
+    const e = await m.etat(ref(m.saspay.derniere()));
+    const page = await (await m.get(e.redirection)).text();
+    assert.match(page, /Retrouve l'accès à la formation/);
+    const apres = m.db.prepare('SELECT * FROM membres WHERE id = ?').get(mb.id);
+    assert.strictEqual(apres.whop_membership_id, null);
+    assert.ok((new Date(apres.acces_jusqu_au) - Date.now()) / JOUR > 29.9, '30 jours à partir d\'aujourd\'hui');
+
+    b.aller(new Date());
+    await b.bob.synchroRoles();
+    const roles = b.d.membres.get('U1').roles.cache.set;
+    assert.ok(roles.has(ROLES.community) && !roles.has(ROLES.attente));
   } finally { await m.fermer(); }
 });

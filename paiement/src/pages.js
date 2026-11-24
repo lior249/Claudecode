@@ -410,17 +410,24 @@ function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDis
 }
 
 // Fin du renouvellement
-function pageRenouvele(config, { accesJusquAu }) {
-  // Le membre garde son rôle ; Bob prolonge aussi son accès Whop.
+function pageRenouvele(config, { accesJusquAu, whopARejoindre, lienWhop, email }) {
+  const whop = whopARejoindre && lienWhop ? `
+    <div class="carte">
+      <h2>Retrouve l'accès à la formation</h2>
+      <p class="doux">Ton accès Whop avait été coupé pendant l'attente. Rejoins à nouveau l'offre et réponds avec <b style="color:#fff">exactement cet email</b> : Bob valide en quelques minutes.</p>
+      <div class="code" style="font-size:16px;letter-spacing:0">${echapper(email)}</div>
+      <a class="bouton" href="${echapper(lienWhop)}" target="_blank" rel="noopener">Ouvrir l'offre sur Whop</a>
+    </div>` : '';
   return gabarit('Abonnement renouvelé', `
   <div id="icone" class="icone-ronde" style="margin-top:20px">${ICONE.ok}</div>
   <h1 class="centre">Abonnement renouvelé</h1>
   <p class="doux centre">Ton paiement est passé.</p>
   <div class="carte" style="margin-top:20px">
     <p>Ton accès est prolongé jusqu'au <b>${echapper(formatDate(accesJusquAu))}</b>.</p>
-    <p class="doux" style="margin:0">Tu peux retourner sur le Discord et profiter de tes avantages.</p>
+    <p class="doux" style="margin:0">Tu peux retourner sur le Discord et profiter de tes avantages. Ton rôle revient dans les 2 minutes.</p>
     ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">Retourner sur le Discord</a>` : ''}
   </div>
+  ${whop}
   ${blocSupport(config)}`);
 }
 

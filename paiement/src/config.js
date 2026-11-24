@@ -34,6 +34,7 @@ function chargerConfig({ strict = true } = {}) {
         whopPlanId: lire('WHOP_COMMUNITY_PLAN_ID', lire('WHOP_PLAN_ID')),
         roleDiscord: lire('DISCORD_ROLE_COMMUNITY'),
         wistiaGuide: lire('WISTIA_GUIDE_COMMUNITY', lire('WISTIA_MEDIA_ID', '')),
+        graceJours: Number(lire('ATTENTE_COMMUNITY_JOURS', '15')), // jours en « Attente » avant le retrait du serveur
         base: '/community',
       },
       elite: {
@@ -47,6 +48,7 @@ function chargerConfig({ strict = true } = {}) {
         wistiaGuide: lire('WISTIA_GUIDE_ELITE', ''),
         wistiaVsl: lire('WISTIA_VSL_ELITE', ''),
         tallyFormId: lire('TALLY_FORM_ID', ''),
+        graceJours: 0, // Elite : retrait immédiat à la fin
         base: '/coaching/elite',
       },
     },
@@ -72,6 +74,7 @@ function chargerConfig({ strict = true } = {}) {
       clientSecret: lire('DISCORD_CLIENT_SECRET'),
       serveurId: lire('DISCORD_GUILD_ID'),
       roleGoat: lire('DISCORD_ROLE_GOAT'),
+      roleAttente: lire('DISCORD_ROLE_ATTENTE'),
       adminId: lire('DISCORD_ADMIN_ID'),
       salonCoaching: lire('DISCORD_SALON_COACHING_URL', ''),
     },
@@ -118,7 +121,7 @@ function chargerConfig({ strict = true } = {}) {
   for (const [nom, v] of [
     ['DISCORD_GUILD_ID', config.discord.serveurId], ['DISCORD_ADMIN_ID', config.discord.adminId],
     ['DISCORD_ROLE_COMMUNITY', config.offres.community.roleDiscord], ['DISCORD_ROLE_ELITE', config.offres.elite.roleDiscord],
-    ['DISCORD_ROLE_GOAT', config.discord.roleGoat],
+    ['DISCORD_ROLE_GOAT', config.discord.roleGoat], ['DISCORD_ROLE_ATTENTE', config.discord.roleAttente],
   ]) {
     if (v && !ID_DISCORD.test(v)) manquantes.push(`${nom} (identifiant Discord : uniquement des chiffres)`);
   }

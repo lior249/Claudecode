@@ -167,7 +167,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
     try {
       const e = await commandes.etat(ref);
       if (e.etat !== 'confirme' || e.type !== 'renouvellement') return res.redirect(303, `/confirmation/${ref}`);
-      return res.send(P.pageRenouvele(config, { accesJusquAu: e.accesJusquAu }));
+      const offre = config.offres[e.programme];
+      let lienWhop = `https://whop.com/checkout/${offre.whopPlanId}`;
+      try { lienWhop = await whop.lienOffre(offre.whopPlanId); } catch { /* lien par défaut */ }
+      return res.send(P.pageRenouvele(config, {
+        accesJusquAu: e.accesJusquAu, whopARejoindre: Boolean(e.membre && !e.membre.whop_membership_id), lienWhop, email: e.email,
+      }));
     } catch (err) {
       console.error('[renouvele]', err.message);
       return res.redirect(303, `/confirmation/${ref}`);

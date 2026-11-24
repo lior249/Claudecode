@@ -29,6 +29,9 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
                                  whop_jours_a_ajouter = 0, categorie_elite = NULL, maj_le = ? WHERE id = ?`),
     prolongerMembre: db.prepare(`UPDATE membres SET acces_jusqu_au = ?, whop_jours_a_ajouter = whop_jours_a_ajouter + ?, maj_le = ?
                                  WHERE id = ?`),
+    // Renouvellement après la coupure Whop (période d'attente) : il redemandera l'accès sur la liste d'attente.
+    rouvrirWhop: db.prepare(`UPDATE membres SET whop_entry_id = NULL, whop_membership_id = NULL, whop_annule_le = NULL,
+                             whop_jours_a_ajouter = 0, maj_le = ? WHERE id = ? AND whop_annule_le IS NOT NULL`),
     lierDiscord: db.prepare('UPDATE membres SET discord_id = ?, discord_pseudo = ?, maj_le = ? WHERE id = ?'),
     invitation: db.prepare('SELECT * FROM invitations_elite WHERE token = ?'),
     insererInvitation: db.prepare('INSERT INTO invitations_elite (token, note, cree_le) VALUES (?, ?, ?)'),
@@ -72,6 +75,7 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
         if (cmd.invitation_token) q.utiliserInvitation.run(iso, cmd.ref, cmd.invitation_token);
       } else if (membre) {
         q.prolongerMembre.run(finDans(o.dureeJours, membre.acces_jusqu_au), membre.whop_membership_id ? o.dureeJours : 0, iso, membre.id);
+        q.rouvrirWhop.run(iso, membre.id);
       }
       return true;
     });
@@ -106,10 +110,11 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
       return Number((m && m.prix_renouvellement) || o.prixRenouvellement).toFixed(2);
     },
 
-    // Renouvellement possible seulement avant la fin de l'accès.
+    // Renouvellement possible avant la fin de l'accès, ou pendant la période d'attente (Community : 15 jours).
     peutRenouveler(programme, email) {
       const m = this.membre(programme, email);
-      return Boolean(m && m.statut === 'actif' && new Date(m.acces_jusqu_au) > maintenant());
+      const limite = m && new Date(m.acces_jusqu_au).getTime() + (offre(programme).graceJours || 0) * JOUR_MS;
+      return Boolean(m && m.statut === 'actif' && limite > maintenant().getTime());
     },
 
     invitation(token) {

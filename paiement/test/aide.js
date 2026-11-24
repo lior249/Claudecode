@@ -11,7 +11,7 @@ const { signer } = require('../src/discord-oauth');
 
 const SECRET_WEBHOOK = 'whsec_test';
 const ADMIN = '100000000000000001';
-const ROLES = { community: '200000000000000001', elite: '200000000000000002', goat: '200000000000000003' };
+const ROLES = { community: '200000000000000001', elite: '200000000000000002', goat: '200000000000000003', attente: '200000000000000004' };
 
 function configTest(extra = {}) {
   const env = {
@@ -21,7 +21,7 @@ function configTest(extra = {}) {
     WHOP_COMMUNITY_PLAN_ID: 'plan_com', WHOP_ELITE_PLAN_ID: 'plan_eli', WHOP_COMPANY_ID: 'biz_1',
     SASPAY_API_KEY: 'k', SASPAY_WEBHOOK_SECRET: SECRET_WEBHOOK, WHOP_API_KEY: 'k',
     DISCORD_CLIENT_ID: '1', DISCORD_CLIENT_SECRET: 's', DISCORD_GUILD_ID: '300000000000000001',
-    DISCORD_ADMIN_ID: ADMIN, DISCORD_ROLE_COMMUNITY: ROLES.community, DISCORD_ROLE_ELITE: ROLES.elite, DISCORD_ROLE_GOAT: ROLES.goat,
+    DISCORD_ADMIN_ID: ADMIN, DISCORD_ROLE_COMMUNITY: ROLES.community, DISCORD_ROLE_ELITE: ROLES.elite, DISCORD_ROLE_GOAT: ROLES.goat, DISCORD_ROLE_ATTENTE: ROLES.attente,
     LIEN_DISCORD: 'https://discord.gg/test', TALLY_SIGNING_SECRET: 'tallysecret', ...extra,
   };
   const avant = { ...process.env };

@@ -33,7 +33,8 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
     deja: db.prepare('SELECT 1 FROM envois WHERE cle = ?'),
     marquer: db.prepare('INSERT OR IGNORE INTO envois (cle, envoye_le) VALUES (?, ?)'),
     actifsAvecDiscord: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND discord_id IS NOT NULL"),
-    expires: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND acces_jusqu_au <= ?"),
+    finis: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND acces_jusqu_au <= ?"),
+    actifsEnCours: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND discord_id IS NOT NULL AND acces_jusqu_au > ?"),
     expirer: db.prepare("UPDATE membres SET statut = 'expire', maj_le = ? WHERE id = ? AND statut = 'actif'"),
     autresActifs: db.prepare("SELECT * FROM membres WHERE discord_id = ? AND statut = 'actif' AND id != ?"),
     categoriser: db.prepare('UPDATE membres SET categorie_elite = ?, maj_le = ? WHERE id = ?'),
@@ -71,6 +72,10 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
     const m = roleId && await membreDuServeur(discordId);
     if (m && !m.roles.cache.has(roleId)) await m.roles.add(roleId, 'Overmaxx : accès payé');
   }
+  async function retirerRole(discordId, roleId) {
+    const m = roleId && await membreDuServeur(discordId);
+    if (m && m.roles.cache.has(roleId)) await m.roles.remove(roleId, 'Overmaxx');
+  }
 
   async function estGoat(discordId) {
     const m = config.discord.roleGoat && await membreDuServeur(discordId);
@@ -99,7 +104,9 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
       let texte = palier === 1
         ? `**Dernières 24 heures** pour renouveler ton accès à **${o.nom}** (fin le ${formatDate(m.acces_jusqu_au)}).\n`
           + `Renouvelle maintenant pour **${prix}** : ${lien}\n\n`
-          + `Sans renouvellement, ton accès sera coupé et tu seras retiré du Discord. Pour revenir, il faudra repayer le prix d'entrée (**${formatPrix(o.prixEntree, config.devise)}**).`
+          + (o.graceJours
+            ? `Sans renouvellement, tu passes **en attente** : plus d'accès à la formation ni aux salons. Tu auras ${o.graceJours} jours pour renouveler à ce prix, puis tu seras retiré du Discord et il faudra repayer le prix d'entrée (**${formatPrix(o.prixEntree, config.devise)}**).`
+            : `Sans renouvellement, ton accès sera coupé et tu seras retiré du Discord. Pour revenir, il faudra repayer le prix d'entrée (**${formatPrix(o.prixEntree, config.devise)}**).`)
         : `Ton accès à **${o.nom}** se termine dans **${palier} jours** (le ${formatDate(m.acces_jusqu_au)}).\n`
           + `Renouvelle-le quand tu veux d'ici là pour **${prix}** : ${lien}`;
       if (m.programme === 'elite' && m.categorie_elite === 'inconstant') {
@@ -129,42 +136,87 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
   }
 
   // ---------- Expirations ----------
+  // Community : à la fin, 15 jours « en attente » (rôle Attente, plus de rôle Community, accès Whop coupé par le site),
+  // renouvellement encore possible ; ensuite retrait du serveur. Elite : retrait immédiat.
   async function expirations() {
     const now = maintenant();
-    for (const m of q.expires.all(now.toISOString())) {
-      if (q.expirer.run(now.toISOString(), m.id).changes !== 1) continue;
+    for (const m of q.finis.all(now.toISOString())) {
       const o = config.offres[m.programme];
-      log(`accès expiré : membre ${m.id} (${m.programme})`);
-      if (m.programme === 'elite' && m.discord_id) coaching.supprimerMembre(m.discord_id);
-      if (!m.discord_id) {
-        await notifier.admin(`Accès **${o.nom}** expiré pour ${m.nom} (${m.email}) : aucun compte Discord relié.`);
-        continue;
-      }
-      const retour = m.programme === 'community'
-        ? `Pour revenir, il faudra repayer l'entrée : ${lienInscription(config, 'community')}`
-        : 'Pour revenir dans l\'accompagnement, contacte-nous.';
-      await notifier.membre(m.discord_id, `Ton accès à **${o.nom}** est terminé, car il n'a pas été renouvelé. ${retour}`);
-      const autres = q.autresActifs.all(m.discord_id, m.id);
-      const membreDiscord = await membreDuServeur(m.discord_id);
-      try {
-        if (membreDiscord && m.discord_id !== config.discord.adminId) {
-          if (autres.length) {
-            if (o.roleDiscord) await membreDiscord.roles.remove(o.roleDiscord, 'Overmaxx : accès expiré');
-          } else {
-            await membreDiscord.kick(`Overmaxx : accès ${o.nom} non renouvelé`);
-          }
-        }
-      } catch (err) {
-        console.error(`[bob] retrait du membre ${m.id} impossible :`, err.message);
-      }
-      await notifier.admin(`**${m.nom}** (<@${m.discord_id}>) : accès **${o.nom}** expiré, ${autres.length ? 'rôle retiré' : 'retiré du serveur'}.`);
+      const finAttente = new Date(m.acces_jusqu_au).getTime() + (o.graceJours || 0) * JOUR_MS;
+      if (now.getTime() < finAttente) await mettreEnAttente(m, o, finAttente);
+      else await retirer(m, o);
     }
   }
 
+  async function mettreEnAttente(m, o, finAttente) {
+    const cle = `attente:${m.id}:${m.acces_jusqu_au}`;
+    const lien = lienRenouvellement(config, m.programme, m.email);
+    const prix = formatPrix(m.prix_renouvellement || o.prixRenouvellement, m.devise || config.devise);
+    if (!dejaEnvoye(cle)) {
+      marquer(cle);
+      log(`membre ${m.id} en attente jusqu'au ${new Date(finAttente).toISOString()}`);
+      if (!m.discord_id) {
+        await notifier.admin(`**${m.nom}** (${m.email}) est en attente (${o.nom}) : aucun compte Discord relié.`);
+        return;
+      }
+      try {
+        await retirerRole(m.discord_id, o.roleDiscord);
+        await donnerRole(m.discord_id, config.discord.roleAttente);
+      } catch (err) { console.error(`[bob] mise en attente du membre ${m.id} :`, err.message); }
+      await notifier.membre(m.discord_id, `Ton accès à **${o.nom}** est terminé : tu es maintenant **en attente**. `
+        + `Tu n'as plus accès à la formation ni aux salons.\n`
+        + `Tu as jusqu'au **${formatDate(new Date(finAttente).toISOString())}** pour renouveler au même prix (**${prix}**) : ${lien}\n`
+        + `Après cette date, tu seras retiré du Discord et il faudra repayer le prix d'entrée.`);
+      await notifier.admin(`**${m.nom}** (<@${m.discord_id}>) passe **en attente** (${o.nom}) jusqu'au ${formatDate(new Date(finAttente).toISOString())}.`);
+      return;
+    }
+    // Dernier rappel 3 jours avant le retrait.
+    const cleRappel = `attente-rappel:${m.id}:${m.acces_jusqu_au}`;
+    if (m.discord_id && finAttente - maintenant().getTime() <= 3 * JOUR_MS && !dejaEnvoye(cleRappel)) {
+      if (await notifier.membre(m.discord_id, `Plus que **3 jours** pour renouveler ton accès à **${o.nom}** (${prix}) avant d'être retiré du Discord : ${lien}`)) {
+        marquer(cleRappel);
+      }
+    }
+  }
+
+  async function retirer(m, o) {
+    const now = maintenant();
+    if (q.expirer.run(now.toISOString(), m.id).changes !== 1) return;
+    log(`accès expiré : membre ${m.id} (${m.programme})`);
+    if (m.programme === 'elite' && m.discord_id) coaching.supprimerMembre(m.discord_id);
+    if (!m.discord_id) {
+      await notifier.admin(`Accès **${o.nom}** expiré pour ${m.nom} (${m.email}) : aucun compte Discord relié.`);
+      return;
+    }
+    const retour = m.programme === 'community'
+      ? `Pour revenir, il faudra repayer l'entrée : ${lienInscription(config, 'community')}`
+      : 'Pour revenir dans l\'accompagnement, contacte-nous.';
+    await notifier.membre(m.discord_id, `Ton accès à **${o.nom}** est terminé, car il n'a pas été renouvelé. ${retour}`);
+    const autres = q.autresActifs.all(m.discord_id, m.id);
+    const membreDiscord = await membreDuServeur(m.discord_id);
+    try {
+      if (membreDiscord && m.discord_id !== config.discord.adminId) {
+        if (autres.length) {
+          if (o.roleDiscord) await retirerRole(m.discord_id, o.roleDiscord);
+          if (config.discord.roleAttente) await retirerRole(m.discord_id, config.discord.roleAttente);
+        } else {
+          await membreDiscord.kick(`Overmaxx : accès ${o.nom} non renouvelé`);
+        }
+      }
+    } catch (err) {
+      console.error(`[bob] retrait du membre ${m.id} impossible :`, err.message);
+    }
+    await notifier.admin(`**${m.nom}** (<@${m.discord_id}>) : accès **${o.nom}** expiré, ${autres.length ? 'rôle retiré' : 'retiré du serveur'}.`);
+  }
+
   // ---------- Rôles ----------
+  // Accès en cours : rôle de l'offre présent, rôle Attente retiré (par exemple juste après un renouvellement).
   async function synchroRoles() {
-    for (const m of q.actifsAvecDiscord.all()) {
-      try { await donnerRole(m.discord_id, config.offres[m.programme].roleDiscord); } catch (err) { console.warn('[bob] rôle :', err.message); }
+    for (const m of q.actifsEnCours.all(maintenant().toISOString())) {
+      try {
+        await donnerRole(m.discord_id, config.offres[m.programme].roleDiscord);
+        await retirerRole(m.discord_id, config.discord.roleAttente);
+      } catch (err) { console.warn('[bob] rôle :', err.message); }
     }
   }
 
@@ -293,7 +345,8 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
       await expirations();
       await renouvellements();
       await rappelsCoaching();
-      if (tour++ % 10 === 0) { await synchroRoles(); await libererCreneaux(); }
+      if (tour % 2 === 0) await synchroRoles();
+      if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
       console.error('[bob] cycle :', err);
     } finally { enCours = false; }
@@ -305,6 +358,7 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
     surInteraction,
     COMMANDES,
     expirations,
+    synchroRoles,
     renouvellements,
     rappelsCoaching,
     libererCreneaux,
