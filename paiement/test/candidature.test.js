@@ -90,7 +90,7 @@ test('candidature Elite : formulaire 1 (nom + pseudo Discord) → examen → ret
     assert.ok(d.dms.some(([id, , c]) => id === CID && urls(c).includes(lienPaiement)), 'lien de paiement dans un bouton');
     const suivi = await (await m.get('/coaching/elite/candidature', { cookie })).text();
     assert.match(suivi, /Payer par mobile money/);
-    assert.doesNotMatch(suivi, /carte bancaire/, 'pas de lien carte configuré : mobile money seulement');
+    assert.ok(suivi.includes('href="https://whop.com/overmaxx/legroupe-secret-accompagnement-prive/"'), 'carte : offre Whop cachée par défaut');
     assert.match(await (await m.get(new URL(lienPaiement).pathname)).text(), /327/);
     // Revenir sur /coaching/elite renvoie vers le suivi.
     assert.strictEqual((await m.get('/coaching/elite', { cookie })).headers.get('location'), '/coaching/elite/candidature');

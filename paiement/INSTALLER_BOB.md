@@ -33,7 +33,8 @@ alors accès à `/coaching` comme les autres. C'est Whop qui gère leur abonneme
 terminé), ou s'ils passent GOAT, Bob libère leurs créneaux dans les 10 minutes et te prévient.
 
 **Paiement par carte après une candidature validée** : le candidat validé a le choix entre **mobile money** et **carte bancaire**
-(même prix). Le bouton carte ouvre ton offre Elite **cachée** sur Whop : mets son lien dans `LIEN_CARTE_ELITE`.
+(même prix). Le bouton carte ouvre ton offre Elite **cachée** sur Whop
+(`https://whop.com/overmaxx/legroupe-secret-accompagnement-prive/`, déjà réglé ; `LIEN_CARTE_ELITE` pour le changer).
 Sur cette offre, l'application **Discord** de Whop doit donner le **rôle Elite** : dès que le candidat l'a, Bob confirme
 son intégration, désactive son lien mobile money (pas de double paiement) et te prévient.
 
@@ -129,7 +130,6 @@ DISCORD_SALON_COACHING_URL=https://discord.com/channels/…
 TALLY_FORM_ID=…
 TALLY_SIGNING_SECRET=…
 WISTIA_VSL_ELITE=…
-LIEN_CARTE_ELITE=https://whop.com/checkout/plan_…
 ```
 
 Enregistre avec **Ctrl+O**, puis **Entrée**, puis **Ctrl+X**. Ensuite :
