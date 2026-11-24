@@ -58,10 +58,9 @@ Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont di
    https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot%20applications.commands&permissions=343865822227
    ```
    Ce lien donne à Bob ces droits : voir les salons, envoyer des messages, expulser des membres, gérer les rôles, gérer les salons et créer des invitations.
-   Si Bob est déjà invité : **Paramètres du serveur** → **Rôles** → rôle de Bob → active **Gérer les salons**,
-   **Créer des fils privés** et **Envoyer des messages dans les fils**.
-   (Les fils servent de secours : si un membre a fermé ses messages privés, Bob lui écrit dans un fil privé de #en-attente.
-   Si même ça échoue, Bob te prévient.)
+   Si Bob est déjà invité : **Paramètres du serveur** → **Rôles** → rôle de Bob → active **Gérer les salons**.
+   Bob écrit **uniquement en message privé**, jamais dans un fil. Si un membre a fermé ses messages privés,
+   ou n'est pas sur le serveur, Bob te prévient (une fois par jour au maximum pour un même membre).
 
 ## 4. Discord : rôles et identifiants
 
@@ -149,7 +148,8 @@ Si l'application s'arrête, le message indique le réglage à corriger.
    Option : `ATTENTE_NOUVEAUX_HEURES=24` pour les retirer après 24 h (sauf candidatures en cours et Community en attente).
 3. Dans un salon visible par les membres (par exemple #bienvenue), tape `/publier bouton: Se connecter au site`.
 
-Sur téléphone, personne n'a besoin de son mot de passe Discord : Bob envoie des liens personnels (10 minutes, usage unique).
+Sur téléphone, personne n'a besoin de son mot de passe Discord : Bob envoie des **boutons** qui ouvrent le site déjà connecté
+(liens personnels, valables 30 jours, réutilisables).
 
 ## L'espace de gestion
 

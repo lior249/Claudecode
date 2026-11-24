@@ -26,8 +26,8 @@ function lienInscription(config, programme) {
   return programme === 'community' ? `${config.baseUrl}/community` : `${config.baseUrl}${config.offres.elite.base}`;
 }
 
-// Lien de connexion envoyé par Bob dans Discord : connecte au site sans mot de passe. 10 minutes, usage unique.
-function lienMagique(config, utilisateur, retour, dureeMinutes = 10) {
+// Lien de connexion envoyé par Bob dans Discord : connecte au site sans mot de passe. Personnel, valable 30 jours.
+function lienMagique(config, utilisateur, retour, dureeMinutes = 30 * 24 * 60) {
   const { signer } = require('./discord-oauth');
   const jeton = signer({
     but: 'bob', id: utilisateur.id, pseudo: utilisateur.pseudo, n: crypto.randomBytes(9).toString('base64url'),

@@ -52,6 +52,18 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   const log = (...a) => console.log('[bob]', ...a);
 
   // ---------- Envois ----------
+  // Message avec des boutons-liens (jamais de longs liens bruts dans le texte).
+  function avecBoutons(texte, boutons) {
+    const valides = boutons.filter((b) => b && b.url && b.url.length <= 512 && /^https?:\/\//.test(b.url));
+    if (!valides.length) return { content: texte };
+    const rangees = [];
+    for (let k = 0; k < valides.length && k < 25; k += 5) {
+      rangees.push(new ActionRowBuilder().addComponents(valides.slice(k, k + 5)
+        .map((b) => new ButtonBuilder().setLabel(b.label.slice(0, 80)).setStyle(ButtonStyle.Link).setURL(b.url))));
+    }
+    return { content: texte, components: rangees };
+  }
+
   const dernieresErreurs = new Map();
   async function messagePrive(discordId, contenu) {
     if (!client || !client.isReady()) return false;
@@ -65,42 +77,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       return false;
     }
   }
-  // MP fermés : Bob écrit dans un fil privé du salon d'attente (visible par la personne seulement).
-  async function filPrive(discordId, contenu) {
-    const salonId = salonAttenteId();
-    if (!serveur || !salonId) return false;
-    try {
-      const m = await serveur.members.fetch(discordId);
-      if (!m || !config.discord.roleAttente || !m.roles.cache.has(config.discord.roleAttente)) return false; // il ne voit pas ce salon
-      const cle = `fil:${discordId}`;
-      let fil = null;
-      const connu = q.attenteDepuis.get(cle);
-      if (connu) { try { fil = await serveur.channels.fetch(connu.envoye_le); } catch { fil = null; } }
-      if (!fil) {
-        const salon = await serveur.channels.fetch(salonId);
-        fil = await salon.threads.create({
-          name: `Bob · ${(m.user.globalName || m.user.username || 'membre').slice(0, 60)}`,
-          type: ChannelType.PrivateThread, invitable: false, autoArchiveDuration: 10080, reason: 'Overmaxx : messages privés fermés',
-        });
-        await fil.members.add(discordId);
-        q.noterAttente.run(cle, fil.id);
-      }
-      if (fil.archived && fil.setArchived) await fil.setArchived(false);
-      const message = typeof contenu === 'string' ? { content: contenu } : { ...contenu };
-      message.content = `<@${discordId}> ${message.content || ''}`;
-      await fil.send(message);
-      return true;
-    } catch (err) {
-      console.warn(`[bob] fil privé impossible pour ${discordId} : ${err.message}`);
-      return false;
-    }
-  }
-
   const notifier = {
     admin: (contenu) => (config.discord.adminId ? messagePrive(config.discord.adminId, contenu) : Promise.resolve(false)),
     membre: async (discordId, contenu) => {
       if (await messagePrive(discordId, contenu)) return true;
-      if (await filPrive(discordId, contenu)) return true;
       // Personne n'a pu être prévenu : l'admin le sait (une fois par jour et par membre).
       const cle = `mp-ferme:${discordId}:${maintenant().toISOString().slice(0, 10)}`;
       if (!dejaEnvoye(cle) && config.discord.adminId && discordId !== config.discord.adminId) {
@@ -155,16 +135,16 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       const lien = lienRenouvellement(config, m.programme, m.email);
       let texte = palier === 1
         ? `**Dernières 24 heures** pour renouveler ton accès à **${o.nom}** (fin le ${formatDate(m.acces_jusqu_au)}).\n`
-          + `Renouvelle maintenant pour **${prix}** : ${lien}\n\n`
+          + `Renouvelle maintenant pour **${prix}**.\n\n`
           + (o.graceJours
             ? `Sans renouvellement, tu passes **en attente** : plus d'accès à la formation ni aux salons. Tu auras ${o.graceJours} jours pour renouveler à ce prix, puis tu seras retiré du Discord et il faudra repayer le prix d'entrée (**${formatPrix(o.prixEntree, config.devise)}**).`
             : `Sans renouvellement, ton accès sera coupé et tu seras retiré du Discord. Pour revenir, il faudra repayer le prix d'entrée (**${formatPrix(o.prixEntree, config.devise)}**).`)
         : `Ton accès à **${o.nom}** se termine dans **${palier} jours** (le ${formatDate(m.acces_jusqu_au)}).\n`
-          + `Renouvelle-le quand tu veux d'ici là pour **${prix}** : ${lien}`;
+          + `Renouvelle-le quand tu veux d'ici là pour **${prix}**.`;
       if (m.programme === 'elite' && m.categorie_elite === 'inconstant') {
         texte += '\n\nRappel : pour continuer l\'accompagnement, la caution de 60 € tous les 3 mois est obligatoire.';
       }
-      if (await notifier.membre(m.discord_id, texte)) {
+      if (await notifier.membre(m.discord_id, avecBoutons(texte, [{ label: 'Renouveler mon accès', url: lien }]))) {
         for (const p of PALIERS_JOURS) if (p >= palier) marquer(cle(p));
         log(`rappel ${palier} j envoyé au membre ${m.id}`);
       }
@@ -215,17 +195,17 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
         await retirerRole(m.discord_id, o.roleDiscord);
         await donnerRole(m.discord_id, config.discord.roleAttente);
       } catch (err) { console.error(`[bob] mise en attente du membre ${m.id} :`, err.message); }
-      await notifier.membre(m.discord_id, `Ton accès à **${o.nom}** est terminé : tu es maintenant **en attente**. `
+      await notifier.membre(m.discord_id, avecBoutons(`Ton accès à **${o.nom}** est terminé : tu es maintenant **en attente**. `
         + `Tu n'as plus accès à la formation ni aux salons.\n`
-        + `Tu as jusqu'au **${formatDate(new Date(finAttente).toISOString())}** pour renouveler au même prix (**${prix}**) : ${lien}\n`
-        + `Après cette date, tu seras retiré du Discord et il faudra repayer le prix d'entrée.`);
+        + `Tu as jusqu'au **${formatDate(new Date(finAttente).toISOString())}** pour renouveler au même prix (**${prix}**).\n`
+        + `Après cette date, tu seras retiré du Discord et il faudra repayer le prix d'entrée.`, [{ label: 'Renouveler mon accès', url: lien }]));
       await notifier.admin(`**${m.nom}** (<@${m.discord_id}>) passe **en attente** (${o.nom}) jusqu'au ${formatDate(new Date(finAttente).toISOString())}.`);
       return;
     }
     // Dernier rappel 3 jours avant le retrait.
     const cleRappel = `attente-rappel:${m.id}:${m.acces_jusqu_au}`;
     if (m.discord_id && finAttente - maintenant().getTime() <= 3 * JOUR_MS && !dejaEnvoye(cleRappel)) {
-      if (await notifier.membre(m.discord_id, `Plus que **3 jours** pour renouveler ton accès à **${o.nom}** (${prix}) avant d'être retiré du Discord : ${lien}`)) {
+      if (await notifier.membre(m.discord_id, avecBoutons(`Plus que **3 jours** pour renouveler ton accès à **${o.nom}** (${prix}) avant d'être retiré du Discord.`, [{ label: 'Renouveler mon accès', url: lien }]))) {
         marquer(cleRappel);
       }
     }
@@ -240,10 +220,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       await notifier.admin(`Accès **${o.nom}** expiré pour ${m.nom} (${m.email}) : aucun compte Discord relié.`);
       return;
     }
-    const retour = m.programme === 'community'
-      ? `Pour revenir, il faudra repayer l'entrée : ${lienInscription(config, 'community')}`
-      : 'Pour revenir dans l\'accompagnement, contacte-nous.';
-    await notifier.membre(m.discord_id, `Ton accès à **${o.nom}** est terminé, car il n'a pas été renouvelé. ${retour}`);
+    const retour = m.programme === 'community' ? 'Pour revenir, il faudra repayer l\'entrée.' : 'Pour revenir dans l\'accompagnement, contacte-nous.';
+    await notifier.membre(m.discord_id, avecBoutons(`Ton accès à **${o.nom}** est terminé, car il n'a pas été renouvelé. ${retour}`,
+      m.programme === 'community' ? [{ label: 'Revenir dans la Community', url: lienInscription(config, 'community') }] : []));
     const autres = q.autresActifs.all(m.discord_id, m.id);
     const membreDiscord = await membreDuServeur(m.discord_id);
     try {
@@ -294,7 +273,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     const now = maintenant();
     const aujourdhui = dateISO(now);
     const seances = coaching.occurrences(aujourdhui, ajouterJours(aujourdhui, 1)).filter((s) => s.debut > now);
-    const salon = config.discord.salonCoaching ? `\nSalon vocal : ${config.discord.salonCoaching}` : '';
+    const boutonSalon = config.discord.salonCoaching ? [{ label: 'Rejoindre le salon vocal', url: config.discord.salonCoaching }] : [];
 
     for (const s of seances) {
       const avant = s.debut - now;
@@ -304,10 +283,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       const clePerso = `coach-perso:${s.date}:${s.heure}:${s.discordId}`;
       const cleAuto = `coach-1h:${s.date}:${s.heure}:${s.discordId}`;
       if (avant <= perso * 60 * 1000 && avant > 60 * 60 * 1000 && !dejaEnvoye(clePerso)) {
-        if (await notifier.membre(s.discordId, `Rappel : ta séance de coaching privé est ${quand}.${salon}`)) marquer(clePerso);
+        if (await notifier.membre(s.discordId, avecBoutons(`Rappel : ta séance de coaching privé est ${quand}.`, boutonSalon))) marquer(clePerso);
       }
       if (avant <= 60 * 60 * 1000 && !dejaEnvoye(cleAuto)) {
-        if (await notifier.membre(s.discordId, `Ta séance de coaching privé commence dans **1 heure** (${s.heure} GMT).${salon}`)) marquer(cleAuto);
+        if (await notifier.membre(s.discordId, avecBoutons(`Ta séance de coaching privé commence dans **1 heure** (${s.heure} GMT).`, boutonSalon))) marquer(cleAuto);
       }
     }
 
@@ -318,8 +297,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       const cle = `coach-admin:${date}`;
       if (premiere.debut - now > config.coaching.rappelAdminHeures * 3600 * 1000 || dejaEnvoye(cle)) continue;
       const duJour = seances.filter((s) => s.date === date);
-      const ok = await notifier.admin(`**${duJour.length} séance(s) de coaching** aujourd'hui, la première à **${premiere.heure} GMT**.\n`
-        + `Consulte le calendrier : ${config.baseUrl}/admin`);
+      const ok = await notifier.admin(avecBoutons(`**${duJour.length} séance(s) de coaching** aujourd'hui, la première à **${premiere.heure} GMT**.`,
+        [{ label: 'Ouvrir le calendrier', url: `${config.baseUrl}/admin` }]));
       if (ok) marquer(cle);
     }
   }
@@ -332,15 +311,15 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     const u = { id: user.id, pseudo: pseudoDe(user) };
     const m = await membreDuServeur(user.id);
     const roles = m ? m.roles.cache : { has: () => false };
-    const lignes = [];
+    const boutons = [];
     const eliteOk = roles.has(config.offres.elite.roleDiscord) && !(config.discord.roleGoat && roles.has(config.discord.roleGoat));
     if (user.id === config.discord.adminId) {
-      lignes.push(`**Espace admin** : ${lienMagique(config, u, '/admin')}`);
-      lignes.push(`**Candidatures** : ${lienMagique(config, u, '/admin/candidatures')}`);
+      boutons.push({ label: 'Espace admin', url: lienMagique(config, u, '/admin') });
+      boutons.push({ label: 'Candidatures', url: lienMagique(config, u, '/admin/candidatures') });
     }
-    if (eliteOk || user.id === config.discord.adminId) lignes.push(`**Réserver mes coachings** : ${lienMagique(config, u, '/coaching')}`);
-    if (!eliteOk) lignes.push(`**Candidature Elite** : ${lienMagique(config, u, `${config.offres.elite.base}/candidature`)}`);
-    return `Tes liens de connexion à overmaxx.online (personnels, valables **10 minutes**, ne les partage pas) :\n${lignes.join('\n')}`;
+    if (eliteOk || user.id === config.discord.adminId) boutons.push({ label: 'Réserver mes coachings', url: lienMagique(config, u, '/coaching') });
+    if (!eliteOk) boutons.push({ label: 'Candidature Elite', url: lienMagique(config, u, `${config.offres.elite.base}/candidature`) });
+    return avecBoutons('Tes accès à overmaxx.online (personnels, ne les partage pas) :', boutons);
   }
 
   async function postuler(i) {
@@ -353,8 +332,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       }
     } catch (err) { console.warn('[bob] postuler :', err.message); }
     if (candidatures) candidatures.demarrer(i.user.id, pseudoDe(i.user));
-    const lien = lienMagique(config, { id: i.user.id, pseudo: pseudoDe(i.user) }, `${config.offres.elite.base}/candidature`);
-    return i.reply({ content: `Voici ton lien de candidature **Elite** (personnel, valable 10 minutes) :\n${lien}\n\nTu y remplis le formulaire. Je te réponds ici, en message privé, sous 24 heures.`, flags: MessageFlags.Ephemeral });
+    return i.reply({ ...avecBoutons('Ta candidature **Elite** : remplis le formulaire. Je te réponds ici, en message privé, sous 24 heures.',
+      [{ label: 'Postuler à l\'Elite', url: `${config.baseUrl}${config.offres.elite.base}` }]), flags: MessageFlags.Ephemeral });
   }
 
   function messageBouton(type) {
@@ -459,10 +438,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
         await notifier.membre(m.discord_id, `Bonne nouvelle : ton accompagnement **Elite** continue gratuitement jusqu'au **${formatDate(maj.acces_jusqu_au)}**. On va chercher tes résultats ensemble.`);
         return i.update({ content: `${i.message.content}\n\n**Insatisfait** : prolongé jusqu'au ${formatDate(maj.acces_jusqu_au)}.`, components: [] });
       }
-      await notifier.membre(m.discord_id,
+      await notifier.membre(m.discord_id, avecBoutons(
         `Ton accompagnement **Elite** s'arrête le **${formatDate(m.acces_jusqu_au)}**, car les engagements n'ont pas été respectés.\n`
-        + `Pour continuer, une caution de **${formatPrix(m.prix_renouvellement || config.offres.elite.prixRenouvellement, config.devise)}** est demandée tous les 3 mois : ${lienRenouvellement(config, 'elite', m.email)}\n`
-        + 'Sans paiement avant cette date, l\'accompagnement s\'arrête ici.');
+        + `Pour continuer, une caution de **${formatPrix(m.prix_renouvellement || config.offres.elite.prixRenouvellement, config.devise)}** est demandée tous les 3 mois.\n`
+        + 'Sans paiement avant cette date, l\'accompagnement s\'arrête ici.', [{ label: 'Payer la caution', url: lienRenouvellement(config, 'elite', m.email) }]));
       return i.update({ content: `${i.message.content}\n\n**Inconstant** : prévenu, lien de caution envoyé.`, components: [] });
     }
 
@@ -476,12 +455,12 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     }
 
     if (i.isButton() && i.customId === 'ovx:postuler') return postuler(i);
-    if (i.isButton() && i.customId === 'ovx:connexion') return i.reply({ content: await liensConnexion(i.user), flags: MessageFlags.Ephemeral });
+    if (i.isButton() && i.customId === 'ovx:connexion') return i.reply({ ...(await liensConnexion(i.user)), flags: MessageFlags.Ephemeral });
 
     if (!i.isChatInputCommand()) return;
 
     // Commandes ouvertes à tous
-    if (i.commandName === 'connexion') return i.reply({ content: await liensConnexion(i.user), flags: MessageFlags.Ephemeral });
+    if (i.commandName === 'connexion') return i.reply({ ...(await liensConnexion(i.user)), flags: MessageFlags.Ephemeral });
     if (i.commandName === 'lier') {
       const membre = commandes.lierParCode(i.options.getString('code', true), i.user.id, pseudoDe(i.user));
       if (!membre) return i.reply({ content: 'Code inconnu. Vérifie le code affiché sur ta page après le paiement (6 lettres et chiffres).', flags: MessageFlags.Ephemeral });
@@ -512,7 +491,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
 
     if (i.commandName === 'lien-elite') {
       const { lien } = commandes.creerInvitation(i.options.getString('note'));
-      return i.reply({ content: `Lien de paiement Elite **personnel et à usage unique** :\n${lien}`, flags: MessageFlags.Ephemeral });
+      return i.reply({ ...avecBoutons('Lien de paiement Elite **personnel et à usage unique** : copie-le (appui long sur le bouton) et envoie-le à la personne.',
+        [{ label: 'Lien de paiement Elite', url: lien }]), flags: MessageFlags.Ephemeral });
     }
     if (i.commandName === 'prolonger') {
       const u = i.options.getUser('membre', true);
@@ -579,13 +559,12 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     if (r.erreur) return r;
     const c = r.candidature;
     if (decision === 'retenir') {
-      const lienVideo = lienMagique(config, { id: c.discord_id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`, 48 * 60);
-      await notifier.membre(c.discord_id, '**Bonne nouvelle : ton profil a été retenu pour l\'Elite !**\n'
-        + 'Continue ta candidature ici (lien personnel, valable 48 heures) :\n'
-        + `${lienVideo}\n\nLien expiré ? Tape **/connexion** et je t'en renvoie un.`);
+      const lienSuite = lienMagique(config, { id: c.discord_id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`);
+      await notifier.membre(c.discord_id, avecBoutons('**Bonne nouvelle : ton profil a été retenu pour l\'Elite !**\nIl te reste une dernière étape.',
+        [{ label: 'Continuer ma candidature', url: lienSuite }]));
     } else if (decision === 'valider') {
-      await notifier.membre(c.discord_id, '**Ta candidature Elite est validée. Bienvenue !** 🎉\n'
-        + `Confirme ton intégration en réglant l'accompagnement avec ton lien personnel : ${candidatures.lienPaiement(c)}`);
+      await notifier.membre(c.discord_id, avecBoutons('**Ta candidature Elite est validée. Bienvenue !** 🎉\nConfirme ton intégration en réglant l\'accompagnement.',
+        [{ label: 'Confirmer mon intégration', url: candidatures.lienPaiement(c) }]));
     } else {
       await notifier.membre(c.discord_id, 'Merci pour ta candidature. Après examen, **ton profil n\'a pas été retenu** pour l\'Elite cette fois-ci. '
         + 'Tu peux continuer à progresser avec la Community.');
@@ -652,11 +631,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       if (!palier) continue;
       const cle = (h) => `relance-cand:${c.id}:${h}`;
       if (dejaEnvoye(cle(palier))) continue;
-      const lien = lienMagique(config, { id: c.discord_id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`, 48 * 60);
+      const lien = lienMagique(config, { id: c.discord_id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`);
       const texte = palier === 24
-        ? `Petit rappel : ton profil a été **retenu pour l'Elite**, mais ta candidature n'est pas terminée. Continue ici (lien valable 48 heures) :\n${lien}`
-        : `Dernier rappel : il te reste la dernière étape de ta candidature **Elite**. Sans réponse de ta part, ta place pourra être proposée à quelqu'un d'autre.\n${lien}`;
-      if (await notifier.membre(c.discord_id, texte)) {
+        ? 'Petit rappel : ton profil a été **retenu pour l\'Elite**, mais ta candidature n\'est pas terminée.'
+        : 'Dernier rappel : il te reste la dernière étape de ta candidature **Elite**. Sans réponse de ta part, ta place pourra être proposée à quelqu\'un d\'autre.';
+      if (await notifier.membre(c.discord_id, avecBoutons(texte, [{ label: 'Continuer ma candidature', url: lien }]))) {
         for (const h of [24, 72]) if (h <= palier) marquer(cle(h));
         log(`relance ${palier} h envoyée au candidat ${c.id}`);
       }
@@ -690,9 +669,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       const note = q.attenteDepuis.get(`attente-depuis:${m.id}`);
       const depuis = Math.max(m.joinedTimestamp || 0, note ? new Date(note.envoye_le).getTime() : 0);
       if (!depuis || now.getTime() - depuis < delai) continue;
-      await notifier.membre(m.id, 'Tu étais **en attente** sur le serveur Overmaxx depuis 24 heures sans rejoindre de programme : '
-        + 'ton accès est retiré. Tu peux revenir à tout moment avec le lien d\'invitation'
-        + `${config.lienDiscord ? ` (${config.lienDiscord})` : ''}, puis rejoindre la Community (${config.baseUrl}/community) ou postuler à l'Elite.`);
+      await notifier.membre(m.id, avecBoutons('Tu étais **en attente** sur le serveur Overmaxx sans rejoindre de programme : ton accès est retiré. '
+        + 'Tu peux revenir à tout moment.', [{ label: 'Revenir sur le serveur', url: config.lienDiscord }, { label: 'Rejoindre la Community', url: `${config.baseUrl}/community` }]));
       try {
         await m.kick('Overmaxx : en attente depuis plus de 24 h sans programme');
         log(`retiré après 24 h en attente : ${m.id}`);
@@ -778,7 +756,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       const d = decales.length
         ? `\n\nRéservé après 11h00 GMT pour aujourd'hui : ${decales.map((x) => `${JOURS[x.jour]} ${x.heure}`).join(', ')} ne compte qu'à partir de la semaine prochaine.`
         : '';
-      await notifier.membre(discordId, `Tes créneaux de coaching sont enregistrés :\n${lignes}${d}\n\nPour les modifier : ${config.baseUrl}/coaching`);
+      await notifier.membre(discordId, avecBoutons(`Tes créneaux de coaching sont enregistrés :\n${lignes}${d}`, [{ label: 'Modifier mes créneaux', url: `${config.baseUrl}/coaching` }]));
     },
 
     async annulation(discordId, seance, justification) {

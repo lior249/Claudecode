@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const { monter, configTest, fauxOAuth, cookieSession, ADMIN, ROLES } = require('./aide');
 const { creerBob } = require('../src/bob');
+const urls = (composants) => (composants || []).flatMap((r) => r.components.map((b) => b.data.url));
 
 function tally(m, champs) {
   const corps = JSON.stringify({ data: { fields: champs } });
@@ -58,7 +59,7 @@ test('candidature Elite : formulaire 1 (nom + pseudo Discord) → examen → ret
 
     // L'admin retient : Bob envoie le lien personnel de la suite.
     await d.bob.surInteraction({ user: { id: ADMIN }, isButton: () => true, customId: 'cand:retenir:1', message: { content: 'x' }, update: async () => {}, reply: async () => {} });
-    const lien = d.dms.find(([id, t]) => id === CID && /retenu/.test(t))[1].match(/https?:\/\/\S+/)[0];
+    const lien = urls(d.dms.find(([id, t]) => id === CID && /retenu/.test(t))[2])[0];
     const connexion = await m.get(lien.replace('http://localhost', ''));
     const cookie = connexion.headers.get('set-cookie').split(';')[0];
     const f2 = await (await m.get('/coaching/elite/candidature', { cookie })).text();
@@ -86,7 +87,7 @@ test('candidature Elite : formulaire 1 (nom + pseudo Discord) → examen → ret
     assert.strictEqual((await m.poster('/admin/candidatures/1/valider', {}, { cookie: admin })).status, 303);
     assert.ok(!fs.existsSync(chemin), 'vidéo supprimée après la décision');
     const lienPaiement = m.candidatures.lienPaiement(m.candidatures.parId(1));
-    assert.ok(d.dms.some(([id, t]) => id === CID && t.includes(lienPaiement)));
+    assert.ok(d.dms.some(([id, , c]) => id === CID && urls(c).includes(lienPaiement)), 'lien de paiement dans un bouton');
     assert.match(await (await m.get('/coaching/elite/candidature', { cookie })).text(), /Confirmer mon intégration/);
     assert.match(await (await m.get(new URL(lienPaiement).pathname)).text(), /327/);
     // Revenir sur /coaching/elite renvoie vers le suivi.
@@ -121,7 +122,7 @@ test('connexion par Bob : /connexion, lien à usage unique, bouton Postuler (rô
     });
     // /connexion : liens personnels (non-Elite : candidature)
     await d.bob.surInteraction(inter({ commandName: 'connexion' }));
-    const lien = reponses[0].content.match(/https?:\/\/\S+/)[0];
+    const lien = urls(reponses[0].components)[0];
     assert.match(lien, /\/connexion\/bob\?t=.*retour=%2Fcoaching%2Felite%2Fcandidature/);
     assert.strictEqual(reponses[0].flags, 64, 'visible par lui seul');
 
@@ -131,7 +132,7 @@ test('connexion par Bob : /connexion, lien à usage unique, bouton Postuler (rô
     assert.strictEqual(r1.headers.get('location'), '/coaching/elite/candidature');
     const cookie = r1.headers.get('set-cookie').split(';')[0];
     assert.deepStrictEqual(await (await m.get('/api/candidature', { cookie })).json(), { statut: 'formulaire' });
-    assert.strictEqual((await m.get(chemin)).status, 400, 'usage unique');
+    assert.strictEqual((await m.get(chemin)).status, 302, 'lien personnel réutilisable (30 jours)');
     assert.strictEqual((await m.get('/connexion/bob?t=faux.faux&retour=/admin')).status, 400);
 
     // Bouton Postuler
@@ -248,38 +249,24 @@ test('suivi sans connexion : après le formulaire, la page suit la candidature e
   } finally { await m.fermer(); }
 });
 
-test('messages privés fermés : Bob écrit dans un fil privé du salon d\'attente, sinon il prévient l\'admin', async () => {
+test('messages privés impossibles : pas de fil automatique, l\'admin est prévenu (une fois par jour, avec la raison)', async () => {
   const m = await monter({ avecCandidatures: true });
   try {
-    m.db.prepare("INSERT INTO envois (cle, envoye_le) VALUES ('config:salon-attente', 'SALON')").run();
     const recus = [];
-    const fils = [];
-    const membres = {
-      F1: { id: 'F1', user: { username: 'ferme' }, roles: { cache: { has: (r) => r === ROLES.attente } } },
-      F2: { id: 'F2', user: { username: 'autre' }, roles: { cache: { has: () => false } } },
-    };
-    const client = { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => { if (id !== ADMIN) throw new Error('Cannot send messages to this user'); recus.push([id, c.content]); } }) } };
-    const serveur = {
-      members: { fetch: async (id) => membres[id] },
-      channels: { fetch: async (id) => (id === 'SALON'
-        ? { threads: { create: async (o) => { const f = { id: 'FIL1', name: o.name, ajoutes: [], messages: [], members: { add: async (u) => f.ajoutes.push(u) }, send: async (msg) => f.messages.push(msg.content) }; fils.push(f); return f; } } }
-        : fils.find((f) => f.id === id)) },
-    };
+    let creations = 0;
+    const client = { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => {
+      if (id === 'F3') throw new Error('Cannot send messages to this user due to having no mutual guilds');
+      if (id !== ADMIN) throw new Error('Cannot send messages to this user');
+      recus.push([id, c.content]);
+    } }) } };
+    const serveur = { members: { fetch: async () => null }, channels: { fetch: async () => ({ threads: { create: async () => { creations++; } } }) } };
     const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures, client, serveur });
-    assert.strictEqual(await bob.notifier.membre('F1', 'Bonjour'), true);
-    assert.strictEqual(await bob.notifier.membre('F1', 'Deuxième'), true);
-    assert.strictEqual(fils.length, 1, 'le même fil est réutilisé');
-    assert.deepStrictEqual(fils[0].ajoutes, ['F1']);
-    assert.deepStrictEqual(fils[0].messages, ['<@F1> Bonjour', '<@F1> Deuxième']);
-    // Hors du serveur : l'admin le sait explicitement.
-    client.users.fetch = async (id) => ({ send: async (c) => { if (id === 'F3') throw new Error('Cannot send messages to this user due to having no mutual guilds'); if (id !== ADMIN) throw new Error('Cannot send messages to this user'); recus.push([id, c.content]); } });
-    membres.F3 = undefined;
+    assert.strictEqual(await bob.notifier.membre('F1', 'Bonjour'), false);
+    await bob.notifier.membre('F1', 'Encore');
+    assert.strictEqual(creations, 0, 'aucun fil créé');
+    assert.strictEqual(recus.filter(([id, t]) => id === ADMIN && /messages privés sont fermés/.test(t)).length, 1);
     await bob.notifier.membre('F3', 'Coucou');
     assert.ok(recus.some(([id, t]) => id === ADMIN && /pas \(ou plus\) sur le serveur/.test(t)));
-    // Pas dans le salon d'attente : l'admin est prévenu, une seule fois par jour.
-    assert.strictEqual(await bob.notifier.membre('F2', 'Rappel'), false);
-    await bob.notifier.membre('F2', 'Rappel 2');
-    assert.strictEqual(recus.filter(([id, t]) => id === ADMIN && /messages privés sont fermés/.test(t)).length, 1);
   } finally { await m.fermer(); }
 });
 
@@ -294,13 +281,13 @@ test('relances des candidats retenus sans suite : 24 h puis 72 h, sans doublon',
     cand.recevoirFormulaire('R1', [{ label: 'Q', valeur: 'R' }]);
     cand.decider(1, 'retenir');
     const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: cand, maintenant: () => now,
-      client: { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content]) }) } }, serveur: null });
+      client: { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content, c.components]) }) } }, serveur: null });
     now = new Date('2026-12-01T20:00:00Z'); await bob.relancerCandidats();
     assert.strictEqual(dms.length, 0);
     now = new Date('2026-12-02T10:30:00Z'); await bob.relancerCandidats(); await bob.relancerCandidats();
     assert.strictEqual(dms.length, 1);
     assert.match(dms[0][1], /Petit rappel/);
-    assert.match(dms[0][1], /connexion\/bob\?t=/);
+    assert.match(urls(dms[0][2])[0], /connexion\/bob\?t=/);
     now = new Date('2026-12-04T11:00:00Z'); await bob.relancerCandidats(); await bob.relancerCandidats();
     assert.strictEqual(dms.length, 2);
     assert.match(dms[1][1], /Dernier rappel/);

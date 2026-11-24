@@ -221,16 +221,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     return res.redirect(302, oauth.urlAutorisation({ but: 'connexion', retour: retourSur(req.query.retour) }));
   });
 
-  // Lien envoyé par Bob dans Discord : connexion sans mot de passe (10 minutes, usage unique).
+  // Lien envoyé par Bob dans Discord : connexion sans mot de passe (valable 30 jours, réutilisable).
   app.get('/connexion/bob', (req, res) => {
     const j = verifier(String(req.query.t || ''), config.secretApp);
     const retour = retourSur(req.query.retour);
     if (!j || j.but !== 'bob' || !j.id || !j.n) {
       return res.status(400).send(P.pageMessage(config, 'Lien expiré', 'Ce lien n\'est plus valable. Dans Discord, tape /connexion pour en recevoir un nouveau.'));
-    }
-    const dejaUtilise = commandes.db.prepare('INSERT OR IGNORE INTO envois (cle, envoye_le) VALUES (?, ?)').run(`lien-bob:${j.n}`, new Date().toISOString()).changes === 0;
-    if (dejaUtilise) {
-      return res.status(400).send(P.pageMessage(config, 'Lien déjà utilisé', 'Ce lien a déjà servi. Dans Discord, tape /connexion pour en recevoir un nouveau.'));
     }
     ouvrirSession(res, { id: j.id, pseudo: j.pseudo }, config);
     if (candidatures && retour.startsWith(`${config.offres.elite.base}/candidature`)) candidatures.demarrer(j.id, j.pseudo);
@@ -388,12 +384,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     if (!candidatures) return res.status(503).json({ erreur: 'Les candidatures ne sont pas encore ouvertes.' });
     if (tropDEnvois(req)) return res.status(429).json({ erreur: 'Trop d\'essais. Réessaie dans une heure.' });
     const session = lireSession(req, config.secretApp);
-    const v = verifierReponses('candidature', req.body && req.body.reponses, { sauter: session ? ['discord'] : [] });
+    // Le pseudo est toujours demandé et vérifié sur le serveur : une connexion existante peut être celle d'un autre compte.
+    const v = verifierReponses('candidature', req.body && req.body.reponses);
     if (v.erreur) return res.status(400).json(v);
-    let discordId = session && session.id;
-    let pseudo = session && session.pseudo;
+    let discordId = null;
+    let pseudo = null;
     const champDiscord = v.reponses.find((r) => r.id === 'discord');
-    if (!discordId && champDiscord) {
+    if (champDiscord) {
       pseudo = champDiscord.valeur.replace(/^@/, '');
       discordId = bob && bob.idDepuisPseudo ? await bob.idDepuisPseudo(pseudo) : null;
       if (!discordId) {

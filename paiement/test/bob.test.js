@@ -9,6 +9,7 @@ const { creerBob } = require('../src/bob');
 const { creerCommandes } = require('../src/commandes');
 
 const JOUR = 86400000;
+const urls = (composants) => (composants || []).flatMap((r) => r.components.map((b) => b.data.url));
 const ref = (s) => s.metadata.ref;
 
 async function inscrire(m, email, { programme = 'community', discordId } = {}) {
@@ -209,7 +210,8 @@ test('Bob : rappels à 10, 5, 3 jours et 24 h, sans doublon, puis retrait du ser
     await b.bob.renouvellements(); await b.bob.renouvellements();
     assert.strictEqual(b.d.dms.length, 1);
     assert.match(b.d.dms[0][1], /10 jours/);
-    assert.match(b.d.dms[0][1], /community\/renouveler\?m=/);
+    assert.match(urls(b.d.dms[0][2])[0], /community\/renouveler\?m=/, 'lien dans un bouton');
+    assert.doesNotMatch(b.d.dms[0][1], /https?:/, 'aucun lien brut dans le texte');
     assert.match(b.d.dms[0][1], /3\s?280 FCFA/);
     b.aller(fin - 5 * JOUR + 1000); await b.bob.renouvellements();
     b.aller(fin - 3 * JOUR + 1000); await b.bob.renouvellements();
@@ -272,7 +274,7 @@ test('Bob : Elite 10 jours avant la fin → alerte admin avec boutons ; GOAT →
     assert.match(versAdmin[0][1], /sort de l'\*\*Elite\*\*/);
     assert.strictEqual(versAdmin[0][2][0].components.length, 2);
     const versGoat = b.d.dms.filter(([id]) => id === 'G1');
-    assert.match(versGoat[0][1], /coaching\/elite\/renouveler\?m=/);
+    assert.match(urls(versGoat[0][2])[0], /coaching\/elite\/renouveler\?m=/);
     assert.match(versGoat[0][1], /39\s?360 FCFA/);
     assert.strictEqual(b.d.dms.filter(([id]) => id === 'E1').length, 0, 'Elite non classé : pas de demande de paiement');
 
@@ -303,7 +305,7 @@ test('Bob : rappels de coaching (perso, 1 h avant) et récap admin 2 h avant la 
     b.aller('2026-11-23T13:00:00.000Z'); await b.bob.rappelsCoaching(); await b.bob.rappelsCoaching();
     b.aller('2026-11-23T14:00:00.000Z'); await b.bob.rappelsCoaching(); await b.bob.rappelsCoaching();
     const membre = b.d.dms.filter(([id]) => id === 'E1').map(([, t]) => t);
-    const admin = b.d.dms.filter(([id]) => id === ADMIN).map(([, t]) => t);
+    const admin = b.d.dms.filter(([id]) => id === ADMIN).map(([, t, c]) => `${t} ${urls(c).join(' ')}`);
     assert.strictEqual(membre.length, 2);
     assert.match(membre[0], /Rappel/);
     assert.match(membre[1], /1 heure/);
@@ -391,7 +393,7 @@ test('option ATTENTE_NOUVEAUX_HEURES=24 : retiré après 24 h, sauf candidature 
     });
     await bob.nettoyerAttente();
     assert.deepStrictEqual(kicks, ['N1']);
-    assert.ok(dms.some(([id, t]) => id === 'N1' && /24 heures/.test(t)));
+    assert.ok(dms.some(([id, t]) => id === 'N1' && /en attente/.test(t)));
     assert.deepStrictEqual(retraits, [['N4', ROLES.attente]], 'membre d\'un programme : En Attente retiré');
   } finally { await m.fermer(); }
 });

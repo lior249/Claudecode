@@ -102,8 +102,8 @@ const boutonDiscord = (config) => (config.lienDiscord
 function pageEliteCandidature(config, { session } = {}) {
   const o = config.offres.elite;
   const f = FORMULAIRES.candidature;
-  // Connecté (lien de Bob) : on connaît déjà son Discord, on ne lui redemande pas.
-  const questions = f.questions.filter((q) => !(session && q.type === 'discord'));
+  // Le pseudo Discord est toujours demandé (et vérifié sur le serveur à l'envoi).
+  const { questions } = f;
   const vsl = o.wistiaVsl
     ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(o.wistiaVsl)}?videoFoam=true&playerColor=000000"
         title="Présentation ${echapper(o.nom)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>` : '';
