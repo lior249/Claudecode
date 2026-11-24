@@ -255,7 +255,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
       const session = await sessionCoaching(req, res);
       if (!session) return undefined;
       const selection = Array.isArray(req.body.selection) ? req.body.selection.slice(0, 7).map((s) => ({ jour: Number(s.jour), heure: String(s.heure) })) : null;
-      const r = coaching.enregistrer(session.id, selection, req.body.rappelMin === undefined ? undefined : Number(req.body.rappelMin));
+      const r = coaching.enregistrer(session.id, selection, req.body.rappelMin === undefined ? undefined : Number(req.body.rappelMin), session.pseudo);
       if (r.erreur) return res.status(400).json(r);
       if (bob) bob.recapCoaching(session.id, r.reservations, r.decales).catch(() => {});
       return res.json({ ok: true, decales: r.decales });
@@ -309,19 +309,21 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
         let membre = null;
         if (r) {
           const m = parDiscord.get(r.discord_id) || {};
+          const profil = coaching.profil(r.discord_id) || {};
           const siens = reservations.filter((x) => x.discord_id === r.discord_id).map((x) => `${coaching.JOURS[x.jour].slice(0, 3)} ${x.heure}`).join(', ');
+          const pseudo = m.discord_pseudo || profil.pseudo;
           membre = {
-            nom: m.nom || '(inconnu)', pseudo: m.discord_pseudo || r.discord_id, email: m.email,
-            court: (m.discord_pseudo || m.nom || '?').slice(0, 8),
-            fin: m.acces_jusqu_au ? P.formatDate(m.acces_jusqu_au) : null, creneaux: siens,
-            rappel: m.rappel_coaching_min ? `${m.rappel_coaching_min / 60} h avant` : null,
+            nom: m.nom || pseudo || '(inconnu)', pseudo: pseudo || r.discord_id, email: m.email || 'payé sur Whop',
+            court: (pseudo || m.nom || '?').slice(0, 8),
+            fin: m.acces_jusqu_au ? P.formatDate(m.acces_jusqu_au) : 'géré par Whop', creneaux: siens,
+            rappel: profil.rappel_min ? `${profil.rappel_min >= 120 ? `${profil.rappel_min / 60} h` : '1 h 30'} avant` : null,
             annulation: a ? a.justification : null,
           };
         }
         cases.push({ date, heure, cle: `${date} ${heure}`, membre, annulee: Boolean(a) });
       }
     }
-    const nomDe = (id) => (parDiscord.get(id) || {}).nom || id;
+    const nomDe = (id) => (parDiscord.get(id) || {}).nom || (coaching.profil(id) || {}).pseudo || id;
     return {
       lundi, jours, cases, membres, coaching,
       annulations: annulations.map((a) => ({ ...a, nom: nomDe(a.discord_id) })),

@@ -125,6 +125,20 @@ function migrer(db) {
   }
 }
 
+// v3 : préférences de coaching par compte Discord (membres mobile money ET membres payés sur Whop).
+function migrerV3(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 3) return;
+  db.exec(`CREATE TABLE IF NOT EXISTS profils_coaching (
+    discord_id  TEXT PRIMARY KEY,
+    pseudo      TEXT,
+    rappel_min  INTEGER NOT NULL DEFAULT 240,
+    maj_le      TEXT NOT NULL
+  );
+  INSERT OR IGNORE INTO profils_coaching (discord_id, pseudo, rappel_min, maj_le)
+    SELECT discord_id, discord_pseudo, rappel_coaching_min, maj_le FROM membres WHERE programme = 'elite' AND discord_id IS NOT NULL;
+  PRAGMA user_version = 3;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -136,6 +150,7 @@ function ouvrirBase(fichier) {
   const db = new DatabaseSync(fichier);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
   migrer(db);
+  migrerV3(db);
   return db;
 }
 

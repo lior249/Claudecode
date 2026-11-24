@@ -169,6 +169,23 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
   }
 
   // ---------- Coaching ----------
+  // Libère les créneaux de ceux qui n'ont plus le rôle Elite (fin d'abonnement Whop, passage GOAT, départ du serveur).
+  async function libererCreneaux() {
+    if (!serveur) return;
+    for (const id of coaching.reserveurs()) {
+      if (id === config.discord.adminId) continue;
+      const m = await membreDuServeur(id);
+      const eliteOk = m && m.roles.cache.has(config.offres.elite.roleDiscord) && !(config.discord.roleGoat && m.roles.cache.has(config.discord.roleGoat));
+      if (eliteOk) continue;
+      const n = coaching.supprimerMembre(id);
+      if (!n) continue;
+      const nom = (coaching.profil(id) || {}).pseudo || id;
+      log(`créneaux de ${nom} libérés (${n})`);
+      await notifier.admin(`Créneaux de coaching de **${nom}** (<@${id}>) libérés : il n'a plus le rôle Elite${m && config.discord.roleGoat && m.roles.cache.has(config.discord.roleGoat) ? ' (passé GOAT)' : ''}.`);
+      if (m) await notifier.membre(id, 'Tes créneaux de coaching privé ont été libérés, car tu n\'as plus le rôle Elite.');
+    }
+  }
+
   async function rappelsCoaching() {
     const now = maintenant();
     const aujourdhui = dateISO(now);
@@ -177,8 +194,8 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
 
     for (const s of seances) {
       const avant = s.debut - now;
-      const membre = q.membresParDiscord.all(s.discordId).find((m) => m.programme === 'elite');
-      const perso = (membre && membre.rappel_coaching_min) || 240;
+      const profil = coaching.profil(s.discordId);
+      const perso = (profil && profil.rappel_min) || 240;
       const quand = `${JOURS[(s.debut.getUTCDay() + 6) % 7].toLowerCase()} à **${s.heure} GMT**`;
       const clePerso = `coach-perso:${s.date}:${s.heure}:${s.discordId}`;
       const cleAuto = `coach-1h:${s.date}:${s.heure}:${s.discordId}`;
@@ -276,7 +293,7 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
       await expirations();
       await renouvellements();
       await rappelsCoaching();
-      if (tour++ % 10 === 0) await synchroRoles();
+      if (tour++ % 10 === 0) { await synchroRoles(); await libererCreneaux(); }
     } catch (err) {
       console.error('[bob] cycle :', err);
     } finally { enCours = false; }
@@ -290,6 +307,7 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
     expirations,
     renouvellements,
     rappelsCoaching,
+    libererCreneaux,
 
     async demarrer() {
       if (!actif) { log('désactivé : DISCORD_BOT_TOKEN ou DISCORD_GUILD_ID manquant.'); return; }

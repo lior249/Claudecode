@@ -33,8 +33,11 @@ function creerCoaching({ db, config, maintenant = () => new Date() }) {
     inserer: db.prepare('INSERT INTO reservations (discord_id, jour, heure, effectif_le, cree_le) VALUES (?, ?, ?, ?, ?)'),
     annulations: db.prepare('SELECT * FROM annulations WHERE date BETWEEN ? AND ?'),
     annuler: db.prepare('INSERT INTO annulations (discord_id, date, heure, justification, cree_le) VALUES (?, ?, ?, ?, ?)'),
-    rappel: db.prepare("SELECT rappel_coaching_min FROM membres WHERE discord_id = ? AND programme = 'elite'"),
-    majRappel: db.prepare("UPDATE membres SET rappel_coaching_min = ?, maj_le = ? WHERE discord_id = ? AND programme = 'elite'"),
+    profil: db.prepare('SELECT * FROM profils_coaching WHERE discord_id = ?'),
+    majProfil: db.prepare(`INSERT INTO profils_coaching (discord_id, pseudo, rappel_min, maj_le) VALUES (?, ?, COALESCE(?, 240), ?)
+                           ON CONFLICT(discord_id) DO UPDATE SET pseudo = COALESCE(excluded.pseudo, pseudo),
+                           rappel_min = COALESCE(?, rappel_min), maj_le = excluded.maj_le`),
+    reserveurs: db.prepare('SELECT DISTINCT discord_id FROM reservations'),
   };
 
   // Limite de réservation pour un jour donné (ex. 11h00 si la première séance est à 15h00).
@@ -94,12 +97,12 @@ function creerCoaching({ db, config, maintenant = () => new Date() }) {
           cases.push({ jour, heure, etat: !r ? 'libre' : r.discord_id === discordId ? 'moi' : 'pris', effectifLe: r && r.discord_id === discordId ? r.effectif_le : null });
         }
       }
-      const rappel = discordId ? q.rappel.get(discordId) : null;
-      return { cases, rappelMin: rappel ? rappel.rappel_coaching_min : 240 };
+      const profil = discordId ? q.profil.get(discordId) : null;
+      return { cases, rappelMin: profil ? profil.rappel_min : 240 };
     },
 
     // Remplace les créneaux récurrents du membre. Renvoie les créneaux qui ne comptent qu'à partir de la semaine suivante.
-    enregistrer(discordId, selection, rappelMin) {
+    enregistrer(discordId, selection, rappelMin, pseudo) {
       const erreur = valider(selection);
       if (erreur) return { erreur };
       if (rappelMin !== undefined && !RAPPELS_POSSIBLES.includes(rappelMin)) return { erreur: 'Rappel invalide.' };
@@ -119,7 +122,7 @@ function creerCoaching({ db, config, maintenant = () => new Date() }) {
             decales.push({ ...s, effectifLe: effectif });
           }
         }
-        if (rappelMin !== undefined) q.majRappel.run(rappelMin, iso, discordId);
+        q.majProfil.run(discordId, pseudo || null, rappelMin === undefined ? null : rappelMin, iso, rappelMin === undefined ? null : rappelMin);
         db.exec('COMMIT');
         return { ok: true, decales, reservations: q.miennes.all(discordId) };
       } catch (err) {
@@ -147,6 +150,14 @@ function creerCoaching({ db, config, maintenant = () => new Date() }) {
       }
       q.annuler.run(discordId, date, heure, texte.slice(0, 500), maintenant().toISOString());
       return { ok: true, seance };
+    },
+
+    profil(discordId) {
+      return q.profil.get(discordId) || null;
+    },
+
+    reserveurs() {
+      return q.reserveurs.all().map((r) => r.discord_id);
     },
 
     supprimerMembre(discordId) {

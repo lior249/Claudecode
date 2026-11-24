@@ -255,9 +255,8 @@ test('Bob : rappels de coaching (perso, 1 h avant) et récap admin 2 h avant la 
   const m = await monter();
   try {
     await inscrire(m, 'elite@example.com', { programme: 'elite', discordId: 'E1' });
-    m.db.prepare("UPDATE membres SET rappel_coaching_min = 180 WHERE discord_id = 'E1'").run();
     const b = await monterBob(m, '2026-11-23T09:00:00.000Z');
-    b.coaching.enregistrer('E1', [0, 1, 2, 3].map((jour) => ({ jour, heure: '15:00' })));
+    b.coaching.enregistrer('E1', [0, 1, 2, 3].map((jour) => ({ jour, heure: '15:00' })), 180, 'elite1');
 
     b.aller('2026-11-23T11:30:00.000Z'); await b.bob.rappelsCoaching();
     assert.strictEqual(b.d.dms.length, 0, '3 h 30 avant : rien');
@@ -272,5 +271,22 @@ test('Bob : rappels de coaching (perso, 1 h avant) et récap admin 2 h avant la 
     assert.match(membre[1], /1 heure/);
     assert.strictEqual(admin.length, 1);
     assert.match(admin[0], /localhost\/admin/);
+  } finally { await m.fermer(); }
+});
+
+test('membre payé sur Whop (rôle Elite, sans fiche mobile money) : réserve, rappel enregistré ; créneaux libérés s\'il perd le rôle', async () => {
+  const m = await monter();
+  try {
+    const b = await monterBob(m, '2026-11-23T09:00:00.000Z');
+    b.d.ajouter('W1', [ROLES.elite]);
+    assert.ok(b.coaching.enregistrer('W1', SEMAINE, 120, 'whopien').ok);
+    assert.strictEqual(b.coaching.profil('W1').rappel_min, 120);
+    assert.strictEqual(b.coaching.grille('W1').rappelMin, 120);
+    await b.bob.libererCreneaux();
+    assert.strictEqual(b.coaching.reserveurs().length, 1, 'rôle Elite présent : créneaux gardés');
+    b.d.membres.get('W1').roles.cache.set.add(ROLES.goat);
+    await b.bob.libererCreneaux();
+    assert.strictEqual(b.coaching.reserveurs().length, 0);
+    assert.ok(b.d.dms.some(([id, t]) => id === ADMIN && /whopien/.test(t) && /GOAT/.test(t)));
   } finally { await m.fermer(); }
 });

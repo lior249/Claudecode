@@ -27,6 +27,11 @@ Copie l'identifiant `plan_…` de chacune, depuis leur lien `whop.com/checkout/p
 
 Les anciennes offres payantes débloquées par code promo ne servent plus.
 
+**Membres qui paient directement sur Whop (par carte)** : sur ton offre Elite payante Whop, garde l'application
+**Discord** de Whop et choisis le **même rôle Elite** que dans `DISCORD_ROLE_ELITE`, sur le nouveau serveur. Ces membres ont
+alors accès à `/coaching` comme les autres. C'est Whop qui gère leur abonnement. Si Whop leur retire le rôle (abonnement
+terminé), ou s'ils passent GOAT, Bob libère leurs créneaux dans les 10 minutes et te prévient.
+
 ## 2. Whop : les autorisations de la clé API
 
 Sur **whop.com/dashboard/developer**, modifie ta clé (ou crée-en une nouvelle) en mode **Personnalisé** :
