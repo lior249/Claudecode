@@ -395,3 +395,43 @@ test('rôle En Attente temporaire : retiré après 24 h, sauf candidature en cou
     assert.deepStrictEqual(retraits, [['N4', ROLES.attente]], 'membre d\'un programme : En Attente retiré');
   } finally { await m.fermer(); }
 });
+
+test('/configurer-attente : crée le salon d\'attente, bloque tous les autres salons pour En Attente, puis les nouveaux', async () => {
+  const m = await monter();
+  try {
+    const edits = [];
+    const envoyes = [];
+    const salon = (id, extra = {}) => ({
+      id, name: id, type: 0, parentId: null, permissionsLocked: false,
+      permissionOverwrites: { edit: async (role, perms) => { if (id === 'prive') throw new Error('Missing Access'); edits.push([id, role, perms]); } },
+      send: async (c) => envoyes.push([id, c]), ...extra,
+    });
+    const salons = new Map([['cat', salon('cat', { type: 4 })], ['general', salon('general', { parentId: 'cat' })], ['prive', salon('prive')]]);
+    const serveur = {
+      id: 'guild',
+      members: { fetch: async () => new Map() },
+      channels: {
+        fetch: async () => salons,
+        create: async (opts) => { const c = salon('attente', { name: opts.name }); c.opts = opts; salons.set('attente', c); return c; },
+      },
+    };
+    const bob = creerBob({
+      config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching,
+      client: { isReady: () => true, user: { id: 'bot' }, users: { fetch: async () => ({ send: async () => {} }) } }, serveur,
+    });
+    const r = await bob.configurerAttente(null);
+    assert.ok(r.ok);
+    const cree = salons.get('attente');
+    assert.strictEqual(cree.opts.name, 'en-attente');
+    const ow = Object.fromEntries(cree.opts.permissionOverwrites.map((o) => [o.id, o]));
+    assert.ok(ow.guild.deny.length && ow[ROLES.attente].allow.length, '@everyone ne voit pas, En Attente voit');
+    assert.deepStrictEqual(edits.map((e) => e[0]).sort(), ['cat', 'general']);
+    assert.ok(edits.every(([, role, p]) => role === ROLES.attente && p.ViewChannel === false));
+    assert.deepStrictEqual(r.echecs, ['prive']);
+    assert.match(envoyes[0][1].content, /Tu es en attente/);
+
+    // Un nouveau salon est bloqué ; le salon d'attente lui-même ne l'est pas.
+    assert.strictEqual(await bob.bloquerPourAttente(salon('nouveau')), 'bloqué');
+    assert.strictEqual(await bob.bloquerPourAttente(cree), 'ignoré');
+  } finally { await m.fermer(); }
+});

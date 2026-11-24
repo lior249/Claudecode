@@ -2,7 +2,7 @@
 
 const {
   Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle,
-  SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
+  SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType,
 } = require('discord.js');
 
 const STATUTS_CANDIDATURE_PROTEGES = ['examen', 'retenu', 'video', 'valide'];
@@ -310,6 +310,78 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     return i.reply({ content: `Voici ton lien de candidature **Elite** (personnel, valable 10 minutes) :\n${lien}\n\nTu y remplis le formulaire. Je te réponds ici, en message privé, sous 24 heures.`, flags: MessageFlags.Ephemeral });
   }
 
+  function messageBouton(type) {
+    return type === 'attente'
+        ? {
+          content: '**Tu es en attente.**\n'
+            + 'Pour accéder au serveur, tu dois être membre de l\'un des deux programmes : **Overmaxx Community** ou **Overmaxx Elite**.\n'
+            + `Sans action de ta part, ce rôle te sera retiré d'ici **${config.discord.attenteNouveauxHeures || 24} heures** et tu quitteras le serveur.\n\n`
+            + '*Membre Community dont l\'accès vient de se terminer ?* Tu as reçu ton lien de renouvellement en message privé : '
+            + `tu as ${config.offres.community.graceJours} jours pour renouveler au même prix.`,
+          components: [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setLabel('Rejoindre la Community').setStyle(ButtonStyle.Link).setURL(`${config.baseUrl}/community`),
+            new ButtonBuilder().setCustomId('ovx:postuler').setLabel('Postuler à l\'Elite').setStyle(ButtonStyle.Primary),
+          )],
+        }
+        : type === 'postuler'
+        ? { content: '**Candidature Overmaxx Elite**\nClique sur le bouton : je t\'envoie ton lien personnel pour remplir le formulaire, sans mot de passe.',
+          components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ovx:postuler').setLabel('Postuler').setStyle(ButtonStyle.Primary))] }
+        : { content: '**Se connecter à overmaxx.online**\nClique sur le bouton : je t\'envoie ton lien personnel (coaching, candidature…), sans mot de passe.',
+          components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ovx:connexion').setLabel('Se connecter au site').setStyle(ButtonStyle.Primary))] };
+  }
+
+  // ---------- Salon d'attente : seul salon visible pour le rôle En Attente ----------
+  const cleSalonAttente = 'config:salon-attente';
+  const salonAttenteId = () => (q.attenteDepuis.get(cleSalonAttente) || {}).envoye_le || null;
+
+  async function bloquerPourAttente(salon) {
+    const role = config.discord.roleAttente;
+    if (!role || !salon || salon.id === salonAttenteId()) return 'ignoré';
+    // Un salon synchronisé avec sa catégorie hérite du blocage de la catégorie : on ne le touche pas.
+    if (salon.parentId && salon.permissionsLocked) return 'hérité';
+    await salon.permissionOverwrites.edit(role, { ViewChannel: false }, { reason: 'Overmaxx : En Attente ne voit que le salon d\'attente' });
+    return 'bloqué';
+  }
+
+  async function configurerAttente(salonChoisi) {
+    const role = config.discord.roleAttente;
+    if (!serveur || !role) return { erreur: 'DISCORD_ROLE_ATTENTE ou le serveur est introuvable.' };
+    let salon = salonChoisi;
+    if (!salon) {
+      salon = await serveur.channels.create({
+        name: 'en-attente',
+        type: ChannelType.GuildText,
+        position: 0,
+        permissionOverwrites: [
+          { id: serveur.id, deny: [PermissionFlagsBits.ViewChannel] },
+          { id: role, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] },
+          { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+        ],
+        reason: 'Overmaxx : salon d\'attente',
+      });
+    } else {
+      if (salon.parentId && salon.permissionsLocked && salon.lockPermissions) await salon.edit({ lockPermissions: false });
+      await salon.permissionOverwrites.edit(role, { ViewChannel: true, ReadMessageHistory: true, SendMessages: false });
+    }
+    q.noterAttente.run(cleSalonAttente, salon.id);
+
+    const bilan = { bloques: 0, herites: 0, echecs: [] };
+    const tous = await serveur.channels.fetch();
+    // Catégories d'abord : leurs salons synchronisés héritent du blocage.
+    const liste = [...tous.values()].filter(Boolean).sort((a, b) => (a.type === ChannelType.GuildCategory ? -1 : 0) - (b.type === ChannelType.GuildCategory ? -1 : 0));
+    for (const c of liste) {
+      if (c.id === salon.id) continue;
+      try {
+        const r = await bloquerPourAttente(c);
+        if (r === 'bloqué') bilan.bloques++; else if (r === 'hérité') bilan.herites++;
+      } catch (err) { bilan.echecs.push(c.name || c.id); }
+    }
+    // Si le salon d'attente est dans une catégorie bloquée, il garde son propre accès (non synchronisé).
+    await salon.send(messageBouton('attente'));
+    log(`salon d'attente configuré : ${salon.id} (${bilan.bloques} bloqués, ${bilan.herites} hérités, ${bilan.echecs.length} échecs)`);
+    return { ok: true, salon, ...bilan };
+  }
+
   async function surInteraction(i) {
     const estAdmin = i.user.id === config.discord.adminId;
     if (i.isButton() && i.customId.startsWith('elite:')) {
@@ -358,25 +430,18 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
 
     if (!estAdmin) return i.reply({ content: 'Commande réservée à l\'admin.', flags: MessageFlags.Ephemeral });
 
+    if (i.commandName === 'configurer-attente') {
+      await i.deferReply({ flags: MessageFlags.Ephemeral });
+      const r = await configurerAttente(i.options.getChannel('salon'));
+      if (r.erreur) return i.editReply(r.erreur);
+      return i.editReply(`Salon d'attente : <#${r.salon.id}>. ${r.bloques} salon(s) ou catégorie(s) bloqué(s) pour En Attente, `
+        + `${r.herites} salon(s) synchronisé(s) avec leur catégorie.`
+        + (r.echecs.length ? `\nImpossible de modifier : ${r.echecs.join(', ')}. Donne à Bob l'accès à ces salons, puis relance la commande.` : '')
+        + '\nLes nouveaux salons seront bloqués automatiquement.');
+    }
+
     if (i.commandName === 'publier') {
-      const type = i.options.getString('bouton', true);
-      const contenu = type === 'attente'
-        ? {
-          content: '**Tu es en attente.**\n'
-            + 'Pour accéder au serveur, tu dois être membre de l\'un des deux programmes : **Overmaxx Community** ou **Overmaxx Elite**.\n'
-            + `Sans action de ta part, ce rôle te sera retiré d'ici **${config.discord.attenteNouveauxHeures || 24} heures** et tu quitteras le serveur.\n\n`
-            + '*Membre Community dont l\'accès vient de se terminer ?* Tu as reçu ton lien de renouvellement en message privé : '
-            + `tu as ${config.offres.community.graceJours} jours pour renouveler au même prix.`,
-          components: [new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setLabel('Rejoindre la Community').setStyle(ButtonStyle.Link).setURL(`${config.baseUrl}/community`),
-            new ButtonBuilder().setCustomId('ovx:postuler').setLabel('Postuler à l\'Elite').setStyle(ButtonStyle.Primary),
-          )],
-        }
-        : type === 'postuler'
-        ? { content: '**Candidature Overmaxx Elite**\nClique sur le bouton : je t\'envoie ton lien personnel pour remplir le formulaire, sans mot de passe.',
-          components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ovx:postuler').setLabel('Postuler').setStyle(ButtonStyle.Primary))] }
-        : { content: '**Se connecter à overmaxx.online**\nClique sur le bouton : je t\'envoie ton lien personnel (coaching, candidature…), sans mot de passe.',
-          components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ovx:connexion').setLabel('Se connecter au site').setStyle(ButtonStyle.Primary))] };
+      const contenu = messageBouton(i.options.getString('bouton', true));
       await i.channel.send(contenu);
       return i.reply({ content: 'Bouton publié dans ce salon.', flags: MessageFlags.Ephemeral });
     }
@@ -410,6 +475,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     new SlashCommandBuilder().setName('connexion').setDescription('Recevoir ton lien de connexion à overmaxx.online (sans mot de passe)'),
     new SlashCommandBuilder().setName('lier').setDescription('Relier ton paiement mobile money à ton compte Discord')
       .addStringOption((o) => o.setName('code').setDescription('Le code affiché après ton paiement').setRequired(true).setMinLength(6).setMaxLength(6)),
+    new SlashCommandBuilder().setName('configurer-attente').setDescription('Salon d\'attente : seul salon visible pour le rôle En Attente')
+      .addChannelOption((o) => o.setName('salon').setDescription('Salon d\'attente existant (sinon Bob en crée un)').addChannelTypes(ChannelType.GuildText))
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     new SlashCommandBuilder().setName('publier').setDescription('Publier un bouton de Bob dans ce salon')
       .addStringOption((o) => o.setName('bouton').setDescription('Quel bouton').setRequired(true)
         .addChoices(
@@ -549,10 +617,16 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     rappelsCoaching,
     libererCreneaux,
     nettoyerAttente,
+    configurerAttente,
+    bloquerPourAttente,
 
     async demarrer() {
       if (!actif) { log('désactivé : DISCORD_BOT_TOKEN ou DISCORD_GUILD_ID manquant.'); return; }
       client.on('interactionCreate', (i) => surInteraction(i).catch((e) => console.error('[bob] interaction :', e)));
+      client.on('channelCreate', (c) => {
+        if (!c.guild || c.guild.id !== config.discord.serveurId || !salonAttenteId()) return;
+        bloquerPourAttente(c).catch((e) => console.warn('[bob] nouveau salon :', e.message));
+      });
       client.once('clientReady', async () => {
         log(`connecté en tant que ${client.user.tag}`);
         try {

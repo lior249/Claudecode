@@ -55,9 +55,10 @@ Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont di
    - dans **Redirects**, ajoute exactement `https://overmaxx.online/discord/callback`, puis enregistre.
 4. Invite Bob sur ton serveur. Ouvre ce lien en remplaçant `CLIENT_ID` :
    ```
-   https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot%20applications.commands&permissions=268438531
+   https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot%20applications.commands&permissions=268438547
    ```
-   Ce lien donne à Bob ces droits : voir les salons, envoyer des messages, expulser des membres, gérer les rôles et créer des invitations.
+   Ce lien donne à Bob ces droits : voir les salons, envoyer des messages, expulser des membres, gérer les rôles, gérer les salons et créer des invitations.
+   Si Bob est déjà invité : **Paramètres du serveur** → **Rôles** → rôle de Bob → active **Gérer les salons**.
 
 ## 4. Discord : rôles et identifiants
 
@@ -137,7 +138,10 @@ Si l'application s'arrête, le message indique le réglage à corriger.
 
 1. `LIEN_DISCORD` dans `overmaxx.env` doit être un **lien d'invitation permanent** vers le **nouveau** serveur
    (clic droit sur un salon → **Inviter** → **Modifier le lien** : expiration **Jamais**).
-2. Dans le **salon d'attente**, tape `/publier bouton: Message du salon d'attente` : Bob y publie le message
+2. Tape `/configurer-attente` (sans option, Bob crée le salon **#en-attente** ; ou choisis ton salon existant).
+   Bob rend ce salon visible **uniquement** par En Attente, **bloque tous les autres salons et catégories** pour En Attente,
+   y publie le message ci-dessous, et bloquera aussi chaque nouveau salon créé plus tard.
+   Tu peux republier le message à tout moment avec `/publier bouton: Message du salon d'attente` : Bob publie le message
    « Tu es en attente… » avec les boutons **Rejoindre la Community** et **Postuler à l'Elite**.
    Les nouveaux venus « En Attente » sans programme sont **retirés du serveur au bout de 24 h** (`ATTENTE_NOUVEAUX_HEURES`),
    sauf les candidats Elite dont le dossier est en cours et les membres Community dans leurs 15 jours d'attente.
@@ -157,6 +161,7 @@ Sur téléphone, personne n'a besoin de son mot de passe Discord : Bob envoie de
 |---|---|
 | `/connexion` *(tout le monde)* | Bob envoie les liens personnels de connexion au site : coaching, candidature, et admin pour toi |
 | `/lier code:` *(tout le monde)* | relie un paiement mobile money au compte Discord, grâce au code affiché après le paiement, et donne le rôle |
+| `/configurer-attente salon:` | crée (ou utilise) le salon d'attente, seul salon visible pour En Attente, et bloque tous les autres |
 | `/publier bouton:` | publie le bouton **Postuler** ou **Se connecter au site** dans le salon |
 | `/lien-elite note:` | crée un lien de paiement Elite personnel, utilisable une seule fois |
 | `/prolonger membre: jours: offre:` | prolonge gratuitement un accès, sur le site et sur Whop (lien de grâce) |
