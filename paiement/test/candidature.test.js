@@ -271,6 +271,11 @@ test('messages privés fermés : Bob écrit dans un fil privé du salon d\'atten
     assert.strictEqual(fils.length, 1, 'le même fil est réutilisé');
     assert.deepStrictEqual(fils[0].ajoutes, ['F1']);
     assert.deepStrictEqual(fils[0].messages, ['<@F1> Bonjour', '<@F1> Deuxième']);
+    // Hors du serveur : l'admin le sait explicitement.
+    client.users.fetch = async (id) => ({ send: async (c) => { if (id === 'F3') throw new Error('Cannot send messages to this user due to having no mutual guilds'); if (id !== ADMIN) throw new Error('Cannot send messages to this user'); recus.push([id, c.content]); } });
+    membres.F3 = undefined;
+    await bob.notifier.membre('F3', 'Coucou');
+    assert.ok(recus.some(([id, t]) => id === ADMIN && /pas \(ou plus\) sur le serveur/.test(t)));
     // Pas dans le salon d'attente : l'admin est prévenu, une seule fois par jour.
     assert.strictEqual(await bob.notifier.membre('F2', 'Rappel'), false);
     await bob.notifier.membre('F2', 'Rappel 2');

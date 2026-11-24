@@ -52,6 +52,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   const log = (...a) => console.log('[bob]', ...a);
 
   // ---------- Envois ----------
+  const dernieresErreurs = new Map();
   async function messagePrive(discordId, contenu) {
     if (!client || !client.isReady()) return false;
     try {
@@ -59,6 +60,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       await u.send(typeof contenu === 'string' ? { content: contenu } : contenu);
       return true;
     } catch (err) {
+      dernieresErreurs.set(discordId, err.message);
       console.warn(`[bob] message privé impossible à ${discordId} : ${err.message}`);
       return false;
     }
@@ -103,8 +105,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       const cle = `mp-ferme:${discordId}:${maintenant().toISOString().slice(0, 10)}`;
       if (!dejaEnvoye(cle) && config.discord.adminId && discordId !== config.discord.adminId) {
         marquer(cle);
-        await messagePrive(config.discord.adminId, `Je n'arrive pas à écrire à <@${discordId}> : ses messages privés sont fermés. `
-          + 'Contacte-le toi-même ou demande-lui d\'ouvrir ses MP (Paramètres > Confidentialité > Messages privés des membres du serveur).');
+        const horsServeur = /mutual guild/i.test(dernieresErreurs.get(discordId) || '');
+        await messagePrive(config.discord.adminId, horsServeur
+          ? `Je n'arrive pas à écrire à <@${discordId}> : **il n'est pas (ou plus) sur le serveur**. Il doit le rejoindre pour recevoir mes messages.`
+          : `Je n'arrive pas à écrire à <@${discordId}> : ses messages privés sont fermés. `
+            + 'Contacte-le toi-même ou demande-lui d\'ouvrir ses MP (Paramètres > Confidentialité > Messages privés des membres du serveur).');
       }
       return false;
     },
