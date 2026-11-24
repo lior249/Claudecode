@@ -1,6 +1,6 @@
 'use strict';
 
-function creerClientWhop({ apiUrl, cleApi, versionApi, idEntreprise, idOffre, deviseOffre, lienAchat }, fetchImpl = fetch) {
+function creerClientWhop({ apiUrl, cleApi, versionApi, idEntreprise }, fetchImpl = fetch) {
   async function appel(methode, chemin, corps) {
     const reponse = await fetchImpl(apiUrl + chemin, {
       method: methode,
@@ -11,7 +11,7 @@ function creerClientWhop({ apiUrl, cleApi, versionApi, idEntreprise, idOffre, de
         Accept: 'application/json',
       },
       body: corps ? JSON.stringify(corps) : undefined,
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(15000),
     });
     const texte = await reponse.text();
     let json = null;
@@ -24,58 +24,56 @@ function creerClientWhop({ apiUrl, cleApi, versionApi, idEntreprise, idOffre, de
     return json;
   }
 
-  async function chercherCode(code) {
-    let apres = null;
-    for (let i = 0; i < 20; i++) {
-      const params = new URLSearchParams({ account_id: idEntreprise, first: '100' });
-      params.append('variant_ids', idOffre);
-      if (apres) params.set('after', apres);
-      const res = await appel('GET', `/promo_codes?${params}`);
-      const trouve = (res.data || []).find((p) => p.code === code);
-      if (trouve) return trouve;
-      if (!res.page_info || !res.page_info.has_next_page) return null;
-      apres = res.page_info.end_cursor;
-    }
-    return null;
-  }
-
-  let lienEnCache = lienAchat || null;
+  const liens = new Map();
 
   return {
-    // Crée un code -100 %, utilisable une seule fois, valable uniquement sur l'offre cachée.
-    // Idempotent : si le code existe déjà (409), on renvoie l'existant.
-    async assurerCodePromo(code) {
-      try {
-        const cree = await appel('POST', '/promo_codes', {
-          account_id: idEntreprise,
-          code,
-          promo_type: 'percentage',
-          amount_off: 100,
-          base_currency: deviseOffre,
-          new_users_only: false,
-          one_per_customer: true,
-          promo_duration_months: 1,
-          stock: 1,
-          unlimited_stock: false,
-          variant_ids: [idOffre],
-        });
-        return { code: cree.code || code, id: cree.id, nouveau: true };
-      } catch (err) {
-        if (err.status !== 409) throw err;
-        const existant = await chercherCode(code);
-        if (!existant) throw new Error(`Whop : conflit sur le code ${code} mais introuvable dans la liste`);
-        return { code: existant.code, id: existant.id, nouveau: false };
-      }
+    // Lien public de l'offre (page Whop où le client demande à rejoindre la liste d'attente).
+    async lienOffre(planId) {
+      if (liens.has(planId)) return liens.get(planId);
+      const offre = await appel('GET', `/plans/${encodeURIComponent(planId)}`);
+      const lien = offre.purchase_url || `https://whop.com/checkout/${planId}`;
+      liens.set(planId, lien);
+      return lien;
     },
 
-    async lienAchatOffre() {
-      if (lienEnCache) return lienEnCache;
-      const offre = await appel('GET', `/plans/${encodeURIComponent(idOffre)}`);
-      if (!offre.purchase_url) throw new Error('Whop : purchase_url absent sur l\'offre');
-      lienEnCache = offre.purchase_url;
-      return lienEnCache;
+    // Demandes en attente sur la liste d'attente d'une offre (toutes les pages).
+    async demandesEnAttente(planId) {
+      const toutes = [];
+      let apres = null;
+      for (let i = 0; i < 20; i++) {
+        const params = new URLSearchParams({ account_id: idEntreprise, variant_id: planId, status: 'pending', first: '100' });
+        if (apres) params.set('after', apres);
+        const res = await appel('GET', `/waitlist_entries?${params}`);
+        toutes.push(...(res.data || []));
+        if (!res.page_info || !res.page_info.has_next_page) break;
+        apres = res.page_info.end_cursor;
+      }
+      return toutes;
+    },
+
+    demande(id) {
+      return appel('GET', `/waitlist_entries/${encodeURIComponent(id)}`);
+    },
+    accepter(id) {
+      return appel('POST', `/waitlist_entries/${encodeURIComponent(id)}/approve`);
+    },
+    refuser(id) {
+      return appel('POST', `/waitlist_entries/${encodeURIComponent(id)}/deny`);
+    },
+    // Ajoute des jours gratuits à un accès Whop (renouvellement payé sur le site).
+    prolonger(membershipId, jours) {
+      return appel('POST', `/memberships/${encodeURIComponent(membershipId)}/extend`, { days: jours });
     },
   };
 }
 
-module.exports = { creerClientWhop };
+// L'email que le client a écrit en réponse à la question de la liste d'attente.
+function emailDeLaDemande(demande) {
+  for (const r of demande.custom_field_responses || []) {
+    const m = String(r.answer || '').trim().toLowerCase().match(/[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+/);
+    if (m) return m[0];
+  }
+  return null;
+}
+
+module.exports = { creerClientWhop, emailDeLaDemande };

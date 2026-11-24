@@ -1,0 +1,130 @@
+# Installer Bob et les nouvelles offres
+
+Ce guide complète `DEPLOIEMENT.md` (le site tourne déjà sur overmaxx.online).
+Ce qui change : l'accès Whop passe par une **offre gratuite en liste d'attente** (fini les codes promo),
+l'offre **Elite** est ajoutée, et **Bob** gère Discord (rôles, rappels, expirations, coaching).
+Le cahier des charges complet est dans `BOB.md`.
+
+Pour copier des identifiants Discord, active d'abord le **mode développeur** :
+Discord → **Paramètres utilisateur** → **Avancés** → **Mode développeur**.
+
+---
+
+## 1. Whop : les offres gratuites en liste d'attente
+
+Dans ton produit Whop, crée **deux nouvelles offres** (tarifs) :
+
+| | Community | Elite |
+|---|---|---|
+| Prix | **Gratuit** | **Gratuit** |
+| Durée d'accès (expiration) | **30 jours** | **90 jours** |
+| Mode de sortie | **Liste d'attente** (waitlist / approbation) | **Liste d'attente** |
+| Visibilité | **Cachée** | **Cachée** |
+| Question à l'inscription | « Email utilisé pour ton paiement mobile money » (texte, obligatoire) | la même |
+
+Copie l'identifiant `plan_…` de chacune, depuis leur lien `whop.com/checkout/plan_…`. Ils vont dans
+`WHOP_COMMUNITY_PLAN_ID` et `WHOP_ELITE_PLAN_ID`.
+
+Les anciennes offres payantes débloquées par code promo ne servent plus.
+
+## 2. Whop : les autorisations de la clé API
+
+Sur **whop.com/dashboard/developer**, modifie ta clé (ou crée-en une nouvelle) en mode **Personnalisé** :
+
+- **Plans** : Read plans ;
+- **Waitlist** (liste d'attente) : lire et gérer, c'est-à-dire accepter ou refuser (`plan:waitlist:read`, `plan:waitlist:manage`) ;
+- **Memberships** (abonnements) : lire et prolonger (« extend » ou « update »).
+
+Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont différents, envoie une capture.
+
+## 3. Discord : créer Bob
+
+1. Va sur **discord.com/developers/applications**, clique sur **New Application** et nomme-la **Bob**.
+2. Onglet **Bot** :
+   - clique sur **Reset Token**, puis copie le jeton → `DISCORD_BOT_TOKEN` ;
+   - active **Server Members Intent**, puis enregistre.
+3. Onglet **OAuth2** :
+   - copie **Client ID** → `DISCORD_CLIENT_ID` ;
+   - clique sur **Reset Secret**, puis copie-le → `DISCORD_CLIENT_SECRET` ;
+   - dans **Redirects**, ajoute exactement `https://overmaxx.online/discord/callback`, puis enregistre.
+4. Invite Bob sur ton serveur. Ouvre ce lien en remplaçant `CLIENT_ID` :
+   ```
+   https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot%20applications.commands&permissions=268438531
+   ```
+   Ce lien donne à Bob ces droits : voir les salons, envoyer des messages, expulser des membres, gérer les rôles et créer des invitations.
+
+## 4. Discord : rôles et identifiants
+
+1. Crée, si ce n'est pas déjà fait, les rôles **Community**, **Elite** et **GOAT**.
+2. Dans **Paramètres du serveur** → **Rôles**, **glisse le rôle Bob au-dessus** de ces trois rôles.
+   Sinon, Discord l'empêche de les donner.
+3. Copie les identifiants (clic droit → **Copier l'identifiant**) :
+   - ton serveur (clic droit sur son icône) → `DISCORD_GUILD_ID` ;
+   - toi-même (clic droit sur ton nom) → `DISCORD_ADMIN_ID` ;
+   - les trois rôles → `DISCORD_ROLE_COMMUNITY`, `DISCORD_ROLE_ELITE`, `DISCORD_ROLE_GOAT`.
+4. Le salon vocal de coaching (limité à 2 personnes) : clic droit → **Copier le lien** → `DISCORD_SALON_COACHING_URL`.
+
+## 5. Tally (candidatures Elite)
+
+1. Crée le formulaire de candidature. Son identifiant est la fin du lien de partage `tally.so/r/XXXXXX` → `TALLY_FORM_ID`.
+2. Dans le formulaire, va dans **Integrations** → **Webhooks**, puis ajoute `https://overmaxx.online/webhooks/tally`.
+   Si Tally propose un **signing secret**, copie-le → `TALLY_SIGNING_SECRET`.
+3. La vidéo de présentation (VSL) sur Wistia → `WISTIA_VSL_ELITE`.
+
+## 6. Mettre à jour le serveur
+
+```bash
+ssh root@203.161.61.189
+```
+```bash
+cd /opt/overmaxx && git pull
+```
+```bash
+nano /opt/overmaxx/paiement/overmaxx.env
+```
+
+**Ajoute** à la fin du fichier les lignes ci-dessous, remplies. Ne touche pas à `APP_SECRET`.
+Les anciennes lignes `PRIX_INSCRIPTION`, `PRIX_MENSUEL` et `WHOP_PLAN_ID` peuvent rester : les nouvelles sont prioritaires.
+
+```
+PRIX_COMMUNITY_ENTREE=19025
+PRIX_COMMUNITY_RENOUVELLEMENT=3280
+PRIX_ELITE_ENTREE=327980
+PRIX_ELITE_RENOUVELLEMENT=39360
+WHOP_COMMUNITY_PLAN_ID=plan_…
+WHOP_ELITE_PLAN_ID=plan_…
+DISCORD_BOT_TOKEN=…
+DISCORD_CLIENT_ID=…
+DISCORD_CLIENT_SECRET=…
+DISCORD_GUILD_ID=…
+DISCORD_ADMIN_ID=…
+DISCORD_ROLE_COMMUNITY=…
+DISCORD_ROLE_ELITE=…
+DISCORD_ROLE_GOAT=…
+DISCORD_SALON_COACHING_URL=https://discord.com/channels/…
+TALLY_FORM_ID=…
+TALLY_SIGNING_SECRET=…
+WISTIA_VSL_ELITE=…
+```
+
+Enregistre avec **Ctrl+O**, puis **Entrée**, puis **Ctrl+X**. Ensuite :
+```bash
+cd /opt/overmaxx/paiement && ./deploy/overmaxx.sh
+```
+
+Dans les dernières lignes affichées, tu dois voir **« Bob : activé · Connexion Discord : activée »** et **« [bob] connecté en tant que Bob#… »**.
+Si l'application s'arrête, le message indique le réglage à corriger.
+
+## 7. Vérifier
+
+- Sur Discord, tape `/lien-elite` : Bob te répond (toi seul le vois) avec un lien de paiement Elite unique.
+- Va sur **overmaxx.online/admin** et connecte-toi avec Discord : le calendrier s'affiche.
+- Un membre Elite va sur **overmaxx.online/coaching** et réserve ses 4 créneaux : Bob lui envoie le récapitulatif.
+
+## Les commandes de Bob (réservées à l'admin)
+
+| Commande | Effet |
+|---|---|
+| `/lien-elite note:` | crée un lien de paiement Elite personnel, utilisable une seule fois |
+| `/prolonger membre: jours: offre:` | prolonge gratuitement un accès, sur le site et sur Whop (lien de grâce) |
+| `/membre membre:` | affiche l'accès mobile money d'un membre (offre, fin, prix garanti) |

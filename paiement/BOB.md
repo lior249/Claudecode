@@ -2,7 +2,7 @@
 
 Bob remplace PlugBot, qui est supprimé du serveur.
 
-Décisions prises avec le porteur de projet. Ce qui est marqué **À CONFIRMER** attend sa réponse.
+Décisions prises avec le porteur de projet. Installation : voir `INSTALLER_BOB.md`.
 Fuseau horaire de référence : **GMT** (heure du Togo). Les pages affichent aussi l'heure locale du membre.
 
 ## 1. Adresses du site
@@ -10,7 +10,7 @@ Fuseau horaire de référence : **GMT** (heure du Togo). Les pages affichent aus
 | Adresse | Rôle | Visibilité |
 |---|---|---|
 | `overmaxx.online` | redirige vers `/community` | publique |
-| `/community` (+ `/community/renouveler`) | paiement Community | publique |
+| `/community` (+ `/community/paiement`, `/community/renouveler`) | paiement Community | publique |
 | `/coaching/elite` | présentation (VSL) et candidature Tally | lien connu des prospects |
 | `/coaching/elite/paiement/<lien unique>` | paiement Elite | lien personnel généré par Bob, après sélection |
 | `/coaching` | réservation des coachings privés (connexion Discord) | membres Elite |
@@ -74,7 +74,7 @@ Autorisations de la clé Whop : `plan:waitlist:read`, `plan:waitlist:manage`, le
 - **Rôle GOAT** : aucun accès au planning (live de groupe dédié, à part).
 - Couleurs de la grille : **orange** pour mes créneaux, **gris foncé** pour ceux pris par un autre, **gris clair** pour les créneaux libres.
 - **Délai** : une réservation faite moins de 4 h avant **ne compte pas pour le jour même**, seulement à partir de la semaine suivante.
-  Exemple : séances à partir de 15h, donc il faut réserver au plus tard à 10h59. **À CONFIRMER** pour les créneaux de 21h (question 3).
+  Exemple : séances à partir de 15h, donc il faut réserver au plus tard à 10h59, **pour tous les créneaux du jour**, y compris ceux de 21h.
 - **Rappels pour le membre** : un rappel personnalisé, à l'heure de son choix, au plus 4 h avant ; plus un rappel automatique 1 h avant.
 - **Rappel pour le porteur de projet** : un message 2 h avant la **première** séance du jour, avec le lien du calendrier.
 - **Annulation** : jusqu'à 30 minutes avant, **justification obligatoire**. Le porteur de projet reçoit un message.

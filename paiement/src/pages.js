@@ -188,66 +188,68 @@ function blocSupport(config) {
 }
 
 // Étape 1 — page d'accueil
-function pageAccueil(config) {
-  const inscription = formatPrix(config.prixInscription, config.devise);
-  const mensuel = formatPrix(config.prixMensuel, config.devise);
-  return gabarit(config.nomFormation, `
+function pageAccueil(config, offre = config.offres.community) {
+  const inscription = formatPrix(offre.prixEntree, config.devise);
+  const renouv = formatPrix(offre.prixRenouvellement, config.devise);
+  const periode = offre.dureeJours === 30 ? 'mois' : `${offre.dureeJours} jours`;
+  return gabarit(offre.nom, `
   <div class="hero"><div class="globe"></div>${logo('anime')}</div>
   <p class="doux centre">${echapper(CONTENU.accroche)}</p>
   <div class="carte">
     <p class="etiquette">Inscription</p>
     <div class="prix">${inscription.html}</div>
-    <p class="doux petit">${config.dureeAccesJours} premiers jours inclus</p>
+    <p class="doux petit">${offre.dureeJours} premiers jours inclus</p>
     <p class="etiquette" style="margin-top:18px">Ensuite</p>
-    <div class="prix" style="font-size:20px">${mensuel.html.includes('<small>') ? mensuel.html.replace('<small>', '<small>/ mois · ') : `${mensuel.html} <small>/ mois</small>`}</div>
-    <p class="doux petit">pour garder ton accès. Sans engagement : tu renouvelles quand tu veux.</p>
+    <div class="prix" style="font-size:20px">${renouv.html.includes('<small>') ? renouv.html.replace('<small>', `<small>/ ${periode} · `) : `${renouv.html} <small>/ ${periode}</small>`}</div>
+    <p class="doux petit">pour garder ton accès. Ton tarif est garanti tant que tu renouvelles avant la fin.</p>
   </div>
   <div class="carte">
     <h2>Ce que tu obtiens</h2>
     <ul class="liste">${CONTENU.avantages.map((a) => `<li>${ICONE.ok}<span>${echapper(a)}</span></li>`).join('')}</ul>
   </div>
-  <a class="bouton" href="/paiement">${ICONE.mobile}Payer par mobile money</a>
-  <p class="doux petit centre" style="margin-top:12px">Wave, Orange Money, MTN, Moov et carte bancaire, via SasPay.</p>
-  <p class="doux petit centre">Déjà membre ? <a href="/renouveler">Renouveler mon abonnement</a></p>`, { entete: false });
+  <a class="bouton" href="${offre.base}/paiement">${ICONE.mobile}Payer par mobile money</a>
+  <p class="doux petit centre" style="margin-top:12px">Wave, Orange Money, MTN, Moov, via SasPay.</p>
+  <p class="doux petit centre">Déjà membre ? <a href="${offre.base}/renouveler">Renouveler mon abonnement</a></p>`, { entete: false });
 }
 
 // Étape 2 — informations demandées par SasPay
-function pageFormulaire(config, { type, erreur, valeurs = {}, emailVerrouille } = {}) {
+function pageFormulaire(config, { offre = config.offres.community, type, erreur, valeurs = {}, emailVerrouille, action, montant, retour } = {}) {
   const renouv = type === 'renouvellement';
-  const prix = formatPrix(renouv ? config.prixMensuel : config.prixInscription, config.devise);
-  const action = renouv ? '/renouveler' : '/paiement';
+  const prix = formatPrix(montant || (renouv ? offre.prixRenouvellement : offre.prixEntree), config.devise);
+  const cible = action || (renouv ? `${offre.base}/renouveler` : `${offre.base}/paiement`);
   return gabarit(renouv ? 'Renouveler mon abonnement' : 'Paiement', `
-  <p class="etiquette">${renouv ? 'Renouvellement' : 'Étape 2 sur 4'}</p>
+  <p class="etiquette">${renouv ? `Renouvellement · ${echapper(offre.nom)}` : `Étape 2 sur 4 · ${echapper(offre.nom)}`}</p>
   <h1>${renouv ? 'Renouveler mon abonnement' : 'Tes informations'}</h1>
-  ${renouv ? `<p class="doux">${prix.texte} pour ${config.dureeAccesJours} jours d'accès en plus.</p>` : `
+  ${renouv ? `<p class="doux">${prix.texte} pour ${offre.dureeJours} jours d'accès en plus.</p>` : `
   <div class="carte">
     <h2>Avant de payer</h2>
     <ul class="liste">
-      <li><span class="numero">1</span><span>Crée ton compte sur <a href="https://whop.com" target="_blank" rel="noopener">whop.com</a> si ce n'est pas déjà fait.</span></li>
-      <li><span class="numero">2</span><span>Utilise ci-dessous <b>le même email que ton compte Whop</b>.</span></li>
+      <li><span class="numero">1</span><span>Garde bien l'email que tu mets ici : tu le redonneras sur Whop pour débloquer ton accès.</span></li>
+      <li><span class="numero">2</span><span>Si tu n'as pas encore de compte, crée-le sur <a href="https://whop.com" target="_blank" rel="noopener">whop.com</a>.</span></li>
     </ul>
   </div>`}
-  <form class="carte" method="post" action="${action}">
+  <form class="carte" method="post" action="${echapper(cible)}">
     ${erreur ? `<p class="erreur-form">${erreur}</p>` : ''}
     ${emailVerrouille ? `<input type="hidden" name="m" value="${echapper(valeurs.m)}">` : ''}
     <label for="nom">Ton nom complet</label>
     <input id="nom" name="nom" required maxlength="100" autocomplete="name" value="${echapper(valeurs.nom)}">
-    <label for="email">Email de ton compte Whop</label>
+    <label for="email">Ton email</label>
     <input id="email" name="email" type="email" required maxlength="200" autocomplete="email" value="${echapper(valeurs.email)}"${emailVerrouille ? ' readonly' : ''}>
     <label for="telephone">Numéro mobile money <span class="doux">(optionnel)</span></label>
-    <input id="telephone" name="telephone" type="tel" maxlength="20" autocomplete="tel" placeholder="+229 01 00 00 00 00" value="${echapper(valeurs.telephone)}">
+    <input id="telephone" name="telephone" type="tel" maxlength="20" autocomplete="tel" placeholder="+228 90 00 00 00" value="${echapper(valeurs.telephone)}">
     <button class="bouton" type="submit">${ICONE.mobile}Payer ${prix.texte}</button>
     <p class="doux petit centre" style="margin:12px 0 0">Tu vas être redirigé vers la page de paiement sécurisée SasPay.</p>
   </form>
-  ${renouv ? '' : '<a class="bouton secondaire" href="/">Retour</a>'}`);
+  ${retour ? `<a class="bouton secondaire" href="${echapper(retour)}">Retour</a>` : ''}`);
 }
 
 // Étape 3 — page de statut : vérifie le paiement puis redirige (onglets Statut / Détails).
 function pageConfirmation(config, { ref, type, details }) {
   const renouv = type === 'renouvellement';
-  const retour = renouv ? '/renouveler' : '/paiement';
+  const o = config.offres[(details && details.programme) || 'community'];
+  const retour = renouv ? `${o.base}/renouveler` : o.id === 'community' ? `${o.base}/paiement` : o.base;
   const prix = details ? formatPrix(details.montant, details.devise).texte : '';
-  const offre = renouv ? 'Abonnement mensuel' : 'Inscription';
+  const offre = renouv ? 'Renouvellement' : 'Inscription';
   const ligne = (t, v) => (v ? `<div><dt>${t}</dt><dd>${echapper(v)}</dd></div>` : '');
   const dateCreation = details ? new Date(details.creeLe).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }) : '';
 
@@ -278,7 +280,7 @@ function pageConfirmation(config, { ref, type, details }) {
 
     function confirme(d) {
       etape('e2', 'fait', 'Paiement confirmé', 'Ton opérateur a validé le paiement.', heure());
-      etape('e3', 'fait', null, ${JSON.stringify(renouv ? 'Ton abonnement est prolongé.' : "Ton code d'accès est prêt.")}, heure());
+      etape('e3', 'fait', null, ${JSON.stringify(renouv ? 'Ton abonnement est prolongé.' : 'Ton accès est prêt.')}, heure());
       entete('ok', '', 'Paiement confirmé');
       $('pied').textContent = 'Redirection en cours…';
       setTimeout(function () { location.href = d.redirection; }, 2200);
@@ -331,7 +333,7 @@ function pageConfirmation(config, { ref, type, details }) {
   <nav class="barre">
     <a class="rond" href="${retour}" aria-label="Retour">${ICONE.retour}</a>
     <span>Ta commande</span>
-    <a class="rond" href="/" aria-label="Fermer">${ICONE.fermer}</a>
+    <a class="rond" href="${o.base}" aria-label="Fermer">${ICONE.fermer}</a>
   </nav>
   <div id="icone" class="icone-ronde">${ICONE.mobile}</div>
   <h1 class="montant">${echapper(prix)}</h1>
@@ -344,7 +346,7 @@ function pageConfirmation(config, { ref, type, details }) {
     </div>
     <div id="panneau-statut" role="tabpanel">
       <ol class="frise">
-        <li id="e1" data-etat="fait"><span class="point"></span><div class="heure"></div><div class="titre">Paiement lancé</div><div class="desc">${echapper(offre)} ${echapper(config.nomFormation)}</div></li>
+        <li id="e1" data-etat="fait"><span class="point"></span><div class="heure"></div><div class="titre">Paiement lancé</div><div class="desc">${echapper(offre)} ${echapper(o.nom)}</div></li>
         <li id="e2" data-etat="encours"><span class="point"></span><div class="heure"></div><div class="titre">Vérification du paiement</div><div class="desc">On attend la validation de ton opérateur.</div></li>
         <li id="e3" data-etat="attente"><span class="point"></span><div class="heure"></div><div class="titre">${renouv ? 'Prolongation de ton accès' : 'Préparation de ton accès'}</div><div class="desc"></div></li>
       </ol>
@@ -356,7 +358,7 @@ function pageConfirmation(config, { ref, type, details }) {
     </div>
     <div id="panneau-details" role="tabpanel" hidden>
       <dl class="details">
-        ${ligne('Offre', `${offre} ${config.nomFormation}`)}
+        ${ligne('Offre', `${offre} ${o.nom}`)}
         ${ligne('Montant', prix)}
         ${details ? ligne('Nom', details.nom) : ''}
         ${details ? ligne('Email Whop', details.email) : ''}
@@ -371,40 +373,45 @@ function pageConfirmation(config, { ref, type, details }) {
 }
 
 // Étape 4 — guide d'accès (inscription) : vidéo Wistia + étapes écrites
-function pageTutoriel(config, { code, lien, accesJusquAu }) {
-  const video = config.wistiaId
-    ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(config.wistiaId)}?videoFoam=true&playerColor=000000"
-        title="Comment accéder à la formation" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>`
+function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDiscord }) {
+  const wistia = offre.wistiaGuide;
+  const video = wistia
+    ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(wistia)}?videoFoam=true&playerColor=000000"
+        title="Comment accéder à ${echapper(offre.nom)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>`
     : '';
-  return gabarit('Accéder à la formation', `
-  <p class="etiquette">Étape 4 sur 4</p>
-  <h1>Bienvenue dans ${echapper(config.nomFormation)}</h1>
+  const periode = offre.dureeJours === 30 ? 'par mois' : `tous les ${offre.dureeJours} jours`;
+  const etapeDiscord = discordLie
+    ? `<p class="ok" style="margin:0">Discord connecté${membre.discord_pseudo ? ` (${echapper(membre.discord_pseudo)})` : ''}. Tu es sur le serveur.</p>`
+    : config.oauthActif
+      ? `<p class="doux">Bob, notre bot, t'ajoute au serveur privé avec ton rôle, et te préviendra avant la fin de ton accès.</p>
+         ${erreurDiscord ? `<p class="erreur-form">${echapper(erreurDiscord)}</p>` : ''}
+         <a class="bouton" href="/discord/lier/${echapper(ref)}">Connecter mon Discord</a>`
+      : `<p class="doux">Rejoins le serveur${config.lienDiscord ? ` : <a href="${echapper(config.lienDiscord)}">${echapper(config.lienDiscord)}</a>` : ''}.</p>`;
+  return gabarit('Accéder à ton espace', `
+  <p class="etiquette">Étape 4 sur 4 · ${echapper(offre.nom)}</p>
+  <h1>Bienvenue dans ${echapper(offre.nom)}</h1>
   <p class="doux">Regarde la vidéo, puis suis les étapes ci-dessous.</p>
   ${video}
   <div class="carte">
-    <h2>Ton code d'accès personnel</h2>
-    <div class="code">${echapper(code)}</div>
-    <p class="doux petit" style="margin:10px 0 0">Il ne marche qu'une seule fois. Garde-le pour toi.</p>
-  </div>
-  <div class="carte">
     <ul class="liste etapes-guide">
-      <li><span class="numero">1</span><div><h2>Ouvre l'offre sur Whop</h2>
-        <p class="doux">Connecte-toi avec ton compte Whop, le même email que pour le paiement.</p>
-        <a class="bouton" href="${echapper(lien)}" target="_blank" rel="noopener">Ouvrir l'offre sur Whop</a></div></li>
-      <li><span class="numero">2</span><div><h2>Entre ton code promo</h2>
-        <p class="doux">Au moment de valider, clique sur « code promo » et colle ton code. Le prix passe à 0 : tu ne paies rien de plus sur Whop.</p></div></li>
-      <li><span class="numero">3</span><div><h2>Rejoins le Discord privé</h2>
-        <p class="doux">Dans Whop, ouvre la formation puis clique sur « Connecter Discord ». Tu reçois automatiquement l'accès au serveur.</p></div></li>
+      <li><span class="numero">1</span><div><h2>Connecte ton Discord</h2>${etapeDiscord}</div></li>
+      <li><span class="numero">2</span><div><h2>Rejoins la formation sur Whop</h2>
+        <p class="doux">Ouvre l'offre, puis clique pour la rejoindre. Whop te pose une question : réponds avec <b style="color:#fff">exactement cet email</b>.</p>
+        <div class="code" style="font-size:16px;letter-spacing:0">${echapper(membre.email)}</div>
+        <a class="bouton" href="${echapper(lienWhop)}" target="_blank" rel="noopener">Ouvrir l'offre sur Whop</a></div></li>
+      <li><span class="numero">3</span><div><h2>Validation automatique</h2>
+        <p class="doux">Bob vérifie ta demande en quelques minutes : l'accès s'ouvre tout seul sur Whop. Utilise bien le même email, sinon la demande est refusée.</p></div></li>
       <li><span class="numero">4</span><div><h2>Ton abonnement</h2>
-        <p class="doux">Ton accès est payé jusqu'au <b style="color:#fff">${echapper(formatDate(accesJusquAu))}</b>. Avant cette date, le bot Discord te rappellera de renouveler (${formatPrix(config.prixMensuel, config.devise).texte} par mois).</p></div></li>
+        <p class="doux">Ton accès est payé jusqu'au <b style="color:#fff">${echapper(formatDate(membre.acces_jusqu_au))}</b>. Bob te rappellera de renouveler (${formatPrix(membre.prix_renouvellement || offre.prixRenouvellement, config.devise).texte} ${periode}).</p>
+        ${offre.id === 'elite' ? '<a class="bouton secondaire" href="/coaching">Réserver mes coachings</a>' : ''}</div></li>
     </ul>
   </div>
-  ${config.email.cleResend ? '<p class="doux petit centre">Tu reçois aussi ton code par email.</p>' : ''}
   ${blocSupport(config)}`);
 }
 
 // Fin du renouvellement
 function pageRenouvele(config, { accesJusquAu }) {
+  // Le membre garde son rôle ; Bob prolonge aussi son accès Whop.
   return gabarit('Abonnement renouvelé', `
   <div id="icone" class="icone-ronde" style="margin-top:20px">${ICONE.ok}</div>
   <h1 class="centre">Abonnement renouvelé</h1>
@@ -426,5 +433,6 @@ function pageMessage(config, titre, message, { lien = '/', texteLien = 'Retour' 
 }
 
 module.exports = {
-  CONTENU, echapper, pageAccueil, pageFormulaire, pageConfirmation, pageTutoriel, pageRenouvele, pageMessage,
+  CONTENU, ICONE, echapper, gabarit, logo, formatPrix, formatDate, blocSupport,
+  pageAccueil, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
 };

@@ -25,7 +25,7 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 manque=0
-for v in DOMAIN PRIX_INSCRIPTION PRIX_MENSUEL APP_SECRET SASPAY_API_KEY SASPAY_WEBHOOK_SECRET WHOP_API_KEY WHOP_COMPANY_ID WHOP_PLAN_ID; do
+for v in DOMAIN APP_SECRET SASPAY_API_KEY SASPAY_WEBHOOK_SECRET WHOP_API_KEY WHOP_COMPANY_ID; do
   if [ -z "$(valeur "$v")" ]; then echo "⚠️  $v est vide dans overmaxx.env"; manque=1; fi
 done
 [ "$manque" = 0 ] || { echo "Remplis ces réglages (nano $ENV_FILE), puis relance ./deploy/overmaxx.sh"; exit 1; }
@@ -79,7 +79,11 @@ docker run -d --name creato-https --restart unless-stopped --network creato-site
 
 # ----- 4. Vérification -----
 sleep 8
-docker logs overmaxx-paiement 2>&1 | tail -3
+docker logs overmaxx-paiement 2>&1 | tail -6
+if [ "$(docker inspect -f '{{.RestartCount}}' overmaxx-paiement 2>/dev/null || echo 1)" != "0" ]; then
+  echo "❌ L'application s'est arrêtée. Le message ci-dessus indique le réglage à corriger dans overmaxx.env."
+  exit 1
+fi
 if curl -fsS -o /dev/null "https://$DOMAIN/sante"; then
   echo "✅ Overmaxx est en ligne : https://$DOMAIN"
 else
