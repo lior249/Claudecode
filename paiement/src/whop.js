@@ -25,6 +25,7 @@ function creerClientWhop({ apiUrl, cleApi, versionApi, idEntreprise }, fetchImpl
   }
 
   const liens = new Map();
+  const durees = new Map();
 
   return {
     // Lien public de l'offre (page Whop où le client demande à rejoindre la liste d'attente).
@@ -63,6 +64,19 @@ function creerClientWhop({ apiUrl, cleApi, versionApi, idEntreprise }, fetchImpl
     // Ajoute des jours gratuits à un accès Whop (renouvellement payé sur le site).
     prolonger(membershipId, jours) {
       return appel('POST', `/memberships/${encodeURIComponent(membershipId)}/extend`, { days: jours });
+    },
+    // Coupe immédiatement un accès Whop (fin d'accès non renouvelé).
+    annuler(membershipId) {
+      return appel('POST', `/memberships/${encodeURIComponent(membershipId)}/cancel`, { reason: 'Overmaxx : accès mobile money non renouvelé' });
+    },
+    // Durée d'accès de l'offre (null = accès sans fin côté Whop), mise en cache 10 minutes.
+    async dureeOffre(planId) {
+      const c = durees.get(planId);
+      if (c && Date.now() - c.t < 10 * 60 * 1000) return c.v;
+      const offre = await appel('GET', `/plans/${encodeURIComponent(planId)}`);
+      const v = offre.expiration_days || null;
+      durees.set(planId, { v, t: Date.now() });
+      return v;
     },
   };
 }

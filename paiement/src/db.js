@@ -139,6 +139,13 @@ function migrerV3(db) {
   PRAGMA user_version = 3;`);
 }
 
+// v4 : date à laquelle l'accès Whop a été coupé par le site.
+function migrerV4(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 4) return;
+  if (!colonnes(db, 'membres').includes('whop_annule_le')) db.exec('ALTER TABLE membres ADD COLUMN whop_annule_le TEXT');
+  db.exec('PRAGMA user_version = 4');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -151,6 +158,7 @@ function ouvrirBase(fichier) {
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
   migrer(db);
   migrerV3(db);
+  migrerV4(db);
   return db;
 }
 

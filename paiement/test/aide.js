@@ -76,6 +76,9 @@ function fauxWhop() {
     async accepter(id) { appels.push(['accepter', id]); const d = demandes.get(id); d.status = 'approved'; d.membership_id = `mem_${id}`; },
     async refuser(id) { appels.push(['refuser', id]); demandes.get(id).status = 'denied'; },
     async prolonger(mem, jours) { appels.push(['prolonger', mem, jours]); },
+    async annuler(mem) { appels.push(['annuler', mem]); },
+    durees: { plan_com: 30, plan_eli: 90 },
+    async dureeOffre(planId) { return this.durees[planId] || null; },
   };
 }
 

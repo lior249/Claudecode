@@ -25,7 +25,7 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
     insererMembre: db.prepare(`INSERT INTO membres (programme, email, nom, telephone, prix_renouvellement, devise, acces_jusqu_au, statut, cree_le, maj_le)
                                VALUES (?, ?, ?, ?, ?, ?, ?, 'actif', ?, ?)`),
     reactiverMembre: db.prepare(`UPDATE membres SET nom = ?, telephone = COALESCE(?, telephone), prix_renouvellement = ?, devise = ?,
-                                 acces_jusqu_au = ?, statut = 'actif', whop_entry_id = NULL, whop_membership_id = NULL,
+                                 acces_jusqu_au = ?, statut = 'actif', whop_entry_id = NULL, whop_membership_id = NULL, whop_annule_le = NULL,
                                  whop_jours_a_ajouter = 0, categorie_elite = NULL, maj_le = ? WHERE id = ?`),
     prolongerMembre: db.prepare(`UPDATE membres SET acces_jusqu_au = ?, whop_jours_a_ajouter = whop_jours_a_ajouter + ?, maj_le = ?
                                  WHERE id = ?`),

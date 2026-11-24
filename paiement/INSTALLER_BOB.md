@@ -17,7 +17,7 @@ Dans ton produit Whop, crée **deux nouvelles offres** (tarifs) :
 | | Community | Elite |
 |---|---|---|
 | Prix | **Gratuit** | **Gratuit** |
-| Durée d'accès (expiration) | **30 jours** | **90 jours** |
+| Durée d'accès (expiration) | facultatif : le site coupe l'accès lui-même | facultatif |
 | Mode de sortie | **Liste d'attente** (waitlist / approbation) | **Liste d'attente** |
 | Visibilité | **Cachée** | **Cachée** |
 | Question à l'inscription | « Email utilisé pour ton paiement mobile money » (texte, obligatoire) | la même |
@@ -38,7 +38,8 @@ Sur **whop.com/dashboard/developer**, modifie ta clé (ou crée-en une nouvelle)
 
 - **Plans** : Read plans ;
 - **Waitlist** (liste d'attente) : lire et gérer, c'est-à-dire accepter ou refuser (`plan:waitlist:read`, `plan:waitlist:manage`) ;
-- **Memberships** (abonnements) : lire et prolonger (« extend » ou « update »).
+- **Membership** : **Cancel memberships**. À la fin d'un accès non renouvelé, le site coupe lui-même l'accès Whop.
+- *(Facultatif)* **Members** : Manage members. Seulement si tes offres ont une durée d'expiration réglée sur Whop.
 
 Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont différents, envoie une capture.
 

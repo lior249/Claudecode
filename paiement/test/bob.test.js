@@ -68,6 +68,28 @@ test('Whop : un membre qui renouvelle avant de rejoindre Whop reçoit les jours 
   } finally { await m.fermer(); }
 });
 
+test('Whop : offre sans durée → rien à prolonger, et le site coupe l\'accès à la fin (une seule fois)', async () => {
+  const m = await monter();
+  try {
+    m.whop.durees.plan_com = null;
+    const mb = await inscrire(m, 'awa@example.com');
+    let now = new Date();
+    const synchro = creerSynchroWhop({ db: m.db, whop: m.whop, config: m.config, maintenant: () => now });
+    m.whop.ajouterDemande('e1', 'awa@example.com');
+    await synchro.executer();
+    await m.poster('/community/renouveler', { nom: 'Awa', email: 'awa@example.com', m: require('../src/liens').jetonMembre('awa@example.com', m.config.secretApp) });
+    m.saspay.payer(m.saspay.derniere().id);
+    await m.etat(ref(m.saspay.derniere()));
+    await synchro.executer();
+    assert.ok(!m.whop.appels.some((a) => a[0] === 'prolonger'), 'pas de prolongation sur une offre sans durée');
+    assert.ok(!m.whop.appels.some((a) => a[0] === 'annuler'));
+
+    now = new Date(new Date(m.db.prepare('SELECT acces_jusqu_au a FROM membres WHERE id = ?').get(mb.id).a).getTime() + 1000);
+    await synchro.executer(); await synchro.executer();
+    assert.deepStrictEqual(m.whop.appels.filter((a) => a[0] === 'annuler'), [['annuler', 'mem_e1']]);
+  } finally { await m.fermer(); }
+});
+
 // ---------- Coaching ----------
 
 function coachingA(m, iso) {

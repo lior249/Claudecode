@@ -16,6 +16,8 @@ function creerSynchroWhop({ db, whop, config, notifier = {}, maintenant = () => 
     marquerMembership: db.prepare('UPDATE membres SET whop_membership_id = ?, whop_jours_a_ajouter = whop_jours_a_ajouter + ?, maj_le = ? WHERE id = ?'),
     aProlonger: db.prepare("SELECT * FROM membres WHERE whop_membership_id IS NOT NULL AND whop_jours_a_ajouter > 0 AND statut = 'actif'"),
     prolonge: db.prepare('UPDATE membres SET whop_jours_a_ajouter = whop_jours_a_ajouter - ?, maj_le = ? WHERE id = ?'),
+    aCouper: db.prepare('SELECT * FROM membres WHERE whop_membership_id IS NOT NULL AND whop_annule_le IS NULL AND acces_jusqu_au <= ?'),
+    coupe: db.prepare('UPDATE membres SET whop_annule_le = ?, whop_jours_a_ajouter = 0, maj_le = ? WHERE id = ?'),
   };
   const log = (...a) => console.log('[whop]', ...a);
   const admin = (t) => notifier.admin && notifier.admin(t).catch?.((e) => console.error('[whop] notif', e.message));
@@ -54,9 +56,11 @@ function creerSynchroWhop({ db, whop, config, notifier = {}, maintenant = () => 
         const d = await whop.demande(m.whop_entry_id);
         if (!d || !d.membership_id) continue;
         const o = config.offres[m.programme];
-        // Whop donne `dureeJours` à partir de l'acceptation ; on ajoute la différence si le membre a payé plus loin.
-        const finWhop = maintenant().getTime() + o.dureeJours * JOUR_MS;
-        const surplus = Math.max(0, Math.ceil((new Date(m.acces_jusqu_au).getTime() - finWhop) / JOUR_MS));
+        // Si l'offre Whop a une durée, Whop la compte à partir de l'acceptation : on ajoute la différence
+        // quand le membre a payé plus loin. Sans durée, rien à ajouter (c'est le site qui coupera l'accès).
+        const duree = await whop.dureeOffre(o.whopPlanId);
+        const finWhop = maintenant().getTime() + (duree || 0) * JOUR_MS;
+        const surplus = duree ? Math.max(0, Math.ceil((new Date(m.acces_jusqu_au).getTime() - finWhop) / JOUR_MS)) : 0;
         q.marquerMembership.run(d.membership_id, surplus, maintenant().toISOString(), m.id);
         log(`accès ${d.membership_id} relié au membre ${m.id}${surplus ? ` (+${surplus} j à ajouter)` : ''}`);
       } catch (err) {
@@ -69,12 +73,32 @@ function creerSynchroWhop({ db, whop, config, notifier = {}, maintenant = () => 
     for (const m of q.aProlonger.all()) {
       try {
         const jours = Math.min(m.whop_jours_a_ajouter, 1095);
+        if (!(await whop.dureeOffre(config.offres[m.programme].whopPlanId))) {
+          q.prolonge.run(m.whop_jours_a_ajouter, maintenant().toISOString(), m.id); // accès Whop sans fin : rien à prolonger
+          continue;
+        }
         await whop.prolonger(m.whop_membership_id, jours);
         q.prolonge.run(jours, maintenant().toISOString(), m.id);
         log(`accès ${m.whop_membership_id} prolongé de ${jours} j`);
       } catch (err) {
         console.error(`[whop] prolongation membre ${m.id} :`, err.message);
       }
+    }
+  }
+
+  // Fin d'accès non renouvelé : le site coupe lui-même l'accès Whop (que l'offre ait une durée ou non).
+  async function couperExpires() {
+    const iso = maintenant().toISOString();
+    for (const m of q.aCouper.all(iso)) {
+      try {
+        await whop.annuler(m.whop_membership_id);
+        log(`accès ${m.whop_membership_id} coupé (membre ${m.id}, fin le ${m.acces_jusqu_au})`);
+      } catch (err) {
+        // 400/404/409/422 : déjà annulé ou expiré côté Whop. Le reste (403, réseau…) : on réessaiera.
+        if (![400, 404, 409, 422].includes(err.status)) { console.error(`[whop] coupure membre ${m.id} :`, err.message); continue; }
+        log(`accès ${m.whop_membership_id} déjà terminé côté Whop`);
+      }
+      q.coupe.run(iso, iso, m.id);
     }
   }
 
@@ -86,6 +110,7 @@ function creerSynchroWhop({ db, whop, config, notifier = {}, maintenant = () => 
       }
       await recupererAcces();
       await appliquerProlongations();
+      await couperExpires();
     },
   };
 }
