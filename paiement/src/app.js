@@ -430,6 +430,14 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     res.send(E.pageAdminCandidatures(config, { liste: candidatures ? candidatures.liste() : [], espace: espaceDe(lireSession(req, config.secretApp)) }));
   });
 
+  app.get('/admin/candidatures/:id', (req, res) => {
+    if (!estAdmin(req, res, `/admin/candidatures/${encodeURIComponent(req.params.id)}`)) return;
+    const c = candidatures && (candidatures.liste().find((x) => x.id === Number(req.params.id)));
+    if (!c) { res.status(404).send(P.pageMessage(config, 'Introuvable', 'Cette candidature n\'existe pas.', { lien: '/admin/candidatures', texteLien: 'Toutes les candidatures' })); return; }
+    const MESSAGES = { retenir: 'Retenu : Bob lui a envoyé le lien de la suite.', refuser: 'Refusé : Bob l\'a prévenu.', valider: 'Validé : Bob lui a envoyé son lien de paiement.' };
+    res.send(E.pageAdminCandidature(config, { candidature: c, espace: espaceDe(lireSession(req, config.secretApp)), message: MESSAGES[req.query.fait] }));
+  });
+
   app.get('/admin/membres', (req, res) => {
     if (!estAdmin(req, res, '/admin/membres')) return;
     const membres = commandes.db.prepare("SELECT * FROM membres ORDER BY statut, acces_jusqu_au").all();
@@ -444,12 +452,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     res.sendFile(chemin);
   });
 
-  app.post('/admin/candidatures/:id/:decision', async (req, res) => {
+  app.post('/admin/candidatures/:id/:decision', formulaire, async (req, res) => {
     if (!estAdmin(req, res, '/admin/candidatures')) return;
     const { id, decision } = req.params;
     const r = bob ? await bob.appliquerDecision(Number(id), decision) : candidatures.decider(Number(id), decision);
     if (r.erreur) console.warn('[admin] décision :', r.erreur);
-    res.redirect(303, '/admin/candidatures');
+    res.redirect(303, req.body && req.body.retour === 'fiche' ? `/admin/candidatures/${Number(id)}${r.erreur ? '' : `?fait=${encodeURIComponent(decision)}`}` : '/admin/candidatures');
   });
 
   const db = commandes.db;

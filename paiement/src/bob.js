@@ -522,6 +522,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     .setLabel({ retenir: 'Retenir', refuser: 'Refuser', valider: 'Valider' }[d])
     .setStyle(d === 'refuser' ? ButtonStyle.Danger : ButtonStyle.Success)));
 
+  // Bouton-lien vers la fiche du candidat sur l'espace admin (la décision se prend là-bas).
+  const boutonFiche = (id) => new ActionRowBuilder().addComponents(new ButtonBuilder()
+    .setLabel('Voir la fiche sur Overmaxx').setStyle(ButtonStyle.Link).setURL(`${config.baseUrl}/admin/candidatures/${id}`));
+
   async function appliquerDecision(id, decision) {
     const r = candidatures.decider(id, decision);
     if (r.erreur) return r;
@@ -572,18 +576,20 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   async function candidatureRecue(c, champs) {
     await notifier.membre(c.discord_id, '**Ton formulaire de candidature Elite est bien reçu.** Il est en cours de traitement : '
       + 'je te réponds ici, en message privé, dans les 24 heures.');
-    const lignes = champs.map((x) => `**${x.label}** : ${x.valeur}`).join('\n').slice(0, 1700);
+    const nom = (champs.find((x) => /nom/i.test(x.label) && !/discord/i.test(x.label)) || {}).valeur;
     await notifier.admin({
-      content: `**Nouvelle candidature Elite** : ${c.pseudo || ''} (<@${c.discord_id}>)\n${lignes}`,
-      components: [boutonsCandidature(c.id, ['retenir', 'refuser'])],
+      content: `**Nouvelle candidature Elite** : ${nom ? `**${nom}** · ` : ''}${c.pseudo || ''} (<@${c.discord_id}>)\n`
+        + 'Consulte sa fiche sur Overmaxx pour voir ses réponses, puis **retiens-le ou refuse-le depuis la plateforme**.',
+      components: [boutonFiche(c.id)],
     });
   }
 
   async function videoRecue(c) {
     await notifier.membre(c.discord_id, 'Ta vidéo est bien reçue. Je te donne la réponse finale ici très bientôt.');
     await notifier.admin({
-      content: `**Vidéo de candidature reçue** : ${c.pseudo || ''} (<@${c.discord_id}>).\nRegarde-la ici : ${config.baseUrl}/admin/candidatures`,
-      components: [boutonsCandidature(c.id, ['valider', 'refuser'])],
+      content: `**Vidéo de candidature reçue** : ${c.pseudo || ''} (<@${c.discord_id}>).\n`
+        + 'Regarde-la sur sa fiche Overmaxx, puis **valide ou refuse depuis la plateforme**.',
+      components: [boutonFiche(c.id)],
     });
   }
 

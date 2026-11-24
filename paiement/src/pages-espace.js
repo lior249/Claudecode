@@ -230,23 +230,45 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
 }
 
 // /admin/candidatures : réponses, vidéos et décisions.
-function pageAdminCandidatures(config, { liste, espace }) {
-  const LIBELLES = { formulaire: 'Formulaire à remplir', examen: 'À examiner', retenu: 'Retenu, vidéo attendue', video: 'Vidéo à regarder', refuse: 'Refusé', valide: 'Validé' };
-  const DECISIONS = { examen: ['retenir', 'refuser'], video: ['valider', 'refuser'], retenu: ['refuser'] };
-  const NOMS = { retenir: 'Retenir', refuser: 'Refuser', valider: 'Valider' };
-  const cartes = liste.length ? liste.map((c) => `
+const LIBELLES_CANDIDATURE = { formulaire: 'Formulaire à remplir', examen: 'À examiner', retenu: 'Retenu, vidéo attendue', video: 'Vidéo à regarder', refuse: 'Refusé', valide: 'Validé' };
+const DECISIONS_CANDIDATURE = { examen: ['retenir', 'refuser'], video: ['valider', 'refuser'], retenu: ['refuser'] };
+const NOMS_DECISION = { retenir: 'Retenir', refuser: 'Refuser', valider: 'Valider' };
+
+function carteCandidature(c, { fiche = false } = {}) {
+  const liste = (rep) => `<dl class="details">${rep.map((r) => `<div><dt>${echapper(r.label)}</dt><dd>${echapper(r.valeur)}</dd></div>`).join('')}</dl>`;
+  const decisions = DECISIONS_CANDIDATURE[c.statut] || [];
+  return `
     <div class="carte">
-      <p class="etiquette">${echapper(LIBELLES[c.statut] || c.statut)} · ${echapper(new Date(c.maj_le).toLocaleDateString('fr-FR'))}</p>
-      <h2>${echapper(c.pseudo || c.discord_id)}</h2>
-      ${c.reponses.length ? `<dl class="details">${c.reponses.map((r) => `<div><dt>${echapper(r.label)}</dt><dd>${echapper(r.valeur)}</dd></div>`).join('')}</dl>` : ''}
-      ${c.reponsesConfirmation && c.reponsesConfirmation.length ? `<p class="etiquette" style="margin-top:14px">Formulaire de confirmation</p><dl class="details">${c.reponsesConfirmation.map((r) => `<div><dt>${echapper(r.label)}</dt><dd>${echapper(r.valeur)}</dd></div>`).join('')}</dl>` : ''}
-      ${c.video_fichier ? `<video controls preload="metadata" playsinline src="/admin/videos/${c.id}" style="width:100%;border-radius:14px;margin-top:12px;background:#000"></video>` : ''}
-      ${(DECISIONS[c.statut] || []).length ? `<div style="display:flex;gap:10px">${(DECISIONS[c.statut] || []).map((d) => `<form method="post" action="/admin/candidatures/${c.id}/${d}" style="flex:1">
-        <button class="bouton${d === 'refuser' ? ' secondaire' : ''}" type="submit">${NOMS[d]}</button></form>`).join('')}</div>` : ''}
-    </div>`).join('') : '<div class="carte"><p class="doux" style="margin:0">Aucune candidature pour l\'instant.</p></div>';
+      <p class="etiquette">${echapper(LIBELLES_CANDIDATURE[c.statut] || c.statut)} · ${echapper(new Date(c.maj_le).toLocaleDateString('fr-FR'))}</p>
+      <h2>${fiche ? echapper(c.pseudo || c.discord_id) : `<a href="/admin/candidatures/${c.id}" style="text-decoration:none">${echapper(c.pseudo || c.discord_id)} →</a>`}</h2>
+      ${c.reponses.length ? liste(c.reponses) : ''}
+      ${c.reponsesConfirmation && c.reponsesConfirmation.length ? `<p class="etiquette" style="margin-top:14px">Formulaire de confirmation</p>${liste(c.reponsesConfirmation)}` : ''}
+      ${c.video_fichier ? `<video controls preload="metadata" playsinline src="/admin/videos/${c.id}" style="width:100%;max-height:70vh;border-radius:14px;margin-top:12px;background:#000"></video>` : ''}
+      ${decisions.length ? `<div style="display:flex;gap:10px">${decisions.map((d) => `<form method="post" action="/admin/candidatures/${c.id}/${d}" style="flex:1">
+        ${fiche ? '<input type="hidden" name="retour" value="fiche">' : ''}
+        <button class="bouton${d === 'refuser' ? ' secondaire' : ''}" type="submit">${NOMS_DECISION[d]}</button></form>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+function pageAdminCandidatures(config, { liste, espace }) {
+  const cartes = liste.length ? liste.map((c) => carteCandidature(c)).join('')
+    : '<div class="carte"><p class="doux" style="margin:0">Aucune candidature pour l\'instant.</p></div>';
   return pageEspace('Candidatures', `
   <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Candidatures Elite</h1></div></div>
   <div class="grille-cartes">${cartes}</div>`, espace, 'candidatures');
+}
+
+// /admin/candidatures/:id : la fiche d'un candidat (lien envoyé par Bob).
+function pageAdminCandidature(config, { candidature, espace, message }) {
+  const c = candidature;
+  const etapes = [['Formulaire', ['examen', 'retenu', 'video', 'valide', 'refuse']], ['Retenu', ['retenu', 'video', 'valide']], ['Vidéo', ['video', 'valide']], ['Validé', ['valide']]];
+  const frise = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px">${etapes.map(([n, ok]) => `<span class="petit-bouton" style="${ok.includes(c.statut) ? 'background:#fff;color:#000;border-color:#fff' : ''}">${n}</span>`).join('')}${c.statut === 'refuse' ? '<span class="petit-bouton" style="border-color:var(--erreur);color:var(--erreur)">Refusé</span>' : ''}</div>`;
+  return pageEspace(`Candidature ${c.pseudo || ''}`, `
+  <p class="doux petit"><a href="/admin/candidatures">← Toutes les candidatures</a></p>
+  <div class="titre-page"><div><p class="etiquette">Candidature Elite</p><h1>${echapper(c.pseudo || c.discord_id)}</h1></div></div>
+  ${message ? `<p class="ok">${echapper(message)}</p>` : ''}
+  ${frise}
+  <div style="max-width:760px">${carteCandidature(c, { fiche: true })}</div>`, espace, 'candidatures');
 }
 
 // /admin/membres : tous les membres mobile money.
@@ -433,4 +455,4 @@ function pageAdmin(config, { lundi, jours, cases, annulations, coaching, espace 
   <dialog id="dlg"><h2>Réservation</h2><dl class="details" id="dlg-corps"></dl><button id="dlg-fermer" class="bouton secondaire" type="button">Fermer</button></dialog>`, espace, 'calendrier', { script });
 }
 
-module.exports = { pageConnexionRequise, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminMembres, pageCoaching, pageAdmin };
+module.exports = { pageConnexionRequise, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminCandidature, pageAdminMembres, pageCoaching, pageAdmin };

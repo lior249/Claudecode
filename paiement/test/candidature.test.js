@@ -188,3 +188,32 @@ test('question Discord : tutoriel en 3 images, servies avec cache', async () => 
     }
   } finally { await m.fermer(); }
 });
+
+test('message de Bob à l\'admin : lien vers la fiche du candidat, décision prise sur la plateforme', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const d = fauxBobDiscord(m);
+    m.candidatures.demarrer('C1', 'yao_k');
+    const champs = [{ label: 'Quel est ton nom ?', valeur: 'Yao Kossi' }, { label: 'Quel est ton pseudo Discord ?', valeur: 'yao_k' }];
+    const c = m.candidatures.recevoirFormulaire('C1', champs);
+    await d.bob.candidatureRecue(c, champs);
+    const [, texte, composants] = d.dms.find(([id]) => id === ADMIN);
+    assert.match(texte, /\*\*Yao Kossi\*\*/);
+    assert.match(texte, /depuis la plateforme/);
+    const boutons = composants[0].components.map((b) => b.data);
+    assert.strictEqual(boutons.length, 1, 'un seul bouton : le lien vers la fiche');
+    assert.strictEqual(boutons[0].url, `http://localhost/admin/candidatures/${c.id}`);
+
+    const admin = cookieSession(ADMIN, 'admin');
+    const fiche = await (await m.get(`/admin/candidatures/${c.id}`, { cookie: admin })).text();
+    assert.match(fiche, /Yao Kossi/);
+    assert.match(fiche, /name="retour" value="fiche"/);
+    assert.strictEqual((await m.get(`/admin/candidatures/${c.id}`, { cookie: cookieSession('C1') })).status, 403);
+    assert.strictEqual((await m.get('/admin/candidatures/999', { cookie: admin })).status, 404);
+
+    const r = await m.poster(`/admin/candidatures/${c.id}/retenir`, { retour: 'fiche' }, { cookie: admin });
+    assert.strictEqual(r.headers.get('location'), `/admin/candidatures/${c.id}?fait=retenir`);
+    assert.strictEqual(m.candidatures.parId(c.id).statut, 'retenu');
+    assert.match(await (await m.get(r.headers.get('location'), { cookie: admin })).text(), /Bob lui a envoyé le lien de la suite/);
+  } finally { await m.fermer(); }
+});
