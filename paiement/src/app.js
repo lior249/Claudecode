@@ -7,6 +7,7 @@ const { lireJetonMembre, lienRenouvellement } = require('./liens');
 const { lireSession, ouvrirSession, fermerSession, verifier } = require('./discord-oauth');
 const P = require('./pages');
 const E = require('./pages-espace');
+const { verifierReponses } = require('./formulaires');
 
 const EMAIL_REGEX = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 const REF_REGEX = /^[A-Za-z0-9_-]{16,64}$/;
@@ -100,7 +101,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   // ---- Elite ----
   const elite = config.offres.elite;
-  app.get('/coaching/elite', (req, res) => res.send(E.pageEliteCandidature(config, { session: lireSession(req, config.secretApp) })));
+  app.get('/coaching/elite', (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    // Déjà candidat (formulaire envoyé) : on montre où il en est.
+    const c = session && candidatures && candidatures.parDiscord(session.id);
+    if (c && c.statut !== 'formulaire') return res.redirect(302, `${config.offres.elite.base}/candidature`);
+    return res.send(E.pageEliteCandidature(config, { session }));
+  });
   function invitationValide(req, res) {
     const inv = commandes.invitation(req.params.token);
     if (!inv) { res.status(404).send(P.pageMessage(config, 'Lien invalide', 'Ce lien de paiement n\'existe pas.', { lien: elite.base, texteLien: 'Découvrir l\'Elite' })); return null; }
@@ -326,8 +333,49 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     const session = lireSession(req, config.secretApp);
     if (!session || !candidatures) return res.send(E.pageCandidature(config, { session: null, lienDiscord: lienDiscord({ but: 'candidat' }, { rejoindre: true }) }));
     const c = candidatures.parDiscord(session.id) || candidatures.demarrer(session.id, session.pseudo);
+    if (c.statut === 'retenu') return res.send(E.pageConfirmation(config, { session }));
     const inv = c.invitation_token ? commandes.invitation(c.invitation_token) : null;
     return res.send(E.pageCandidature(config, { session, candidature: c, lienPaiement: candidatures.lienPaiement(c), paye: Boolean(inv && inv.utilisee_le) }));
+  });
+
+  // Formulaire 1 (candidature) : vérifie les réponses et retrouve le candidat sur le serveur Discord.
+  app.post('/api/candidature/formulaire', json, async (req, res) => {
+    if (!candidatures) return res.status(503).json({ erreur: 'Les candidatures ne sont pas encore ouvertes.' });
+    const session = lireSession(req, config.secretApp);
+    const v = verifierReponses('candidature', req.body && req.body.reponses, { sauter: session ? ['discord'] : [] });
+    if (v.erreur) return res.status(400).json(v);
+    let discordId = session && session.id;
+    let pseudo = session && session.pseudo;
+    const champDiscord = v.reponses.find((r) => r.id === 'discord');
+    if (!discordId && champDiscord) {
+      pseudo = champDiscord.valeur.replace(/^@/, '');
+      discordId = bob && bob.idDepuisPseudo ? await bob.idDepuisPseudo(pseudo) : null;
+      if (!discordId) {
+        return res.status(400).json({ champ: 'discord', erreur: 'Pseudo introuvable sur le serveur Overmaxx. Rejoins d\'abord le Discord, puis vérifie l\'orthographe (sans espace).' });
+      }
+    }
+    const existante = candidatures.parDiscord(discordId);
+    if (existante && existante.statut !== 'formulaire') {
+      return res.status(409).json({ erreur: existante.statut === 'refuse'
+        ? 'Une candidature avec ce compte Discord a déjà été examinée.' : 'Tu as déjà une candidature en cours. Bob te répond sur Discord.' });
+    }
+    candidatures.demarrer(discordId, pseudo);
+    const reponses = v.reponses.map(({ label, valeur }) => ({ label, valeur }));
+    const cand = candidatures.recevoirFormulaire(discordId, reponses);
+    if (cand && bob) bob.candidatureRecue(cand, reponses).catch(() => {});
+    return res.json({ ok: true });
+  });
+
+  // Formulaire 2 (profils retenus) : réponses écrites ; la vidéo suit sur /api/candidature/video.
+  app.post('/api/candidature/confirmation', json, (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    const c = session && candidatures && candidatures.parDiscord(session.id);
+    if (!c) return res.status(401).json({ erreur: 'Ton lien a expiré. Dans Discord, tape /connexion pour en recevoir un nouveau.' });
+    const v = verifierReponses('confirmation', req.body && req.body.reponses);
+    if (v.erreur) return res.status(400).json(v);
+    const r = candidatures.enregistrerConfirmation(c, v.reponses.map(({ label, valeur }) => ({ label, valeur })));
+    if (r.erreur) return res.status(409).json(r);
+    return res.json({ ok: true });
   });
 
   app.get('/api/candidature', (req, res) => {

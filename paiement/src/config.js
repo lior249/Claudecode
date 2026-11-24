@@ -84,7 +84,7 @@ function chargerConfig({ strict = true } = {}) {
     },
 
     tally: { secret: lire('TALLY_SIGNING_SECRET', '') },
-    videoMaxMo: Number(lire('VIDEO_MAX_MO', '150')),
+    videoMaxMo: Number(lire('VIDEO_MAX_MO', '20')),
 
     coaching: {
       // Heures GMT des créneaux de 30 minutes.

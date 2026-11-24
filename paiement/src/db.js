@@ -174,6 +174,13 @@ function migrerV6(db) {
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS commandes_code_liaison ON commandes(code_liaison); PRAGMA user_version = 6;');
 }
 
+// v7 : réponses du formulaire de confirmation (profils retenus).
+function migrerV7(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 7) return;
+  if (!colonnes(db, 'candidatures').includes('reponses_confirmation')) db.exec('ALTER TABLE candidatures ADD COLUMN reponses_confirmation TEXT');
+  db.exec('PRAGMA user_version = 7');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -189,6 +196,7 @@ function ouvrirBase(fichier) {
   migrerV4(db);
   migrerV5(db);
   migrerV6(db);
+  migrerV7(db);
   return db;
 }
 

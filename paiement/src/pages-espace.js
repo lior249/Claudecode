@@ -2,6 +2,8 @@
 
 // Pages Elite (candidature), Coaching privé (réservation) et Admin (calendrier).
 const { ICONE, echapper, gabarit, formatDate, blocSupport } = require('./pages');
+const { FORMULAIRES } = require('./formulaires');
+const { pageFormulaire } = require('./pages-formulaire');
 
 const STYLE_GRILLE = `<style>
   .legende { display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:var(--doux); margin:0 0 8px; }
@@ -50,32 +52,46 @@ function pageConnexionRequise(config, { retour, message, lienDiscord }) {
   ${blocSupport(config)}`);
 }
 
-// /coaching/elite : présentation (VSL) puis formulaire de candidature, sans connexion. Aucun prix affiché.
+const boutonDiscord = (config) => (config.lienDiscord
+  ? `<a class="bouton" href="${echapper(config.lienDiscord)}" style="max-width:340px">Rejoindre le Discord</a>` : '');
+
+// /coaching/elite : formulaire 1 (candidature), façon Tally, sans connexion. Aucun prix affiché.
 function pageEliteCandidature(config, { session } = {}) {
   const o = config.offres.elite;
+  const f = FORMULAIRES.candidature;
+  // Connecté (lien de Bob) : on connaît déjà son Discord, on ne lui redemande pas.
+  const questions = f.questions.filter((q) => !(session && q.type === 'discord'));
   const vsl = o.wistiaVsl
     ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(o.wistiaVsl)}?videoFoam=true&playerColor=000000"
         title="Présentation ${echapper(o.nom)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>` : '';
-  const params = new URLSearchParams({ alignLeft: '1', hideTitle: '1', transparentBackground: '1', dynamicHeight: '1' });
-  if (session) { params.set('discord_id', session.id); params.set('pseudo', session.pseudo || ''); }
-  const formulaire = o.tallyFormId
-    ? `<div class="carte" style="padding:6px"><iframe src="https://tally.so/embed/${echapper(o.tallyFormId)}?${params}" title="Candidature ${echapper(o.nom)}"
-        style="width:100%;min-height:900px;border:0" loading="lazy"></iframe></div>`
-    : '<div class="carte"><p style="margin:0">Le formulaire de candidature arrive bientôt. Reviens un peu plus tard.</p></div>';
-  return gabarit(o.nom, `
-  <p class="etiquette">Accompagnement privé</p>
-  <h1>${echapper(o.nom)}</h1>
-  <p class="doux">L'accompagnement Elite est sur sélection. Regarde la vidéo jusqu'au bout, puis remplis le formulaire.</p>
-  ${vsl}
-  <div class="carte">
-    <h2>Avant de remplir le formulaire</h2>
-    <ul class="liste">
-      <li><span class="numero">1</span><span>Sois sur le serveur Discord Overmaxx${config.lienDiscord ? ` (<a href="${echapper(config.lienDiscord)}">le rejoindre</a>)` : ''} : c'est là que Bob, notre bot, te répond.</span></li>
-      <li><span class="numero">2</span><span>Écris ton <b>pseudo Discord exact</b> dans le formulaire (celui sous ton nom dans ton profil, par exemple <b>awa_27</b>).</span></li>
-      <li><span class="numero">3</span><span>Réponse sous 24 heures, par message privé de Bob.</span></li>
-    </ul>
-  </div>
-  ${formulaire}`);
+  const intro = `
+    <p class="tf-num">Accompagnement privé · sur sélection</p>
+    <h1 class="tf-q">${echapper(o.nom)}</h1>
+    <p class="tf-aide">Regarde la vidéo jusqu'au bout, puis réponds aux questions. Ça prend 2 minutes.</p>
+    ${vsl}
+    <div class="tf-actions"><button class="tf-ok" type="button" data-commencer>Commencer</button><span class="tf-indice">${questions.length} question${questions.length > 1 ? 's' : ''}</span></div>`;
+  const fin = `
+    <div class="icone-ronde">${ICONE.ok}</div>
+    <h1 class="tf-q">Ton formulaire est en cours de traitement.</h1>
+    <p class="tf-aide">Bob, notre bot, te répondra en <b style="color:#fff">message privé sur Discord sous 24 heures</b>, avec la suite si ton profil est retenu.</p>
+    <p class="tf-aide" style="margin-bottom:8px">Pas encore sur le serveur Overmaxx ? Rejoins-le maintenant, sinon Bob ne pourra pas t'écrire.</p>
+    ${boutonDiscord(config)}`;
+  return pageFormulaire(config, { titre: f.titre, mode: 'candidature', questions, intro, fin, videoMaxMo: config.videoMaxMo || 20 });
+}
+
+// Formulaire 2 (profils retenus), ouvert par le lien de Bob.
+function pageConfirmation(config, { session }) {
+  const f = FORMULAIRES.confirmation;
+  const intro = `
+    <p class="tf-num">Candidature Overmaxx Elite · ${echapper(session.pseudo || '')}</p>
+    <h1 class="tf-q">Ton profil est retenu !</h1>
+    <p class="tf-aide">Dernière étape avant la réponse finale : quelques réponses de plus.</p>
+    <div class="tf-actions"><button class="tf-ok" type="button" data-commencer>Continuer</button></div>`;
+  const fin = `
+    <div class="icone-ronde">${ICONE.ok}</div>
+    <h1 class="tf-q">C'est envoyé.</h1>
+    <p class="tf-aide">Ta candidature est en cours d'examen. Bob te donne la réponse finale en message privé sur Discord.</p>`;
+  return pageFormulaire(config, { titre: f.titre, mode: 'confirmation', questions: f.questions, intro, fin, videoMaxMo: config.videoMaxMo || 20 });
 }
 
 // /coaching/elite/candidature : une seule page qui suit la candidature de bout en bout.
@@ -95,33 +111,22 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
   })();`;
 
   if (!session) {
-    return gabarit('Candidature', `${titre('Connecte ton Discord')}
-    <div class="carte"><p class="doux" style="margin:0">Toutes les réponses à ta candidature arrivent sur Discord, par <b style="color:#fff">Bob</b>, notre bot.</p></div>
-    <div class="carte">
-      <ul class="liste">
-        <li><span class="numero">1</span><span>Rejoins le serveur Discord Overmaxx.</span></li>
-        <li><span class="numero">2</span><span>Dans le salon d'attente, clique sur <b>Postuler</b> : Bob t'envoie ton lien personnel, sans mot de passe.</span></li>
-      </ul>
-      ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">Rejoindre le serveur Discord</a>` : ''}
-    </div>
-    <a class="bouton secondaire" href="${echapper(lienDiscord || '/discord/candidature')}">Ou se connecter avec Discord sur le web</a>
-    <a class="bouton secondaire" href="${o.base}">Retour</a>`);
+    return gabarit('Candidature', `${titre('Suivre ma candidature')}
+    <div class="carte"><p class="doux" style="margin:0">Toutes les réponses arrivent sur Discord, par message privé de <b style="color:#fff">Bob</b>, notre bot.
+      Quand ton profil est retenu, il t'envoie le lien de la suite du formulaire.</p></div>
+    <a class="bouton" href="${o.base}">Remplir le formulaire de candidature</a>
+    ${config.lienDiscord ? `<a class="bouton secondaire" href="${echapper(config.lienDiscord)}">Rejoindre le Discord</a>` : ''}`);
   }
   const c = candidature;
   let corps = '';
   let script = suivi;
   switch (c.statut) {
-    case 'formulaire': {
-      const params = new URLSearchParams({ discord_id: session.id, pseudo: session.pseudo || '', alignLeft: '1', hideTitle: '1', transparentBackground: '1', dynamicHeight: '1' });
-      corps = `${titre('Ton formulaire')}
-      <p class="doux">Connecté en tant que <b style="color:#fff">${echapper(session.pseudo)}</b>. Réponds sincèrement : c'est ce qui nous permet de savoir si on peut t'aider.</p>
-      ${o.tallyFormId
-        ? `<div class="carte" style="padding:6px"><iframe src="https://tally.so/embed/${echapper(o.tallyFormId)}?${params}" title="Formulaire de candidature"
-            style="width:100%;min-height:900px;border:0" loading="lazy"></iframe></div>
-           <p class="doux petit centre">Une fois le formulaire envoyé, cette page se met à jour toute seule.</p>`
-        : '<div class="carte"><p style="margin:0">Le formulaire n\'est pas encore disponible. Reviens un peu plus tard.</p></div>'}`;
+    case 'formulaire':
+      script = null;
+      corps = `${titre('Ta candidature')}
+      <div class="carte"><p style="margin:0">Tu n'as pas encore rempli le formulaire de candidature.</p></div>
+      <a class="bouton" href="${o.base}">Remplir le formulaire</a>`;
       break;
-    }
     case 'examen':
       corps = `${titre('Candidature en cours de traitement')}${attente('Ton formulaire est bien reçu. Nous l\'examinons : <b>réponse sous 24 heures</b>, ici et par message de Bob sur Discord.')}`;
       break;
@@ -191,6 +196,7 @@ function pageAdminCandidatures(config, { liste }) {
       <p class="etiquette">${echapper(LIBELLES[c.statut] || c.statut)} · ${echapper(new Date(c.maj_le).toLocaleDateString('fr-FR'))}</p>
       <h2>${echapper(c.pseudo || c.discord_id)}</h2>
       ${c.reponses.length ? `<dl class="details">${c.reponses.map((r) => `<div><dt>${echapper(r.label)}</dt><dd>${echapper(r.valeur)}</dd></div>`).join('')}</dl>` : ''}
+      ${c.reponsesConfirmation && c.reponsesConfirmation.length ? `<p class="etiquette" style="margin-top:14px">Formulaire de confirmation</p><dl class="details">${c.reponsesConfirmation.map((r) => `<div><dt>${echapper(r.label)}</dt><dd>${echapper(r.valeur)}</dd></div>`).join('')}</dl>` : ''}
       ${c.video_fichier ? `<video controls preload="metadata" playsinline src="/admin/videos/${c.id}" style="width:100%;border-radius:14px;margin-top:12px;background:#000"></video>` : ''}
       ${(DECISIONS[c.statut] || []).map((d) => `<form method="post" action="/admin/candidatures/${c.id}/${d}" style="display:inline">
         <button class="bouton${d === 'refuser' ? ' secondaire' : ''}" type="submit">${NOMS[d]}</button></form>`).join('')}
@@ -362,4 +368,4 @@ function pageAdmin(config, { lundi, jours, cases, membres, annulations, coaching
   <a class="bouton secondaire" href="/deconnexion">Se déconnecter</a>`, { script });
 }
 
-module.exports = { pageConnexionRequise, pageEliteCandidature, pageCandidature, pageAdminCandidatures, pageCoaching, pageAdmin };
+module.exports = { pageConnexionRequise, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageCoaching, pageAdmin };

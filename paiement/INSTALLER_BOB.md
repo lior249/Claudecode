@@ -74,21 +74,18 @@ Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont di
    - les quatre rôles → `DISCORD_ROLE_COMMUNITY`, `DISCORD_ROLE_ELITE`, `DISCORD_ROLE_GOAT`, `DISCORD_ROLE_ATTENTE`.
 4. Le salon vocal de coaching (limité à 2 personnes) : clic droit → **Copier le lien** → `DISCORD_SALON_COACHING_URL`.
 
-## 5. Tally (candidatures Elite)
+## 5. Candidatures Elite (formulaires maison)
 
-Le parcours : bouton **Postuler à l'Elite** du salon d'attente → page `/coaching/elite` (vidéo de présentation + formulaire Tally, sans connexion)
-→ réponse sous 24 h (Bob, en privé) → si retenu, Bob envoie un lien pour la vidéo d'1 minute → si validé, lien de paiement.
+Le parcours : bouton **Postuler à l'Elite** du salon d'attente → **overmaxx.online/coaching/elite** :
+vidéo de présentation, puis le **formulaire 1** (une question par écran, façon Tally) → « en cours de traitement, rejoins le Discord »
+→ Bob répond en privé sous 24 h → si retenu, Bob envoie le lien du **formulaire 2** (vidéo, 20 Mo maximum)
+→ tu regardes sur **overmaxx.online/admin/candidatures** → si validé, Bob envoie le lien de paiement.
 
-1. Crée le formulaire de candidature. Son identifiant est la fin du lien de partage `tally.so/r/XXXXXX` → `TALLY_FORM_ID`.
-2. **Indispensable** : ajoute une question **obligatoire** dont le titre contient le mot **« Discord »**, par exemple
-   **« Ton pseudo Discord »** (texte court). Bob retrouve le candidat sur le serveur grâce à ce pseudo (les pseudos Discord sont uniques).
-   *(Facultatif)* Ajoute aussi un bloc **Hidden fields** avec `discord_id` et `pseudo` : le site les remplit quand le candidat est déjà connecté.
-3. Va dans **Integrations** → **Webhooks**, puis ajoute `https://overmaxx.online/webhooks/tally`.
-   Si Tally propose un **signing secret**, copie-le → `TALLY_SIGNING_SECRET`.
-4. La vidéo de présentation (VSL) sur Wistia → `WISTIA_VSL_ELITE`.
-
-Les vidéos des candidats (150 Mo maximum, `VIDEO_MAX_MO`) sont stockées sur le serveur, consultables sur
-**overmaxx.online/admin/candidatures**, et **supprimées automatiquement** dès que tu valides ou refuses.
+- **Les questions** sont dans `paiement/src/formulaires.js` : ajoute ou modifie les blocs, puis relance le site.
+  Le formulaire 1 doit garder la question `discord` : c'est grâce à elle que Bob retrouve le candidat sur le serveur.
+- La vidéo de présentation (VSL) sur Wistia → `WISTIA_VSL_ELITE`.
+- Taille maximale des vidéos des candidats → `VIDEO_MAX_MO` (20 par défaut). Elles sont supprimées dès ta décision.
+- Tally n'est plus nécessaire (le webhook `/webhooks/tally` reste accepté si tu l'utilises encore).
 
 ## 6. Mettre à jour le serveur
 

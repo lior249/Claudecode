@@ -18,7 +18,7 @@ function creerCandidatures({ db, config, commandes, maintenant = () => new Date(
     ? path.join(require('os').tmpdir(), 'overmaxx-videos')
     : path.join(path.dirname(path.resolve(config.fichierBase)), 'videos');
   fs.mkdirSync(dossierVideos, { recursive: true });
-  const tailleMax = Number(config.videoMaxMo || 150) * 1024 * 1024;
+  const tailleMax = Number(config.videoMaxMo || 20) * 1024 * 1024;
 
   const q = {
     parDiscord: db.prepare('SELECT * FROM candidatures WHERE discord_id = ?'),
@@ -30,6 +30,7 @@ function creerCandidatures({ db, config, commandes, maintenant = () => new Date(
     video: db.prepare("UPDATE candidatures SET video_fichier = ?, video_type = ?, video_taille = ?, statut = 'video', maj_le = ? WHERE id = ? AND statut = 'retenu'"),
     effacerVideo: db.prepare('UPDATE candidatures SET video_fichier = NULL WHERE id = ?'),
     invitation: db.prepare('UPDATE candidatures SET invitation_token = ? WHERE id = ?'),
+    confirmation: db.prepare("UPDATE candidatures SET reponses_confirmation = ?, maj_le = ? WHERE id = ? AND statut = 'retenu'"),
     liste: db.prepare(`SELECT * FROM candidatures ORDER BY CASE statut WHEN 'video' THEN 0 WHEN 'examen' THEN 1 WHEN 'retenu' THEN 2
                        WHEN 'formulaire' THEN 3 ELSE 4 END, maj_le DESC LIMIT 200`),
   };
@@ -47,7 +48,18 @@ function creerCandidatures({ db, config, commandes, maintenant = () => new Date(
 
     parDiscord(id) { return q.parDiscord.get(id) || null; },
     parId(id) { return q.parId.get(id) || null; },
-    liste() { return q.liste.all().map((c) => ({ ...c, reponses: c.reponses ? JSON.parse(c.reponses) : [] })); },
+    liste() {
+      return q.liste.all().map((c) => ({
+        ...c, reponses: c.reponses ? JSON.parse(c.reponses) : [], reponsesConfirmation: c.reponses_confirmation ? JSON.parse(c.reponses_confirmation) : [],
+      }));
+    },
+
+    // Formulaire 2 (profils retenus) : réponses écrites, avant l'envoi de la vidéo.
+    enregistrerConfirmation(c, reponses) {
+      if (!c || c.statut !== 'retenu') return { erreur: 'Tu ne peux pas remplir ce formulaire à cette étape.' };
+      q.confirmation.run(JSON.stringify(reponses), maintenant().toISOString(), c.id);
+      return { ok: true };
+    },
 
     // Après la connexion Discord : crée la candidature si elle n'existe pas encore.
     demarrer(discordId, pseudo) {
