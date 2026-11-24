@@ -177,9 +177,10 @@ function creerApp({ config, commandes, whop }) {
     try {
       const r = await commandes.traiterTransaction(tx.id);
       if (!r) {
-        // Paiement hors de ce tunnel, ou session pas encore à jour : SasPay réessaiera (5 fois max).
-        console.warn(`[webhook] aucune commande pour la transaction ${tx.id}`);
-        return res.status(503).json({ erreur: 'commande introuvable' });
+        // Paiement d'un autre site sur le même compte SasPay (ex. creatoskills.site) : on l'ignore.
+        // Pour nos propres commandes, la page de statut vérifie de toute façon toute seule.
+        console.log(`[webhook] transaction ${tx.id} : pas une commande Overmaxx, ignorée`);
+        return res.json({ ignore: 'pas une commande de ce site' });
       }
       console.log(`[webhook] commande ${r.ref} : ${r.etat}`);
       return res.json({ ok: true, etat: r.etat });

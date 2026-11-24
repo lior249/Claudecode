@@ -48,7 +48,9 @@ Le bot Discord pourra envoyer à chaque membre son **lien personnel** de renouve
 2. Développeur → Webhooks : webhook vers `https://TON-SERVEUR/webhooks/saspay`, abonné à `transaction.success`.
    **Copie le secret de signature tout de suite** : il ne s'affiche qu'une fois → `SASPAY_WEBHOOK_SECRET`.
 
-### 3. Hébergement (Railway, Render, VPS…)
+### 3. Hébergement
+
+Sur ton serveur Namecheap : suis **`DEPLOIEMENT.md`** (Docker + Caddy, à côté de creatoskills.site). Ailleurs :
 
 1. Déploie le dossier `paiement/` avec **Node 22.13 minimum** (commande de démarrage : `npm start`).
 2. Ajoute un **volume persistant** et fais pointer `FICHIER_BASE` dessus (sinon les membres sont perdus à chaque redéploiement).
