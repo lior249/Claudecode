@@ -411,7 +411,7 @@ test('/configurer-attente : crée le salon d\'attente, bloque tous les autres sa
       id: 'guild',
       members: { fetch: async () => new Map() },
       channels: {
-        fetch: async () => salons,
+        fetch: async (id) => (id ? (salons.get(id) || Promise.reject(new Error('inconnu'))) : salons),
         create: async (opts) => { const c = salon('attente', { name: opts.name }); c.opts = opts; salons.set('attente', c); return c; },
       },
     };
@@ -429,6 +429,11 @@ test('/configurer-attente : crée le salon d\'attente, bloque tous les autres sa
     assert.ok(edits.every(([, role, p]) => role === ROLES.attente && p.ViewChannel === false));
     assert.deepStrictEqual(r.echecs, ['prive']);
     assert.match(envoyes[0][1].content, /Tu es en attente/);
+
+    // Deuxième démarrage : même salon, message pas republié.
+    const r2 = await bob.configurerAttente(null);
+    assert.strictEqual(r2.salon.id, 'attente');
+    assert.strictEqual(envoyes.length, 1);
 
     // Un nouveau salon est bloqué ; le salon d'attente lui-même ne l'est pas.
     assert.strictEqual(await bob.bloquerPourAttente(salon('nouveau')), 'bloqué');

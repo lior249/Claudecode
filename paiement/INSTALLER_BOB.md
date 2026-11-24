@@ -138,9 +138,10 @@ Si l'application s'arrête, le message indique le réglage à corriger.
 
 1. `LIEN_DISCORD` dans `overmaxx.env` doit être un **lien d'invitation permanent** vers le **nouveau** serveur
    (clic droit sur un salon → **Inviter** → **Modifier le lien** : expiration **Jamais**).
-2. Tape `/configurer-attente` (sans option, Bob crée le salon **#en-attente** ; ou choisis ton salon existant).
-   Bob rend ce salon visible **uniquement** par En Attente, **bloque tous les autres salons et catégories** pour En Attente,
-   y publie le message ci-dessous, et bloquera aussi chaque nouveau salon créé plus tard.
+2. **Rien à taper** : au démarrage, Bob crée le salon **#en-attente** (ou utilise `DISCORD_SALON_ATTENTE_ID` s'il est rempli),
+   le rend visible **uniquement** par En Attente, **cache tous les autres salons et catégories** à En Attente,
+   y publie le message ci-dessous, et cachera aussi chaque nouveau salon créé plus tard. Il t'envoie le bilan en privé.
+   (`/configurer-attente` permet de le refaire à la main si besoin.)
    Tu peux republier le message à tout moment avec `/publier bouton: Message du salon d'attente` : Bob publie le message
    « Tu es en attente… » avec les boutons **Rejoindre la Community** et **Postuler à l'Elite**.
    Les nouveaux venus « En Attente » sans programme sont **retirés du serveur au bout de 24 h** (`ATTENTE_NOUVEAUX_HEURES`),

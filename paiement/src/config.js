@@ -79,6 +79,8 @@ function chargerConfig({ strict = true } = {}) {
       attenteNouveauxHeures: Number(lire('ATTENTE_NOUVEAUX_HEURES', '24')),
       adminId: lire('DISCORD_ADMIN_ID'),
       salonCoaching: lire('DISCORD_SALON_COACHING_URL', ''),
+      // Salon d'attente existant (identifiant). Vide : Bob crée #en-attente tout seul au démarrage.
+      salonAttente: lire('DISCORD_SALON_ATTENTE_ID', ''),
     },
 
     tally: { secret: lire('TALLY_SIGNING_SECRET', '') },

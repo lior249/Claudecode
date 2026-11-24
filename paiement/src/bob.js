@@ -347,6 +347,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     const role = config.discord.roleAttente;
     if (!serveur || !role) return { erreur: 'DISCORD_ROLE_ATTENTE ou le serveur est introuvable.' };
     let salon = salonChoisi;
+    // Automatique : salon déjà configuré, ou salon indiqué dans overmaxx.env.
+    for (const id of [salonAttenteId(), config.discord.salonAttente]) {
+      if (salon || !id) continue;
+      try { salon = await serveur.channels.fetch(id); } catch { /* supprimé : on en recréera un */ }
+    }
     if (!salon) {
       salon = await serveur.channels.create({
         name: 'en-attente',
@@ -376,8 +381,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
         if (r === 'bloqué') bilan.bloques++; else if (r === 'hérité') bilan.herites++;
       } catch (err) { bilan.echecs.push(c.name || c.id); }
     }
-    // Si le salon d'attente est dans une catégorie bloquée, il garde son propre accès (non synchronisé).
-    await salon.send(messageBouton('attente'));
+    // Le message n'est publié qu'une fois par salon.
+    const cleMessage = `config:message-attente:${salon.id}`;
+    if (!dejaEnvoye(cleMessage)) { await salon.send(messageBouton('attente')); marquer(cleMessage); }
     log(`salon d'attente configuré : ${salon.id} (${bilan.bloques} bloqués, ${bilan.herites} hérités, ${bilan.echecs.length} échecs)`);
     return { ok: true, salon, ...bilan };
   }
@@ -633,6 +639,20 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
           serveur = await client.guilds.fetch(config.discord.serveurId);
           await serveur.commands.set(COMMANDES);
         } catch (err) { console.error('[bob] serveur Discord introuvable ou commandes refusées :', err.message); }
+        // Salon d'attente configuré automatiquement à chaque démarrage (aucune commande à taper).
+        if (serveur && config.discord.roleAttente) {
+          try {
+            const r = await configurerAttente(null);
+            if (r.ok) {
+              const nouveau = !dejaEnvoye(`config:bilan:${r.salon.id}`);
+              if (nouveau || r.echecs.length) {
+                marquer(`config:bilan:${r.salon.id}`);
+                await notifier.admin(`Salon d'attente prêt : <#${r.salon.id}>. ${r.bloques} salon(s) ou catégorie(s) cachés au rôle En Attente.`
+                  + (r.echecs.length ? `\nJe n'ai pas pu modifier : ${r.echecs.join(', ')}. Donne-moi l'accès à ces salons (ou « Gérer les salons »), puis relance le site.` : ''));
+              }
+            } else console.warn('[bob] salon d\'attente :', r.erreur);
+          } catch (err) { console.error('[bob] salon d\'attente :', err.message); }
+        }
         cycle();
         setInterval(cycle, 60 * 1000).unref();
       });
