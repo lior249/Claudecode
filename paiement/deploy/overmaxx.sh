@@ -3,6 +3,8 @@
 # Usage (dans /opt/overmaxx/paiement) : ./deploy/overmaxx.sh
 # À relancer après chaque mise à jour (git pull) ou modification de overmaxx.env,
 # ET après chaque ./deploy/site.sh de creatoskills.site (qui recrée le Caddy commun sans Overmaxx).
+# Désactiver creatoskills.site : docker stop creato-site && docker update --restart=no creato-site, puis relancer ce script.
+# Le réactiver : docker update --restart unless-stopped creato-site && docker start creato-site, puis relancer ce script.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
@@ -55,12 +57,14 @@ www.$DOMAIN {
 }"
 fi
 mkdir -p /opt/caddy-commun
-if [ -f /opt/creato-site/deploy/Caddyfile.site ]; then
+# creatoskills.site n'est inclus que si son conteneur tourne (désactivé = docker stop creato-site).
+if [ -f /opt/creato-site/deploy/Caddyfile.site ] && docker ps --format '{{.Names}}' | grep -qx creato-site; then
   SITE_DOMAIN=$(grep -E '^DOMAIN=' /opt/creato-site/site.env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || true)
   SITE_DOMAIN=${SITE_DOMAIN:-creatoskills.site}
   { cat /opt/creato-site/deploy/Caddyfile.site; echo; echo "# --- Overmaxx (ajouté par /opt/overmaxx/paiement/deploy/overmaxx.sh) ---"; echo "$BLOC"; } > /opt/caddy-commun/Caddyfile
 else
   SITE_DOMAIN=""
+  echo "ℹ️  creatoskills.site est désactivé : il n'est pas servi."
   echo "$BLOC" > /opt/caddy-commun/Caddyfile
 fi
 echo "▶ Mise à jour du HTTPS pour https://$DOMAIN …"

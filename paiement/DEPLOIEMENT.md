@@ -137,3 +137,18 @@ docker logs overmaxx-paiement --tail 50
 ```bash
 docker run --rm -v overmaxx_data:/data -v /root:/sauvegarde alpine sh -c 'cp /data/paiement.db* /sauvegarde/'
 ```
+
+**Désactiver creatoskills.site** (rien n'est effacé, réactivable à tout moment) :
+```bash
+docker stop creato-site && docker update --restart=no creato-site
+```
+```bash
+cd /opt/overmaxx/paiement && ./deploy/overmaxx.sh
+```
+Pour le réactiver :
+```bash
+docker update --restart unless-stopped creato-site && docker start creato-site
+```
+```bash
+cd /opt/overmaxx/paiement && ./deploy/overmaxx.sh
+```
