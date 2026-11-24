@@ -12,6 +12,9 @@
 //    choix        une option parmi plusieurs (option : options = ['A', 'B', …])
 //    discord      pseudo Discord : vérifié sur le serveur (indispensable au formulaire 1)
 //    video        envoi d'une vidéo         (taille max : VIDEO_MAX_MO, 20 Mo par défaut)
+//
+//  Option pour toutes les questions : images = [{ src, legende }] (tutoriel affiché sous la question),
+//  avec lienImages = texte du lien qui l'ouvre. Les images vont dans paiement/public/aide/.
 // ============================================================================
 
 const FORMULAIRES = {
@@ -27,7 +30,14 @@ const FORMULAIRES = {
       {
         id: 'discord', type: 'discord', obligatoire: true,
         question: 'Quel est ton pseudo Discord ?',
-        aide: 'Celui affiché sous ton nom dans ton profil Discord (par exemple awa_27). C\'est là que Bob, notre bot, te répondra.',
+        aide: 'Le petit nom écrit sous ton nom dans ton profil Discord (par exemple awa_27). C\'est là que Bob, notre bot, te répondra.',
+        // Tutoriel en images (fichiers dans paiement/public/aide/), affiché avec « Où trouver mon pseudo ? ».
+        images: [
+          { src: '/static/aide/pseudo-1.jpg', legende: '1. Ouvre l\'application Discord.' },
+          { src: '/static/aide/pseudo-2.jpg', legende: '2. Appuie sur ta photo de profil.' },
+          { src: '/static/aide/pseudo-3.jpg', legende: '3. Ton pseudo est le petit nom sous ton nom (ici : nofloh24). Écris exactement celui-là.' },
+        ],
+        lienImages: 'Où trouver mon pseudo ?',
       },
     ],
   },

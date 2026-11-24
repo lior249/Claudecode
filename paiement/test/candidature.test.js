@@ -173,3 +173,18 @@ test('formulaire rempli sans connexion : Bob retrouve le candidat grâce à son 
     assert.match(holder.inconnu[0], /introuvable/);
   } finally { await m.fermer(); }
 });
+
+test('question Discord : tutoriel en 3 images, servies avec cache', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const page = await (await m.get('/coaching/elite')).text();
+    assert.match(page, /Où trouver mon pseudo \?/);
+    assert.match(page, /\/static\/aide\/pseudo-3\.jpg/);
+    for (const n of [1, 2, 3]) {
+      const r = await m.get(`/static/aide/pseudo-${n}.jpg`);
+      assert.strictEqual(r.status, 200);
+      assert.match(r.headers.get('content-type'), /image\/jpeg/);
+      assert.match(r.headers.get('cache-control'), /max-age=604800/);
+    }
+  } finally { await m.fermer(); }
+});

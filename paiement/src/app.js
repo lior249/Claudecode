@@ -41,6 +41,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   const json = express.json({ limit: '20kb' });
   const introuvable = (res) => res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce paiement est introuvable.'));
 
+  // Images publiques (avant la règle « pas de cache ») (tutoriels des formulaires).
+  app.use('/static', express.static(require('path').join(__dirname, '..', 'public'), { maxAge: '7d', index: false }));
+
   app.use((req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('Referrer-Policy', 'no-referrer');
