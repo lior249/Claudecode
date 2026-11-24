@@ -4,6 +4,8 @@ const {
   Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle,
   SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
 } = require('discord.js');
+
+const STATUTS_CANDIDATURE_PROTEGES = ['examen', 'retenu', 'video', 'valide'];
 const { lienRenouvellement, lienInscription, lienMagique } = require('./liens');
 const { JOURS, dateISO, ajouterJours } = require('./coaching');
 
@@ -39,6 +41,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     autresActifs: db.prepare("SELECT * FROM membres WHERE discord_id = ? AND statut = 'actif' AND id != ?"),
     categoriser: db.prepare('UPDATE membres SET categorie_elite = ?, maj_le = ? WHERE id = ?'),
     membresParDiscord: db.prepare('SELECT * FROM membres WHERE discord_id = ?'),
+    enPeriodeAttente: db.prepare("SELECT 1 FROM membres WHERE discord_id = ? AND statut = 'actif' AND acces_jusqu_au <= ?"),
+    attenteDepuis: db.prepare('SELECT envoye_le FROM envois WHERE cle = ?'),
+    noterAttente: db.prepare('INSERT INTO envois (cle, envoye_le) VALUES (?, ?) ON CONFLICT(cle) DO UPDATE SET envoye_le = excluded.envoye_le'),
   };
   const dejaEnvoye = (cle) => Boolean(q.deja.get(cle));
   const marquer = (cle) => q.marquer.run(cle, maintenant().toISOString());
@@ -294,7 +299,12 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   async function postuler(i) {
     const m = await membreDuServeur(i.user.id);
     const aUnAcces = m && Object.values(config.offres).some((o) => o.roleDiscord && m.roles.cache.has(o.roleDiscord));
-    try { if (m && !aUnAcces && config.discord.roleAttente) await donnerRole(i.user.id, config.discord.roleAttente); } catch (err) { console.warn('[bob] postuler :', err.message); }
+    try {
+      if (m && !aUnAcces && config.discord.roleAttente) {
+        await donnerRole(i.user.id, config.discord.roleAttente);
+        q.noterAttente.run(`attente-depuis:${i.user.id}`, maintenant().toISOString());
+      }
+    } catch (err) { console.warn('[bob] postuler :', err.message); }
     if (candidatures) candidatures.demarrer(i.user.id, pseudoDe(i.user));
     const lien = lienMagique(config, { id: i.user.id, pseudo: pseudoDe(i.user) }, `${config.offres.elite.base}/candidature`);
     return i.reply({ content: `Voici ton lien de candidature **Elite** (personnel, valable 10 minutes) :\n${lien}\n\nTu y remplis le formulaire. Je te réponds ici, en message privé, sous 24 heures.`, flags: MessageFlags.Ephemeral });
@@ -350,7 +360,19 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
 
     if (i.commandName === 'publier') {
       const type = i.options.getString('bouton', true);
-      const contenu = type === 'postuler'
+      const contenu = type === 'attente'
+        ? {
+          content: '**Tu es en attente.**\n'
+            + 'Pour accéder au serveur, tu dois être membre de l\'un des deux programmes : **Overmaxx Community** ou **Overmaxx Elite**.\n'
+            + `Sans action de ta part, ce rôle te sera retiré d'ici **${config.discord.attenteNouveauxHeures || 24} heures** et tu quitteras le serveur.\n\n`
+            + '*Membre Community dont l\'accès vient de se terminer ?* Tu as reçu ton lien de renouvellement en message privé : '
+            + `tu as ${config.offres.community.graceJours} jours pour renouveler au même prix.`,
+          components: [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setLabel('Rejoindre la Community').setStyle(ButtonStyle.Link).setURL(`${config.baseUrl}/community`),
+            new ButtonBuilder().setCustomId('ovx:postuler').setLabel('Postuler à l\'Elite').setStyle(ButtonStyle.Primary),
+          )],
+        }
+        : type === 'postuler'
         ? { content: '**Candidature Overmaxx Elite**\nClique sur le bouton : je t\'envoie ton lien personnel pour remplir le formulaire, sans mot de passe.',
           components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ovx:postuler').setLabel('Postuler').setStyle(ButtonStyle.Primary))] }
         : { content: '**Se connecter à overmaxx.online**\nClique sur le bouton : je t\'envoie ton lien personnel (coaching, candidature…), sans mot de passe.',
@@ -390,7 +412,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       .addStringOption((o) => o.setName('code').setDescription('Le code affiché après ton paiement').setRequired(true).setMinLength(6).setMaxLength(6)),
     new SlashCommandBuilder().setName('publier').setDescription('Publier un bouton de Bob dans ce salon')
       .addStringOption((o) => o.setName('bouton').setDescription('Quel bouton').setRequired(true)
-        .addChoices({ name: 'Postuler (candidature Elite)', value: 'postuler' }, { name: 'Se connecter au site', value: 'connexion' }))
+        .addChoices(
+          { name: 'Message du salon d\'attente (Community + Postuler)', value: 'attente' },
+          { name: 'Postuler (candidature Elite)', value: 'postuler' },
+          { name: 'Se connecter au site', value: 'connexion' },
+        ))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     new SlashCommandBuilder().setName('lien-elite').setDescription('Créer un lien de paiement Elite personnel (usage unique)')
       .addStringOption((o) => o.setName('note').setDescription('Pour qui (pseudo, prénom…)').setMaxLength(100))
@@ -459,6 +485,37 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     });
   }
 
+  // ---------- Rôle En Attente temporaire ----------
+  // Un nouveau venu « En Attente » qui n'a rejoint aucun programme est retiré du serveur après 24 h.
+  // Exceptions : candidature Elite en cours, membre Community dans sa période d'attente, admin, bots.
+  async function nettoyerAttente() {
+    const role = config.discord.roleAttente;
+    if (!serveur || !role) return;
+    const delai = (config.discord.attenteNouveauxHeures || 24) * 3600 * 1000;
+    const now = maintenant();
+    let tous;
+    try { tous = await serveur.members.fetch(); } catch (err) { console.warn('[bob] liste des membres :', err.message); return; }
+    for (const m of tous.values()) {
+      if (!m.roles.cache.has(role) || m.user?.bot || m.id === config.discord.adminId) continue;
+      const aUnAcces = Object.values(config.offres).some((o) => o.roleDiscord && m.roles.cache.has(o.roleDiscord))
+        || (config.discord.roleGoat && m.roles.cache.has(config.discord.roleGoat));
+      if (aUnAcces) continue;
+      if (q.enPeriodeAttente.get(m.id, now.toISOString())) continue;
+      const c = candidatures && candidatures.parDiscord(m.id);
+      if (c && STATUTS_CANDIDATURE_PROTEGES.includes(c.statut)) continue;
+      const note = q.attenteDepuis.get(`attente-depuis:${m.id}`);
+      const depuis = Math.max(m.joinedTimestamp || 0, note ? new Date(note.envoye_le).getTime() : 0);
+      if (!depuis || now.getTime() - depuis < delai) continue;
+      await notifier.membre(m.id, 'Tu étais **en attente** sur le serveur Overmaxx depuis 24 heures sans rejoindre de programme : '
+        + 'ton accès est retiré. Tu peux revenir à tout moment avec le lien d\'invitation'
+        + `${config.lienDiscord ? ` (${config.lienDiscord})` : ''}, puis rejoindre la Community (${config.baseUrl}/community) ou postuler à l'Elite.`);
+      try {
+        await m.kick('Overmaxx : en attente depuis plus de 24 h sans programme');
+        log(`retiré après 24 h en attente : ${m.id}`);
+      } catch (err) { console.warn(`[bob] retrait de ${m.id} impossible :`, err.message); }
+    }
+  }
+
   // ---------- Boucle ----------
   let tour = 0;
   let enCours = false;
@@ -470,6 +527,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       await renouvellements();
       await rappelsCoaching();
       if (tour % 2 === 0) await synchroRoles();
+      if (tour % 10 === 0) await nettoyerAttente();
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
       console.error('[bob] cycle :', err);
@@ -486,6 +544,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     renouvellements,
     rappelsCoaching,
     libererCreneaux,
+    nettoyerAttente,
 
     async demarrer() {
       if (!actif) { log('désactivé : DISCORD_BOT_TOKEN ou DISCORD_GUILD_ID manquant.'); return; }

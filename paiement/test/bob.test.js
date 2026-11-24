@@ -359,3 +359,37 @@ test('renouvellement pendant l\'attente : rôle Community rendu, Attente retiré
     assert.ok(roles.has(ROLES.community) && !roles.has(ROLES.attente));
   } finally { await m.fermer(); }
 });
+
+test('rôle En Attente temporaire : retiré après 24 h, sauf candidature en cours et période d\'attente Community', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const now = Date.now();
+    const membres = new Map();
+    const kicks = [];
+    const ajouter = (id, roles, ilYA) => membres.set(id, {
+      id, joinedTimestamp: now - ilYA, user: { bot: false },
+      roles: { cache: { has: (r) => roles.includes(r) } }, kick: async () => kicks.push(id),
+    });
+    const H = 3600 * 1000;
+    ajouter('N1', [ROLES.attente], 25 * H); // nouveau venu depuis 25 h → retiré
+    ajouter('N2', [ROLES.attente], 2 * H); // depuis 2 h → reste
+    ajouter('N3', [ROLES.attente], 30 * H); // candidature en examen → reste
+    ajouter('N4', [ROLES.attente, ROLES.community], 30 * H); // a un programme → reste
+    ajouter('N5', [ROLES.attente], 30 * H); // Community dans ses 15 jours → reste
+    ajouter(ADMIN, [ROLES.attente], 30 * H);
+    m.candidatures.demarrer('N3', 'n3');
+    m.candidatures.recevoirFormulaire('N3', [{ label: 'Q', valeur: 'R' }]);
+    const mb = await inscrire(m, 'n5@example.com', { discordId: 'N5' });
+    m.db.prepare('UPDATE membres SET acces_jusqu_au = ? WHERE id = ?').run(new Date(now - 2 * JOUR).toISOString(), mb.id);
+
+    const dms = [];
+    const bob = creerBob({
+      config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures,
+      client: { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content]) }) } },
+      serveur: { members: { fetch: async (id) => (id ? membres.get(id) : membres) } },
+    });
+    await bob.nettoyerAttente();
+    assert.deepStrictEqual(kicks, ['N1']);
+    assert.ok(dms.some(([id, t]) => id === 'N1' && /24 heures/.test(t)));
+  } finally { await m.fermer(); }
+});

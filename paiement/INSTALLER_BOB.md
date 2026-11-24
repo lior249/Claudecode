@@ -137,7 +137,10 @@ Si l'application s'arrête, le message indique le réglage à corriger.
 
 1. `LIEN_DISCORD` dans `overmaxx.env` doit être un **lien d'invitation permanent** vers le **nouveau** serveur
    (clic droit sur un salon → **Inviter** → **Modifier le lien** : expiration **Jamais**).
-2. Dans le **salon d'attente**, tape `/publier bouton: Postuler` : Bob y publie le bouton **Postuler** (candidature Elite).
+2. Dans le **salon d'attente**, tape `/publier bouton: Message du salon d'attente` : Bob y publie le message
+   « Tu es en attente… » avec les boutons **Rejoindre la Community** et **Postuler à l'Elite**.
+   Les nouveaux venus « En Attente » sans programme sont **retirés du serveur au bout de 24 h** (`ATTENTE_NOUVEAUX_HEURES`),
+   sauf les candidats Elite dont le dossier est en cours et les membres Community dans leurs 15 jours d'attente.
 3. Dans un salon visible par les membres (par exemple #bienvenue), tape `/publier bouton: Se connecter au site`.
 
 Sur téléphone, personne n'a besoin de son mot de passe Discord : Bob envoie des liens personnels (10 minutes, usage unique).
