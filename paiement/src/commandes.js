@@ -73,6 +73,16 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
       return type === 'inscription' ? config.prixInscription : config.prixMensuel;
     },
 
+    // Ce que le client a rempli, pour l'onglet « Détails » de la page de statut.
+    details(ref) {
+      const c = q.commande.get(ref);
+      if (!c) return null;
+      return {
+        ref: c.ref, type: c.type, nom: c.nom, email: c.email, telephone: c.telephone,
+        montant: c.montant, devise: c.devise, creeLe: c.cree_le, payeeLe: c.payee_le,
+      };
+    },
+
     membre(email) {
       return q.membre.get(String(email || '').trim().toLowerCase()) || null;
     },

@@ -1,6 +1,6 @@
 # Paiement mobile money (SasPay) → accès Whop → Discord
 
-Site de paiement en mobile money pour l'accompagnement : **29 € d'inscription** (30 premiers jours inclus),
+Site de paiement en mobile money pour Overmaxx : **29 € d'inscription** (30 premiers jours inclus),
 puis **5 € par mois** pour garder l'accès. Whop héberge la formation, mais ne propose pas le mobile money :
 ce site encaisse via **SasPay**, vérifie le paiement puis débloque l'accès.
 
@@ -11,8 +11,8 @@ ce site encaisse via **SasPay**, vérifie le paiement puis débloque l'accès.
 | 1 | `/` | Page d'accueil : infos, prix, bouton **« Payer par mobile money »** |
 | 2 | `/paiement` | Nom, email du compte Whop, numéro (optionnel) |
 | 3 | page SasPay | Le client paie (Wave, Orange Money, MTN, Moov, carte…) |
-| 3 bis | `/confirmation/:ref` | Roue de chargement. Le serveur vérifie le paiement toutes les 3 s → **Paiement confirmé** ou **Paiement non confirmé** |
-| 4 | `/acces/:ref` | Redirection automatique vers le tutoriel : code unique, lien Whop, Discord |
+| 3 bis | `/confirmation/:ref` | Page « Ta commande » : onglet **Statut** (frise qui se met à jour toutes les 3 s → **Paiement confirmé** ou **Paiement non confirmé**) et onglet **Détails** (ce que le client a rempli) |
+| 4 | `/acces/:ref` | Redirection automatique vers le guide : vidéo Wistia (`WISTIA_MEDIA_ID`), code unique, étapes écrites |
 
 **Renouvellement** : `/renouveler` → page SasPay → chargement → `/renouvele/:ref`
 (« Abonnement renouvelé, retourne sur le Discord »). Chaque renouvellement ajoute 30 jours à la date de fin,
@@ -70,9 +70,11 @@ Le bot Discord pourra envoyer à chaque membre son **lien personnel** de renouve
 Remplace en même temps : `SASPAY_API_URL=https://api.saspay.me/api/v1`, la clé `sk_live_...`, le secret du webhook de
 production, `WHOP_API_URL=https://api.whop.com/api/v1`, ainsi que la clé, `WHOP_COMPANY_ID` et `WHOP_PLAN_ID` de production.
 
-## Personnaliser les textes
+## Personnaliser
 
-Les textes de la page d'accueil (accroche, avantages) sont dans `CONTENU`, en haut de `src/pages.js`.
+- Textes de la page d'accueil (accroche, avantages) : `CONTENU`, en haut de `src/pages.js`.
+- Direction artistique Overmaxx (noir et blanc, logo glitch, globe en pointillés) : bloc `STYLE` du même fichier.
+- Vidéo du guide : mets l'identifiant Wistia dans `WISTIA_MEDIA_ID` (la fin de l'URL `wistia.com/medias/...`).
 
 ## À venir : le bot Discord
 

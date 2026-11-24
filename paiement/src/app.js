@@ -110,10 +110,12 @@ function creerApp({ config, commandes, whop }) {
     try {
       const e = await commandes.etat(ref);
       if (e.etat === 'introuvable') return res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce paiement est introuvable.'));
-      return res.send(P.pageConfirmation(config, { ref, type: e.type }));
+      return res.send(P.pageConfirmation(config, { ref, type: e.type, details: commandes.details(ref) }));
     } catch (err) {
       console.error('[confirmation]', err.message);
-      return res.send(P.pageConfirmation(config, { ref, type: 'inscription' }));
+      const details = commandes.details(ref);
+      if (!details) return res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce paiement est introuvable.'));
+      return res.send(P.pageConfirmation(config, { ref, type: details.type, details }));
     }
   });
 

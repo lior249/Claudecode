@@ -16,7 +16,9 @@ function chargerConfig() {
     port: Number(lire('PORT', '3000')),
     baseUrl: lire('BASE_URL', 'http://localhost:3000').replace(/\/+$/, ''),
     fichierBase: lire('FICHIER_BASE', './data/paiement.db'),
-    nomFormation: lire('NOM_FORMATION', 'Ma formation'),
+    nomFormation: lire('NOM_FORMATION', 'Overmaxx'),
+    // Identifiant de la vidéo Wistia du guide (la fin de l'URL wistia.com/medias/XXXXXXXXXX).
+    wistiaId: lire('WISTIA_MEDIA_ID', ''),
     devise: lire('DEVISE', 'XOF'),
     prixInscription: lire('PRIX_INSCRIPTION'), // ex : 19025 (≈ 29 €)
     prixMensuel: lire('PRIX_MENSUEL'), // ex : 3280 (≈ 5 €)
@@ -52,6 +54,7 @@ function chargerConfig() {
   const manquantes = [];
   if (!MONTANT.test(config.prixInscription || '')) manquantes.push('PRIX_INSCRIPTION (nombre, ex : 19025)');
   if (!MONTANT.test(config.prixMensuel || '')) manquantes.push('PRIX_MENSUEL (nombre, ex : 3280)');
+  if (config.wistiaId && !/^[a-z0-9]{6,20}$/i.test(config.wistiaId)) manquantes.push('WISTIA_MEDIA_ID (lettres et chiffres uniquement)');
   if (!(config.dureeAccesJours > 0)) manquantes.push('DUREE_ACCES_JOURS (nombre de jours > 0)');
   if (!config.secretApp || config.secretApp.length < 32) manquantes.push('APP_SECRET (32 caractères minimum)');
   if (!config.saspay.cleApi) manquantes.push('SASPAY_API_KEY');
