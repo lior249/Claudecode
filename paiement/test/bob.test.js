@@ -366,9 +366,10 @@ test('rôle En Attente temporaire : retiré après 24 h, sauf candidature en cou
     const now = Date.now();
     const membres = new Map();
     const kicks = [];
+    const retraits = [];
     const ajouter = (id, roles, ilYA) => membres.set(id, {
       id, joinedTimestamp: now - ilYA, user: { bot: false },
-      roles: { cache: { has: (r) => roles.includes(r) } }, kick: async () => kicks.push(id),
+      roles: { cache: { has: (r) => roles.includes(r) }, remove: async (r) => retraits.push([id, r]) }, kick: async () => kicks.push(id),
     });
     const H = 3600 * 1000;
     ajouter('N1', [ROLES.attente], 25 * H); // nouveau venu depuis 25 h → retiré
@@ -391,5 +392,6 @@ test('rôle En Attente temporaire : retiré après 24 h, sauf candidature en cou
     await bob.nettoyerAttente();
     assert.deepStrictEqual(kicks, ['N1']);
     assert.ok(dms.some(([id, t]) => id === 'N1' && /24 heures/.test(t)));
+    assert.deepStrictEqual(retraits, [['N4', ROLES.attente]], 'membre d\'un programme : En Attente retiré');
   } finally { await m.fermer(); }
 });

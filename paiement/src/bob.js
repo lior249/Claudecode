@@ -499,7 +499,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       if (!m.roles.cache.has(role) || m.user?.bot || m.id === config.discord.adminId) continue;
       const aUnAcces = Object.values(config.offres).some((o) => o.roleDiscord && m.roles.cache.has(o.roleDiscord))
         || (config.discord.roleGoat && m.roles.cache.has(config.discord.roleGoat));
-      if (aUnAcces) continue;
+      if (aUnAcces) {
+        // Il a payé un programme (par exemple par carte sur Whop) : il n'est plus en attente.
+        try { await m.roles.remove(role, 'Overmaxx : membre d\'un programme'); log(`rôle En Attente retiré à ${m.id} (membre d'un programme)`); } catch (err) { console.warn('[bob] retrait En Attente :', err.message); }
+        continue;
+      }
       if (q.enPeriodeAttente.get(m.id, now.toISOString())) continue;
       const c = candidatures && candidatures.parDiscord(m.id);
       if (c && STATUTS_CANDIDATURE_PROTEGES.includes(c.statut)) continue;
