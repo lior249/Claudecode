@@ -46,22 +46,145 @@ function pageConnexionRequise(config, { retour, message }) {
   ${blocSupport(config)}`);
 }
 
-// /coaching/elite : présentation et candidature. Aucun prix affiché.
+// /coaching/elite : présentation (VSL) et bouton « Postuler ». Aucun prix affiché.
 function pageEliteCandidature(config) {
   const o = config.offres.elite;
   const vsl = o.wistiaVsl
     ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(o.wistiaVsl)}?videoFoam=true&playerColor=000000"
         title="Présentation ${echapper(o.nom)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>` : '';
-  const form = o.tallyFormId
-    ? `<div class="carte" style="padding:6px"><iframe src="https://tally.so/embed/${echapper(o.tallyFormId)}?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
-        title="Candidature ${echapper(o.nom)}" style="width:100%;min-height:900px;border:0" loading="lazy"></iframe></div>` : '';
   return gabarit(o.nom, `
   <p class="etiquette">Accompagnement privé</p>
   <h1>${echapper(o.nom)}</h1>
-  <p class="doux">L'accompagnement Elite est sur sélection. Regarde la vidéo jusqu'au bout, puis remplis le formulaire.</p>
+  <p class="doux">L'accompagnement Elite est sur sélection. Regarde la vidéo jusqu'au bout avant de postuler.</p>
   ${vsl}
-  ${form}
-  <p class="doux petit centre">Si ton profil est retenu, nous te recontactons personnellement.</p>`);
+  <div class="carte">
+    <h2>Comment ça se passe</h2>
+    <ul class="liste">
+      <li><span class="numero">1</span><span>Tu connectes ton Discord : c'est là que tu recevras nos réponses.</span></li>
+      <li><span class="numero">2</span><span>Tu remplis le formulaire. Réponse sous 24 heures.</span></li>
+      <li><span class="numero">3</span><span>Si ton profil est retenu, tu envoies une vidéo d'1 minute.</span></li>
+      <li><span class="numero">4</span><span>Si tu es validé, tu reçois ton lien pour confirmer ton intégration.</span></li>
+    </ul>
+  </div>
+  <a class="bouton" href="${o.base}/candidature">Postuler</a>`);
+}
+
+// /coaching/elite/candidature : une seule page qui suit la candidature de bout en bout.
+function pageCandidature(config, { session, candidature, lienPaiement, paye, message }) {
+  const o = config.offres.elite;
+  const titre = (t) => `<p class="etiquette">Candidature ${echapper(o.nom)}</p><h1>${t}</h1>`;
+  const attente = (texte) => `
+    <div class="centre"><div class="roue" role="status" style="width:56px;height:56px;margin:18px auto;border-radius:50%;border:6px solid var(--bord);border-top-color:#fff;animation:tourne .9s linear infinite"></div></div>
+    <div class="carte"><p style="margin:0">${texte}</p></div>`;
+  const suivi = `
+  (function () {
+    var statut = ${JSON.stringify(candidature ? candidature.statut : null)};
+    setInterval(function () {
+      fetch('/api/candidature', { cache: 'no-store' }).then(function (r) { return r.json(); })
+        .then(function (d) { if (d.statut && d.statut !== statut) location.reload(); }).catch(function () {});
+    }, 8000);
+  })();`;
+
+  if (!session) {
+    return gabarit('Candidature', `${titre('Connecte ton Discord')}
+    <div class="carte"><p class="doux" style="margin:0">Toutes les réponses à ta candidature arrivent sur Discord, par <b style="color:#fff">Bob</b>, notre bot.
+      En te connectant, tu rejoins notre serveur avec un accès limité à un salon d'attente, le temps de l'examen.</p></div>
+    <a class="bouton" href="/discord/candidature">Connecter mon Discord</a>
+    <a class="bouton secondaire" href="${o.base}">Retour</a>`);
+  }
+  const c = candidature;
+  let corps = '';
+  let script = suivi;
+  switch (c.statut) {
+    case 'formulaire': {
+      const params = new URLSearchParams({ discord_id: session.id, pseudo: session.pseudo || '', alignLeft: '1', hideTitle: '1', transparentBackground: '1', dynamicHeight: '1' });
+      corps = `${titre('Ton formulaire')}
+      <p class="doux">Connecté en tant que <b style="color:#fff">${echapper(session.pseudo)}</b>. Réponds sincèrement : c'est ce qui nous permet de savoir si on peut t'aider.</p>
+      ${o.tallyFormId
+        ? `<div class="carte" style="padding:6px"><iframe src="https://tally.so/embed/${echapper(o.tallyFormId)}?${params}" title="Formulaire de candidature"
+            style="width:100%;min-height:900px;border:0" loading="lazy"></iframe></div>
+           <p class="doux petit centre">Une fois le formulaire envoyé, cette page se met à jour toute seule.</p>`
+        : '<div class="carte"><p style="margin:0">Le formulaire n\'est pas encore disponible. Reviens un peu plus tard.</p></div>'}`;
+      break;
+    }
+    case 'examen':
+      corps = `${titre('Candidature en cours de traitement')}${attente('Ton formulaire est bien reçu. Nous l\'examinons : <b>réponse sous 24 heures</b>, ici et par message de Bob sur Discord.')}`;
+      break;
+    case 'retenu':
+      script = `${suivi}
+      (function () {
+        var champ = document.getElementById('fichier'), btn = document.getElementById('envoyer'), barre = document.getElementById('barre'), info = document.getElementById('info');
+        champ.onchange = function () { btn.disabled = !champ.files.length; if (champ.files.length) info.textContent = champ.files[0].name + ' · ' + Math.max(1, Math.round(champ.files[0].size / 1048576)) + ' Mo'; };
+        btn.onclick = function () {
+          var f = champ.files[0]; if (!f) return;
+          if (f.size > ${Math.round((config.videoMaxMo || 150))} * 1048576) { alert('Vidéo trop lourde (maximum ${config.videoMaxMo || 150} Mo).'); return; }
+          btn.disabled = true; btn.textContent = 'Envoi en cours…'; barre.parentNode.hidden = false;
+          var x = new XMLHttpRequest(); x.open('POST', '/api/candidature/video');
+          x.setRequestHeader('Content-Type', f.type || 'video/mp4');
+          x.upload.onprogress = function (e) { if (e.lengthComputable) barre.style.width = Math.round(e.loaded / e.total * 100) + '%'; };
+          x.onload = function () { var d = {}; try { d = JSON.parse(x.responseText); } catch (e) {}
+            if (x.status === 200) location.reload(); else { alert(d.erreur || 'L\'envoi a échoué. Réessaie.'); btn.disabled = false; btn.textContent = 'Envoyer ma vidéo'; } };
+          x.onerror = function () { alert('Connexion interrompue. Réessaie.'); btn.disabled = false; btn.textContent = 'Envoyer ma vidéo'; };
+          x.send(f);
+        };
+      })();`;
+      corps = `${titre('Ton profil est retenu !')}
+      <div class="carte">
+        <h2>Dernière étape : ta vidéo d'1 minute</h2>
+        <p class="doux">Filme-toi face caméra et présente-toi : qui tu es, où tu en es sur TikTok, ton objectif dans les 3 prochains mois, et pourquoi tu veux rejoindre l'Elite.</p>
+        <input id="fichier" type="file" accept="video/*" hidden>
+        <label for="fichier" class="bouton secondaire" style="margin-top:14px">Choisir ma vidéo</label>
+        <p id="info" class="doux petit centre" style="margin:8px 0 0">MP4, MOV ou WEBM · ${config.videoMaxMo || 150} Mo maximum</p>
+        <div hidden style="height:8px;border-radius:8px;background:var(--surface-2);margin-top:12px;overflow:hidden"><div id="barre" style="height:100%;width:0;background:#fff"></div></div>
+        <button id="envoyer" class="bouton" type="button" disabled>Envoyer ma vidéo</button>
+      </div>`;
+      break;
+    case 'video':
+      corps = `${titre('Vidéo reçue')}${attente('Merci ! Ta vidéo est en cours d\'examen. Tu reçois la réponse finale ici et par message de Bob sur Discord.')}`;
+      break;
+    case 'refuse':
+      script = null;
+      corps = `${titre('Candidature non retenue')}
+      <div class="carte"><p style="margin:0">Merci pour ta candidature. Après examen, ton profil n'a pas été retenu pour l'Elite cette fois-ci.
+        Tu peux continuer à progresser avec la Community.</p></div>
+      <a class="bouton" href="/community">Découvrir la Community</a>`;
+      break;
+    case 'valide':
+      script = null;
+      corps = `${titre('Bienvenue dans l\'Elite !')}
+      <div class="carte">
+        <p>Ta candidature est validée.</p>
+        ${paye ? '<p class="ok" style="margin:0">Ton intégration est confirmée. Bob t\'a envoyé la suite sur Discord.</p>'
+          : `<p class="doux">Confirme ton intégration en réglant l'accompagnement avec ton lien personnel :</p>
+             <a class="bouton" href="${echapper(lienPaiement)}">Confirmer mon intégration</a>`}
+      </div>`;
+      break;
+    default:
+      corps = titre('Candidature');
+  }
+  return gabarit('Candidature', `${message ? `<p class="erreur-form">${echapper(message)}</p>` : ''}${corps}
+  <a class="bouton secondaire" href="/deconnexion">Se déconnecter</a>`, script ? { script } : {});
+}
+
+// /admin/candidatures : réponses, vidéos et décisions.
+function pageAdminCandidatures(config, { liste }) {
+  const LIBELLES = { formulaire: 'Formulaire à remplir', examen: 'À examiner', retenu: 'Retenu, vidéo attendue', video: 'Vidéo à regarder', refuse: 'Refusé', valide: 'Validé' };
+  const DECISIONS = { examen: ['retenir', 'refuser'], video: ['valider', 'refuser'], retenu: ['refuser'] };
+  const NOMS = { retenir: 'Retenir', refuser: 'Refuser', valider: 'Valider' };
+  const cartes = liste.length ? liste.map((c) => `
+    <div class="carte">
+      <p class="etiquette">${echapper(LIBELLES[c.statut] || c.statut)} · ${echapper(new Date(c.maj_le).toLocaleDateString('fr-FR'))}</p>
+      <h2>${echapper(c.pseudo || c.discord_id)}</h2>
+      ${c.reponses.length ? `<dl class="details">${c.reponses.map((r) => `<div><dt>${echapper(r.label)}</dt><dd>${echapper(r.valeur)}</dd></div>`).join('')}</dl>` : ''}
+      ${c.video_fichier ? `<video controls preload="metadata" playsinline src="/admin/videos/${c.id}" style="width:100%;border-radius:14px;margin-top:12px;background:#000"></video>` : ''}
+      ${(DECISIONS[c.statut] || []).map((d) => `<form method="post" action="/admin/candidatures/${c.id}/${d}" style="display:inline">
+        <button class="bouton${d === 'refuser' ? ' secondaire' : ''}" type="submit">${NOMS[d]}</button></form>`).join('')}
+    </div>`).join('') : '<div class="carte"><p class="doux" style="margin:0">Aucune candidature pour l\'instant.</p></div>';
+  return gabarit('Candidatures', `
+  <p class="etiquette">Admin</p>
+  <h1>Candidatures Elite</h1>
+  <p class="doux petit"><a href="/admin">← Calendrier des coachings</a></p>
+  ${cartes}`);
 }
 
 function pageCoaching(config, { session, grille, seances, coaching, message, interdit }) {
@@ -210,6 +333,7 @@ function pageAdmin(config, { lundi, jours, cases, membres, annulations, coaching
   return gabarit('Admin', `${STYLE_GRILLE}
   <p class="etiquette">Admin</p>
   <h1>Calendrier des coachings</h1>
+  <p class="doux petit"><a href="/admin/candidatures">Candidatures Elite →</a></p>
   <div class="nav-semaine">
     <a class="petit-bouton" href="/admin?semaine=${echapper(coaching.ajouterJours(lundi, -7))}">${ICONE.retour.replace('<svg', '<svg style="width:14px;height:14px;vertical-align:-2px"')} Précédente</a>
     <span class="doux petit">Semaine du ${echapper(lundi.slice(8, 10))}/${echapper(lundi.slice(5, 7))}</span>
@@ -223,4 +347,4 @@ function pageAdmin(config, { lundi, jours, cases, membres, annulations, coaching
   <a class="bouton secondaire" href="/deconnexion">Se déconnecter</a>`, { script });
 }
 
-module.exports = { pageConnexionRequise, pageEliteCandidature, pageCoaching, pageAdmin };
+module.exports = { pageConnexionRequise, pageEliteCandidature, pageCandidature, pageAdminCandidatures, pageCoaching, pageAdmin };

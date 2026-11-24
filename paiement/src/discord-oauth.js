@@ -84,6 +84,11 @@ function creerDiscordOAuth(config, fetchImpl = fetch) {
       }
     },
 
+    async retirerRole(userId, roleId) {
+      if (!roleId) return;
+      try { await api('DELETE', `/guilds/${serveurId}/members/${userId}/roles/${roleId}`, { bot: true }); } catch (err) { if (err.status !== 404) throw err; }
+    },
+
     // Ajoute le membre au serveur avec ses rôles (ou ajoute seulement les rôles s'il y est déjà).
     async ajouterAuServeur(userId, accessToken, roles = []) {
       const r = roles.filter(Boolean);

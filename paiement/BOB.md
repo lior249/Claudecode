@@ -48,7 +48,9 @@ Autorisations de la clé Whop : `plan:waitlist:read`, `plan:waitlist:manage`, le
 
 - Messages privés **10 jours avant, 5 jours avant, 3 jours avant, puis dans les dernières 24 h**, avec le lien de renouvellement.
   Le dernier message précise que, sans renouvellement, il faudra repayer le prix d'entrée.
-- À l'expiration, sans délai de grâce : **retiré du serveur Discord**, et l'accès Whop expire de lui-même.
+- À la fin de l'accès : **15 jours en attente** (rôle Attente, plus de rôle Community, accès Whop coupé par le site).
+  Renouvellement encore possible au prix garanti, avec un rappel 3 jours avant la fin de l'attente.
+  Ensuite : **retiré du serveur**, et il faut repayer l'entrée. (Elite : pas d'attente, retrait immédiat.)
 
 ## 5. Elite : fin des 3 mois
 
@@ -61,10 +63,18 @@ Autorisations de la clé Whop : `plan:waitlist:read`, `plan:waitlist:manage`, le
 
 ## 5 bis. Candidature Elite
 
-- `/coaching/elite` : vidéo de présentation (VSL) et formulaire Tally. **Pas de prix ni de paiement visible.**
-- Bob envoie chaque candidature au porteur de projet en message privé (webhook Tally).
-- Le porteur de projet recontacte lui-même les candidats retenus. Il obtient de Bob un **lien de paiement personnel et unique**
-  (par exemple `/coaching/elite/paiement/k3Fz…`), valable pour un seul paiement.
+1. `/coaching/elite` : vidéo de présentation (VSL), étapes, bouton **Postuler**. Aucun prix affiché.
+2. `/coaching/elite/candidature` : **connexion Discord**. Le candidat rejoint le serveur avec le rôle **Attente** (un seul salon visible),
+   pour que Bob puisse lui écrire.
+3. Formulaire **Tally** intégré, avec les champs cachés `discord_id` et `pseudo`.
+4. Page « en cours de traitement, réponse sous 24 h » qui se met à jour seule. Bob confirme la réception au candidat et envoie
+   la candidature à l'admin avec les boutons **Retenir / Refuser**.
+5. Retenu : la même page propose l'envoi d'une **vidéo d'1 minute** (150 Mo maximum, sur le serveur).
+   L'admin la regarde sur `/admin/candidatures`, puis **Valider / Refuser**. La vidéo est supprimée après la décision.
+6. Validé : Bob crée et envoie le **lien de paiement personnel à usage unique** ; la page l'affiche aussi.
+7. Refusé : message de Bob, puis retrait du serveur s'il n'avait que le rôle Attente.
+
+`/lien-elite` reste disponible pour créer un lien de paiement à la main.
 
 ## 6. Coaching privé (`/coaching`)
 

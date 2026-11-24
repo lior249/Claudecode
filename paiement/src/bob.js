@@ -22,7 +22,7 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'nu
 // - Elite : alerte à l'admin 10 jours avant la fin (insatisfait / inconstant) ;
 // - coaching : rappel personnalisé, rappel 1 h avant, récap admin 2 h avant la première séance du jour ;
 // - commandes admin : /lien-elite, /prolonger, /membre ; candidatures Tally.
-function creerBob({ config, db, commandes, coaching, maintenant = () => new Date(), client: clientInjecte, serveur: serveurInjecte } = {}) {
+function creerBob({ config, db, commandes, coaching, candidatures, maintenant = () => new Date(), client: clientInjecte, serveur: serveurInjecte } = {}) {
   const actif = config.discordActif || Boolean(clientInjecte);
   const client = clientInjecte || (actif ? new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -293,6 +293,15 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
       return i.update({ content: `${i.message.content}\n\n**Inconstant** : prévenu, lien de caution envoyé.`, components: [] });
     }
 
+    if (i.isButton() && i.customId.startsWith('cand:')) {
+      if (!estAdmin) return i.reply({ content: 'Réservé à l\'admin.', flags: MessageFlags.Ephemeral });
+      const [, decision, id] = i.customId.split(':');
+      const r = await appliquerDecision(Number(id), decision);
+      if (r.erreur) return i.reply({ content: r.erreur, flags: MessageFlags.Ephemeral });
+      const libelle = { retenir: 'Retenu : étape vidéo envoyée', refuser: 'Refusé', valider: 'Validé : lien de paiement envoyé' }[decision];
+      return i.update({ content: `${i.message.content}\n\n**${libelle}**.`, components: [] });
+    }
+
     if (!i.isChatInputCommand()) return;
     if (!estAdmin) return i.reply({ content: 'Commande réservée à l\'admin.', flags: MessageFlags.Ephemeral });
 
@@ -334,6 +343,60 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
       .addUserOption((o) => o.setName('membre').setDescription('Le membre').setRequired(true))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   ].map((c) => c.toJSON());
+
+  // ---------- Candidatures Elite ----------
+  const lienCandidature = () => `${config.baseUrl}${config.offres.elite.base}/candidature`;
+  const boutonsCandidature = (id, decisions) => new ActionRowBuilder().addComponents(decisions.map((d) => new ButtonBuilder()
+    .setCustomId(`cand:${d}:${id}`)
+    .setLabel({ retenir: 'Retenir', refuser: 'Refuser', valider: 'Valider' }[d])
+    .setStyle(d === 'refuser' ? ButtonStyle.Danger : ButtonStyle.Success)));
+
+  async function appliquerDecision(id, decision) {
+    const r = candidatures.decider(id, decision);
+    if (r.erreur) return r;
+    const c = r.candidature;
+    if (decision === 'retenir') {
+      await notifier.membre(c.discord_id, '**Bonne nouvelle : ton profil a été retenu pour l\'Elite !**\n'
+        + 'Dernière étape : envoie une **vidéo d\'1 minute** pour te présenter. '
+        + `Tout se passe ici : ${lienCandidature()}`);
+    } else if (decision === 'valider') {
+      await notifier.membre(c.discord_id, '**Ta candidature Elite est validée. Bienvenue !** 🎉\n'
+        + `Confirme ton intégration en réglant l'accompagnement avec ton lien personnel : ${candidatures.lienPaiement(c)}`);
+    } else {
+      await notifier.membre(c.discord_id, 'Merci pour ta candidature. Après examen, **ton profil n\'a pas été retenu** pour l\'Elite cette fois-ci. '
+        + 'Tu peux continuer à progresser avec la Community.');
+      // Il ne garde pas l'accès au salon d'attente s'il n'a rien d'autre sur le serveur.
+      const m = await membreDuServeur(c.discord_id);
+      const ids = !m ? [] : typeof m.roles.cache.keys === 'function' ? [...m.roles.cache.keys()] : [...(m.roles.cache.set || [])];
+      const autres = ids.filter((r) => r !== config.discord.roleAttente && r !== (serveur && serveur.id)); // sans @everyone
+      try {
+        if (m && config.discord.roleAttente && m.roles.cache.has(config.discord.roleAttente)) {
+          if (autres && autres.length) await m.roles.remove(config.discord.roleAttente, 'Candidature refusée');
+          else await m.kick('Candidature Elite refusée');
+        }
+      } catch (err) { console.warn('[bob] refus candidature :', err.message); }
+    }
+    log(`candidature ${c.id} : ${decision}`);
+    return r;
+  }
+
+  async function candidatureRecue(c, champs) {
+    await notifier.membre(c.discord_id, '**Ton formulaire de candidature Elite est bien reçu.** Il est en cours de traitement : '
+      + `je te réponds ici dans les 24 heures. Tu peux aussi suivre l'avancement sur ${lienCandidature()}`);
+    const lignes = champs.map((x) => `**${x.label}** : ${x.valeur}`).join('\n').slice(0, 1700);
+    await notifier.admin({
+      content: `**Nouvelle candidature Elite** : ${c.pseudo || ''} (<@${c.discord_id}>)\n${lignes}`,
+      components: [boutonsCandidature(c.id, ['retenir', 'refuser'])],
+    });
+  }
+
+  async function videoRecue(c) {
+    await notifier.membre(c.discord_id, 'Ta vidéo est bien reçue. Je te donne la réponse finale ici très bientôt.');
+    await notifier.admin({
+      content: `**Vidéo de candidature reçue** : ${c.pseudo || ''} (<@${c.discord_id}>).\nRegarde-la ici : ${config.baseUrl}/admin/candidatures`,
+      components: [boutonsCandidature(c.id, ['valider', 'refuser'])],
+    });
+  }
 
   // ---------- Boucle ----------
   let tour = 0;
@@ -397,6 +460,10 @@ function creerBob({ config, db, commandes, coaching, maintenant = () => new Date
       const m = q.membresParDiscord.all(discordId).find((x) => x.programme === 'elite');
       await notifier.admin(`**Séance annulée** : ${(m && m.nom) || `<@${discordId}>`} (<@${discordId}>), le ${seance.date} à ${seance.heure} GMT.\nJustification : ${justification}`);
     },
+
+    appliquerDecision,
+    candidatureRecue,
+    videoRecue,
 
     async candidature(champs) {
       const lignes = champs.map((c) => `**${c.label}** : ${c.valeur}`).join('\n').slice(0, 1900);

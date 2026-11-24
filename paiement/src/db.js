@@ -146,6 +146,27 @@ function migrerV4(db) {
   db.exec('PRAGMA user_version = 4');
 }
 
+// v5 : candidatures Elite (formulaire → examen → retenu → vidéo → validé / refusé).
+function migrerV5(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 5) return;
+  db.exec(`CREATE TABLE IF NOT EXISTS candidatures (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id       TEXT NOT NULL UNIQUE,
+    pseudo           TEXT,
+    statut           TEXT NOT NULL DEFAULT 'formulaire'
+                     CHECK (statut IN ('formulaire', 'examen', 'retenu', 'video', 'refuse', 'valide')),
+    reponses         TEXT,                -- JSON : [{ label, valeur }]
+    video_fichier    TEXT,
+    video_type       TEXT,
+    video_taille     INTEGER,
+    invitation_token TEXT,
+    cree_le          TEXT NOT NULL,
+    maj_le           TEXT NOT NULL,
+    decision_le      TEXT
+  );
+  PRAGMA user_version = 5;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -159,6 +180,7 @@ function ouvrirBase(fichier) {
   migrer(db);
   migrerV3(db);
   migrerV4(db);
+  migrerV5(db);
   return db;
 }
 

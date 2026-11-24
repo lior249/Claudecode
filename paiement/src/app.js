@@ -22,7 +22,7 @@ function lireFormulaire(body) {
 
 const retourSur = (r) => (typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/coaching');
 
-function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
+function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -188,6 +188,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
     return res.redirect(302, oauth.urlAutorisation({ but: 'lier', ref }, { rejoindre: true }));
   });
 
+  app.get('/discord/candidature', (req, res) => {
+    if (!config.oauthActif) return res.status(503).send(P.pageMessage(config, 'Bientôt disponible', 'La connexion Discord n\'est pas encore configurée.'));
+    return res.redirect(302, oauth.urlAutorisation({ but: 'candidat' }, { rejoindre: true }));
+  });
+
   app.get('/connexion', (req, res) => {
     if (!config.oauthActif) return res.status(503).send(P.pageMessage(config, 'Bientôt disponible', 'La connexion Discord n\'est pas encore configurée.'));
     return res.redirect(302, oauth.urlAutorisation({ but: 'connexion', retour: retourSur(req.query.retour) }));
@@ -198,8 +203,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
   app.get('/discord/callback', async (req, res) => {
     const st = oauth && oauth.lireState(String(req.query.state || ''));
     if (!st) return res.status(400).send(P.pageMessage(config, 'Lien expiré', 'Recommence la connexion Discord.'));
-    const retour = st.but === 'lier' ? `/acces/${st.ref}` : retourSur(st.retour);
-    if (!req.query.code) return res.redirect(302, st.but === 'lier' ? `${retour}?discord=erreur` : '/community');
+    const retour = st.but === 'lier' ? `/acces/${st.ref}` : st.but === 'candidat' ? `${config.offres.elite.base}/candidature` : retourSur(st.retour);
+    if (!req.query.code) return res.redirect(302, st.but === 'lier' ? `${retour}?discord=erreur` : st.but === 'candidat' ? config.offres.elite.base : '/community');
     try {
       const u = await oauth.identifier(String(req.query.code));
       ouvrirSession(res, u, config);
@@ -208,7 +213,15 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
         if (!membre) return res.redirect(302, `${retour}?discord=erreur`);
         const offre = config.offres[membre.programme];
         await oauth.ajouterAuServeur(u.id, u.accessToken, membre.statut === 'actif' ? [offre.roleDiscord] : []);
+        if (membre.statut === 'actif') await oauth.retirerRole(u.id, config.discord.roleAttente);
         if (bob) bob.bienvenue(membre).catch(() => {});
+      }
+      if (st.but === 'candidat' && candidatures) {
+        // Rejoint le serveur avec le seul rôle Attente (sauf s'il y est déjà avec un accès payé).
+        const roles = await oauth.rolesSurServeur(u.id);
+        const dejaMembre = roles && Object.values(config.offres).some((o) => o.roleDiscord && roles.includes(o.roleDiscord));
+        await oauth.ajouterAuServeur(u.id, u.accessToken, dejaMembre ? [] : [config.discord.roleAttente]);
+        candidatures.demarrer(u.id, u.pseudo);
       }
       return res.redirect(302, retour);
     } catch (err) {
@@ -284,6 +297,37 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
     }
   });
 
+  // ================= Candidature Elite =================
+
+  app.get('/coaching/elite/candidature', (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    if (!session || !candidatures) return res.send(E.pageCandidature(config, { session: null }));
+    const c = candidatures.parDiscord(session.id) || candidatures.demarrer(session.id, session.pseudo);
+    const inv = c.invitation_token ? commandes.invitation(c.invitation_token) : null;
+    return res.send(E.pageCandidature(config, { session, candidature: c, lienPaiement: candidatures.lienPaiement(c), paye: Boolean(inv && inv.utilisee_le) }));
+  });
+
+  app.get('/api/candidature', (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    const c = session && candidatures && candidatures.parDiscord(session.id);
+    res.json({ statut: c ? c.statut : null });
+  });
+
+  app.post('/api/candidature/video', async (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    const c = session && candidatures && candidatures.parDiscord(session.id);
+    if (!c) return res.status(401).json({ erreur: 'Reconnecte-toi.' });
+    try {
+      const r = await candidatures.enregistrerVideo(c, req, { type: req.get('content-type'), taille: Number(req.get('content-length')) || 0 });
+      if (r.erreur) { req.resume(); return res.status(400).json(r); }
+      if (bob) bob.videoRecue(r.candidature).catch(() => {});
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error('[candidature] vidéo :', err.message);
+      return res.status(500).json({ erreur: 'L\'envoi a échoué. Réessaie.' });
+    }
+  });
+
   // ================= Admin =================
 
   app.get('/admin', (req, res) => {
@@ -292,6 +336,34 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
     if (session.id !== config.discord.adminId) return res.status(403).send(P.pageMessage(config, 'Accès refusé', 'Cet espace est réservé à l\'admin.'));
     res.send(E.pageAdmin(config, donneesAdmin(String(req.query.semaine || ''))));
     return undefined;
+  });
+
+  function estAdmin(req, res, retour) {
+    const session = lireSession(req, config.secretApp);
+    if (!session) { res.send(E.pageConnexionRequise(config, { retour, message: 'Espace admin' })); return false; }
+    if (session.id !== config.discord.adminId) { res.status(403).send(P.pageMessage(config, 'Accès refusé', 'Cet espace est réservé à l\'admin.')); return false; }
+    return true;
+  }
+
+  app.get('/admin/candidatures', (req, res) => {
+    if (!estAdmin(req, res, '/admin/candidatures')) return;
+    res.send(E.pageAdminCandidatures(config, { liste: candidatures ? candidatures.liste() : [] }));
+  });
+
+  app.get('/admin/videos/:id', (req, res) => {
+    if (!estAdmin(req, res, '/admin/candidatures')) return;
+    const chemin = candidatures && candidatures.cheminVideo(candidatures.parId(Number(req.params.id)));
+    if (!chemin) { res.status(404).end(); return; }
+    res.set('Cache-Control', 'private, max-age=0');
+    res.sendFile(chemin);
+  });
+
+  app.post('/admin/candidatures/:id/:decision', async (req, res) => {
+    if (!estAdmin(req, res, '/admin/candidatures')) return;
+    const { id, decision } = req.params;
+    const r = bob ? await bob.appliquerDecision(Number(id), decision) : candidatures.decider(Number(id), decision);
+    if (r.erreur) console.warn('[admin] décision :', r.erreur);
+    res.redirect(303, '/admin/candidatures');
   });
 
   const db = commandes.db;
@@ -382,7 +454,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob }) {
         else if (v && typeof v === 'object') v = JSON.stringify(v);
         return { label: String(f.label || f.key || '?').slice(0, 100), valeur: String(v == null ? '—' : v).slice(0, 400) };
       });
-      if (bob) await bob.candidature(champs);
+      const estCache = (c) => /^(discord_id|pseudo)$/i.test(c.label.trim());
+      const discordId = (champs.find((c) => /^discord_id$/i.test(c.label.trim())) || {}).valeur;
+      const reponses = champs.filter((c) => !estCache(c));
+      const cand = candidatures && discordId && /^\d{15,22}$/.test(discordId) ? candidatures.recevoirFormulaire(discordId, reponses) : null;
+      if (cand) { if (bob) await bob.candidatureRecue(cand, reponses); } else if (bob) await bob.candidature(reponses);
       return res.json({ ok: true });
     } catch (err) {
       console.error('[tally]', err.message);

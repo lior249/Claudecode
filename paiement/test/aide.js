@@ -90,6 +90,8 @@ function fauxOAuth(roles = {}) {
     lireState: (s) => require('../src/discord-oauth').verifier(s, 'x'.repeat(40)),
     async identifier() { return { id: '400000000000000001', pseudo: 'awa', accessToken: 'tok' }; },
     async ajouterAuServeur(id, tok, r) { this.ajouts.push([id, r]); },
+    retraits: [],
+    async retirerRole(id, r) { this.retraits.push([id, r]); },
     async rolesSurServeur(id) { return roles[id] === undefined ? null : roles[id]; },
   };
 }
@@ -98,17 +100,18 @@ function cookieSession(id, pseudo = 'membre') {
   return `ovx_session=${encodeURIComponent(signer({ id, pseudo, exp: Date.now() + 3600000 }, 'x'.repeat(40)))}`;
 }
 
-async function monter({ config = configTest(), saspay = fauxSaspay(), whop = fauxWhop(), oauth = fauxOAuth(), maintenant, bob = null } = {}) {
+async function monter({ config = configTest(), saspay = fauxSaspay(), whop = fauxWhop(), oauth = fauxOAuth(), maintenant, bob = null, avecCandidatures = false } = {}) {
   const db = ouvrirBase(':memory:');
   completerPrixGarantis(db, config);
   const horloge = maintenant || (() => new Date());
   const commandes = creerCommandes({ db, saspay, whop, config, maintenant: horloge });
   const coaching = creerCoaching({ db, config, maintenant: horloge });
-  const app = creerApp({ config, commandes, whop, coaching, oauth, bob });
+  const candidatures = avecCandidatures ? require('../src/candidatures').creerCandidatures({ db, config, commandes, maintenant: horloge }) : null;
+  const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures });
   const serveur = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
   const base = `http://127.0.0.1:${serveur.address().port}`;
   return {
-    config, db, saspay, whop, oauth, commandes, coaching, base,
+    config, db, saspay, whop, oauth, commandes, coaching, candidatures, base,
     fermer: () => new Promise((r) => serveur.close(r)),
     poster: (chemin, champs, headers = {}) => fetch(base + chemin, {
       method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers }, body: new URLSearchParams(champs),

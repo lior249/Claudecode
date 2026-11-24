@@ -61,21 +61,32 @@ Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont di
 
 ## 4. Discord : rôles et identifiants
 
-1. Crée, si ce n'est pas déjà fait, les rôles **Community**, **Elite** et **GOAT**.
-2. Dans **Paramètres du serveur** → **Rôles**, **glisse le rôle Bob au-dessus** de ces trois rôles.
+1. Crée, si ce n'est pas déjà fait, les rôles **Community**, **Elite**, **GOAT** et **Attente**.
+   - **Attente** ne doit voir **qu'un seul salon**, par exemple #attente, où tu expliques pourquoi l'accès est limité.
+     Ce rôle sert aux **candidats Elite** pendant l'examen, et aux membres **Community en attente de renouvellement** (15 jours).
+     Les autres salons ne doivent pas être visibles pour ce rôle.
+2. Dans **Paramètres du serveur** → **Rôles**, **glisse le rôle Bob au-dessus** de ces quatre rôles.
    Sinon, Discord l'empêche de les donner.
 3. Copie les identifiants (clic droit → **Copier l'identifiant**) :
    - ton serveur (clic droit sur son icône) → `DISCORD_GUILD_ID` ;
    - toi-même (clic droit sur ton nom) → `DISCORD_ADMIN_ID` ;
-   - les trois rôles → `DISCORD_ROLE_COMMUNITY`, `DISCORD_ROLE_ELITE`, `DISCORD_ROLE_GOAT`.
+   - les quatre rôles → `DISCORD_ROLE_COMMUNITY`, `DISCORD_ROLE_ELITE`, `DISCORD_ROLE_GOAT`, `DISCORD_ROLE_ATTENTE`.
 4. Le salon vocal de coaching (limité à 2 personnes) : clic droit → **Copier le lien** → `DISCORD_SALON_COACHING_URL`.
 
 ## 5. Tally (candidatures Elite)
 
+Le parcours : `/coaching/elite` (vidéo de présentation + **Postuler**) → connexion Discord (rôle Attente) →
+formulaire Tally → réponse sous 24 h (Bob) → si retenu, vidéo d'1 minute envoyée sur le site → si validé, lien de paiement.
+
 1. Crée le formulaire de candidature. Son identifiant est la fin du lien de partage `tally.so/r/XXXXXX` → `TALLY_FORM_ID`.
-2. Dans le formulaire, va dans **Integrations** → **Webhooks**, puis ajoute `https://overmaxx.online/webhooks/tally`.
+2. **Indispensable** : dans le formulaire, ajoute un bloc **Hidden fields** (champs cachés) avec deux champs nommés exactement
+   **`discord_id`** et **`pseudo`**. Le site les remplit tout seul, ce qui permet de savoir quel candidat a répondu.
+3. Va dans **Integrations** → **Webhooks**, puis ajoute `https://overmaxx.online/webhooks/tally`.
    Si Tally propose un **signing secret**, copie-le → `TALLY_SIGNING_SECRET`.
-3. La vidéo de présentation (VSL) sur Wistia → `WISTIA_VSL_ELITE`.
+4. La vidéo de présentation (VSL) sur Wistia → `WISTIA_VSL_ELITE`.
+
+Les vidéos des candidats (150 Mo maximum, `VIDEO_MAX_MO`) sont stockées sur le serveur, consultables sur
+**overmaxx.online/admin/candidatures**, et **supprimées automatiquement** dès que tu valides ou refuses.
 
 ## 6. Mettre à jour le serveur
 
@@ -107,6 +118,7 @@ DISCORD_ADMIN_ID=…
 DISCORD_ROLE_COMMUNITY=…
 DISCORD_ROLE_ELITE=…
 DISCORD_ROLE_GOAT=…
+DISCORD_ROLE_ATTENTE=…
 DISCORD_SALON_COACHING_URL=https://discord.com/channels/…
 TALLY_FORM_ID=…
 TALLY_SIGNING_SECRET=…
@@ -134,3 +146,6 @@ Si l'application s'arrête, le message indique le réglage à corriger.
 | `/lien-elite note:` | crée un lien de paiement Elite personnel, utilisable une seule fois |
 | `/prolonger membre: jours: offre:` | prolonge gratuitement un accès, sur le site et sur Whop (lien de grâce) |
 | `/membre membre:` | affiche l'accès mobile money d'un membre (offre, fin, prix garanti) |
+
+Les décisions sur les candidatures se prennent avec les boutons **Retenir / Refuser / Valider** des messages de Bob,
+ou sur **overmaxx.online/admin/candidatures**.
