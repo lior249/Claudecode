@@ -189,11 +189,16 @@ function pageFormulaire(config, { titre, mode, questions, intro, fin, videoMaxMo
           if (!x.ok) return echec(x.d);
           if (!fichier) return terminer();
           var b = attente('Envoi de ta vidéo…', true);
+          var pc = document.querySelector('.tf-ecran .tf-aide'); if (pc) pc.textContent = '0 % · garde cette page ouverte.';
           var xhr = new XMLHttpRequest(); xhr.open('POST', '/api/candidature/video');
           xhr.setRequestHeader('Content-Type', fichier.type || 'video/mp4');
-          xhr.upload.onprogress = function (ev) { if (ev.lengthComputable) b.style.width = Math.round(ev.loaded / ev.total * 100) + '%'; };
-          xhr.onload = function () { var d = {}; try { d = JSON.parse(xhr.responseText); } catch (e) {} if (xhr.status === 200) terminer(); else echec(d); };
-          xhr.onerror = function () { echec(); };
+          xhr.upload.onprogress = function (ev) {
+            if (!ev.lengthComputable) return;
+            var v = Math.round(ev.loaded / ev.total * 100); b.style.width = v + '%';
+            if (pc) pc.textContent = (v < 100 ? v + ' %' : 'Finalisation…') + ' · garde cette page ouverte.';
+          };
+          xhr.onload = function () { var d = {}; try { d = JSON.parse(xhr.responseText); } catch (e) {} if (xhr.status === 200) terminer(); else echec(d.erreur ? d : { erreur: 'L\\'envoi a échoué (erreur ' + xhr.status + '). Réessaie.' }); };
+          xhr.onerror = function () { echec({ erreur: 'La connexion a été coupée pendant l\\'envoi. Vérifie ton réseau et réessaie.' }); };
           xhr.send(fichier);
         })
         .catch(function () { echec(); });

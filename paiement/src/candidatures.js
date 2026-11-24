@@ -86,7 +86,10 @@ function creerCandidatures({ db, config, commandes, maintenant = () => new Date(
       if (taille && taille > tailleMax) return { erreur: `Vidéo trop lourde (maximum ${Math.round(tailleMax / 1048576)} Mo).` };
       const nom = `${candidature.id}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
       const chemin = path.join(dossierVideos, nom);
+      // Le dossier peut avoir été supprimé pendant que le site tournait : on le recrée à chaque envoi.
+      fs.mkdirSync(dossierVideos, { recursive: true });
       let recu = 0;
+      let cause = null;
       const ok = await new Promise((resolve) => {
         const sortie = fs.createWriteStream(chemin);
         let trop = false;
@@ -94,12 +97,14 @@ function creerCandidatures({ db, config, commandes, maintenant = () => new Date(
           recu += morceau.length;
           if (recu > tailleMax && !trop) { trop = true; flux.unpipe(sortie); sortie.destroy(); resolve(false); }
         });
-        flux.on('error', () => { sortie.destroy(); resolve(false); });
+        flux.on('error', (err) => { cause = `réception interrompue (${err.message})`; sortie.destroy(); resolve(false); });
+        flux.on('aborted', () => { cause = 'envoi interrompu par le téléphone'; });
         sortie.on('finish', () => resolve(!trop));
-        sortie.on('error', () => resolve(false));
+        sortie.on('error', (err) => { cause = `écriture impossible (${err.message})`; flux.unpipe(sortie); resolve(false); });
         flux.pipe(sortie);
       });
       if (!ok || recu === 0) {
+        console.error(`[candidature ${candidature.id}] vidéo refusée : ${recu > tailleMax ? 'trop lourde' : cause || (recu === 0 ? 'fichier vide' : 'inconnue')} (${recu} octets reçus, type ${type})`);
         try { fs.unlinkSync(chemin); } catch { /* rien */ }
         return { erreur: recu > tailleMax ? `Vidéo trop lourde (maximum ${Math.round(tailleMax / 1048576)} Mo).` : 'L\'envoi a échoué. Réessaie.' };
       }

@@ -319,3 +319,14 @@ test('suppression d\'une candidature par l\'admin : la personne peut recommencer
     assert.strictEqual((await envoyer()).status, 429, '6e envoi dans l\'heure bloqué');
   } finally { await m.fermer(); }
 });
+
+test('envoi de vidéo : le dossier des vidéos est recréé s\'il a été supprimé', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    m.candidatures.demarrer('V1', 'v1'); m.candidatures.recevoirFormulaire('V1', [{ label: 'Q', valeur: 'R' }]); m.candidatures.decider(1, 'retenir');
+    require('fs').rmSync(m.candidatures.dossierVideos, { recursive: true, force: true });
+    const r = await fetch(`${m.base}/api/candidature/video`, { method: 'POST', headers: { cookie: cookieSession('V1', 'v1'), 'Content-Type': 'video/quicktime' }, body: Buffer.alloc(3 * 1024 * 1024, 1) });
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(m.candidatures.parId(1).statut, 'video');
+  } finally { await m.fermer(); }
+});
