@@ -148,6 +148,18 @@ Si l'application s'arrête, le message indique le réglage à corriger.
 
 Sur téléphone, personne n'a besoin de son mot de passe Discord : Bob envoie des liens personnels (10 minutes, usage unique).
 
+## L'espace de gestion
+
+Sur **overmaxx.online/admin** (connexion avec `/connexion` dans Discord) : barre latérale à gauche sur ordinateur,
+menu ☰ sur téléphone.
+
+| Page | Contenu |
+|---|---|
+| **Calendrier** (`/admin`) | les coachings de la semaine ; clic sur un créneau = fiche du membre ; annulations |
+| **Candidatures** (`/admin/candidatures`) | réponses, vidéos, boutons Retenir / Refuser / Valider (pastille = à traiter) |
+| **Membres** (`/admin/membres`) | membres mobile money : offre, statut (actif, en attente, expiré), fin d'accès, prix garanti, accès Whop |
+| **Mes coachings** (`/coaching`) | la grille de réservation (vue membre) |
+
 ## 8. Vérifier
 
 - Sur Discord, tape `/lien-elite` : Bob te répond (toi seul le vois) avec un lien de paiement Elite unique.

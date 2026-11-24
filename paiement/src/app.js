@@ -28,6 +28,12 @@ const retourSur = (r) => (typeof r === 'string' && r.startsWith('/') && !r.start
 
 function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures }) {
   const lienDiscord = (state, options) => (config.oauthActif && oauth ? oauth.urlAutorisation(state, options) : null);
+  // Barre latérale : qui est connecté, et combien de candidatures attendent une décision.
+  const espaceDe = (session) => {
+    const estAdmin = Boolean(session && session.id === config.discord.adminId);
+    const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
+    return { session, estAdmin, aTraiter };
+  };
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -279,10 +285,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/coaching', message: 'Coaching privé', lienDiscord: lienDiscord({ but: 'connexion', retour: '/coaching' }) }));
     try {
       const d = await droitsCoaching(session);
-      if (!d.ok) return res.send(E.pageCoaching(config, { session, interdit: d.interdit }));
+      if (!d.ok) return res.send(E.pageCoaching(config, { session, interdit: d.interdit, espace: espaceDe(session) }));
       const message = req.query.ok ? 'Tes créneaux sont enregistrés. Bob t\'a envoyé le récapitulatif.' : req.query.annule ? 'Séance annulée. Ton coach est prévenu.' : null;
       return res.send(E.pageCoaching(config, {
-        session, coaching, message, grille: coaching.grille(session.id), seances: coaching.prochainesSeances(session.id),
+        session, coaching, message, grille: coaching.grille(session.id), seances: coaching.prochainesSeances(session.id), espace: espaceDe(session),
       }));
     } catch (err) {
       console.error('[coaching]', err.message);
@@ -405,7 +411,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     const session = lireSession(req, config.secretApp);
     if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/admin', message: 'Espace admin', lienDiscord: lienDiscord({ but: 'connexion', retour: '/admin' }) }));
     if (session.id !== config.discord.adminId) return res.status(403).send(P.pageMessage(config, 'Accès refusé', 'Cet espace est réservé à l\'admin.'));
-    res.send(E.pageAdmin(config, donneesAdmin(String(req.query.semaine || ''))));
+    res.send(E.pageAdmin(config, { ...donneesAdmin(String(req.query.semaine || '')), espace: espaceDe(session) }));
     return undefined;
   });
 
@@ -418,7 +424,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   app.get('/admin/candidatures', (req, res) => {
     if (!estAdmin(req, res, '/admin/candidatures')) return;
-    res.send(E.pageAdminCandidatures(config, { liste: candidatures ? candidatures.liste() : [] }));
+    res.send(E.pageAdminCandidatures(config, { liste: candidatures ? candidatures.liste() : [], espace: espaceDe(lireSession(req, config.secretApp)) }));
+  });
+
+  app.get('/admin/membres', (req, res) => {
+    if (!estAdmin(req, res, '/admin/membres')) return;
+    const membres = commandes.db.prepare("SELECT * FROM membres ORDER BY statut, acces_jusqu_au").all();
+    res.send(E.pageAdminMembres(config, { membres, espace: espaceDe(lireSession(req, config.secretApp)) }));
   });
 
   app.get('/admin/videos/:id', (req, res) => {

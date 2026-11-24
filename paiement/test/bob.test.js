@@ -440,3 +440,22 @@ test('/configurer-attente : crée le salon d\'attente, bloque tous les autres sa
     assert.strictEqual(await bob.bloquerPourAttente(cree), 'ignoré');
   } finally { await m.fermer(); }
 });
+
+test('espace de gestion : barre latérale (admin), page Membres réservée à l\'admin', async () => {
+  const oauth = fauxOAuth({ E1: [ROLES.elite] });
+  const m = await monter({ oauth });
+  try {
+    await inscrire(m, 'awa@example.com');
+    const admin = cookieSession(ADMIN, 'Floh');
+    const page = await (await m.get('/admin/membres', { cookie: admin })).text();
+    assert.match(page, /Membres mobile money/);
+    assert.match(page, /awa@example\.com/);
+    assert.match(page, /class="sidebar"/);
+    assert.match(page, /href="\/admin\/candidatures"/);
+    assert.strictEqual((await m.get('/admin/membres', { cookie: cookieSession('E1') })).status, 403);
+    // Un membre Elite n'a pas les liens de gestion dans sa barre.
+    const coaching = await (await m.get('/coaching', { cookie: cookieSession('E1', 'awa') })).text();
+    assert.match(coaching, /Mes coachings/);
+    assert.doesNotMatch(coaching, /href="\/admin\/membres"/);
+  } finally { await m.fermer(); }
+});

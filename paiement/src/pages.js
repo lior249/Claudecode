@@ -153,7 +153,7 @@ function logo(classe = '') {
   return `<span class="logo ${classe}" aria-label="Overmaxx">OVERMAXX<i></i><i></i><i></i></span>`;
 }
 
-function gabarit(titre, contenu, { script, entete = true } = {}) {
+function gabarit(titre, contenu, { script, entete = true, brut = false } = {}) {
   return `<!doctype html>
 <html lang="fr">
 <head>
@@ -167,8 +167,80 @@ function gabarit(titre, contenu, { script, entete = true } = {}) {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>${STYLE}</style>
 </head>
-<body><main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>${script ? `<script>${script}</script>` : ''}</body>
+<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}</body>
 </html>`;
+}
+
+// ---------- Espace de gestion : barre latérale (ordinateur) / menu repliable (téléphone) ----------
+const ICONES_NAV = {
+  calendrier: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  candidatures: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l4 4v12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M15 4v5h5M10 13h7M10 17h5"/></svg>',
+  membres: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg>',
+  coaching: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  site: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.7 3.5 5.6 3.5 8.5s-1 5.8-3.5 8.5c-2.5-2.7-3.5-5.6-3.5-8.5s1-5.8 3.5-8.5z"/></svg>',
+  sortie: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+};
+
+const STYLE_ESPACE = `
+  body.espace-body { background:var(--fond); }
+  .espace { min-height:100vh; }
+  main.espace-contenu { max-width:1120px; margin:0 auto; padding:20px 20px 56px; }
+  .sidebar { position:fixed; z-index:30; top:0; bottom:0; left:-290px; width:264px; display:flex; flex-direction:column; gap:6px;
+    padding:18px 12px 14px; background:#0a0a0a; border-right:1px solid #1c1c1c; transition:left .22s ease; overflow-y:auto; }
+  #menu-ouvert:checked ~ .sidebar { left:0; }
+  .sb-voile { position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.6); display:none; }
+  #menu-ouvert:checked ~ .sb-voile { display:block; }
+  .sb-logo { display:block; padding:4px 10px 18px; text-decoration:none; } .sb-logo .logo { font-size:21px; }
+  .sb-section { color:var(--gris); font:600 11px var(--police); letter-spacing:.12em; text-transform:uppercase; margin:14px 12px 6px; }
+  .sb-lien { display:flex; align-items:center; gap:11px; padding:9px 12px; border-radius:10px; color:#a3a3a3; text-decoration:none;
+    font:500 14.5px var(--police); transition:background .12s, color .12s; }
+  .sb-lien svg { width:19px; height:19px; flex:none; }
+  .sb-lien:hover { background:#151515; color:#fff; }
+  .sb-lien.actif { background:#1f1f1f; color:#fff; }
+  .sb-badge { margin-left:auto; min-width:20px; padding:1px 7px; border-radius:999px; background:#ff8a00; color:#000; font:700 11.5px/18px var(--police); text-align:center; }
+  .sb-pied { margin-top:auto; border-top:1px solid #1c1c1c; padding-top:12px; display:flex; flex-direction:column; gap:4px; }
+  .sb-compte { display:flex; align-items:center; gap:10px; padding:6px 10px 10px; }
+  .sb-avatar { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:#fff; color:#000; font:800 14px var(--police); flex:none; }
+  .sb-compte b { display:block; font-size:14px; line-height:1.2; } .sb-compte small { color:var(--doux); font-size:12px; }
+  .topbar { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:12px; padding:10px 16px; background:rgba(0,0,0,.92);
+    border-bottom:1px solid #161616; backdrop-filter:blur(8px); }
+  .topbar-menu { display:grid; place-items:center; width:38px; height:38px; border-radius:10px; border:1px solid var(--bord); cursor:pointer; }
+  .topbar .logo { font-size:17px; }
+  .titre-page { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:14px; }
+  .titre-page h1 { margin:0; }
+  @media (min-width: 960px) {
+    .espace { display:grid; grid-template-columns:264px minmax(0, 1fr); }
+    .sidebar { position:sticky; left:0; height:100vh; }
+    .sb-voile, .topbar { display:none !important; }
+    main.espace-contenu { padding:36px 44px 64px; }
+    main.espace-contenu h1 { font-size:28px; }
+  }
+`;
+
+// nav : [{ cle, libelle, lien, icone, badge }] ; actif : cle de la page ; compte : { pseudo, role }.
+function gabaritEspace(titre, contenu, { script, nav = [], actif, compte } = {}) {
+  const liens = nav.map((n) => (n.section
+    ? `<p class="sb-section">${echapper(n.section)}</p>`
+    : `<a class="sb-lien${n.cle === actif ? ' actif' : ''}" href="${echapper(n.lien)}"${n.externe ? ' target="_blank" rel="noopener"' : ''}>${ICONES_NAV[n.icone] || ''}<span>${echapper(n.libelle)}</span>${n.badge ? `<span class="sb-badge">${echapper(n.badge)}</span>` : ''}</a>`)).join('');
+  const initiale = compte && compte.pseudo ? compte.pseudo.trim().charAt(0).toUpperCase() : '?';
+  return gabarit(titre, `<style>${STYLE_ESPACE}</style>
+<div class="espace">
+  <input type="checkbox" id="menu-ouvert" hidden>
+  <aside class="sidebar" aria-label="Navigation">
+    <a class="sb-logo" href="${echapper((nav.find((n) => n.lien) || {}).lien || '/')}">${logo()}</a>
+    <nav>${liens}</nav>
+    <div class="sb-pied">
+      ${compte ? `<div class="sb-compte"><span class="sb-avatar">${echapper(initiale)}</span><div><b>${echapper(compte.pseudo)}</b><small>${echapper(compte.role || '')}</small></div></div>` : ''}
+      <a class="sb-lien" href="/deconnexion">${ICONES_NAV.sortie}<span>Se déconnecter</span></a>
+    </div>
+  </aside>
+  <label for="menu-ouvert" class="sb-voile" aria-hidden="true"></label>
+  <div class="espace-corps">
+    <header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label>${logo()}</header>
+    <main class="espace-contenu">${contenu}</main>
+  </div>
+</div>`, { script, entete: false, brut: true });
 }
 
 function formatPrix(prix, devise) {
@@ -441,6 +513,6 @@ function pageMessage(config, titre, message, { lien = '/', texteLien = 'Retour' 
 }
 
 module.exports = {
-  CONTENU, ICONE, echapper, gabarit, logo, formatPrix, formatDate, blocSupport,
+  CONTENU, ICONE, echapper, gabarit, gabaritEspace, logo, formatPrix, formatDate, blocSupport,
   pageAccueil, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
 };

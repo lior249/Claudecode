@@ -1,7 +1,7 @@
 'use strict';
 
 // Pages Elite (candidature), Coaching privé (réservation) et Admin (calendrier).
-const { ICONE, echapper, gabarit, formatDate, blocSupport } = require('./pages');
+const { ICONE, echapper, gabarit, gabaritEspace, formatDate, formatPrix, blocSupport } = require('./pages');
 const { FORMULAIRES } = require('./formulaires');
 const { pageFormulaire } = require('./pages-formulaire');
 
@@ -37,6 +37,49 @@ const STYLE_GRILLE = `<style>
   table.membres td, table.membres th { text-align:left; padding:8px 4px; border-top:1px solid var(--bord); }
   table.membres th { color:var(--doux); font-weight:600; }
 </style>`;
+
+const STYLE_BUREAU = `<style>
+  .c-long { display:none; }
+  .colonnes { display:block; }
+  .grille-cartes { display:grid; gap:14px; } .grille-cartes .carte { margin:0; }
+  .defile { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  table.membres { min-width:640px; }
+  @media (min-width: 960px) {
+    .tableau { grid-template-columns:60px repeat(7, 1fr); gap:6px; }
+    .tableau .tete { font-size:13px; } .tableau .tete small { font-size:11px; }
+    .tableau .h { font-size:13px; } .tableau .coupure { height:10px; }
+    .case { height:38px; border-radius:9px; font-size:11.5px; }
+    .c-court { display:none; } .c-long { display:inline; }
+    .legende { font-size:12.5px; }
+  }
+  @media (min-width: 1180px) {
+    .colonnes { display:grid; grid-template-columns:minmax(0, 1fr) 340px; gap:28px; align-items:start; }
+    .colonnes > .cote { position:sticky; top:28px; }
+    .grille-cartes { grid-template-columns:1fr 1fr; }
+  }
+</style>`;
+
+// Menu de la barre latérale.
+function navEspace(espace = {}) {
+  const nav = [];
+  if (espace.estAdmin) {
+    nav.push({ section: 'Gestion' },
+      { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
+      { cle: 'candidatures', libelle: 'Candidatures', lien: '/admin/candidatures', icone: 'candidatures', badge: espace.aTraiter || null },
+      { cle: 'membres', libelle: 'Membres', lien: '/admin/membres', icone: 'membres' });
+  }
+  nav.push({ section: 'Mon espace' }, { cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
+  nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/community', icone: 'site', externe: true });
+  return nav;
+}
+
+function pageEspace(titre, contenu, espace, actif, options = {}) {
+  const session = espace && espace.session;
+  return gabaritEspace(titre, `${STYLE_GRILLE}${STYLE_BUREAU}${contenu}`, {
+    ...options, nav: navEspace(espace), actif,
+    compte: session ? { pseudo: session.pseudo || 'Membre', role: espace.estAdmin ? 'Admin' : 'Membre Elite' } : null,
+  });
+}
 
 const LEGENDE = `<div class="legende"><span><i style="background:#ff8a00"></i>Mes créneaux</span><span><i style="background:#1b1b1b;border:1px solid #333"></i>Pris</span><span><i style="background:#4a4a4a"></i>Libre</span></div>`;
 
@@ -187,7 +230,7 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
 }
 
 // /admin/candidatures : réponses, vidéos et décisions.
-function pageAdminCandidatures(config, { liste }) {
+function pageAdminCandidatures(config, { liste, espace }) {
   const LIBELLES = { formulaire: 'Formulaire à remplir', examen: 'À examiner', retenu: 'Retenu, vidéo attendue', video: 'Vidéo à regarder', refuse: 'Refusé', valide: 'Validé' };
   const DECISIONS = { examen: ['retenir', 'refuser'], video: ['valider', 'refuser'], retenu: ['refuser'] };
   const NOMS = { retenir: 'Retenir', refuser: 'Refuser', valider: 'Valider' };
@@ -198,23 +241,39 @@ function pageAdminCandidatures(config, { liste }) {
       ${c.reponses.length ? `<dl class="details">${c.reponses.map((r) => `<div><dt>${echapper(r.label)}</dt><dd>${echapper(r.valeur)}</dd></div>`).join('')}</dl>` : ''}
       ${c.reponsesConfirmation && c.reponsesConfirmation.length ? `<p class="etiquette" style="margin-top:14px">Formulaire de confirmation</p><dl class="details">${c.reponsesConfirmation.map((r) => `<div><dt>${echapper(r.label)}</dt><dd>${echapper(r.valeur)}</dd></div>`).join('')}</dl>` : ''}
       ${c.video_fichier ? `<video controls preload="metadata" playsinline src="/admin/videos/${c.id}" style="width:100%;border-radius:14px;margin-top:12px;background:#000"></video>` : ''}
-      ${(DECISIONS[c.statut] || []).map((d) => `<form method="post" action="/admin/candidatures/${c.id}/${d}" style="display:inline">
-        <button class="bouton${d === 'refuser' ? ' secondaire' : ''}" type="submit">${NOMS[d]}</button></form>`).join('')}
+      ${(DECISIONS[c.statut] || []).length ? `<div style="display:flex;gap:10px">${(DECISIONS[c.statut] || []).map((d) => `<form method="post" action="/admin/candidatures/${c.id}/${d}" style="flex:1">
+        <button class="bouton${d === 'refuser' ? ' secondaire' : ''}" type="submit">${NOMS[d]}</button></form>`).join('')}</div>` : ''}
     </div>`).join('') : '<div class="carte"><p class="doux" style="margin:0">Aucune candidature pour l\'instant.</p></div>';
-  return gabarit('Candidatures', `
-  <p class="etiquette">Admin</p>
-  <h1>Candidatures Elite</h1>
-  <p class="doux petit"><a href="/admin">← Calendrier des coachings</a></p>
-  ${cartes}`);
+  return pageEspace('Candidatures', `
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Candidatures Elite</h1></div></div>
+  <div class="grille-cartes">${cartes}</div>`, espace, 'candidatures');
 }
 
-function pageCoaching(config, { session, grille, seances, coaching, message, interdit }) {
+// /admin/membres : tous les membres mobile money.
+function pageAdminMembres(config, { membres, espace }) {
+  const lignes = membres.map((m) => `<tr>
+    <td><b>${echapper(m.nom)}</b><br><span class="doux">${echapper(m.email)}</span></td>
+    <td>${echapper(m.discord_pseudo || '—')}</td>
+    <td>${echapper(config.offres[m.programme].nom.replace('Overmaxx ', ''))}${m.categorie_elite ? `<br><span class="doux">${echapper(m.categorie_elite)}</span>` : ''}</td>
+    <td>${m.statut === 'actif' ? (new Date(m.acces_jusqu_au) > new Date() ? '<span class="ok">Actif</span>' : '<span style="color:#f1d38a">En attente</span>') : '<span class="erreur-form">Expiré</span>'}</td>
+    <td>${echapper(formatDate(m.acces_jusqu_au))}</td>
+    <td>${m.prix_renouvellement ? echapper(formatPrix(m.prix_renouvellement, m.devise || config.devise).texte) : '—'}</td>
+    <td>${m.whop_membership_id ? 'Oui' : '<span class="doux">Non</span>'}</td></tr>`).join('');
+  return pageEspace('Membres', `
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Membres mobile money</h1></div><span class="doux petit">${membres.length} membre(s)</span></div>
+  <div class="carte"><div class="defile"><table class="membres">
+    <tr><th>Membre</th><th>Discord</th><th>Offre</th><th>Statut</th><th>Fin d'accès</th><th>Renouvellement</th><th>Whop</th></tr>
+    ${lignes || '<tr><td colspan="7" class="doux">Aucun membre pour l\'instant.</td></tr>'}
+  </table></div></div>`, espace, 'membres');
+}
+
+function pageCoaching(config, { session, grille, seances, coaching, message, interdit, espace = { session } }) {
   if (interdit) {
-    return gabarit('Coaching privé', `
+    return pageEspace('Coaching privé', `
     <h1>Coaching privé</h1>
     <div class="carte"><p style="margin:0">${echapper(interdit)}</p></div>
-    <a class="bouton secondaire" href="/deconnexion">Changer de compte</a>
-    ${blocSupport(config)}`);
+    <a class="bouton secondaire" href="/deconnexion" style="max-width:340px">Changer de compte</a>
+    ${blocSupport(config)}`, espace, 'coaching');
   }
   const limite = (() => {
     const [h, m] = coaching.creneaux[0].split(':').map(Number);
@@ -293,26 +352,32 @@ function pageCoaching(config, { session, grille, seances, coaching, message, int
     };
   })();`;
   const rappelOptions = coaching.RAPPELS_POSSIBLES.map((m) => `<option value="${m}"${m === grille.rappelMin ? ' selected' : ''}>${m >= 120 ? `${m / 60} h` : '1 h 30'} avant</option>`).join('');
-  return gabarit('Coaching privé', `${STYLE_GRILLE}<style>.entete{padding:0 0 12px}.entete .logo{font-size:18px}main{padding-top:14px}</style>
+  return pageEspace('Coaching privé', `
   <h1 style="font-size:19px;margin:0 0 2px">Mes créneaux de coaching</h1>
   <p class="doux petit" style="margin-bottom:8px">${echapper(session.pseudo)} · au moins ${config.coaching.minParSemaine} par semaine, 1 par jour, chaque semaine. Heures GMT.</p>
   ${message ? `<p class="ok petit" style="margin-bottom:8px">${echapper(message)}</p>` : ''}
-  <div class="alerte">Réserve avant <b>${limite} GMT</b> pour qu'une séance compte le jour même.</div>
-  ${LEGENDE}
-  <div id="grille" class="tableau"></div>
-  <div class="barre-action">
-    <p id="compteur" class="compteur" style="margin:0"></p>
-    <button id="enregistrer" class="bouton" type="button" style="margin-top:6px;min-height:46px">Enregistrer mes créneaux</button>
-  </div>
-  <div class="carte" style="padding:14px 16px;margin-top:14px">
-    <label for="rappel" style="margin-top:0">Mon rappel personnalisé</label>
-    <select id="rappel">${rappelOptions}</select>
-    <p class="doux petit" style="margin:6px 0 0">En plus : rappel automatique 1 h avant chaque séance.</p>
-  </div>
-  <div class="carte" style="margin-top:18px">
-    <h2>Mes prochaines séances</h2>
-    ${listeSeances}
-    <p class="doux petit" style="margin:10px 0 0">Annulation possible jusqu'à ${config.coaching.annulationMinutes} minutes avant, avec une justification.</p>
+  <div class="colonnes">
+    <div>
+      <div class="alerte">Réserve avant <b>${limite} GMT</b> pour qu'une séance compte le jour même.</div>
+      ${LEGENDE}
+      <div id="grille" class="tableau"></div>
+      <div class="barre-action">
+        <p id="compteur" class="compteur" style="margin:0"></p>
+        <button id="enregistrer" class="bouton" type="button" style="margin-top:6px;min-height:46px">Enregistrer mes créneaux</button>
+      </div>
+    </div>
+    <div class="cote">
+      <div class="carte" style="padding:14px 16px;margin-top:14px">
+        <label for="rappel" style="margin-top:0">Mon rappel personnalisé</label>
+        <select id="rappel">${rappelOptions}</select>
+        <p class="doux petit" style="margin:6px 0 0">En plus : rappel automatique 1 h avant chaque séance.</p>
+      </div>
+      <div class="carte">
+        <h2>Mes prochaines séances</h2>
+        ${listeSeances}
+        <p class="doux petit" style="margin:10px 0 0">Annulation possible jusqu'à ${config.coaching.annulationMinutes} minutes avant, avec une justification.</p>
+      </div>
+    </div>
   </div>
   <dialog id="dlg-annuler">
     <h2>Annuler la séance du <span id="dlg-quand"></span></h2>
@@ -320,11 +385,10 @@ function pageCoaching(config, { session, grille, seances, coaching, message, int
     <textarea id="justif" maxlength="500" placeholder="Ex. : j'ai un empêchement familial"></textarea>
     <button id="dlg-valider" class="bouton" type="button">Confirmer l'annulation</button>
     <button id="dlg-fermer" class="bouton secondaire" type="button">Garder la séance</button>
-  </dialog>
-  <a class="bouton secondaire" href="/deconnexion">Se déconnecter</a>`, { script });
+  </dialog>`, espace, 'coaching', { script });
 }
 
-function pageAdmin(config, { lundi, jours, cases, membres, annulations, coaching }) {
+function pageAdmin(config, { lundi, jours, cases, annulations, coaching, espace }) {
   const script = `
   (function () {
     var dlg = document.getElementById('dlg'); var I = ${JSON.stringify(cases.filter((c) => c.membre).reduce((acc, c) => { acc[c.cle] = c.membre; return acc; }, {}))};
@@ -345,27 +409,28 @@ function pageAdmin(config, { lundi, jours, cases, membres, annulations, coaching
       jours.map((j) => {
         const c = cases.find((x) => x.date === j.date && x.heure === h);
         return `<button type="button" class="case ${c.membre ? 'moi' : 'libre'}${c.annulee ? ' annulee' : ''}"${c.membre
-          ? ` data-cle="${echapper(c.cle)}" data-quand="${echapper(j.nom)} ${echapper(c.date)} ${echapper(c.heure)} GMT" aria-label="${echapper(c.membre.court)}"` : ' disabled'}>${c.membre ? echapper(c.membre.court.slice(0, 3)) : ''}</button>`;
+          ? ` data-cle="${echapper(c.cle)}" data-quand="${echapper(j.nom)} ${echapper(c.date)} ${echapper(c.heure)} GMT" aria-label="${echapper(c.membre.court)}"` : ' disabled'}>${c.membre ? `<span class="c-court">${echapper(c.membre.court.slice(0, 3))}</span><span class="c-long">${echapper(c.membre.court)}</span>` : ''}</button>`;
       }).join('')}`).join('')}</div>`;
-  const lignesMembres = membres.map((m) => `<tr><td>${echapper(m.nom)}<br><span class="doux">${echapper(m.discord_pseudo || '—')}</span></td><td>${echapper(config.offres[m.programme].nom.replace('Overmaxx ', ''))}</td><td>${m.statut === 'actif' ? '' : '<span class="erreur-form">expiré</span><br>'}${echapper(formatDate(m.acces_jusqu_au))}</td></tr>`).join('');
   const lignesAnnul = annulations.length
     ? annulations.map((a) => `<div class="seance"><div><b>${echapper(a.date)} ${echapper(a.heure)}</b> · ${echapper(a.nom)}<br><span class="doux petit">${echapper(a.justification)}</span></div></div>`).join('')
     : '<p class="doux" style="margin:0">Aucune annulation cette semaine.</p>';
-  return gabarit('Admin', `${STYLE_GRILLE}
-  <p class="etiquette">Admin</p>
-  <h1>Calendrier des coachings</h1>
-  <p class="doux petit"><a href="/admin/candidatures">Candidatures Elite →</a></p>
-  <div class="nav-semaine">
-    <a class="petit-bouton" href="/admin?semaine=${echapper(coaching.ajouterJours(lundi, -7))}">${ICONE.retour.replace('<svg', '<svg style="width:14px;height:14px;vertical-align:-2px"')} Précédente</a>
-    <span class="doux petit">Semaine du ${echapper(lundi.slice(8, 10))}/${echapper(lundi.slice(5, 7))}</span>
-    <a class="petit-bouton" href="/admin?semaine=${echapper(coaching.ajouterJours(lundi, 7))}">Suivante</a>
+  return pageEspace('Calendrier', `
+  <div class="titre-page">
+    <div><p class="etiquette">Gestion</p><h1>Calendrier des coachings</h1></div>
+    <div class="nav-semaine" style="margin:0;gap:8px">
+      <a class="petit-bouton" href="/admin?semaine=${echapper(coaching.ajouterJours(lundi, -7))}">${ICONE.retour.replace('<svg', '<svg style="width:14px;height:14px;vertical-align:-2px"')} Précédente</a>
+      <span class="doux petit">Semaine du ${echapper(lundi.slice(8, 10))}/${echapper(lundi.slice(5, 7))}</span>
+      <a class="petit-bouton" href="/admin?semaine=${echapper(coaching.ajouterJours(lundi, 7))}">Suivante</a>
+    </div>
   </div>
-  <div class="legende"><span><i style="background:#ff8a00"></i>Réservé (clique pour voir le profil)</span><span><i style="background:#4a4a4a"></i>Libre</span><span><i style="outline:2px solid var(--erreur)"></i>Annulé</span></div>
-  ${grille}
-  <div class="carte"><h2>Annulations de la semaine</h2>${lignesAnnul}</div>
-  <div class="carte"><h2>Membres mobile money</h2><table class="membres"><tr><th>Membre</th><th>Offre</th><th>Fin d'accès</th></tr>${lignesMembres}</table></div>
-  <dialog id="dlg"><h2>Réservation</h2><dl class="details" id="dlg-corps"></dl><button id="dlg-fermer" class="bouton secondaire" type="button">Fermer</button></dialog>
-  <a class="bouton secondaire" href="/deconnexion">Se déconnecter</a>`, { script });
+  <div class="colonnes">
+    <div>
+      <div class="legende"><span><i style="background:#ff8a00"></i>Réservé (clique pour voir le profil)</span><span><i style="background:#4a4a4a"></i>Libre</span><span><i style="outline:2px solid var(--erreur)"></i>Annulé</span></div>
+      ${grille}
+    </div>
+    <div class="cote"><div class="carte"><h2>Annulations de la semaine</h2>${lignesAnnul}</div></div>
+  </div>
+  <dialog id="dlg"><h2>Réservation</h2><dl class="details" id="dlg-corps"></dl><button id="dlg-fermer" class="bouton secondaire" type="button">Fermer</button></dialog>`, espace, 'calendrier', { script });
 }
 
-module.exports = { pageConnexionRequise, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageCoaching, pageAdmin };
+module.exports = { pageConnexionRequise, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminMembres, pageCoaching, pageAdmin };
