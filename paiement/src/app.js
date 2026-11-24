@@ -100,7 +100,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   // ---- Elite ----
   const elite = config.offres.elite;
-  app.get('/coaching/elite', (req, res) => res.send(E.pageEliteCandidature(config)));
+  app.get('/coaching/elite', (req, res) => res.send(E.pageEliteCandidature(config, { session: lireSession(req, config.secretApp) })));
   function invitationValide(req, res) {
     const inv = commandes.invitation(req.params.token);
     if (!inv) { res.status(404).send(P.pageMessage(config, 'Lien invalide', 'Ce lien de paiement n\'existe pas.', { lien: elite.base, texteLien: 'Découvrir l\'Elite' })); return null; }
@@ -478,10 +478,18 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
         return { label: String(f.label || f.key || '?').slice(0, 100), valeur: String(v == null ? '—' : v).slice(0, 400) };
       });
       const estCache = (c) => /^(discord_id|pseudo)$/i.test(c.label.trim());
-      const discordId = (champs.find((c) => /^discord_id$/i.test(c.label.trim())) || {}).valeur;
+      let discordId = (champs.find((c) => /^discord_id$/i.test(c.label.trim())) || {}).valeur;
       const reponses = champs.filter((c) => !estCache(c));
+      // Sans champ caché : on retrouve le candidat grâce à la question « pseudo Discord » du formulaire.
+      const champPseudo = reponses.find((c) => /discord/i.test(c.label));
+      if ((!discordId || !/^\d{15,22}$/.test(discordId)) && champPseudo && bob && bob.idDepuisPseudo) {
+        discordId = await bob.idDepuisPseudo(champPseudo.valeur);
+        if (discordId && candidatures) candidatures.demarrer(discordId, String(champPseudo.valeur).trim().replace(/^@/, ''));
+      }
       const cand = candidatures && discordId && /^\d{15,22}$/.test(discordId) ? candidatures.recevoirFormulaire(discordId, reponses) : null;
-      if (cand) { if (bob) await bob.candidatureRecue(cand, reponses); } else if (bob) await bob.candidature(reponses);
+      if (cand) { if (bob) await bob.candidatureRecue(cand, reponses); } else if (bob) {
+        await bob.candidature(reponses, champPseudo ? `Pseudo Discord « ${champPseudo.valeur} » introuvable sur le serveur : réponds-lui toi-même.` : null);
+      }
       return res.json({ ok: true });
     } catch (err) {
       console.error('[tally]', err.message);

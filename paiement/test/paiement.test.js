@@ -118,7 +118,8 @@ test('Elite : page de candidature sans prix, paiement uniquement par lien person
   const m = await monter({ config: configTest({ TALLY_FORM_ID: 'abc123', WISTIA_VSL_ELITE: 'vsl1234567' }) });
   try {
     const cand = await (await m.get('/coaching/elite')).text();
-    assert.match(cand, /Postuler/);
+    assert.match(cand, /tally\.so\/embed\/abc123/, 'formulaire directement sur la page');
+    assert.match(cand, /pseudo Discord exact/);
     assert.match(cand, /vsl1234567/);
     assert.doesNotMatch(cand, /327|FCFA/);
     assert.strictEqual((await m.get('/coaching/elite/paiement/inventeAAAAAAAAAAAAAAAAAA')).status, 404);

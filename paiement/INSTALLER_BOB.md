@@ -76,12 +76,13 @@ Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont di
 
 ## 5. Tally (candidatures Elite)
 
-Le parcours : `/coaching/elite` (vidéo de présentation + **Postuler**) → connexion Discord (rôle Attente) →
-formulaire Tally → réponse sous 24 h (Bob) → si retenu, vidéo d'1 minute envoyée sur le site → si validé, lien de paiement.
+Le parcours : bouton **Postuler à l'Elite** du salon d'attente → page `/coaching/elite` (vidéo de présentation + formulaire Tally, sans connexion)
+→ réponse sous 24 h (Bob, en privé) → si retenu, Bob envoie un lien pour la vidéo d'1 minute → si validé, lien de paiement.
 
 1. Crée le formulaire de candidature. Son identifiant est la fin du lien de partage `tally.so/r/XXXXXX` → `TALLY_FORM_ID`.
-2. **Indispensable** : dans le formulaire, ajoute un bloc **Hidden fields** (champs cachés) avec deux champs nommés exactement
-   **`discord_id`** et **`pseudo`**. Le site les remplit tout seul, ce qui permet de savoir quel candidat a répondu.
+2. **Indispensable** : ajoute une question **obligatoire** dont le titre contient le mot **« Discord »**, par exemple
+   **« Ton pseudo Discord »** (texte court). Bob retrouve le candidat sur le serveur grâce à ce pseudo (les pseudos Discord sont uniques).
+   *(Facultatif)* Ajoute aussi un bloc **Hidden fields** avec `discord_id` et `pseudo` : le site les remplit quand le candidat est déjà connecté.
 3. Va dans **Integrations** → **Webhooks**, puis ajoute `https://overmaxx.online/webhooks/tally`.
    Si Tally propose un **signing secret**, copie-le → `TALLY_SIGNING_SECRET`.
 4. La vidéo de présentation (VSL) sur Wistia → `WISTIA_VSL_ELITE`.

@@ -156,3 +156,24 @@ test('connexion par Bob : /connexion, lien à usage unique, bouton Postuler (rô
     assert.strictEqual(m.db.prepare("SELECT discord_id FROM membres WHERE email = 'yao@example.com'").get().discord_id, 'C1');
   } finally { await m.fermer(); }
 });
+
+test('formulaire rempli sans connexion : Bob retrouve le candidat grâce à son pseudo Discord', async () => {
+  const appels = [];
+  const holder = {};
+  const m = await monter({ avecCandidatures: true, bob: {
+    idDepuisPseudo: async (p) => { appels.push(p); return p.trim().replace(/^@/, '').toLowerCase() === 'awa_27' ? '700000000000000001' : null; },
+    candidatureRecue: async (c) => holder.recue.push(c),
+    candidature: async (champs, note) => holder.inconnu.push(note),
+  } });
+  holder.recue = []; holder.inconnu = [];
+  try {
+    assert.strictEqual((await tally(m, [{ label: 'Ton pseudo Discord', value: ' @Awa_27 ' }, { label: 'Objectif', value: '10k' }])).status, 200);
+    assert.strictEqual(holder.recue.length, 1);
+    const c = m.candidatures.parDiscord('700000000000000001');
+    assert.strictEqual(c.statut, 'examen');
+    assert.strictEqual(c.pseudo, 'Awa_27');
+    // Pseudo introuvable : l'admin est prévenu pour répondre lui-même.
+    await tally(m, [{ label: 'Ton pseudo Discord', value: 'inconnu' }]);
+    assert.match(holder.inconnu[0], /introuvable/);
+  } finally { await m.fermer(); }
+});

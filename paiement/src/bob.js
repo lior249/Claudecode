@@ -320,7 +320,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
             + `tu as ${config.offres.community.graceJours} jours pour renouveler au même prix.`,
           components: [new ActionRowBuilder().addComponents(
             new ButtonBuilder().setLabel('Rejoindre la Community').setStyle(ButtonStyle.Link).setURL(`${config.baseUrl}/community`),
-            new ButtonBuilder().setCustomId('ovx:postuler').setLabel('Postuler à l\'Elite').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setLabel('Postuler à l\'Elite').setStyle(ButtonStyle.Link).setURL(`${config.baseUrl}${config.offres.elite.base}`),
           )],
         }
         : type === 'postuler'
@@ -382,8 +382,18 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       } catch (err) { bilan.echecs.push(c.name || c.id); }
     }
     // Le message n'est publié qu'une fois par salon.
-    const cleMessage = `config:message-attente:${salon.id}`;
-    if (!dejaEnvoye(cleMessage)) { await salon.send(messageBouton('attente')); marquer(cleMessage); }
+    const cleMessage = `config:message-attente:v2:${salon.id}`;
+    if (!dejaEnvoye(cleMessage)) {
+      // Supprime l'ancienne version du message (bouton « Postuler » qui envoyait un lien) avant de republier.
+      try {
+        const recents = salon.messages ? await salon.messages.fetch({ limit: 30 }) : new Map();
+        for (const msg of recents.values()) {
+          if (msg.author && client.user && msg.author.id === client.user.id && /Tu es en attente/.test(msg.content || '')) await msg.delete();
+        }
+      } catch (err) { console.warn('[bob] ancien message d\'attente :', err.message); }
+      await salon.send(messageBouton('attente'));
+      marquer(cleMessage);
+    }
     log(`salon d'attente configuré : ${salon.id} (${bilan.bloques} bloqués, ${bilan.herites} hérités, ${bilan.echecs.length} échecs)`);
     return { ok: true, salon, ...bilan };
   }
@@ -517,9 +527,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     if (r.erreur) return r;
     const c = r.candidature;
     if (decision === 'retenir') {
+      const lienVideo = lienMagique(config, { id: c.discord_id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`);
       await notifier.membre(c.discord_id, '**Bonne nouvelle : ton profil a été retenu pour l\'Elite !**\n'
-        + 'Dernière étape : envoie une **vidéo d\'1 minute** pour te présenter. '
-        + `Tout se passe ici : ${lienCandidature()}`);
+        + 'Dernière étape : envoie une **vidéo d\'1 minute** pour te présenter, sur cette page (lien personnel, valable 10 minutes) :\n'
+        + `${lienVideo}\n\nLien expiré ? Tape **/connexion** et je t'en renvoie un.`);
     } else if (decision === 'valider') {
       await notifier.membre(c.discord_id, '**Ta candidature Elite est validée. Bienvenue !** 🎉\n'
         + `Confirme ton intégration en réglant l'accompagnement avec ton lien personnel : ${candidatures.lienPaiement(c)}`);
@@ -541,9 +552,26 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     return r;
   }
 
+  // Pseudo Discord écrit dans le formulaire → identifiant du membre sur le serveur (les pseudos Discord sont uniques).
+  async function idDepuisPseudo(saisie) {
+    const pseudo = String(saisie || '').trim().replace(/^@/, '').toLowerCase();
+    if (!serveur || pseudo.length < 2) return null;
+    try {
+      const trouves = await serveur.members.fetch({ query: pseudo, limit: 20 });
+      const liste = [...trouves.values()];
+      const exact = liste.find((m) => (m.user.username || '').toLowerCase() === pseudo)
+        || liste.filter((m) => (m.user.globalName || '').toLowerCase() === pseudo || (m.nickname || '').toLowerCase() === pseudo);
+      if (Array.isArray(exact)) return exact.length === 1 ? exact[0].id : null;
+      return exact ? exact.id : null;
+    } catch (err) {
+      console.warn('[bob] recherche du pseudo :', err.message);
+      return null;
+    }
+  }
+
   async function candidatureRecue(c, champs) {
     await notifier.membre(c.discord_id, '**Ton formulaire de candidature Elite est bien reçu.** Il est en cours de traitement : '
-      + `je te réponds ici dans les 24 heures. Tu peux aussi suivre l'avancement sur ${lienCandidature()}`);
+      + 'je te réponds ici, en message privé, dans les 24 heures.');
     const lignes = champs.map((x) => `**${x.label}** : ${x.valeur}`).join('\n').slice(0, 1700);
     await notifier.admin({
       content: `**Nouvelle candidature Elite** : ${c.pseudo || ''} (<@${c.discord_id}>)\n${lignes}`,
@@ -681,11 +709,12 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
 
     appliquerDecision,
     candidatureRecue,
+    idDepuisPseudo,
     videoRecue,
 
-    async candidature(champs) {
-      const lignes = champs.map((c) => `**${c.label}** : ${c.valeur}`).join('\n').slice(0, 1900);
-      await notifier.admin(`**Nouvelle candidature Elite**\n${lignes}\n\nSi tu retiens ce profil : contacte-le, puis tape \`/lien-elite\` pour lui créer son lien de paiement.`);
+    async candidature(champs, note) {
+      const lignes = champs.map((c) => `**${c.label}** : ${c.valeur}`).join('\n').slice(0, 1800);
+      await notifier.admin(`**Nouvelle candidature Elite**${note ? `\n⚠️ ${note}` : ''}\n${lignes}\n\nSi tu retiens ce profil : contacte-le, puis tape \`/lien-elite\` pour lui créer son lien de paiement.`);
     },
   };
 }

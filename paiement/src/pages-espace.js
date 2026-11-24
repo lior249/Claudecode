@@ -50,27 +50,32 @@ function pageConnexionRequise(config, { retour, message, lienDiscord }) {
   ${blocSupport(config)}`);
 }
 
-// /coaching/elite : présentation (VSL) et bouton « Postuler ». Aucun prix affiché.
-function pageEliteCandidature(config) {
+// /coaching/elite : présentation (VSL) puis formulaire de candidature, sans connexion. Aucun prix affiché.
+function pageEliteCandidature(config, { session } = {}) {
   const o = config.offres.elite;
   const vsl = o.wistiaVsl
     ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(o.wistiaVsl)}?videoFoam=true&playerColor=000000"
         title="Présentation ${echapper(o.nom)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>` : '';
+  const params = new URLSearchParams({ alignLeft: '1', hideTitle: '1', transparentBackground: '1', dynamicHeight: '1' });
+  if (session) { params.set('discord_id', session.id); params.set('pseudo', session.pseudo || ''); }
+  const formulaire = o.tallyFormId
+    ? `<div class="carte" style="padding:6px"><iframe src="https://tally.so/embed/${echapper(o.tallyFormId)}?${params}" title="Candidature ${echapper(o.nom)}"
+        style="width:100%;min-height:900px;border:0" loading="lazy"></iframe></div>`
+    : '<div class="carte"><p style="margin:0">Le formulaire de candidature arrive bientôt. Reviens un peu plus tard.</p></div>';
   return gabarit(o.nom, `
   <p class="etiquette">Accompagnement privé</p>
   <h1>${echapper(o.nom)}</h1>
-  <p class="doux">L'accompagnement Elite est sur sélection. Regarde la vidéo jusqu'au bout avant de postuler.</p>
+  <p class="doux">L'accompagnement Elite est sur sélection. Regarde la vidéo jusqu'au bout, puis remplis le formulaire.</p>
   ${vsl}
   <div class="carte">
-    <h2>Comment ça se passe</h2>
+    <h2>Avant de remplir le formulaire</h2>
     <ul class="liste">
-      <li><span class="numero">1</span><span>Tu connectes ton Discord : c'est là que tu recevras nos réponses.</span></li>
-      <li><span class="numero">2</span><span>Tu remplis le formulaire. Réponse sous 24 heures.</span></li>
-      <li><span class="numero">3</span><span>Si ton profil est retenu, tu envoies une vidéo d'1 minute.</span></li>
-      <li><span class="numero">4</span><span>Si tu es validé, tu reçois ton lien pour confirmer ton intégration.</span></li>
+      <li><span class="numero">1</span><span>Sois sur le serveur Discord Overmaxx${config.lienDiscord ? ` (<a href="${echapper(config.lienDiscord)}">le rejoindre</a>)` : ''} : c'est là que Bob, notre bot, te répond.</span></li>
+      <li><span class="numero">2</span><span>Écris ton <b>pseudo Discord exact</b> dans le formulaire (celui sous ton nom dans ton profil, par exemple <b>awa_27</b>).</span></li>
+      <li><span class="numero">3</span><span>Réponse sous 24 heures, par message privé de Bob.</span></li>
     </ul>
   </div>
-  <a class="bouton" href="${o.base}/candidature">Postuler</a>`);
+  ${formulaire}`);
 }
 
 // /coaching/elite/candidature : une seule page qui suit la candidature de bout en bout.
