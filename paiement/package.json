@@ -1,0 +1,17 @@
+{
+  "name": "creato-paiement",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Paiement SasPay → accès Whop (code promo unique) → Discord via l'intégration Whop",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "4.21.2"
+  }
+}
