@@ -30,7 +30,12 @@ const STYLE_FORMULAIRE = `<style>
     border-radius:16px; color:var(--doux); cursor:pointer; text-align:center; padding:18px; }
   .tf-fichier b { color:#fff; font-size:17px; }
   .tf-fichier.rempli { border-style:solid; border-color:#fff; }
-  .tf-tuto { margin:-14px 0 22px; }
+  .tf-rejoindre { margin:-12px 0 22px; padding:12px 14px; border:1px solid #2a2a2a; border-radius:12px; background:#0d0d0d; max-width:460px; }
+  .tf-rejoindre p { margin:0 0 10px; color:var(--doux); font-size:14px; }
+  .tf-rejoindre.alerte-discord { border-color:#5865F2; background:#11132a; } .tf-rejoindre.alerte-discord p { color:#fff; }
+  .tf-bouton-discord { display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:10px; background:#5865F2; color:#fff;
+    font:700 15px var(--police); text-decoration:none; }
+  .tf-tuto { margin:0 0 22px; }
   .tf-tuto summary { display:inline-block; cursor:pointer; color:#fff; font:600 15px var(--police); text-decoration:underline; text-underline-offset:3px; list-style:none; }
   .tf-tuto summary::-webkit-details-marker { display:none; }
   .tf-tuto-images { display:flex; flex-direction:column; gap:18px; padding:14px 0 4px; max-width:420px; }
@@ -56,7 +61,7 @@ const STYLE_FORMULAIRE = `<style>
 // questions : liste filtrée (côté serveur) ; mode : 'candidature' | 'confirmation'.
 function pageFormulaire(config, { titre, mode, questions, intro, fin, videoMaxMo }) {
   const donnees = {
-    mode, videoMaxMo,
+    mode, videoMaxMo, lienDiscord: config.lienDiscord || '',
     questions: questions.map((q) => ({
       id: q.id, type: q.type, question: q.question, aide: q.aide || '', obligatoire: Boolean(q.obligatoire), options: q.options || [],
       images: q.images || [], lienImages: q.lienImages || 'Voir l\'aide en images',
@@ -79,6 +84,13 @@ function pageFormulaire(config, { titre, mode, questions, intro, fin, videoMaxMo
       var n = el('p', 'tf-num'); n.textContent = (i + 1) + ' → '; e.appendChild(n);
       var h = el('h1', 'tf-q', q.question); if (q.obligatoire) { var s = el('span', 'etoile', ' *'); h.appendChild(s); } e.appendChild(h);
       if (q.aide) e.appendChild(el('p', 'tf-aide', q.aide));
+      // Question Discord : bouton pour rejoindre le serveur avant de continuer (sinon Bob ne peut pas écrire).
+      if (q.type === 'discord' && D.lienDiscord) {
+        var rej = el('div', 'tf-rejoindre' + (erreur ? ' alerte-discord' : ''));
+        rej.appendChild(el('p', '', 'Pas encore sur le serveur Overmaxx ? Rejoins-le d\\'abord, puis reviens ici.'));
+        var lien = el('a', 'tf-bouton-discord', 'Rejoindre le serveur Discord'); lien.href = D.lienDiscord; lien.target = '_blank'; lien.rel = 'noopener';
+        rej.appendChild(lien); e.appendChild(rej);
+      }
       if (q.images.length) {
         var tuto = el('details', 'tf-tuto'); if (erreur) tuto.open = true;
         tuto.appendChild(el('summary', '', q.lienImages));
@@ -122,6 +134,10 @@ function pageFormulaire(config, { titre, mode, questions, intro, fin, videoMaxMo
         e.appendChild(champ);
       }
       e.appendChild(el('p', 'tf-erreur', erreur || ''));
+      if (erreur && q.type === 'discord' && D.lienDiscord) {
+        var rej2 = el('a', 'tf-bouton-discord', 'Rejoindre le serveur Discord'); rej2.href = D.lienDiscord; rej2.target = '_blank'; rej2.rel = 'noopener';
+        e.appendChild(rej2);
+      }
       var act = el('div', 'tf-actions');
       var ok = el('button', 'tf-ok', i === Q.length - 1 ? 'Envoyer' : 'OK ✓'); ok.type = 'button'; ok.onclick = suivant; act.appendChild(ok);
       var ind = el('span', 'tf-indice'); ind.innerHTML = 'appuie sur <b>Entrée ↵</b>'; act.appendChild(ind);

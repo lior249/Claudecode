@@ -179,6 +179,8 @@ test('question Discord : tutoriel en 3 images, servies avec cache', async () => 
   try {
     const page = await (await m.get('/coaching/elite')).text();
     assert.match(page, /Où trouver mon pseudo \?/);
+    assert.match(page, /Rejoindre le serveur Discord/);
+    assert.match(page, /"lienDiscord":"https:\/\/discord\.gg\/test"/);
     assert.match(page, /\/static\/aide\/pseudo-3\.jpg/);
     for (const n of [1, 2, 3]) {
       const r = await m.get(`/static/aide/pseudo-${n}.jpg`);
