@@ -22,7 +22,11 @@ function lireFormulaire(body) {
 
 const retourSur = (r) => (typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/coaching');
 
+// Le bouton pointe DIRECTEMENT vers discord.com : sur téléphone, c'est ce qui ouvre l'application Discord
+// (une redirection depuis notre site ouvrirait la page web de Discord, qui redemande l'identifiant et le mot de passe).
+
 function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures }) {
+  const lienDiscord = (state, options) => (config.oauthActif && oauth ? oauth.urlAutorisation(state, options) : null);
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -154,7 +158,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
       let lienWhop = `https://whop.com/checkout/${offre.whopPlanId}`;
       try { lienWhop = await whop.lienOffre(offre.whopPlanId); } catch (err) { console.warn('[acces] lien Whop :', err.message); }
       const erreurDiscord = req.query.discord === 'erreur' ? 'La connexion Discord n\'a pas abouti. Réessaie.' : null;
-      return res.send(P.pageGuide(config, { offre, ref, membre: e.membre, lienWhop, discordLie: Boolean(e.membre.discord_id), erreurDiscord }));
+      return res.send(P.pageGuide(config, {
+        offre, ref, membre: e.membre, lienWhop, discordLie: Boolean(e.membre.discord_id), erreurDiscord,
+        lienDiscord: lienDiscord({ but: 'lier', ref }, { rejoindre: true }),
+      }));
     } catch (err) {
       console.error('[acces]', err.message);
       return res.status(502).send(P.pageMessage(config, 'Un instant…', 'Ton paiement est bien enregistré. Recharge la page dans quelques secondes.', { lien: `/acces/${ref}`, texteLien: 'Recharger' }));
@@ -246,7 +253,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   app.get('/coaching', async (req, res) => {
     const session = lireSession(req, config.secretApp);
-    if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/coaching', message: 'Coaching privé' }));
+    if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/coaching', message: 'Coaching privé', lienDiscord: lienDiscord({ but: 'connexion', retour: '/coaching' }) }));
     try {
       const d = await droitsCoaching(session);
       if (!d.ok) return res.send(E.pageCoaching(config, { session, interdit: d.interdit }));
@@ -301,7 +308,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   app.get('/coaching/elite/candidature', (req, res) => {
     const session = lireSession(req, config.secretApp);
-    if (!session || !candidatures) return res.send(E.pageCandidature(config, { session: null }));
+    if (!session || !candidatures) return res.send(E.pageCandidature(config, { session: null, lienDiscord: lienDiscord({ but: 'candidat' }, { rejoindre: true }) }));
     const c = candidatures.parDiscord(session.id) || candidatures.demarrer(session.id, session.pseudo);
     const inv = c.invitation_token ? commandes.invitation(c.invitation_token) : null;
     return res.send(E.pageCandidature(config, { session, candidature: c, lienPaiement: candidatures.lienPaiement(c), paye: Boolean(inv && inv.utilisee_le) }));
@@ -332,7 +339,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   app.get('/admin', (req, res) => {
     const session = lireSession(req, config.secretApp);
-    if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/admin', message: 'Espace admin' }));
+    if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/admin', message: 'Espace admin', lienDiscord: lienDiscord({ but: 'connexion', retour: '/admin' }) }));
     if (session.id !== config.discord.adminId) return res.status(403).send(P.pageMessage(config, 'Accès refusé', 'Cet espace est réservé à l\'admin.'));
     res.send(E.pageAdmin(config, donneesAdmin(String(req.query.semaine || ''))));
     return undefined;
@@ -340,7 +347,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   function estAdmin(req, res, retour) {
     const session = lireSession(req, config.secretApp);
-    if (!session) { res.send(E.pageConnexionRequise(config, { retour, message: 'Espace admin' })); return false; }
+    if (!session) { res.send(E.pageConnexionRequise(config, { retour, message: 'Espace admin', lienDiscord: lienDiscord({ but: 'connexion', retour }) })); return false; }
     if (session.id !== config.discord.adminId) { res.status(403).send(P.pageMessage(config, 'Accès refusé', 'Cet espace est réservé à l\'admin.')); return false; }
     return true;
   }

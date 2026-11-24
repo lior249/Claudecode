@@ -38,11 +38,12 @@ const STYLE_GRILLE = `<style>
 
 const LEGENDE = `<div class="legende"><span><i style="background:#ff8a00"></i>Mes créneaux</span><span><i style="background:#1b1b1b;border:1px solid #333"></i>Pris</span><span><i style="background:#4a4a4a"></i>Libre</span></div>`;
 
-function pageConnexionRequise(config, { retour, message }) {
+function pageConnexionRequise(config, { retour, message, lienDiscord }) {
   return gabarit('Connexion', `
   <h1>${echapper(message || 'Connecte-toi avec Discord')}</h1>
   <div class="carte"><p class="doux" style="margin:0">On utilise ton compte Discord pour savoir qui tu es et quel est ton rôle sur le serveur.</p></div>
-  <a class="bouton" href="/connexion?retour=${encodeURIComponent(retour)}">Se connecter avec Discord</a>
+  <a class="bouton" href="${echapper(lienDiscord || `/connexion?retour=${encodeURIComponent(retour)}`)}">Se connecter avec Discord</a>
+  <p class="doux petit centre">Sur téléphone, l'application Discord s'ouvre : il suffit d'autoriser.</p>
   ${blocSupport(config)}`);
 }
 
@@ -70,7 +71,7 @@ function pageEliteCandidature(config) {
 }
 
 // /coaching/elite/candidature : une seule page qui suit la candidature de bout en bout.
-function pageCandidature(config, { session, candidature, lienPaiement, paye, message }) {
+function pageCandidature(config, { session, candidature, lienPaiement, paye, message, lienDiscord }) {
   const o = config.offres.elite;
   const titre = (t) => `<p class="etiquette">Candidature ${echapper(o.nom)}</p><h1>${t}</h1>`;
   const attente = (texte) => `
@@ -89,7 +90,8 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
     return gabarit('Candidature', `${titre('Connecte ton Discord')}
     <div class="carte"><p class="doux" style="margin:0">Toutes les réponses à ta candidature arrivent sur Discord, par <b style="color:#fff">Bob</b>, notre bot.
       En te connectant, tu rejoins notre serveur avec un accès limité à un salon d'attente, le temps de l'examen.</p></div>
-    <a class="bouton" href="/discord/candidature">Connecter mon Discord</a>
+    <a class="bouton" href="${echapper(lienDiscord || '/discord/candidature')}">Connecter mon Discord</a>
+    <p class="doux petit centre">Sur téléphone, l'application Discord s'ouvre : il suffit d'autoriser, sans retaper tes identifiants.</p>
     <a class="bouton secondaire" href="${o.base}">Retour</a>`);
   }
   const c = candidature;

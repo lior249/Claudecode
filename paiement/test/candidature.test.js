@@ -34,7 +34,9 @@ test('candidature Elite : Discord → formulaire Tally → examen → retenu →
     holder.bob = d.bob;
     const CID = '500000000000000001';
     // Sans session : bouton de connexion Discord.
-    assert.match(await (await m.get('/coaching/elite/candidature')).text(), /Connecter mon Discord/);
+    const accueil = await (await m.get('/coaching/elite/candidature')).text();
+    assert.match(accueil, /Connecter mon Discord/);
+    assert.match(accueil, /href="https:\/\/discord\.com\/oauth2\/authorize\?state=/, 'lien direct vers Discord (ouvre l\'application sur téléphone)');
 
     // Connexion Discord : rejoint le serveur avec le rôle Attente, candidature créée.
     const st = new URL((await m.get('/discord/candidature')).headers.get('location')).searchParams.get('state');

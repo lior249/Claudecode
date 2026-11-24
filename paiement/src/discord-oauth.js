@@ -54,7 +54,7 @@ function creerDiscordOAuth(config, fetchImpl = fetch) {
         redirect_uri: redirection,
         response_type: 'code',
         scope: rejoindre ? 'identify guilds.join' : 'identify',
-        state: signer({ ...state, exp: Date.now() + 15 * 60 * 1000 }, config.secretApp),
+        state: signer({ ...state, exp: Date.now() + 2 * 3600 * 1000 }, config.secretApp),
         prompt: 'none',
       });
       return `https://discord.com/oauth2/authorize?${params}`;

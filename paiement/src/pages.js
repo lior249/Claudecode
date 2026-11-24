@@ -373,7 +373,7 @@ function pageConfirmation(config, { ref, type, details }) {
 }
 
 // Étape 4 — guide d'accès (inscription) : vidéo Wistia + étapes écrites
-function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDiscord }) {
+function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDiscord, lienDiscord }) {
   const wistia = offre.wistiaGuide;
   const video = wistia
     ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(wistia)}?videoFoam=true&playerColor=000000"
@@ -385,7 +385,8 @@ function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDis
     : config.oauthActif
       ? `<p class="doux">Bob, notre bot, t'ajoute au serveur privé avec ton rôle, et te préviendra avant la fin de ton accès.</p>
          ${erreurDiscord ? `<p class="erreur-form">${echapper(erreurDiscord)}</p>` : ''}
-         <a class="bouton" href="/discord/lier/${echapper(ref)}">Connecter mon Discord</a>`
+         <a class="bouton" href="${echapper(lienDiscord || `/discord/lier/${ref}`)}">Connecter mon Discord</a>
+         <p class="doux petit" style="margin:8px 0 0">Sur téléphone, l'application Discord s'ouvre : il suffit d'autoriser.</p>`
       : `<p class="doux">Rejoins le serveur${config.lienDiscord ? ` : <a href="${echapper(config.lienDiscord)}">${echapper(config.lienDiscord)}</a>` : ''}.</p>`;
   return gabarit('Accéder à ton espace', `
   <p class="etiquette">Étape 4 sur 4 · ${echapper(offre.nom)}</p>
