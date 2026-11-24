@@ -285,7 +285,7 @@ function pageAccueil(config, offre = config.offres.community) {
 }
 
 // Étape 2 — informations demandées par SasPay
-function pageFormulaire(config, { offre = config.offres.community, type, erreur, valeurs = {}, emailVerrouille, action, montant, retour } = {}) {
+function pageFormulaire(config, { offre = config.offres.community, type, erreur, valeurs = {}, emailVerrouille, action, montant, retour, lienCarte } = {}) {
   const renouv = type === 'renouvellement';
   const prix = formatPrix(montant || (renouv ? offre.prixRenouvellement : offre.prixEntree), config.devise);
   const cible = action || (renouv ? `${offre.base}/renouveler` : `${offre.base}/paiement`);
@@ -312,6 +312,7 @@ function pageFormulaire(config, { offre = config.offres.community, type, erreur,
     <button class="bouton" type="submit">${ICONE.mobile}Payer ${prix.texte}</button>
     <p class="doux petit centre" style="margin:12px 0 0">Tu vas être redirigé vers la page de paiement sécurisée SasPay.</p>
   </form>
+  ${lienCarte ? `<a class="bouton secondaire" href="${echapper(lienCarte)}">Payer plutôt par carte bancaire</a>` : ''}
   ${retour ? `<a class="bouton secondaire" href="${echapper(retour)}">Retour</a>` : ''}`);
 }
 

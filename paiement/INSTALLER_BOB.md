@@ -32,6 +32,11 @@ Les anciennes offres payantes débloquées par code promo ne servent plus.
 alors accès à `/coaching` comme les autres. C'est Whop qui gère leur abonnement. Si Whop leur retire le rôle (abonnement
 terminé), ou s'ils passent GOAT, Bob libère leurs créneaux dans les 10 minutes et te prévient.
 
+**Paiement par carte après une candidature validée** : le candidat validé a le choix entre **mobile money** et **carte bancaire**
+(même prix). Le bouton carte ouvre ton offre Elite **cachée** sur Whop : mets son lien dans `LIEN_CARTE_ELITE`.
+Sur cette offre, l'application **Discord** de Whop doit donner le **rôle Elite** : dès que le candidat l'a, Bob confirme
+son intégration, désactive son lien mobile money (pas de double paiement) et te prévient.
+
 ## 2. Whop : les autorisations de la clé API
 
 Sur **whop.com/dashboard/developer**, modifie ta clé (ou crée-en une nouvelle) en mode **Personnalisé** :
@@ -124,6 +129,7 @@ DISCORD_SALON_COACHING_URL=https://discord.com/channels/…
 TALLY_FORM_ID=…
 TALLY_SIGNING_SECRET=…
 WISTIA_VSL_ELITE=…
+LIEN_CARTE_ELITE=https://whop.com/checkout/plan_…
 ```
 
 Enregistre avec **Ctrl+O**, puis **Entrée**, puis **Ctrl+X**. Ensuite :
@@ -145,6 +151,8 @@ Si l'application s'arrête, le message indique le réglage à corriger.
    Tu peux republier le message à tout moment avec `/publier bouton: Message du salon d'attente` : Bob publie le message
    « Tu es en attente… » avec les boutons **Rejoindre la Community** et **Postuler à l'Elite**.
    Les nouveaux venus « En Attente » **restent sur le serveur sans limite** (ils ne voient que #en-attente).
+   À l'arrivée de chacun, dès qu'il a le rôle En Attente, Bob lui envoie **en message privé** la bienvenue
+   avec les boutons **Rejoindre la Community** et **Postuler à l'Elite**.
    Option : `ATTENTE_NOUVEAUX_HEURES=24` pour les retirer après 24 h (sauf candidatures en cours et Community en attente).
 3. Dans un salon visible par les membres (par exemple #bienvenue), tape `/publier bouton: Se connecter au site`.
 

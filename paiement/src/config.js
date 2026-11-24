@@ -47,6 +47,8 @@ function chargerConfig({ strict = true } = {}) {
         roleDiscord: lire('DISCORD_ROLE_ELITE'),
         wistiaGuide: lire('WISTIA_GUIDE_ELITE', ''),
         wistiaVsl: lire('WISTIA_VSL_ELITE', ''),
+        // Paiement par carte : lien de l'offre Whop cachée (même prix). Proposé à côté du mobile money après validation.
+        lienCarte: lire('LIEN_CARTE_ELITE', ''),
         tallyFormId: lire('TALLY_FORM_ID', ''),
         graceJours: 0, // Elite : retrait immédiat à la fin
         base: '/coaching/elite',

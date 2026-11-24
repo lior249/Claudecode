@@ -125,13 +125,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   }
   app.get('/coaching/elite/paiement/:token', (req, res) => {
     if (!invitationValide(req, res)) return;
-    res.send(P.pageFormulaire(config, { offre: elite, type: 'inscription', action: `${elite.base}/paiement/${req.params.token}` }));
+    res.send(P.pageFormulaire(config, { offre: elite, type: 'inscription', action: `${elite.base}/paiement/${req.params.token}`, lienCarte: elite.lienCarte }));
   });
   app.post('/coaching/elite/paiement/:token', formulaire, (req, res) => {
     if (!invitationValide(req, res)) return undefined;
     return lancerPaiement(req, res, {
       offre: elite, type: 'inscription', invitationToken: req.params.token,
-      page: (o) => P.pageFormulaire(config, { offre: elite, type: 'inscription', action: `${elite.base}/paiement/${req.params.token}`, ...o }),
+      page: (o) => P.pageFormulaire(config, { offre: elite, type: 'inscription', action: `${elite.base}/paiement/${req.params.token}`, lienCarte: elite.lienCarte, ...o }),
     });
   });
   app.get('/coaching/elite/renouveler', formulaireRenouvellement(elite));

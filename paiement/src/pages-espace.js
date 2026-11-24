@@ -219,8 +219,9 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
       <div class="carte">
         <p>Ta candidature est validée.</p>
         ${paye ? '<p class="ok" style="margin:0">Ton intégration est confirmée. Bob t\'a envoyé la suite sur Discord.</p>'
-          : `<p class="doux">Confirme ton intégration en réglant l'accompagnement avec ton lien personnel :</p>
-             <a class="bouton" href="${echapper(lienPaiement)}">Confirmer mon intégration</a>`}
+          : `<p class="doux" style="margin-bottom:0">Confirme ton intégration en réglant l'accompagnement. Choisis ton moyen de paiement : le prix est le même.</p>
+             <a class="bouton" href="${echapper(lienPaiement)}">Payer par mobile money</a>
+             ${o.lienCarte ? `<a class="bouton" href="${echapper(o.lienCarte)}">Payer par carte bancaire</a>` : ''}`}
       </div>`;
       break;
     default:

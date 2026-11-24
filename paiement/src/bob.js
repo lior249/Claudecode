@@ -28,7 +28,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   const actif = config.discordActif || Boolean(clientInjecte);
   const client = clientInjecte || (actif ? new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
-    partials: [Partials.Channel],
+    partials: [Partials.Channel, Partials.GuildMember],
   }) : null);
 
   const q = {
@@ -44,6 +44,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     enPeriodeAttente: db.prepare("SELECT 1 FROM membres WHERE discord_id = ? AND statut = 'actif' AND acces_jusqu_au <= ?"),
     attenteDepuis: db.prepare('SELECT envoye_le FROM envois WHERE cle = ?'),
     noterAttente: db.prepare('INSERT INTO envois (cle, envoye_le) VALUES (?, ?) ON CONFLICT(cle) DO UPDATE SET envoye_le = excluded.envoye_le'),
+    payeeParCarte: db.prepare('UPDATE invitations_elite SET utilisee_le = ?, ref_commande = ? WHERE token = ? AND utilisee_le IS NULL'),
   };
   const dejaEnvoye = (cle) => Boolean(q.deja.get(cle));
   const marquer = (cle) => q.marquer.run(cle, maintenant().toISOString());
@@ -62,6 +63,14 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
         .map((b) => new ButtonBuilder().setLabel(b.label.slice(0, 80)).setStyle(ButtonStyle.Link).setURL(b.url))));
     }
     return { content: texte, components: rangees };
+  }
+
+  // Après validation : les deux moyens de paiement, au même prix.
+  function boutonsPaiementElite(c) {
+    return [
+      { label: 'Payer par mobile money', url: candidatures.lienPaiement(c) },
+      { label: 'Payer par carte bancaire', url: config.offres.elite.lienCarte },
+    ];
   }
 
   const dernieresErreurs = new Map();
@@ -563,8 +572,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       await notifier.membre(c.discord_id, avecBoutons('**Bonne nouvelle : ton profil a été retenu pour l\'Elite !**\nIl te reste une dernière étape.',
         [{ label: 'Continuer ma candidature', url: lienSuite }]));
     } else if (decision === 'valider') {
-      await notifier.membre(c.discord_id, avecBoutons('**Ta candidature Elite est validée. Bienvenue !** 🎉\nConfirme ton intégration en réglant l\'accompagnement.',
-        [{ label: 'Confirmer mon intégration', url: candidatures.lienPaiement(c) }]));
+      await notifier.membre(c.discord_id, avecBoutons('**Ta candidature Elite est validée. Bienvenue !**\n'
+        + 'Confirme ton intégration en réglant l\'accompagnement. Choisis ton moyen de paiement : le prix est le même.',
+        boutonsPaiementElite(c)));
     } else {
       await notifier.membre(c.discord_id, 'Merci pour ta candidature. Après examen, **ton profil n\'a pas été retenu** pour l\'Elite cette fois-ci. '
         + 'Tu peux continuer à progresser avec la Community.');
@@ -642,6 +652,51 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     }
   }
 
+  // ---------- Paiement Elite par carte (Whop) ----------
+  // Whop donne le rôle Elite au candidat validé qui paie par carte : sa candidature passe « intégration confirmée »
+  // et son lien mobile money est désactivé (pas de double paiement).
+  async function paiementCarteDetecte(m) {
+    const roleElite = config.offres.elite.roleDiscord;
+    if (!candidatures || !roleElite || !m.roles.cache.has(roleElite)) return false;
+    const c = candidatures.parDiscord(m.id);
+    if (!c || c.statut !== 'valide' || !c.invitation_token) return false;
+    if (q.payeeParCarte.run(maintenant().toISOString(), 'carte-whop', c.invitation_token).changes !== 1) return false;
+    log(`candidature ${c.id} : payée par carte (rôle Elite donné par Whop)`);
+    await notifier.membre(m.id, avecBoutons('**Paiement reçu : bienvenue dans l\'Elite !**\nRéserve maintenant tes créneaux de coaching.',
+      [{ label: 'Réserver mes coachings', url: lienMagique(config, { id: m.id, pseudo: c.pseudo }, '/coaching') }]));
+    await notifier.admin(`**${c.pseudo}** (<@${m.id}>) a payé l'Elite **par carte** sur Whop : intégration confirmée.`);
+    return true;
+  }
+
+  // ---------- Arrivée sur le serveur ----------
+  // Message privé à chaque nouveau venu qui reçoit le rôle En Attente (à son arrivée, ou dès que le rôle lui est donné).
+  // Une seule fois par arrivée : s'il quitte le serveur et revient, il le reçoit de nouveau.
+  async function accueillir(m) {
+    const role = config.discord.roleAttente;
+    if (!m || !role || !m.roles || !m.roles.cache.has(role)) return false;
+    if ((m.guild && m.guild.id !== config.discord.serveurId) || m.user?.bot || m.id === config.discord.adminId || m.pending) return false;
+    const aUnAcces = Object.values(config.offres).some((o) => o.roleDiscord && m.roles.cache.has(o.roleDiscord))
+      || (config.discord.roleGoat && m.roles.cache.has(config.discord.roleGoat));
+    if (aUnAcces) return false;
+    // Membre Community dans sa période d'attente : il a déjà reçu son message de renouvellement.
+    if (q.enPeriodeAttente.get(m.id, maintenant().toISOString())) return false;
+    const cle = `bienvenue-attente:${m.id}:${m.joinedTimestamp || 0}`;
+    if (dejaEnvoye(cle)) return false;
+    marquer(cle);
+    const c = candidatures && candidatures.parDiscord(m.id);
+    const contenu = c && STATUTS_CANDIDATURE_PROTEGES.includes(c.statut)
+      ? avecBoutons('**Content de te revoir sur le serveur Overmaxx !**\nTa candidature Elite est toujours en cours : je t\'écris ici dès qu\'il y a du nouveau.',
+        [{ label: 'Suivre ma candidature', url: lienMagique(config, { id: m.id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`) }])
+      : avecBoutons('**Bienvenue sur le serveur Overmaxx !**\nJe suis Bob, l\'assistant d\'Overmaxx. '
+        + 'Pour l\'instant, tu ne vois que le salon d\'attente.\n'
+        + 'Pour accéder au reste du serveur, rejoins l\'un des deux programmes :',
+        [{ label: 'Rejoindre la Community', url: `${config.baseUrl}/community` },
+          { label: 'Postuler à l\'Elite', url: `${config.baseUrl}${config.offres.elite.base}` }]);
+    const ok = await messagePrive(m.id, contenu);
+    log(ok ? `message de bienvenue envoyé à ${m.id}` : `message de bienvenue impossible pour ${m.id} (voir l'erreur ci-dessus)`);
+    return ok;
+  }
+
   // ---------- Rôle En Attente temporaire ----------
   // Un nouveau venu « En Attente » qui n'a rejoint aucun programme est retiré du serveur après 24 h.
   // Exceptions : candidature Elite en cours, membre Community dans sa période d'attente, admin, bots.
@@ -658,6 +713,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       const aUnAcces = Object.values(config.offres).some((o) => o.roleDiscord && m.roles.cache.has(o.roleDiscord))
         || (config.discord.roleGoat && m.roles.cache.has(config.discord.roleGoat));
       if (aUnAcces) {
+        try { await paiementCarteDetecte(m); } catch (err) { console.warn('[bob] paiement par carte :', err.message); }
         // Il a payé un programme (par exemple par carte sur Whop) : il n'est plus en attente.
         try { await m.roles.remove(role, 'Overmaxx : membre d\'un programme'); log(`rôle En Attente retiré à ${m.id} (membre d'un programme)`); } catch (err) { console.warn('[bob] retrait En Attente :', err.message); }
         continue;
@@ -710,10 +766,19 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     relancerCandidats,
     configurerAttente,
     bloquerPourAttente,
+    accueillir,
+    paiementCarteDetecte,
 
     async demarrer() {
       if (!actif) { log('désactivé : DISCORD_BOT_TOKEN ou DISCORD_GUILD_ID manquant.'); return; }
       client.on('interactionCreate', (i) => surInteraction(i).catch((e) => console.error('[bob] interaction :', e)));
+      // Nouveau venu : message privé de bienvenue dès qu'il a le rôle En Attente.
+      client.on('guildMemberAdd', (m) => accueillir(m).catch((e) => console.warn('[bob] arrivée :', e.message)));
+      client.on('guildMemberUpdate', (avant, apres) => {
+        const role = config.discord.roleAttente;
+        const roleAjoute = role && apres.roles.cache.has(role) && (avant.partial || !avant.roles.cache.has(role));
+        if (roleAjoute || (avant.pending && !apres.pending)) accueillir(apres).catch((e) => console.warn('[bob] arrivée :', e.message));
+      });
       client.on('channelCreate', (c) => {
         if (!c.guild || c.guild.id !== config.discord.serveurId || !salonAttenteId()) return;
         bloquerPourAttente(c).catch((e) => console.warn('[bob] nouveau salon :', e.message));

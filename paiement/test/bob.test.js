@@ -477,3 +477,39 @@ test('par défaut : les nouveaux venus restent en attente sans limite (seul En A
     assert.deepStrictEqual(retraits, ['N2']);
   } finally { await m.fermer(); }
 });
+
+test('arrivée sur le serveur : message privé de bienvenue au nouveau venu En Attente (une fois par arrivée)', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const dms = [];
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures,
+      client: { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content, c.components]) }) } } });
+    const venu = (id, roles, joinedTimestamp = 1000, extra = {}) => ({
+      id, joinedTimestamp, user: { bot: false }, pending: false, guild: { id: m.config.discord.serveurId },
+      roles: { cache: { has: (r) => roles.includes(r) } }, ...extra,
+    });
+
+    assert.strictEqual(await bob.accueillir(venu('N1', [ROLES.attente])), true);
+    assert.strictEqual(dms[0][0], 'N1', 'le message part au nouveau venu, pas à l\'admin');
+    assert.match(dms[0][1], /Bienvenue sur le serveur Overmaxx/);
+    assert.deepStrictEqual(urls(dms[0][2]), ['http://localhost/community', 'http://localhost/coaching/elite']);
+    assert.strictEqual(await bob.accueillir(venu('N1', [ROLES.attente])), false, 'pas de doublon (arrivée + rôle donné)');
+    assert.strictEqual(await bob.accueillir(venu('N1', [ROLES.attente], 2000)), true, 'il revient : nouveau message');
+
+    assert.strictEqual(await bob.accueillir(venu('N2', [])), false, 'pas (encore) le rôle En Attente');
+    assert.strictEqual(await bob.accueillir(venu('N3', [ROLES.attente, ROLES.elite])), false, 'membre d\'un programme');
+    assert.strictEqual(await bob.accueillir(venu(ADMIN, [ROLES.attente])), false);
+    assert.strictEqual(await bob.accueillir(venu('N4', [ROLES.attente], 1000, { user: { bot: true } })), false);
+    assert.strictEqual(await bob.accueillir(venu('N5', [ROLES.attente], 1000, { pending: true })), false, 'règles pas encore acceptées');
+    assert.strictEqual(await bob.accueillir(venu('N5', [ROLES.attente])), true, 'dès qu\'il les accepte');
+
+    // Candidat qui revient : on lui rappelle où en est sa candidature.
+    m.candidatures.demarrer('N6', 'n6');
+    m.candidatures.recevoirFormulaire('N6', [{ label: 'Q', valeur: 'R' }]);
+    await bob.accueillir(venu('N6', [ROLES.attente]));
+    const dm = dms.find(([id]) => id === 'N6');
+    assert.match(dm[1], /candidature Elite est toujours en cours/);
+    assert.match(urls(dm[2])[0], /\/connexion\/bob\?t=/);
+    assert.ok(!dms.some(([id]) => id === ADMIN), 'l\'admin ne reçoit rien');
+  } finally { await m.fermer(); }
+});

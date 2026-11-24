@@ -88,7 +88,9 @@ test('candidature Elite : formulaire 1 (nom + pseudo Discord) → examen → ret
     assert.ok(!fs.existsSync(chemin), 'vidéo supprimée après la décision');
     const lienPaiement = m.candidatures.lienPaiement(m.candidatures.parId(1));
     assert.ok(d.dms.some(([id, , c]) => id === CID && urls(c).includes(lienPaiement)), 'lien de paiement dans un bouton');
-    assert.match(await (await m.get('/coaching/elite/candidature', { cookie })).text(), /Confirmer mon intégration/);
+    const suivi = await (await m.get('/coaching/elite/candidature', { cookie })).text();
+    assert.match(suivi, /Payer par mobile money/);
+    assert.doesNotMatch(suivi, /carte bancaire/, 'pas de lien carte configuré : mobile money seulement');
     assert.match(await (await m.get(new URL(lienPaiement).pathname)).text(), /327/);
     // Revenir sur /coaching/elite renvoie vers le suivi.
     assert.strictEqual((await m.get('/coaching/elite', { cookie })).headers.get('location'), '/coaching/elite/candidature');
@@ -320,5 +322,36 @@ test('envoi de vidéo : le dossier des vidéos est recréé s\'il a été suppri
     const r = await fetch(`${m.base}/api/candidature/video`, { method: 'POST', headers: { cookie: cookieSession('V1', 'v1'), 'Content-Type': 'video/quicktime' }, body: Buffer.alloc(3 * 1024 * 1024, 1) });
     assert.strictEqual(r.status, 200);
     assert.strictEqual(m.candidatures.parId(1).statut, 'video');
+  } finally { await m.fermer(); }
+});
+
+test('candidature validée : paiement par mobile money OU par carte (offre Whop cachée) ; carte détectée par le rôle Elite', async () => {
+  const CARTE = 'https://whop.com/checkout/plan_carte_cachee';
+  const m = await monter({ avecCandidatures: true, config: configTest({ LIEN_CARTE_ELITE: CARTE }) });
+  try {
+    const CID = '500000000000000009';
+    const d = fauxBobDiscord(m);
+    const c = m.candidatures.demarrer(CID, 'awa');
+    m.candidatures.recevoirFormulaire(CID, [{ label: 'Q', valeur: 'R' }]);
+    m.db.prepare("UPDATE candidatures SET statut = 'video' WHERE id = ?").run(c.id);
+    assert.ok((await d.bob.appliquerDecision(c.id, 'valider')).ok);
+    const lienMobile = m.candidatures.lienPaiement(m.candidatures.parId(c.id));
+    const dm = d.dms.find(([id, t]) => id === CID && /validée/.test(t));
+    assert.deepStrictEqual(urls(dm[2]), [lienMobile, CARTE], 'deux boutons : mobile money et carte');
+
+    const cookie = cookieSession(CID, 'awa');
+    const suivi = await (await m.get('/coaching/elite/candidature', { cookie })).text();
+    assert.match(suivi, /Payer par mobile money/);
+    assert.ok(suivi.includes(`href="${CARTE}"`));
+    assert.match(await (await m.get(new URL(lienMobile).pathname)).text(), /Payer plutôt par carte bancaire/);
+
+    // Paiement par carte sur Whop : Whop donne le rôle Elite.
+    const membre = { id: CID, roles: { cache: { has: (r) => r === ROLES.elite || r === ROLES.attente } } };
+    assert.strictEqual(await d.bob.paiementCarteDetecte(membre), true);
+    assert.strictEqual(await d.bob.paiementCarteDetecte(membre), false, 'une seule fois');
+    assert.ok(d.dms.some(([id, t]) => id === CID && /Paiement reçu/.test(t)));
+    assert.ok(d.dms.some(([id, t]) => id === ADMIN && /par carte/.test(t)));
+    assert.match(await (await m.get('/coaching/elite/candidature', { cookie })).text(), /intégration est confirmée/);
+    assert.strictEqual((await m.get(new URL(lienMobile).pathname)).status, 410, 'le lien mobile money ne peut plus servir');
   } finally { await m.fermer(); }
 });
