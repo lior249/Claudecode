@@ -116,7 +116,7 @@ function pageEliteCandidature(config, { session } = {}) {
   const fin = `
     <div class="icone-ronde">${ICONE.ok}</div>
     <h1 class="tf-q">Ton formulaire est en cours de traitement.</h1>
-    <p class="tf-aide">Bob, notre bot, te répondra en <b style="color:#fff">message privé sur Discord sous 24 heures</b>, avec la suite si ton profil est retenu.</p>
+    <p class="tf-aide">Bob, notre bot, te répondra en <b style="color:#fff">message privé sur Discord sous 24 heures</b>. Tu peux aussi garder cette page ouverte : <b style="color:#fff">elle se met à jour toute seule</b> et t'affichera la suite si ton profil est retenu.</p>
     <p class="tf-aide" style="margin-bottom:8px">Pas encore sur le serveur Overmaxx ? Rejoins-le maintenant, sinon Bob ne pourra pas t'écrire.</p>
     ${boutonDiscord(config)}`;
   return pageFormulaire(config, { titre: f.titre, mode: 'candidature', questions, intro, fin, videoMaxMo: config.videoMaxMo || 20 });
@@ -171,7 +171,8 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
       <a class="bouton" href="${o.base}">Remplir le formulaire</a>`;
       break;
     case 'examen':
-      corps = `${titre('Candidature en cours de traitement')}${attente('Ton formulaire est bien reçu. Nous l\'examinons : <b>réponse sous 24 heures</b>, ici et par message de Bob sur Discord.')}`;
+      corps = `${titre('Candidature en cours de traitement')}${attente('Ton formulaire est bien reçu. Nous l\'examinons : <b>réponse sous 24 heures</b>, par message de Bob sur Discord. <b>Cette page se met à jour toute seule</b> : garde-la ouverte ou reviens plus tard.')}
+      ${config.lienDiscord ? `<a class="bouton secondaire" href="${echapper(config.lienDiscord)}">Rejoindre le Discord</a>` : ''}`;
       break;
     case 'retenu':
       script = `${suivi}

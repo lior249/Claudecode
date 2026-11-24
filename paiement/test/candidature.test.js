@@ -217,3 +217,85 @@ test('message de Bob à l\'admin : lien vers la fiche du candidat, décision pri
     assert.match(await (await m.get(r.headers.get('location'), { cookie: admin })).text(), /Bob lui a envoyé le lien de la suite/);
   } finally { await m.fermer(); }
 });
+
+test('suivi sans connexion : après le formulaire, la page suit la candidature et permet de continuer (cookie limité)', async () => {
+  const m = await monter({ avecCandidatures: true, bob: { idDepuisPseudo: async () => '900000000000000001', candidatureRecue: async () => {}, videoRecue: async () => {} } });
+  try {
+    const r = await fetch(`${m.base}/api/candidature/formulaire`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reponses: { nom: 'Ama', discord: 'ama_d' } }) });
+    assert.strictEqual(r.status, 200);
+    const cookie = r.headers.get('set-cookie').split(';')[0];
+    assert.match(cookie, /^ovx_cand=/);
+    assert.deepStrictEqual(await (await m.get('/api/candidature', { cookie })).json(), { statut: 'examen' });
+    assert.match(await (await m.get('/coaching/elite/candidature', { cookie })).text(), /se met à jour toute seule/);
+    assert.strictEqual((await m.get('/coaching/elite', { cookie })).headers.get('location'), '/coaching/elite/candidature');
+
+    m.candidatures.decider(1, 'retenir');
+    assert.deepStrictEqual(await (await m.get('/api/candidature', { cookie })).json(), { statut: 'retenu' });
+    assert.match(await (await m.get('/coaching/elite/candidature', { cookie })).text(), /Ton profil est retenu/);
+    const conf = await fetch(`${m.base}/api/candidature/confirmation`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: '{"reponses":{}}' });
+    assert.strictEqual(conf.status, 200);
+    const vid = await fetch(`${m.base}/api/candidature/video`, { method: 'POST', headers: { cookie, 'Content-Type': 'video/mp4' }, body: Buffer.alloc(500, 1) });
+    assert.strictEqual(vid.status, 200);
+    assert.strictEqual(m.candidatures.parId(1).statut, 'video');
+    // Le cookie de suivi n'ouvre ni le coaching ni l'admin.
+    assert.doesNotMatch(await (await m.get('/coaching', { cookie })).text(), /Mes créneaux de coaching/);
+    assert.doesNotMatch(await (await m.get('/admin', { cookie })).text(), /Calendrier des coachings/);
+    // Un cookie falsifié ne donne rien.
+    assert.deepStrictEqual(await (await m.get('/api/candidature', { cookie: 'ovx_cand=faux.faux' })).json(), { statut: null });
+  } finally { await m.fermer(); }
+});
+
+test('messages privés fermés : Bob écrit dans un fil privé du salon d\'attente, sinon il prévient l\'admin', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    m.db.prepare("INSERT INTO envois (cle, envoye_le) VALUES ('config:salon-attente', 'SALON')").run();
+    const recus = [];
+    const fils = [];
+    const membres = {
+      F1: { id: 'F1', user: { username: 'ferme' }, roles: { cache: { has: (r) => r === ROLES.attente } } },
+      F2: { id: 'F2', user: { username: 'autre' }, roles: { cache: { has: () => false } } },
+    };
+    const client = { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => { if (id !== ADMIN) throw new Error('Cannot send messages to this user'); recus.push([id, c.content]); } }) } };
+    const serveur = {
+      members: { fetch: async (id) => membres[id] },
+      channels: { fetch: async (id) => (id === 'SALON'
+        ? { threads: { create: async (o) => { const f = { id: 'FIL1', name: o.name, ajoutes: [], messages: [], members: { add: async (u) => f.ajoutes.push(u) }, send: async (msg) => f.messages.push(msg.content) }; fils.push(f); return f; } } }
+        : fils.find((f) => f.id === id)) },
+    };
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures, client, serveur });
+    assert.strictEqual(await bob.notifier.membre('F1', 'Bonjour'), true);
+    assert.strictEqual(await bob.notifier.membre('F1', 'Deuxième'), true);
+    assert.strictEqual(fils.length, 1, 'le même fil est réutilisé');
+    assert.deepStrictEqual(fils[0].ajoutes, ['F1']);
+    assert.deepStrictEqual(fils[0].messages, ['<@F1> Bonjour', '<@F1> Deuxième']);
+    // Pas dans le salon d'attente : l'admin est prévenu, une seule fois par jour.
+    assert.strictEqual(await bob.notifier.membre('F2', 'Rappel'), false);
+    await bob.notifier.membre('F2', 'Rappel 2');
+    assert.strictEqual(recus.filter(([id, t]) => id === ADMIN && /messages privés sont fermés/.test(t)).length, 1);
+  } finally { await m.fermer(); }
+});
+
+test('relances des candidats retenus sans suite : 24 h puis 72 h, sans doublon', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const dms = [];
+    let now = new Date('2026-12-01T10:00:00Z');
+    const { creerCandidatures } = require('../src/candidatures');
+    const cand = creerCandidatures({ db: m.db, config: m.config, commandes: m.commandes, maintenant: () => now });
+    cand.demarrer('R1', 'retenu1');
+    cand.recevoirFormulaire('R1', [{ label: 'Q', valeur: 'R' }]);
+    cand.decider(1, 'retenir');
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: cand, maintenant: () => now,
+      client: { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content]) }) } }, serveur: null });
+    now = new Date('2026-12-01T20:00:00Z'); await bob.relancerCandidats();
+    assert.strictEqual(dms.length, 0);
+    now = new Date('2026-12-02T10:30:00Z'); await bob.relancerCandidats(); await bob.relancerCandidats();
+    assert.strictEqual(dms.length, 1);
+    assert.match(dms[0][1], /Petit rappel/);
+    assert.match(dms[0][1], /connexion\/bob\?t=/);
+    now = new Date('2026-12-04T11:00:00Z'); await bob.relancerCandidats(); await bob.relancerCandidats();
+    assert.strictEqual(dms.length, 2);
+    assert.match(dms[1][1], /Dernier rappel/);
+  } finally { await m.fermer(); }
+});

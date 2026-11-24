@@ -63,9 +63,51 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       return false;
     }
   }
+  // MP fermés : Bob écrit dans un fil privé du salon d'attente (visible par la personne seulement).
+  async function filPrive(discordId, contenu) {
+    const salonId = salonAttenteId();
+    if (!serveur || !salonId) return false;
+    try {
+      const m = await serveur.members.fetch(discordId);
+      if (!m || !config.discord.roleAttente || !m.roles.cache.has(config.discord.roleAttente)) return false; // il ne voit pas ce salon
+      const cle = `fil:${discordId}`;
+      let fil = null;
+      const connu = q.attenteDepuis.get(cle);
+      if (connu) { try { fil = await serveur.channels.fetch(connu.envoye_le); } catch { fil = null; } }
+      if (!fil) {
+        const salon = await serveur.channels.fetch(salonId);
+        fil = await salon.threads.create({
+          name: `Bob · ${(m.user.globalName || m.user.username || 'membre').slice(0, 60)}`,
+          type: ChannelType.PrivateThread, invitable: false, autoArchiveDuration: 10080, reason: 'Overmaxx : messages privés fermés',
+        });
+        await fil.members.add(discordId);
+        q.noterAttente.run(cle, fil.id);
+      }
+      if (fil.archived && fil.setArchived) await fil.setArchived(false);
+      const message = typeof contenu === 'string' ? { content: contenu } : { ...contenu };
+      message.content = `<@${discordId}> ${message.content || ''}`;
+      await fil.send(message);
+      return true;
+    } catch (err) {
+      console.warn(`[bob] fil privé impossible pour ${discordId} : ${err.message}`);
+      return false;
+    }
+  }
+
   const notifier = {
     admin: (contenu) => (config.discord.adminId ? messagePrive(config.discord.adminId, contenu) : Promise.resolve(false)),
-    membre: (discordId, contenu) => messagePrive(discordId, contenu),
+    membre: async (discordId, contenu) => {
+      if (await messagePrive(discordId, contenu)) return true;
+      if (await filPrive(discordId, contenu)) return true;
+      // Personne n'a pu être prévenu : l'admin le sait (une fois par jour et par membre).
+      const cle = `mp-ferme:${discordId}:${maintenant().toISOString().slice(0, 10)}`;
+      if (!dejaEnvoye(cle) && config.discord.adminId && discordId !== config.discord.adminId) {
+        marquer(cle);
+        await messagePrive(config.discord.adminId, `Je n'arrive pas à écrire à <@${discordId}> : ses messages privés sont fermés. `
+          + 'Contacte-le toi-même ou demande-lui d\'ouvrir ses MP (Paramètres > Confidentialité > Messages privés des membres du serveur).');
+      }
+      return false;
+    },
   };
 
   async function membreDuServeur(discordId) {
@@ -531,9 +573,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     if (r.erreur) return r;
     const c = r.candidature;
     if (decision === 'retenir') {
-      const lienVideo = lienMagique(config, { id: c.discord_id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`);
+      const lienVideo = lienMagique(config, { id: c.discord_id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`, 48 * 60);
       await notifier.membre(c.discord_id, '**Bonne nouvelle : ton profil a été retenu pour l\'Elite !**\n'
-        + 'Dernière étape : envoie une **vidéo d\'1 minute** pour te présenter, sur cette page (lien personnel, valable 10 minutes) :\n'
+        + 'Continue ta candidature ici (lien personnel, valable 48 heures) :\n'
         + `${lienVideo}\n\nLien expiré ? Tape **/connexion** et je t'en renvoie un.`);
     } else if (decision === 'valider') {
       await notifier.membre(c.discord_id, '**Ta candidature Elite est validée. Bienvenue !** 🎉\n'
@@ -593,6 +635,28 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     });
   }
 
+  // ---------- Relances des candidats retenus qui n'ont pas encore continué ----------
+  async function relancerCandidats() {
+    if (!candidatures) return;
+    const now = maintenant().getTime();
+    for (const c of candidatures.liste()) {
+      if (c.statut !== 'retenu' || !c.decision_le) continue;
+      const depuis = now - new Date(c.decision_le).getTime();
+      const palier = [72, 24].find((h) => depuis >= h * 3600 * 1000);
+      if (!palier) continue;
+      const cle = (h) => `relance-cand:${c.id}:${h}`;
+      if (dejaEnvoye(cle(palier))) continue;
+      const lien = lienMagique(config, { id: c.discord_id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`, 48 * 60);
+      const texte = palier === 24
+        ? `Petit rappel : ton profil a été **retenu pour l'Elite**, mais ta candidature n'est pas terminée. Continue ici (lien valable 48 heures) :\n${lien}`
+        : `Dernier rappel : il te reste la dernière étape de ta candidature **Elite**. Sans réponse de ta part, ta place pourra être proposée à quelqu'un d'autre.\n${lien}`;
+      if (await notifier.membre(c.discord_id, texte)) {
+        for (const h of [24, 72]) if (h <= palier) marquer(cle(h));
+        log(`relance ${palier} h envoyée au candidat ${c.id}`);
+      }
+    }
+  }
+
   // ---------- Rôle En Attente temporaire ----------
   // Un nouveau venu « En Attente » qui n'a rejoint aucun programme est retiré du serveur après 24 h.
   // Exceptions : candidature Elite en cours, membre Community dans sa période d'attente, admin, bots.
@@ -639,7 +703,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       await renouvellements();
       await rappelsCoaching();
       if (tour % 2 === 0) await synchroRoles();
-      if (tour % 10 === 0) await nettoyerAttente();
+      if (tour % 10 === 0) { await nettoyerAttente(); await relancerCandidats(); }
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
       console.error('[bob] cycle :', err);
@@ -657,6 +721,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     rappelsCoaching,
     libererCreneaux,
     nettoyerAttente,
+    relancerCandidats,
     configurerAttente,
     bloquerPourAttente,
 

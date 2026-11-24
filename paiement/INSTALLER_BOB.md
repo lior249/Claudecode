@@ -55,10 +55,13 @@ Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont di
    - dans **Redirects**, ajoute exactement `https://overmaxx.online/discord/callback`, puis enregistre.
 4. Invite Bob sur ton serveur. Ouvre ce lien en remplaçant `CLIENT_ID` :
    ```
-   https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot%20applications.commands&permissions=268438547
+   https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot%20applications.commands&permissions=343865822227
    ```
    Ce lien donne à Bob ces droits : voir les salons, envoyer des messages, expulser des membres, gérer les rôles, gérer les salons et créer des invitations.
-   Si Bob est déjà invité : **Paramètres du serveur** → **Rôles** → rôle de Bob → active **Gérer les salons**.
+   Si Bob est déjà invité : **Paramètres du serveur** → **Rôles** → rôle de Bob → active **Gérer les salons**,
+   **Créer des fils privés** et **Envoyer des messages dans les fils**.
+   (Les fils servent de secours : si un membre a fermé ses messages privés, Bob lui écrit dans un fil privé de #en-attente.
+   Si même ça échoue, Bob te prévient.)
 
 ## 4. Discord : rôles et identifiants
 

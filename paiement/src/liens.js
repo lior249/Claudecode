@@ -27,11 +27,11 @@ function lienInscription(config, programme) {
 }
 
 // Lien de connexion envoyé par Bob dans Discord : connecte au site sans mot de passe. 10 minutes, usage unique.
-function lienMagique(config, utilisateur, retour) {
+function lienMagique(config, utilisateur, retour, dureeMinutes = 10) {
   const { signer } = require('./discord-oauth');
   const jeton = signer({
     but: 'bob', id: utilisateur.id, pseudo: utilisateur.pseudo, n: crypto.randomBytes(9).toString('base64url'),
-    exp: Date.now() + 10 * 60 * 1000,
+    exp: Date.now() + dureeMinutes * 60 * 1000,
   }, config.secretApp);
   return `${config.baseUrl}/connexion/bob?t=${encodeURIComponent(jeton)}&retour=${encodeURIComponent(retour)}`;
 }

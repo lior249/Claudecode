@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { signatureValide } = require('./saspay');
 const { lireJetonMembre, lienRenouvellement } = require('./liens');
-const { lireSession, ouvrirSession, fermerSession, verifier } = require('./discord-oauth');
+const { lireSession, ouvrirSession, fermerSession, verifier, signer } = require('./discord-oauth');
 const P = require('./pages');
 const E = require('./pages-espace');
 const { verifierReponses } = require('./formulaires');
@@ -113,7 +113,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   app.get('/coaching/elite', (req, res) => {
     const session = lireSession(req, config.secretApp);
     // Déjà candidat (formulaire envoyé) : on montre où il en est.
-    const c = session && candidatures && candidatures.parDiscord(session.id);
+    const { c } = candidatureDe(req);
     if (c && c.statut !== 'formulaire') return res.redirect(302, `${config.offres.elite.base}/candidature`);
     return res.send(E.pageEliteCandidature(config, { session }));
   });
@@ -338,10 +338,33 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   // ================= Candidature Elite =================
 
-  app.get('/coaching/elite/candidature', (req, res) => {
+  // Cookie de suivi posé après le formulaire 1 : il ne donne accès qu'à SA candidature (statut, formulaire 2, vidéo),
+  // jamais au coaching ni à l'admin.
+  const COOKIE_SUIVI = 'ovx_cand';
+  function poserSuivi(res, c) {
+    res.cookie(COOKIE_SUIVI, signer({ cand: c.id, discord: c.discord_id, exp: Date.now() + 45 * 24 * 3600 * 1000 }, config.secretApp), {
+      httpOnly: true, sameSite: 'lax', secure: config.baseUrl.startsWith('https://'), maxAge: 45 * 24 * 3600 * 1000, path: '/',
+    });
+  }
+  function candidatureDe(req) {
+    if (!candidatures) return { c: null };
     const session = lireSession(req, config.secretApp);
-    if (!session || !candidatures) return res.send(E.pageCandidature(config, { session: null, lienDiscord: lienDiscord({ but: 'candidat' }, { rejoindre: true }) }));
-    const c = candidatures.parDiscord(session.id) || candidatures.demarrer(session.id, session.pseudo);
+    if (session) {
+      const c = candidatures.parDiscord(session.id);
+      if (c) return { c, session };
+    }
+    const brut = (req.headers.cookie || '').split(';').map((x) => x.trim()).find((x) => x.startsWith(`${COOKIE_SUIVI}=`));
+    const t = brut && verifier(decodeURIComponent(brut.slice(COOKIE_SUIVI.length + 1)), config.secretApp);
+    const c = t && candidatures.parId(Number(t.cand));
+    if (c && c.discord_id === t.discord) return { c, session: session || { id: c.discord_id, pseudo: c.pseudo } };
+    return { c: null, session };
+  }
+
+  app.get('/coaching/elite/candidature', (req, res) => {
+    const suivi = candidatureDe(req);
+    let { c, session } = suivi;
+    if (!c && session && candidatures) c = candidatures.demarrer(session.id, session.pseudo);
+    if (!c) return res.send(E.pageCandidature(config, { session: null, lienDiscord: lienDiscord({ but: 'candidat' }, { rejoindre: true }) }));
     if (c.statut === 'retenu') return res.send(E.pageConfirmation(config, { session }));
     const inv = c.invitation_token ? commandes.invitation(c.invitation_token) : null;
     return res.send(E.pageCandidature(config, { session, candidature: c, lienPaiement: candidatures.lienPaiement(c), paye: Boolean(inv && inv.utilisee_le) }));
@@ -372,13 +395,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     const reponses = v.reponses.map(({ label, valeur }) => ({ label, valeur }));
     const cand = candidatures.recevoirFormulaire(discordId, reponses);
     if (cand && bob) bob.candidatureRecue(cand, reponses).catch(() => {});
+    if (cand) poserSuivi(res, cand);
     return res.json({ ok: true });
   });
 
   // Formulaire 2 (profils retenus) : réponses écrites ; la vidéo suit sur /api/candidature/video.
   app.post('/api/candidature/confirmation', json, (req, res) => {
-    const session = lireSession(req, config.secretApp);
-    const c = session && candidatures && candidatures.parDiscord(session.id);
+    const { c } = candidatureDe(req);
     if (!c) return res.status(401).json({ erreur: 'Ton lien a expiré. Dans Discord, tape /connexion pour en recevoir un nouveau.' });
     const v = verifierReponses('confirmation', req.body && req.body.reponses);
     if (v.erreur) return res.status(400).json(v);
@@ -388,15 +411,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   });
 
   app.get('/api/candidature', (req, res) => {
-    const session = lireSession(req, config.secretApp);
-    const c = session && candidatures && candidatures.parDiscord(session.id);
+    const { c } = candidatureDe(req);
     res.json({ statut: c ? c.statut : null });
   });
 
   app.post('/api/candidature/video', async (req, res) => {
-    const session = lireSession(req, config.secretApp);
-    const c = session && candidatures && candidatures.parDiscord(session.id);
-    if (!c) return res.status(401).json({ erreur: 'Reconnecte-toi.' });
+    const { c } = candidatureDe(req);
+    if (!c) { req.resume(); return res.status(401).json({ erreur: 'Ton lien a expiré. Dans Discord, tape /connexion pour en recevoir un nouveau.' }); }
     try {
       const r = await candidatures.enregistrerVideo(c, req, { type: req.get('content-type'), taille: Number(req.get('content-length')) || 0 });
       if (r.erreur) { req.resume(); return res.status(400).json(r); }

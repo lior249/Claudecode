@@ -148,7 +148,14 @@ function pageFormulaire(config, { titre, mode, questions, intro, fin, videoMaxMo
       zone.appendChild(e);
       return e.querySelector('.tf-barre i');
     }
-    function terminer() { envoi = false; barre.style.width = '100%'; haut.disabled = bas.disabled = true; zone.innerHTML = ''; zone.appendChild(FIN.content.cloneNode(true)); }
+    function terminer() {
+      envoi = false; barre.style.width = '100%'; haut.disabled = bas.disabled = true; zone.innerHTML = ''; zone.appendChild(FIN.content.cloneNode(true));
+      // Candidature : la page guette la décision et affiche la suite dès qu'elle tombe.
+      if (D.mode === 'candidature') setInterval(function () {
+        fetch('/api/candidature', { cache: 'no-store' }).then(function (r) { return r.json(); })
+          .then(function (d) { if (d.statut && d.statut !== 'examen' && d.statut !== 'formulaire') location.href = '/coaching/elite/candidature'; }).catch(function () {});
+      }, 6000);
+    }
     function echec(d) {
       envoi = false;
       if (d && d.champ) { var k = Q.findIndex(function (q) { return q.id === d.champ; }); if (k >= 0) { i = k; afficher(d.erreur); return; } }
