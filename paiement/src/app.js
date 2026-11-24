@@ -3,129 +3,166 @@
 const crypto = require('crypto');
 const express = require('express');
 const { signatureValide } = require('./saspay');
-const { donnerAcces } = require('./acces');
-const { pageAchat, pageAcces, pageAttente, pageMessage } = require('./pages');
+const P = require('./pages');
 
-const NOM_COOKIE = 'sp_session';
 const EMAIL_REGEX = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+const REF_REGEX = /^[A-Za-z0-9_-]{16,64}$/;
 
-function signer(valeur, secret) {
-  const sig = crypto.createHmac('sha256', secret).update(`cookie:${valeur}`).digest('base64url');
-  return `${valeur}.${sig}`;
+// Lien de renouvellement personnel (que le bot Discord enverra) : email signé, non falsifiable.
+function jetonMembre(email, secret) {
+  const e = Buffer.from(email).toString('base64url');
+  const sig = crypto.createHmac('sha256', secret).update(`membre:${e}`).digest('base64url').slice(0, 22);
+  return `${e}.${sig}`;
 }
 
-function lireSigne(brut, secret) {
-  if (!brut) return null;
-  const i = brut.lastIndexOf('.');
-  if (i <= 0) return null;
-  const valeur = brut.slice(0, i);
-  const a = Buffer.from(brut);
-  const b = Buffer.from(signer(valeur, secret));
-  return a.length === b.length && crypto.timingSafeEqual(a, b) ? valeur : null;
+function lireJetonMembre(jeton, secret) {
+  if (typeof jeton !== 'string' || !jeton.includes('.')) return null;
+  const [e] = jeton.split('.');
+  const attendu = jetonMembre(Buffer.from(e, 'base64url').toString(), secret);
+  const a = Buffer.from(jeton);
+  const b = Buffer.from(attendu);
+  return a.length === b.length && crypto.timingSafeEqual(a, b) ? Buffer.from(e, 'base64url').toString() : null;
 }
 
-function lireCookie(req, nom) {
-  const entete = req.headers.cookie || '';
-  for (const morceau of entete.split(';')) {
-    const [cle, ...reste] = morceau.trim().split('=');
-    if (cle === nom) return decodeURIComponent(reste.join('='));
-  }
-  return null;
+function lienRenouvellement(config, email) {
+  return `${config.baseUrl}/renouveler?m=${jetonMembre(email, config.secretApp)}`;
 }
 
-function creerApp({ config, saspay, whop, envoyerEmail }) {
+function lireFormulaire(body) {
+  return {
+    nom: String(body.nom || '').trim().slice(0, 100),
+    email: String(body.email || '').trim().toLowerCase().slice(0, 200),
+    telephone: String(body.telephone || '').replace(/[^\d+]/g, '').slice(0, 20),
+    m: typeof body.m === 'string' ? body.m.slice(0, 400) : '',
+  };
+}
+
+function creerApp({ config, commandes, whop }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  const deps = { saspay, whop, config };
+  const formulaire = express.urlencoded({ extended: false, limit: '10kb' });
 
   app.use((req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('Referrer-Policy', 'no-referrer');
     res.set('X-Frame-Options', 'DENY');
+    res.set('Cache-Control', 'no-store');
     next();
   });
 
-  app.get('/', (req, res) => res.send(pageAchat(config)));
+  // Étape 1
+  app.get('/', (req, res) => res.send(P.pageAccueil(config)));
 
-  app.post('/acheter', express.urlencoded({ extended: false, limit: '10kb' }), async (req, res) => {
-    const nom = String(req.body.nom || '').trim().slice(0, 100);
-    const email = String(req.body.email || '').trim().toLowerCase().slice(0, 200);
-    const telephone = String(req.body.telephone || '').replace(/[^\d+]/g, '').slice(0, 20);
-    const valeurs = { nom, email, telephone };
+  // Étape 2 (inscription)
+  app.get('/paiement', (req, res) => res.send(P.pageFormulaire(config, { type: 'inscription' })));
 
-    if (nom.length < 2) return res.status(400).send(pageAchat(config, { erreur: 'Entre ton nom.', valeurs }));
-    if (!EMAIL_REGEX.test(email)) {
-      return res.status(400).send(pageAchat(config, { erreur: "L'email n'est pas valide.", valeurs }));
+  app.post('/paiement', formulaire, async (req, res) => {
+    const valeurs = lireFormulaire(req.body);
+    const refus = (erreur, statut = 400) => res.status(statut).send(P.pageFormulaire(config, { type: 'inscription', erreur, valeurs }));
+    if (valeurs.nom.length < 2) return refus('Entre ton nom.');
+    if (!EMAIL_REGEX.test(valeurs.email)) return refus("L'email n'est pas valide.");
+    if (commandes.membre(valeurs.email)) {
+      return refus(`Cet email est déjà inscrit. <a href="${P.echapper(lienRenouvellement(config, valeurs.email))}">Renouvelle ton abonnement ici</a>.`, 409);
     }
-
     try {
-      const corps = {
-        amount: Number(config.prix).toFixed(2),
-        currency: config.devise,
-        description: config.nomFormation,
-        customer_email: email,
-        customer_name: nom,
-        return_url: `${config.baseUrl}/merci`,
-        metadata: { produit: 'formation', email_whop: email },
-      };
-      if (telephone) corps.customer_phone = telephone;
-      if (config.pays) corps.country = config.pays;
-
-      const session = await saspay.creerSessionCheckout(corps);
-      if (!session || !session.id || !session.checkout_url) throw new Error('Réponse SasPay inattendue');
-
-      res.cookie(NOM_COOKIE, signer(session.id, config.secretApp), {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: config.baseUrl.startsWith('https://'),
-        maxAge: 3 * 24 * 3600 * 1000,
-        path: '/',
-      });
-      return res.redirect(303, session.checkout_url);
+      const { urlPaiement } = await commandes.demarrer({ type: 'inscription', ...valeurs });
+      return res.redirect(303, urlPaiement); // Étape 3 : page de paiement SasPay
     } catch (err) {
-      console.error('[acheter]', err.message);
-      return res.status(502).send(pageAchat(config, {
-        erreur: 'Le paiement ne peut pas démarrer pour le moment. Réessaie dans un instant.',
-        valeurs,
-      }));
+      console.error('[paiement]', err.message);
+      return refus('Le paiement ne peut pas démarrer pour le moment. Réessaie dans un instant.', 502);
     }
   });
 
-  app.get('/merci', async (req, res) => {
-    res.set('Cache-Control', 'no-store');
-    const idSession = lireSigne(lireCookie(req, NOM_COOKIE), config.secretApp);
-    if (!idSession) {
-      return res.send(pageMessage(config, 'Merci !',
-        config.email.cleResend
-          ? 'Si ton paiement est validé, tu reçois ton code d\'accès par email dans quelques minutes.'
-          : 'Nous n\'avons pas retrouvé ton paiement sur cet appareil. Contacte le support avec l\'email utilisé.'));
+  // Renouvellement
+  app.get('/renouveler', (req, res) => {
+    const email = lireJetonMembre(req.query.m, config.secretApp);
+    const membre = email ? commandes.membre(email) : null;
+    const valeurs = membre ? { nom: membre.nom, email: membre.email, telephone: membre.telephone, m: req.query.m } : {};
+    res.send(P.pageFormulaire(config, { type: 'renouvellement', valeurs, emailVerrouille: Boolean(membre) }));
+  });
+
+  app.post('/renouveler', formulaire, async (req, res) => {
+    const valeurs = lireFormulaire(req.body);
+    const jetonEmail = lireJetonMembre(valeurs.m, config.secretApp);
+    if (jetonEmail) valeurs.email = jetonEmail;
+    const refus = (erreur, statut = 400) => res.status(statut).send(P.pageFormulaire(config, {
+      type: 'renouvellement', erreur, valeurs, emailVerrouille: Boolean(jetonEmail),
+    }));
+    if (valeurs.nom.length < 2) return refus('Entre ton nom.');
+    if (!EMAIL_REGEX.test(valeurs.email)) return refus("L'email n'est pas valide.");
+    if (!commandes.membre(valeurs.email)) {
+      return refus('Aucun abonnement trouvé pour cet email. Utilise l\'email de ton inscription, ou <a href="/paiement">inscris-toi</a>.', 404);
     }
     try {
-      const statut = await saspay.statutSession(idSession);
-      if (statut.status === 'PAID' && statut.transaction_status === 'SUCCESS' && statut.transaction_id) {
-        const session = await saspay.detailSession(idSession);
-        const acces = await donnerAcces(deps, session, statut.transaction_id);
-        if (acces) return res.send(pageAcces(config, acces));
-        return res.send(pageMessage(config, 'Paiement à vérifier', 'Ton paiement doit être vérifié manuellement. Contacte le support.'));
-      }
-      if (statut.status === 'PENDING') return res.send(pageAttente(config));
-      return res.send(pageMessage(config, 'Paiement non abouti', 'Le paiement a échoué ou a été annulé. Tu peux réessayer.'));
+      const { urlPaiement } = await commandes.demarrer({ type: 'renouvellement', ...valeurs });
+      return res.redirect(303, urlPaiement);
     } catch (err) {
-      console.error('[merci]', err.message);
-      return res.status(502).send(pageMessage(config, 'Un instant…', 'Impossible de vérifier ton paiement pour le moment. Recharge la page dans quelques secondes.'));
+      console.error('[renouveler]', err.message);
+      return refus('Le paiement ne peut pas démarrer pour le moment. Réessaie dans un instant.', 502);
+    }
+  });
+
+  // Étape 3 bis : retour de SasPay → page de chargement
+  app.get('/confirmation/:ref', async (req, res) => {
+    const { ref } = req.params;
+    if (!REF_REGEX.test(ref)) return res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce paiement est introuvable.'));
+    try {
+      const e = await commandes.etat(ref);
+      if (e.etat === 'introuvable') return res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce paiement est introuvable.'));
+      return res.send(P.pageConfirmation(config, { ref, type: e.type }));
+    } catch (err) {
+      console.error('[confirmation]', err.message);
+      return res.send(P.pageConfirmation(config, { ref, type: 'inscription' }));
+    }
+  });
+
+  // Interrogé toutes les 3 s par la page de chargement
+  app.get('/api/commandes/:ref', async (req, res) => {
+    const { ref } = req.params;
+    if (!REF_REGEX.test(ref)) return res.status(404).json({ etat: 'introuvable' });
+    try {
+      const e = await commandes.etat(ref);
+      const reponse = { etat: e.etat, reessayable: Boolean(e.reessayable) };
+      if (e.etat === 'confirme') reponse.redirection = e.type === 'inscription' ? `/acces/${ref}` : `/renouvele/${ref}`;
+      return res.json(reponse);
+    } catch (err) {
+      console.error('[api/commandes]', err.message);
+      return res.json({ etat: 'en_attente' }); // la page réessaiera
+    }
+  });
+
+  // Étape 4 : tutoriel
+  app.get('/acces/:ref', async (req, res) => {
+    const { ref } = req.params;
+    if (!REF_REGEX.test(ref)) return res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce paiement est introuvable.'));
+    try {
+      const e = await commandes.etat(ref);
+      if (e.etat !== 'confirme' || e.type !== 'inscription') return res.redirect(303, `/confirmation/${ref}`);
+      return res.send(P.pageTutoriel(config, { code: e.code, lien: await whop.lienAchatOffre(), accesJusquAu: e.accesJusquAu }));
+    } catch (err) {
+      console.error('[acces]', err.message);
+      return res.status(502).send(P.pageMessage(config, 'Un instant…', 'Ton paiement est bien enregistré, mais ton code n\'a pas pu être préparé. Recharge la page dans quelques secondes.', { lien: `/acces/${ref}`, texteLien: 'Recharger' }));
+    }
+  });
+
+  app.get('/renouvele/:ref', async (req, res) => {
+    const { ref } = req.params;
+    if (!REF_REGEX.test(ref)) return res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce paiement est introuvable.'));
+    try {
+      const e = await commandes.etat(ref);
+      if (e.etat !== 'confirme' || e.type !== 'renouvellement') return res.redirect(303, `/confirmation/${ref}`);
+      return res.send(P.pageRenouvele(config, { accesJusquAu: e.accesJusquAu }));
+    } catch (err) {
+      console.error('[renouvele]', err.message);
+      return res.redirect(303, `/confirmation/${ref}`);
     }
   });
 
   // Webhook SasPay : corps BRUT obligatoire pour vérifier la signature.
   app.post('/webhooks/saspay', express.raw({ type: '*/*', limit: '100kb' }), async (req, res) => {
     const corps = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
-    const ok = signatureValide(
-      corps,
-      req.get('X-Webhook-Signature'),
-      req.get('X-Webhook-Timestamp'),
-      config.saspay.secretWebhook,
-    );
+    const ok = signatureValide(corps, req.get('X-Webhook-Signature'), req.get('X-Webhook-Timestamp'), config.saspay.secretWebhook);
     if (!ok) return res.status(401).json({ erreur: 'signature invalide' });
 
     let evenement;
@@ -136,27 +173,14 @@ function creerApp({ config, saspay, whop, envoyerEmail }) {
     if (!tx.id || (tx.type && tx.type !== 'PAIEMENT')) return res.json({ ignore: 'pas un paiement' });
 
     try {
-      const session = await saspay.trouverSessionParTransaction(tx.id);
-      if (!session) {
-        // Peut être un paiement hors de ce tunnel (lien de paiement manuel…). On demande un renvoi
-        // au cas où la session ne serait pas encore à jour ; SasPay réessaie 5 fois puis abandonne.
-        console.warn(`[webhook] aucune session de checkout pour la transaction ${tx.id}`);
-        return res.status(503).json({ erreur: 'session introuvable' });
+      const r = await commandes.traiterTransaction(tx.id);
+      if (!r) {
+        // Paiement hors de ce tunnel, ou session pas encore à jour : SasPay réessaiera (5 fois max).
+        console.warn(`[webhook] aucune commande pour la transaction ${tx.id}`);
+        return res.status(503).json({ erreur: 'commande introuvable' });
       }
-      const acces = await donnerAcces(deps, session, tx.id);
-      if (!acces) return res.json({ ignore: 'paiement non conforme' });
-
-      if (envoyerEmail && session.customer_email) {
-        await envoyerEmail({
-          email: session.customer_email,
-          nom: session.customer_name,
-          code: acces.code,
-          lien: acces.lien,
-          nomFormation: config.nomFormation,
-        });
-      }
-      console.log(`[webhook] accès prêt pour ${session.customer_email} (session ${session.id})`);
-      return res.json({ ok: true });
+      console.log(`[webhook] commande ${r.ref} : ${r.etat}`);
+      return res.json({ ok: true, etat: r.etat });
     } catch (err) {
       console.error('[webhook]', err.message);
       return res.status(500).json({ erreur: 'traitement impossible, réessayer' });
@@ -168,4 +192,4 @@ function creerApp({ config, saspay, whop, envoyerEmail }) {
   return app;
 }
 
-module.exports = { creerApp, signer, lireSigne };
+module.exports = { creerApp, jetonMembre, lireJetonMembre, lienRenouvellement };

@@ -9,14 +9,20 @@ function lire(nom, defaut) {
   return valeur;
 }
 
+const MONTANT = /^\d+(\.\d{1,2})?$/;
+
 function chargerConfig() {
   const config = {
     port: Number(lire('PORT', '3000')),
     baseUrl: lire('BASE_URL', 'http://localhost:3000').replace(/\/+$/, ''),
+    fichierBase: lire('FICHIER_BASE', './data/paiement.db'),
     nomFormation: lire('NOM_FORMATION', 'Ma formation'),
-    prix: lire('PRIX'), // ex : "25000"
     devise: lire('DEVISE', 'XOF'),
+    prixInscription: lire('PRIX_INSCRIPTION'), // ex : 19025 (≈ 29 €)
+    prixMensuel: lire('PRIX_MENSUEL'), // ex : 3280 (≈ 5 €)
+    dureeAccesJours: Number(lire('DUREE_ACCES_JOURS', '30')),
     pays: lire('PAYS'), // optionnel, ex : "BJ"
+    lienDiscord: lire('LIEN_DISCORD', ''),
     contactSupport: lire('CONTACT_SUPPORT', ''),
     secretApp: lire('APP_SECRET'),
 
@@ -32,8 +38,8 @@ function chargerConfig() {
       cleApi: lire('WHOP_API_KEY'),
       versionApi: lire('WHOP_API_VERSION', '2026-07-01'),
       idEntreprise: lire('WHOP_COMPANY_ID'), // biz_...
-      idOffre: lire('WHOP_PLAN_ID'), // plan_... (offre payante et cachée)
-      deviseOffre: lire('WHOP_DEVISE_OFFRE', 'usd').toLowerCase(),
+      idOffre: lire('WHOP_PLAN_ID'), // plan_... (offre cachée débloquée par le code)
+      deviseOffre: lire('WHOP_DEVISE_OFFRE', 'eur').toLowerCase(),
       lienAchat: lire('WHOP_LIEN_ACHAT'), // optionnel : sinon récupéré via l'API
     },
 
@@ -44,7 +50,9 @@ function chargerConfig() {
   };
 
   const manquantes = [];
-  if (!config.prix || !/^\d+(\.\d{1,2})?$/.test(config.prix)) manquantes.push('PRIX (nombre, ex : 25000)');
+  if (!MONTANT.test(config.prixInscription || '')) manquantes.push('PRIX_INSCRIPTION (nombre, ex : 19025)');
+  if (!MONTANT.test(config.prixMensuel || '')) manquantes.push('PRIX_MENSUEL (nombre, ex : 3280)');
+  if (!(config.dureeAccesJours > 0)) manquantes.push('DUREE_ACCES_JOURS (nombre de jours > 0)');
   if (!config.secretApp || config.secretApp.length < 32) manquantes.push('APP_SECRET (32 caractères minimum)');
   if (!config.saspay.cleApi) manquantes.push('SASPAY_API_KEY');
   if (!config.saspay.secretWebhook) manquantes.push('SASPAY_WEBHOOK_SECRET');
