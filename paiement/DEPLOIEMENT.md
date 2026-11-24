@@ -6,25 +6,36 @@ Overmaxx s'installe **à côté**, dans `/opt/overmaxx`, sans toucher au site ex
 ```
 Internet ──► Caddy « creato-https » (ports 80/443, HTTPS automatique)
                ├── creatoskills.site  ──► conteneur creato-site       (inchangé)
-               └── ton domaine Overmaxx ──► conteneur overmaxx-paiement (nouveau)
+               └── overmaxx.online    ──► conteneur overmaxx-paiement (nouveau)
 ```
 
 On commence en **sandbox** (sans argent réel), puis on passe en production à la fin.
 
 ---
 
-## Étape 1 : choisir le domaine et le faire pointer vers le serveur
+## Étape 1 : faire pointer overmaxx.online vers le serveur
 
-Choisis l'adresse du site, par exemple `paiement.overmaxx.com` si tu as un domaine Overmaxx, ou sinon
-`overmaxx.creatoskills.site`.
+Sur **namecheap.com** : Domain List → **Manage** à côté de `overmaxx.online` → onglet **Advanced DNS**.
 
-Sur **namecheap.com** : Domain List → **Manage** (à côté du domaine) → onglet **Advanced DNS** → **Add new record** :
+1. Dans **Host Records**, **supprime** (icône poubelle) les enregistrements que Namecheap met par défaut :
+   le *URL Redirect Record* sur `@` et le *CNAME Record* `www` → `parkingpage.namecheap.com`.
+2. Ajoute ces deux enregistrements avec **Add new record** :
 
 | Type | Host | Value | TTL |
 |---|---|---|---|
-| A Record | `paiement` (ou `overmaxx`, ou `@` pour le domaine nu) | `203.161.61.189` | Automatic |
+| A Record | `@` | `203.161.61.189` | Automatic |
+| A Record | `www` | `203.161.61.189` | Automatic |
 
-Le changement prend en général quelques minutes, parfois jusqu'à une heure.
+3. Clique sur la coche verte de chaque ligne pour enregistrer.
+
+Le changement prend en général quelques minutes, parfois jusqu'à une heure. Pour vérifier depuis PowerShell :
+```bash
+nslookup overmaxx.online
+```
+La réponse doit afficher `203.161.61.189`. **Attends cette réponse avant l'étape 4** : sinon le certificat HTTPS
+ne peut pas être créé.
+
+`www.overmaxx.online` redirigera automatiquement vers `overmaxx.online`.
 
 ## Étape 2 : préparer Whop (sandbox : sandbox.whop.com)
 
@@ -37,7 +48,7 @@ Le changement prend en général quelques minutes, parfois jusqu'à une heure.
 ## Étape 3 : préparer SasPay (mode Sandbox sur app.saspay.me)
 
 1. **Développeur → Clés API** : crée une clé `sk_test_...` avec le scope **PAYIN**. Copie-la tout de suite.
-2. **Développeur → Webhooks** : crée un webhook vers `https://TON-DOMAINE/webhooks/saspay`, abonné à
+2. **Développeur → Webhooks** : crée un webhook vers `https://overmaxx.online/webhooks/saspay`, abonné à
    **transaction.success**. **Copie le secret de signature tout de suite** : il ne s'affiche qu'une fois.
 
 Le compte SasPay peut être le même que pour creatoskills.site : chaque site ignore les ventes de l'autre.
@@ -69,7 +80,7 @@ Le compte SasPay peut être le même que pour creatoskills.site : chaque site ig
 
    | Réglage | Quoi mettre |
    |---|---|
-   | `DOMAIN` | ton domaine de l'étape 1, sans `https://` |
+   | `DOMAIN` | déjà réglé sur `overmaxx.online` |
    | `PRIX_INSCRIPTION` / `PRIX_MENSUEL` | `19025` et `3280` (FCFA), ou tes montants |
    | `SASPAY_API_KEY` | la clé `sk_test_...` |
    | `SASPAY_WEBHOOK_SECRET` | le secret du webhook |
@@ -89,7 +100,7 @@ Le compte SasPay peut être le même que pour creatoskills.site : chaque site ig
 
 ## Étape 5 : tester en sandbox
 
-1. Ouvre ton domaine sur ton téléphone, clique sur **Payer par mobile money** et remplis le formulaire.
+1. Ouvre **https://overmaxx.online** sur ton téléphone, clique sur **Payer par mobile money** et remplis le formulaire.
 2. Sur la page SasPay, utilise un **numéro de test finissant par 0** : tu dois voir « Paiement confirmé », puis le guide avec le code.
 3. Sur Whop (sandbox), utilise le code sur l'offre cachée : le prix doit passer à 0. Ensuite, connecte Discord.
 4. Recommence avec un **numéro finissant par 1** : tu dois voir « Paiement non confirmé ».

@@ -46,6 +46,14 @@ BLOC="$DOMAIN {
 	encode zstd gzip
 	reverse_proxy overmaxx-paiement:8080
 }"
+# www.overmaxx.online → overmaxx.online (seulement si DOMAIN est un domaine nu, pas un sous-domaine).
+if [ "$(echo "$DOMAIN" | tr -cd . | wc -c)" = 1 ]; then
+  BLOC="$BLOC
+
+www.$DOMAIN {
+	redir https://$DOMAIN{uri} permanent
+}"
+fi
 mkdir -p /opt/caddy-commun
 if [ -f /opt/creato-site/deploy/Caddyfile.site ]; then
   SITE_DOMAIN=$(grep -E '^DOMAIN=' /opt/creato-site/site.env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || true)
