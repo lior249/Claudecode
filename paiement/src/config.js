@@ -75,8 +75,8 @@ function chargerConfig({ strict = true } = {}) {
       serveurId: lire('DISCORD_GUILD_ID'),
       roleGoat: lire('DISCORD_ROLE_GOAT'),
       roleAttente: lire('DISCORD_ROLE_ATTENTE'),
-      // Nouveaux venus « En Attente » sans programme : retirés du serveur après ce délai.
-      attenteNouveauxHeures: Number(lire('ATTENTE_NOUVEAUX_HEURES', '24')),
+      // Nouveaux venus « En Attente » sans programme : retirés du serveur après ce délai (0 = jamais, par défaut).
+      attenteNouveauxHeures: Number(lire('ATTENTE_NOUVEAUX_HEURES', '0')),
       adminId: lire('DISCORD_ADMIN_ID'),
       salonCoaching: lire('DISCORD_SALON_COACHING_URL', ''),
       // Salon d'attente existant (identifiant). Vide : Bob crée #en-attente tout seul au démarrage.

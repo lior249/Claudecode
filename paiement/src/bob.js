@@ -361,8 +361,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     return type === 'attente'
         ? {
           content: '**Tu es en attente.**\n'
-            + 'Pour accéder au serveur, tu dois être membre de l\'un des deux programmes : **Overmaxx Community** ou **Overmaxx Elite**.\n'
-            + `Sans action de ta part, ce rôle te sera retiré d'ici **${config.discord.attenteNouveauxHeures || 24} heures** et tu quitteras le serveur.\n\n`
+            + 'Pour accéder au reste du serveur, rejoins l\'un des deux programmes : **Overmaxx Community** ou **Overmaxx Elite**.\n'
+            + (config.discord.attenteNouveauxHeures
+              ? `Sans action de ta part, ce rôle te sera retiré d'ici **${config.discord.attenteNouveauxHeures} heures** et tu quitteras le serveur.\n\n` : '\n')
             + '*Membre Community dont l\'accès vient de se terminer ?* Tu as reçu ton lien de renouvellement en message privé : '
             + `tu as ${config.offres.community.graceJours} jours pour renouveler au même prix.`,
           components: [new ActionRowBuilder().addComponents(
@@ -429,7 +430,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       } catch (err) { bilan.echecs.push(c.name || c.id); }
     }
     // Le message n'est publié qu'une fois par salon.
-    const cleMessage = `config:message-attente:v2:${salon.id}`;
+    const cleMessage = `config:message-attente:v3:${salon.id}`;
     if (!dejaEnvoye(cleMessage)) {
       // Supprime l'ancienne version du message (bouton « Postuler » qui envoyait un lien) avant de republier.
       try {
@@ -668,7 +669,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   async function nettoyerAttente() {
     const role = config.discord.roleAttente;
     if (!serveur || !role) return;
-    const delai = (config.discord.attenteNouveauxHeures || 24) * 3600 * 1000;
+    // 0 (par défaut) : les nouveaux venus restent en attente sans limite ; on ne fait que retirer En Attente aux membres d'un programme.
+    const delai = (config.discord.attenteNouveauxHeures || 0) * 3600 * 1000;
     const now = maintenant();
     let tous;
     try { tous = await serveur.members.fetch(); } catch (err) { console.warn('[bob] liste des membres :', err.message); return; }
@@ -681,6 +683,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
         try { await m.roles.remove(role, 'Overmaxx : membre d\'un programme'); log(`rôle En Attente retiré à ${m.id} (membre d'un programme)`); } catch (err) { console.warn('[bob] retrait En Attente :', err.message); }
         continue;
       }
+      if (!delai) continue;
       if (q.enPeriodeAttente.get(m.id, now.toISOString())) continue;
       const c = candidatures && candidatures.parDiscord(m.id);
       if (c && STATUTS_CANDIDATURE_PROTEGES.includes(c.statut)) continue;

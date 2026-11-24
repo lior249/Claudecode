@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { monter, fauxOAuth, cookieSession, ADMIN, ROLES } = require('./aide');
+const { monter, configTest, fauxOAuth, cookieSession, ADMIN, ROLES } = require('./aide');
 const { creerSynchroWhop } = require('../src/synchro-whop');
 const { creerCoaching } = require('../src/coaching');
 const { creerBob } = require('../src/bob');
@@ -360,8 +360,8 @@ test('renouvellement pendant l\'attente : rôle Community rendu, Attente retiré
   } finally { await m.fermer(); }
 });
 
-test('rôle En Attente temporaire : retiré après 24 h, sauf candidature en cours et période d\'attente Community', async () => {
-  const m = await monter({ avecCandidatures: true });
+test('option ATTENTE_NOUVEAUX_HEURES=24 : retiré après 24 h, sauf candidature en cours et période d\'attente Community', async () => {
+  const m = await monter({ avecCandidatures: true, config: configTest({ ATTENTE_NOUVEAUX_HEURES: '24' }) });
   try {
     const now = Date.now();
     const membres = new Map();
@@ -457,5 +457,21 @@ test('espace de gestion : barre latérale (admin), page Membres réservée à l\
     const coaching = await (await m.get('/coaching', { cookie: cookieSession('E1', 'awa') })).text();
     assert.match(coaching, /Mes coachings/);
     assert.doesNotMatch(coaching, /href="\/admin\/membres"/);
+  } finally { await m.fermer(); }
+});
+
+test('par défaut : les nouveaux venus restent en attente sans limite (seul En Attente est retiré aux membres d\'un programme)', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const kicks = []; const retraits = [];
+    const membres = new Map([
+      ['N1', { id: 'N1', joinedTimestamp: Date.now() - 30 * 24 * 3600 * 1000, user: { bot: false }, roles: { cache: { has: (r) => r === ROLES.attente }, remove: async () => retraits.push('N1') }, kick: async () => kicks.push('N1') }],
+      ['N2', { id: 'N2', joinedTimestamp: Date.now(), user: { bot: false }, roles: { cache: { has: (r) => r === ROLES.attente || r === ROLES.community }, remove: async () => retraits.push('N2') }, kick: async () => kicks.push('N2') }],
+    ]);
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures,
+      client: { isReady: () => true, users: { fetch: async () => ({ send: async () => {} }) } }, serveur: { members: { fetch: async (id) => (id ? membres.get(id) : membres) } } });
+    await bob.nettoyerAttente();
+    assert.deepStrictEqual(kicks, [], 'personne n\'est retiré');
+    assert.deepStrictEqual(retraits, ['N2']);
   } finally { await m.fermer(); }
 });

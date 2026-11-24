@@ -145,8 +145,8 @@ Si l'application s'arrête, le message indique le réglage à corriger.
    (`/configurer-attente` permet de le refaire à la main si besoin.)
    Tu peux republier le message à tout moment avec `/publier bouton: Message du salon d'attente` : Bob publie le message
    « Tu es en attente… » avec les boutons **Rejoindre la Community** et **Postuler à l'Elite**.
-   Les nouveaux venus « En Attente » sans programme sont **retirés du serveur au bout de 24 h** (`ATTENTE_NOUVEAUX_HEURES`),
-   sauf les candidats Elite dont le dossier est en cours et les membres Community dans leurs 15 jours d'attente.
+   Les nouveaux venus « En Attente » **restent sur le serveur sans limite** (ils ne voient que #en-attente).
+   Option : `ATTENTE_NOUVEAUX_HEURES=24` pour les retirer après 24 h (sauf candidatures en cours et Community en attente).
 3. Dans un salon visible par les membres (par exemple #bienvenue), tape `/publier bouton: Se connecter au site`.
 
 Sur téléphone, personne n'a besoin de son mot de passe Discord : Bob envoie des liens personnels (10 minutes, usage unique).
