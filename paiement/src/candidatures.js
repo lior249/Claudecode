@@ -130,6 +130,16 @@ function creerCandidatures({ db, config, commandes, maintenant = () => new Date(
       return { ok: true, candidature: q.parId.get(c.id) };
     },
 
+    // Efface une candidature (tests, ou pour laisser quelqu'un recommencer) : vidéo, fiche, relances.
+    supprimer(id) {
+      const c = q.parId.get(Number(id));
+      if (!c) return false;
+      supprimerVideo(c);
+      db.prepare('DELETE FROM candidatures WHERE id = ?').run(c.id);
+      db.prepare('DELETE FROM envois WHERE cle LIKE ?').run(`relance-cand:${c.id}:%`);
+      return true;
+    },
+
     lienPaiement(c) {
       return c && c.invitation_token ? `${config.baseUrl}${config.offres.elite.base}/paiement/${c.invitation_token}` : null;
     },

@@ -269,7 +269,11 @@ function pageAdminCandidature(config, { candidature, espace, message }) {
   <div class="titre-page"><div><p class="etiquette">Candidature Elite</p><h1>${echapper(c.pseudo || c.discord_id)}</h1></div></div>
   ${message ? `<p class="ok">${echapper(message)}</p>` : ''}
   ${frise}
-  <div style="max-width:760px">${carteCandidature(c, { fiche: true })}</div>`, espace, 'candidatures');
+  <div style="max-width:760px">${carteCandidature(c, { fiche: true })}
+    <form method="post" action="/admin/candidatures/${c.id}/supprimer" onsubmit="return confirm('Supprimer cette candidature ? La personne pourra recommencer depuis le début.')">
+      <button class="bouton secondaire" type="submit" style="border-color:var(--erreur);color:var(--erreur)">Supprimer la candidature (recommencer)</button>
+    </form>
+  </div>`, espace, 'candidatures');
 }
 
 // /admin/membres : tous les membres mobile money.

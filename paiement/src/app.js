@@ -370,9 +370,23 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     return res.send(E.pageCandidature(config, { session, candidature: c, lienPaiement: candidatures.lienPaiement(c), paye: Boolean(inv && inv.utilisee_le) }));
   });
 
+  // Anti-spam : 5 envois du formulaire par heure et par adresse IP.
+  const envoisParIp = new Map();
+  function tropDEnvois(req) {
+    const ip = req.ip || 'inconnue';
+    const maintenantMs = Date.now();
+    const liste = (envoisParIp.get(ip) || []).filter((t) => maintenantMs - t < 3600 * 1000);
+    if (liste.length >= 5) return true;
+    liste.push(maintenantMs);
+    envoisParIp.set(ip, liste);
+    if (envoisParIp.size > 5000) envoisParIp.clear();
+    return false;
+  }
+
   // Formulaire 1 (candidature) : vérifie les réponses et retrouve le candidat sur le serveur Discord.
   app.post('/api/candidature/formulaire', json, async (req, res) => {
     if (!candidatures) return res.status(503).json({ erreur: 'Les candidatures ne sont pas encore ouvertes.' });
+    if (tropDEnvois(req)) return res.status(429).json({ erreur: 'Trop d\'essais. Réessaie dans une heure.' });
     const session = lireSession(req, config.secretApp);
     const v = verifierReponses('candidature', req.body && req.body.reponses, { sauter: session ? ['discord'] : [] });
     if (v.erreur) return res.status(400).json(v);
@@ -471,6 +485,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     if (!chemin) { res.status(404).end(); return; }
     res.set('Cache-Control', 'private, max-age=0');
     res.sendFile(chemin);
+  });
+
+  app.post('/admin/candidatures/:id/supprimer', (req, res) => {
+    if (!estAdmin(req, res, '/admin/candidatures')) return;
+    if (candidatures) candidatures.supprimer(Number(req.params.id));
+    res.redirect(303, '/admin/candidatures');
   });
 
   app.post('/admin/candidatures/:id/:decision', formulaire, async (req, res) => {

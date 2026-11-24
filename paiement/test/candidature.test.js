@@ -299,3 +299,21 @@ test('relances des candidats retenus sans suite : 24 h puis 72 h, sans doublon',
     assert.match(dms[1][1], /Dernier rappel/);
   } finally { await m.fermer(); }
 });
+
+test('suppression d\'une candidature par l\'admin : la personne peut recommencer ; anti-spam 5 envois par heure', async () => {
+  const m = await monter({ avecCandidatures: true, bob: { idDepuisPseudo: async () => '910000000000000001', candidatureRecue: async () => {} } });
+  try {
+    const envoyer = () => fetch(`${m.base}/api/candidature/formulaire`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reponses: { nom: 'Test', discord: 'noflow' } }) });
+    assert.strictEqual((await envoyer()).status, 200);
+    assert.strictEqual((await envoyer()).status, 409, 'une candidature en cours bloque un nouvel envoi');
+    const admin = cookieSession(ADMIN, 'admin');
+    assert.match(await (await m.get('/admin/candidatures/1', { cookie: admin })).text(), /Supprimer la candidature/);
+    assert.strictEqual((await m.poster('/admin/candidatures/1/supprimer', {}, { cookie: cookieSession('X') })).status, 403);
+    assert.strictEqual((await m.poster('/admin/candidatures/1/supprimer', {}, { cookie: admin })).status, 303);
+    assert.strictEqual(m.candidatures.parDiscord('910000000000000001'), null);
+    assert.strictEqual((await envoyer()).status, 200, 'il peut recommencer');
+    await envoyer(); await envoyer();
+    assert.strictEqual((await envoyer()).status, 429, '6e envoi dans l\'heure bloqué');
+  } finally { await m.fermer(); }
+});
