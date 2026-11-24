@@ -33,10 +33,11 @@ const STYLE_FORMULAIRE = `<style>
   .tf-tuto { margin:-14px 0 22px; }
   .tf-tuto summary { display:inline-block; cursor:pointer; color:#fff; font:600 15px var(--police); text-decoration:underline; text-underline-offset:3px; list-style:none; }
   .tf-tuto summary::-webkit-details-marker { display:none; }
-  .tf-tuto-images { display:flex; align-items:flex-start; gap:12px; overflow-x:auto; padding:14px 0 4px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
-  .tf-tuto figure { flex:0 0 78%; max-width:320px; margin:0; scroll-snap-align:start; }
-  .tf-tuto img { display:block; width:100%; height:170px; object-fit:contain; border-radius:12px; border:1px solid #2a2a2a; background:#111; }
+  .tf-tuto-images { display:flex; flex-direction:column; gap:18px; padding:14px 0 4px; max-width:420px; }
+  .tf-tuto figure { margin:0; }
+  .tf-tuto img { display:block; width:100%; height:auto; border-radius:12px; border:1px solid #2a2a2a; background:#111; }
   .tf-tuto figcaption { color:var(--doux); font-size:14px; margin-top:8px; line-height:1.4; }
+  .tf-tuto figcaption::first-letter { color:#fff; font-weight:700; }
   .tf-erreur { color:var(--erreur); font-size:15px; min-height:22px; margin:12px 0 0; }
   .tf-actions { display:flex; align-items:center; gap:14px; margin-top:18px; }
   .tf-ok { display:inline-flex; align-items:center; gap:8px; padding:11px 20px; border:0; border-radius:10px; background:#fff; color:#000;
