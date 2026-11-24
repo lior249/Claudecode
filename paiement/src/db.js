@@ -167,6 +167,13 @@ function migrerV5(db) {
   PRAGMA user_version = 5;`);
 }
 
+// v6 : code court affiché après le paiement, à taper dans Discord (/lier CODE) pour relier son compte.
+function migrerV6(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 6) return;
+  if (!colonnes(db, 'commandes').includes('code_liaison')) db.exec('ALTER TABLE commandes ADD COLUMN code_liaison TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS commandes_code_liaison ON commandes(code_liaison); PRAGMA user_version = 6;');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -181,6 +188,7 @@ function ouvrirBase(fichier) {
   migrerV3(db);
   migrerV4(db);
   migrerV5(db);
+  migrerV6(db);
   return db;
 }
 

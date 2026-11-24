@@ -4,7 +4,7 @@ const {
   Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle,
   SlashCommandBuilder, PermissionFlagsBits, MessageFlags,
 } = require('discord.js');
-const { lienRenouvellement, lienInscription } = require('./liens');
+const { lienRenouvellement, lienInscription, lienMagique } = require('./liens');
 const { JOURS, dateISO, ajouterJours } = require('./coaching');
 
 const JOUR_MS = 24 * 3600 * 1000;
@@ -273,6 +273,33 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   }
 
   // ---------- Interactions ----------
+  // ---------- Connexion au site par Bob ----------
+  const pseudoDe = (u) => u.globalName || u.username;
+
+  async function liensConnexion(user) {
+    const u = { id: user.id, pseudo: pseudoDe(user) };
+    const m = await membreDuServeur(user.id);
+    const roles = m ? m.roles.cache : { has: () => false };
+    const lignes = [];
+    const eliteOk = roles.has(config.offres.elite.roleDiscord) && !(config.discord.roleGoat && roles.has(config.discord.roleGoat));
+    if (user.id === config.discord.adminId) {
+      lignes.push(`**Espace admin** : ${lienMagique(config, u, '/admin')}`);
+      lignes.push(`**Candidatures** : ${lienMagique(config, u, '/admin/candidatures')}`);
+    }
+    if (eliteOk || user.id === config.discord.adminId) lignes.push(`**Réserver mes coachings** : ${lienMagique(config, u, '/coaching')}`);
+    if (!eliteOk) lignes.push(`**Candidature Elite** : ${lienMagique(config, u, `${config.offres.elite.base}/candidature`)}`);
+    return `Tes liens de connexion à overmaxx.online (personnels, valables **10 minutes**, ne les partage pas) :\n${lignes.join('\n')}`;
+  }
+
+  async function postuler(i) {
+    const m = await membreDuServeur(i.user.id);
+    const aUnAcces = m && Object.values(config.offres).some((o) => o.roleDiscord && m.roles.cache.has(o.roleDiscord));
+    try { if (m && !aUnAcces && config.discord.roleAttente) await donnerRole(i.user.id, config.discord.roleAttente); } catch (err) { console.warn('[bob] postuler :', err.message); }
+    if (candidatures) candidatures.demarrer(i.user.id, pseudoDe(i.user));
+    const lien = lienMagique(config, { id: i.user.id, pseudo: pseudoDe(i.user) }, `${config.offres.elite.base}/candidature`);
+    return i.reply({ content: `Voici ton lien de candidature **Elite** (personnel, valable 10 minutes) :\n${lien}\n\nTu y remplis le formulaire. Je te réponds ici, en message privé, sous 24 heures.`, flags: MessageFlags.Ephemeral });
+  }
+
   async function surInteraction(i) {
     const estAdmin = i.user.id === config.discord.adminId;
     if (i.isButton() && i.customId.startsWith('elite:')) {
@@ -302,8 +329,35 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       return i.update({ content: `${i.message.content}\n\n**${libelle}**.`, components: [] });
     }
 
+    if (i.isButton() && i.customId === 'ovx:postuler') return postuler(i);
+    if (i.isButton() && i.customId === 'ovx:connexion') return i.reply({ content: await liensConnexion(i.user), flags: MessageFlags.Ephemeral });
+
     if (!i.isChatInputCommand()) return;
+
+    // Commandes ouvertes à tous
+    if (i.commandName === 'connexion') return i.reply({ content: await liensConnexion(i.user), flags: MessageFlags.Ephemeral });
+    if (i.commandName === 'lier') {
+      const membre = commandes.lierParCode(i.options.getString('code', true), i.user.id, pseudoDe(i.user));
+      if (!membre) return i.reply({ content: 'Code inconnu. Vérifie le code affiché sur ta page après le paiement (6 lettres et chiffres).', flags: MessageFlags.Ephemeral });
+      const o = config.offres[membre.programme];
+      try {
+        if (membre.statut === 'actif') { await donnerRole(i.user.id, o.roleDiscord); await retirerRole(i.user.id, config.discord.roleAttente); }
+      } catch (err) { console.warn('[bob] /lier :', err.message); }
+      return i.reply({ content: `C'est fait : ton compte est relié à **${o.nom}**, accès valable jusqu'au **${formatDate(membre.acces_jusqu_au)}**. Ton rôle est ajouté. Je te préviendrai avant la fin pour le renouveler.`, flags: MessageFlags.Ephemeral });
+    }
+
     if (!estAdmin) return i.reply({ content: 'Commande réservée à l\'admin.', flags: MessageFlags.Ephemeral });
+
+    if (i.commandName === 'publier') {
+      const type = i.options.getString('bouton', true);
+      const contenu = type === 'postuler'
+        ? { content: '**Candidature Overmaxx Elite**\nClique sur le bouton : je t\'envoie ton lien personnel pour remplir le formulaire, sans mot de passe.',
+          components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ovx:postuler').setLabel('Postuler').setStyle(ButtonStyle.Primary))] }
+        : { content: '**Se connecter à overmaxx.online**\nClique sur le bouton : je t\'envoie ton lien personnel (coaching, candidature…), sans mot de passe.',
+          components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ovx:connexion').setLabel('Se connecter au site').setStyle(ButtonStyle.Primary))] };
+      await i.channel.send(contenu);
+      return i.reply({ content: 'Bouton publié dans ce salon.', flags: MessageFlags.Ephemeral });
+    }
 
     if (i.commandName === 'lien-elite') {
       const { lien } = commandes.creerInvitation(i.options.getString('note'));
@@ -331,6 +385,13 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   }
 
   const COMMANDES = [
+    new SlashCommandBuilder().setName('connexion').setDescription('Recevoir ton lien de connexion à overmaxx.online (sans mot de passe)'),
+    new SlashCommandBuilder().setName('lier').setDescription('Relier ton paiement mobile money à ton compte Discord')
+      .addStringOption((o) => o.setName('code').setDescription('Le code affiché après ton paiement').setRequired(true).setMinLength(6).setMaxLength(6)),
+    new SlashCommandBuilder().setName('publier').setDescription('Publier un bouton de Bob dans ce salon')
+      .addStringOption((o) => o.setName('bouton').setDescription('Quel bouton').setRequired(true)
+        .addChoices({ name: 'Postuler (candidature Elite)', value: 'postuler' }, { name: 'Se connecter au site', value: 'connexion' }))
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     new SlashCommandBuilder().setName('lien-elite').setDescription('Créer un lien de paiement Elite personnel (usage unique)')
       .addStringOption((o) => o.setName('note').setDescription('Pour qui (pseudo, prénom…)').setMaxLength(100))
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),

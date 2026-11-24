@@ -26,4 +26,14 @@ function lienInscription(config, programme) {
   return programme === 'community' ? `${config.baseUrl}/community` : `${config.baseUrl}${config.offres.elite.base}`;
 }
 
-module.exports = { jetonMembre, lireJetonMembre, lienRenouvellement, lienInscription };
+// Lien de connexion envoyé par Bob dans Discord : connecte au site sans mot de passe. 10 minutes, usage unique.
+function lienMagique(config, utilisateur, retour) {
+  const { signer } = require('./discord-oauth');
+  const jeton = signer({
+    but: 'bob', id: utilisateur.id, pseudo: utilisateur.pseudo, n: crypto.randomBytes(9).toString('base64url'),
+    exp: Date.now() + 10 * 60 * 1000,
+  }, config.secretApp);
+  return `${config.baseUrl}/connexion/bob?t=${encodeURIComponent(jeton)}&retour=${encodeURIComponent(retour)}`;
+}
+
+module.exports = { jetonMembre, lireJetonMembre, lienRenouvellement, lienInscription, lienMagique };

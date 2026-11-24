@@ -42,8 +42,11 @@ function pageConnexionRequise(config, { retour, message, lienDiscord }) {
   return gabarit('Connexion', `
   <h1>${echapper(message || 'Connecte-toi avec Discord')}</h1>
   <div class="carte"><p class="doux" style="margin:0">On utilise ton compte Discord pour savoir qui tu es et quel est ton rôle sur le serveur.</p></div>
-  <a class="bouton" href="${echapper(lienDiscord || `/connexion?retour=${encodeURIComponent(retour)}`)}">Se connecter avec Discord</a>
-  <p class="doux petit centre">Sur téléphone, l'application Discord s'ouvre : il suffit d'autoriser.</p>
+  <div class="carte">
+    <h2>Le plus simple : depuis l'application Discord</h2>
+    <p class="doux" style="margin:0">Sur le serveur Overmaxx, tape <b style="color:#fff">/connexion</b>. Bob t'envoie ton lien personnel : un clic et tu es connecté, sans mot de passe.</p>
+  </div>
+  <a class="bouton secondaire" href="${echapper(lienDiscord || `/connexion?retour=${encodeURIComponent(retour)}`)}">Ou se connecter sur le web</a>
   ${blocSupport(config)}`);
 }
 
@@ -88,10 +91,15 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
 
   if (!session) {
     return gabarit('Candidature', `${titre('Connecte ton Discord')}
-    <div class="carte"><p class="doux" style="margin:0">Toutes les réponses à ta candidature arrivent sur Discord, par <b style="color:#fff">Bob</b>, notre bot.
-      En te connectant, tu rejoins notre serveur avec un accès limité à un salon d'attente, le temps de l'examen.</p></div>
-    <a class="bouton" href="${echapper(lienDiscord || '/discord/candidature')}">Connecter mon Discord</a>
-    <p class="doux petit centre">Sur téléphone, l'application Discord s'ouvre : il suffit d'autoriser, sans retaper tes identifiants.</p>
+    <div class="carte"><p class="doux" style="margin:0">Toutes les réponses à ta candidature arrivent sur Discord, par <b style="color:#fff">Bob</b>, notre bot.</p></div>
+    <div class="carte">
+      <ul class="liste">
+        <li><span class="numero">1</span><span>Rejoins le serveur Discord Overmaxx.</span></li>
+        <li><span class="numero">2</span><span>Dans le salon d'attente, clique sur <b>Postuler</b> : Bob t'envoie ton lien personnel, sans mot de passe.</span></li>
+      </ul>
+      ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">Rejoindre le serveur Discord</a>` : ''}
+    </div>
+    <a class="bouton secondaire" href="${echapper(lienDiscord || '/discord/candidature')}">Ou se connecter avec Discord sur le web</a>
     <a class="bouton secondaire" href="${o.base}">Retour</a>`);
   }
   const c = candidature;

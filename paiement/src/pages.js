@@ -373,7 +373,7 @@ function pageConfirmation(config, { ref, type, details }) {
 }
 
 // Étape 4 — guide d'accès (inscription) : vidéo Wistia + étapes écrites
-function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDiscord, lienDiscord }) {
+function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDiscord, lienDiscord, codeLiaison }) {
   const wistia = offre.wistiaGuide;
   const video = wistia
     ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(wistia)}?videoFoam=true&playerColor=000000"
@@ -382,12 +382,12 @@ function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDis
   const periode = offre.dureeJours === 30 ? 'par mois' : `tous les ${offre.dureeJours} jours`;
   const etapeDiscord = discordLie
     ? `<p class="ok" style="margin:0">Discord connecté${membre.discord_pseudo ? ` (${echapper(membre.discord_pseudo)})` : ''}. Tu es sur le serveur.</p>`
-    : config.oauthActif
-      ? `<p class="doux">Bob, notre bot, t'ajoute au serveur privé avec ton rôle, et te préviendra avant la fin de ton accès.</p>
-         ${erreurDiscord ? `<p class="erreur-form">${echapper(erreurDiscord)}</p>` : ''}
-         <a class="bouton" href="${echapper(lienDiscord || `/discord/lier/${ref}`)}">Connecter mon Discord</a>
-         <p class="doux petit" style="margin:8px 0 0">Sur téléphone, l'application Discord s'ouvre : il suffit d'autoriser.</p>`
-      : `<p class="doux">Rejoins le serveur${config.lienDiscord ? ` : <a href="${echapper(config.lienDiscord)}">${echapper(config.lienDiscord)}</a>` : ''}.</p>`;
+    : `<p class="doux">1. Rejoins le serveur${config.lienDiscord ? '' : ' Discord Overmaxx'} :</p>
+       ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">Rejoindre le serveur Discord</a>` : ''}
+       ${codeLiaison ? `<p class="doux" style="margin-top:14px">2. Dans Discord, tape cette commande. Bob, notre bot, te donne ton rôle :</p>
+       <div class="code" style="font-size:18px;letter-spacing:1px">/lier ${echapper(codeLiaison)}</div>` : ''}
+       ${erreurDiscord ? `<p class="erreur-form">${echapper(erreurDiscord)}</p>` : ''}
+       ${config.oauthActif ? `<p class="doux petit" style="margin:12px 0 0">Ou, depuis un ordinateur : <a href="${echapper(lienDiscord || `/discord/lier/${ref}`)}">connecter Discord sur le web</a>.</p>` : ''}`;
   return gabarit('Accéder à ton espace', `
   <p class="etiquette">Étape 4 sur 4 · ${echapper(offre.nom)}</p>
   <h1>Bienvenue dans ${echapper(offre.nom)}</h1>

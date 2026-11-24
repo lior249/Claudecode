@@ -47,7 +47,8 @@ test('Community : accueil → formulaire → SasPay → statut → guide Whop + 
     const guide = await (await m.get(e.redirection)).text();
     assert.match(guide, /awa@example\.com/);
     assert.match(guide, /whop\.com\/checkout\/plan_com/);
-    assert.match(guide, /Connecter mon Discord/);
+    assert.match(guide, /Rejoindre le serveur Discord/);
+    assert.match(guide, /\/lier [A-Z2-9]{6}/);
 
     const membre = m.db.prepare('SELECT * FROM membres').get();
     assert.strictEqual(membre.programme, 'community');

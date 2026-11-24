@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { signatureValide } = require('./saspay');
 const { lireJetonMembre, lienRenouvellement } = require('./liens');
-const { lireSession, ouvrirSession, fermerSession } = require('./discord-oauth');
+const { lireSession, ouvrirSession, fermerSession, verifier } = require('./discord-oauth');
 const P = require('./pages');
 const E = require('./pages-espace');
 
@@ -160,7 +160,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
       const erreurDiscord = req.query.discord === 'erreur' ? 'La connexion Discord n\'a pas abouti. Réessaie.' : null;
       return res.send(P.pageGuide(config, {
         offre, ref, membre: e.membre, lienWhop, discordLie: Boolean(e.membre.discord_id), erreurDiscord,
-        lienDiscord: lienDiscord({ but: 'lier', ref }, { rejoindre: true }),
+        lienDiscord: lienDiscord({ but: 'lier', ref }, { rejoindre: true }), codeLiaison: e.codeLiaison,
       }));
     } catch (err) {
       console.error('[acces]', err.message);
@@ -203,6 +203,22 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   app.get('/connexion', (req, res) => {
     if (!config.oauthActif) return res.status(503).send(P.pageMessage(config, 'Bientôt disponible', 'La connexion Discord n\'est pas encore configurée.'));
     return res.redirect(302, oauth.urlAutorisation({ but: 'connexion', retour: retourSur(req.query.retour) }));
+  });
+
+  // Lien envoyé par Bob dans Discord : connexion sans mot de passe (10 minutes, usage unique).
+  app.get('/connexion/bob', (req, res) => {
+    const j = verifier(String(req.query.t || ''), config.secretApp);
+    const retour = retourSur(req.query.retour);
+    if (!j || j.but !== 'bob' || !j.id || !j.n) {
+      return res.status(400).send(P.pageMessage(config, 'Lien expiré', 'Ce lien n\'est plus valable. Dans Discord, tape /connexion pour en recevoir un nouveau.'));
+    }
+    const dejaUtilise = commandes.db.prepare('INSERT OR IGNORE INTO envois (cle, envoye_le) VALUES (?, ?)').run(`lien-bob:${j.n}`, new Date().toISOString()).changes === 0;
+    if (dejaUtilise) {
+      return res.status(400).send(P.pageMessage(config, 'Lien déjà utilisé', 'Ce lien a déjà servi. Dans Discord, tape /connexion pour en recevoir un nouveau.'));
+    }
+    ouvrirSession(res, { id: j.id, pseudo: j.pseudo }, config);
+    if (candidatures && retour.startsWith(`${config.offres.elite.base}/candidature`)) candidatures.demarrer(j.id, j.pseudo);
+    return res.redirect(302, retour);
   });
 
   app.get('/deconnexion', (req, res) => { fermerSession(res); res.redirect(302, '/community'); });

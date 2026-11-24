@@ -139,7 +139,7 @@ test('pages coaching et admin : connexion, Elite seulement, GOAT exclu, admin', 
   const recaps = [];
   const m = await monter({ oauth, bob: { recapCoaching: async (...a) => recaps.push(a), annulation: async () => {} } });
   try {
-    assert.match(await (await m.get('/coaching')).text(), /Se connecter avec Discord/);
+    assert.match(await (await m.get('/coaching')).text(), /\/connexion/);
     assert.match(await (await m.get('/coaching', { cookie: cookieSession('G1') })).text(), /GOAT/);
     assert.match(await (await m.get('/coaching', { cookie: cookieSession('C1') })).text(), /réservé aux membres Elite/);
     assert.match(await (await m.get('/coaching', { cookie: cookieSession('E1') })).text(), /Mes créneaux de coaching/);

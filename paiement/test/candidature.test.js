@@ -35,8 +35,8 @@ test('candidature Elite : Discord → formulaire Tally → examen → retenu →
     const CID = '500000000000000001';
     // Sans session : bouton de connexion Discord.
     const accueil = await (await m.get('/coaching/elite/candidature')).text();
-    assert.match(accueil, /Connecter mon Discord/);
-    assert.match(accueil, /href="https:\/\/discord\.com\/oauth2\/authorize\?state=/, 'lien direct vers Discord (ouvre l\'application sur téléphone)');
+    assert.match(accueil, /Postuler/);
+    assert.match(accueil, /href="https:\/\/discord\.com\/oauth2\/authorize\?state=/, 'connexion web en secours');
 
     // Connexion Discord : rejoint le serveur avec le rôle Attente, candidature créée.
     const st = new URL((await m.get('/discord/candidature')).headers.get('location')).searchParams.get('state');
@@ -111,5 +111,48 @@ test('candidature refusée : message, rôle Attente retiré du serveur ; décisi
     assert.ok(d.dms.some(([id, t]) => id === 'C1' && /pas été retenu/.test(t)));
     assert.deepStrictEqual(d.kicks, ['C1'], 'il n\'avait que le rôle Attente : retiré du serveur');
     assert.match(m.candidatures.decider(c.id, 'refuser').erreur, /Déjà traitée|statut/);
+  } finally { await m.fermer(); }
+});
+
+test('connexion par Bob : /connexion, lien à usage unique, bouton Postuler (rôle Attente), /lier CODE après paiement', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const d = fauxBobDiscord(m);
+    const reponses = [];
+    const inter = (extra) => ({
+      user: { id: 'C1', username: 'yao' }, isButton: () => false, isChatInputCommand: () => true,
+      reply: async (o) => reponses.push(o), ...extra,
+    });
+    // /connexion : liens personnels (non-Elite : candidature)
+    await d.bob.surInteraction(inter({ commandName: 'connexion' }));
+    const lien = reponses[0].content.match(/https?:\/\/\S+/)[0];
+    assert.match(lien, /\/connexion\/bob\?t=.*retour=%2Fcoaching%2Felite%2Fcandidature/);
+    assert.strictEqual(reponses[0].flags, 64, 'visible par lui seul');
+
+    const chemin = lien.replace('http://localhost', '');
+    const r1 = await m.get(chemin);
+    assert.strictEqual(r1.status, 302);
+    assert.strictEqual(r1.headers.get('location'), '/coaching/elite/candidature');
+    const cookie = r1.headers.get('set-cookie').split(';')[0];
+    assert.deepStrictEqual(await (await m.get('/api/candidature', { cookie })).json(), { statut: 'formulaire' });
+    assert.strictEqual((await m.get(chemin)).status, 400, 'usage unique');
+    assert.strictEqual((await m.get('/connexion/bob?t=faux.faux&retour=/admin')).status, 400);
+
+    // Bouton Postuler
+    reponses.length = 0;
+    await d.bob.surInteraction(inter({ isButton: () => true, isChatInputCommand: () => false, customId: 'ovx:postuler' }));
+    assert.match(reponses[0].content, /candidature \*\*Elite\*\*/);
+
+    // /lier CODE après un paiement Community
+    await m.poster('/community/paiement', { nom: 'Yao', email: 'yao@example.com' });
+    m.saspay.payer(m.saspay.derniere().id);
+    const e = await m.etat(m.saspay.derniere().metadata.ref);
+    const code = (await (await m.get(e.redirection)).text()).match(/\/lier ([A-Z2-9]{6})/)[1];
+    reponses.length = 0;
+    await d.bob.surInteraction(inter({ commandName: 'lier', options: { getString: () => 'zzzzzz' } }));
+    assert.match(reponses[0].content, /Code inconnu/);
+    await d.bob.surInteraction(inter({ commandName: 'lier', options: { getString: () => code.toLowerCase() } }));
+    assert.match(reponses[1].content, /relié à \*\*Overmaxx Community\*\*/);
+    assert.strictEqual(m.db.prepare("SELECT discord_id FROM membres WHERE email = 'yao@example.com'").get().discord_id, 'C1');
   } finally { await m.fermer(); }
 });

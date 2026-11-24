@@ -33,6 +33,8 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
     rouvrirWhop: db.prepare(`UPDATE membres SET whop_entry_id = NULL, whop_membership_id = NULL, whop_annule_le = NULL,
                              whop_jours_a_ajouter = 0, maj_le = ? WHERE id = ? AND whop_annule_le IS NOT NULL`),
     lierDiscord: db.prepare('UPDATE membres SET discord_id = ?, discord_pseudo = ?, maj_le = ? WHERE id = ?'),
+    poserCode: db.prepare('UPDATE commandes SET code_liaison = ? WHERE ref = ? AND code_liaison IS NULL'),
+    parCode: db.prepare("SELECT * FROM commandes WHERE code_liaison = ? AND statut = 'PAYEE'"),
     invitation: db.prepare('SELECT * FROM invitations_elite WHERE token = ?'),
     insererInvitation: db.prepare('INSERT INTO invitations_elite (token, note, cree_le) VALUES (?, ?, ?)'),
     utiliserInvitation: db.prepare('UPDATE invitations_elite SET utilisee_le = ?, ref_commande = ? WHERE token = ? AND utilisee_le IS NULL'),
@@ -180,6 +182,14 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
       if (cmd.statut === 'EN_ATTENTE') return { etat: 'en_attente', type: cmd.type, programme: cmd.programme };
 
       await emailConfirmation(cmd);
+      if (cmd.type === 'inscription' && !cmd.code_liaison) {
+        const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        for (let essai = 0; essai < 5; essai++) {
+          const code = Array.from(crypto.randomBytes(6), (o) => ALPHA[o % ALPHA.length]).join('');
+          try { if (q.poserCode.run(code, cmd.ref).changes) break; } catch { /* code déjà pris : on réessaie */ }
+        }
+        cmd = q.commande.get(ref);
+      }
       const membre = q.membre.get(cmd.programme, cmd.email);
       return {
         etat: 'confirme',
@@ -189,6 +199,7 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
         membre,
         nom: cmd.nom,
         email: cmd.email,
+        codeLiaison: cmd.code_liaison,
       };
     },
 
@@ -219,6 +230,12 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
       if (!membre) return null;
       q.lierDiscord.run(discordId, pseudo || null, maintenant().toISOString(), membre.id);
       return q.membreParId.get(membre.id);
+    },
+
+    // /lier CODE dans Discord : relie le compte Discord au membre de la commande payée.
+    lierParCode(code, discordId, pseudo) {
+      const cmd = q.parCode.get(String(code || '').trim().toUpperCase());
+      return cmd ? this.lierDiscord(cmd.ref, discordId, pseudo) : null;
     },
 
     // Prolongation gratuite (lien de grâce, Elite « insatisfait ») : base + Whop.

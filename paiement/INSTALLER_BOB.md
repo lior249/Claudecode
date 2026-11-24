@@ -133,7 +133,16 @@ cd /opt/overmaxx/paiement && ./deploy/overmaxx.sh
 Dans les dernières lignes affichées, tu dois voir **« Bob : activé · Connexion Discord : activée »** et **« [bob] connecté en tant que Bob#… »**.
 Si l'application s'arrête, le message indique le réglage à corriger.
 
-## 7. Vérifier
+## 7. Publier les boutons de Bob et le lien d'invitation
+
+1. `LIEN_DISCORD` dans `overmaxx.env` doit être un **lien d'invitation permanent** vers le **nouveau** serveur
+   (clic droit sur un salon → **Inviter** → **Modifier le lien** : expiration **Jamais**).
+2. Dans le **salon d'attente**, tape `/publier bouton: Postuler` : Bob y publie le bouton **Postuler** (candidature Elite).
+3. Dans un salon visible par les membres (par exemple #bienvenue), tape `/publier bouton: Se connecter au site`.
+
+Sur téléphone, personne n'a besoin de son mot de passe Discord : Bob envoie des liens personnels (10 minutes, usage unique).
+
+## 8. Vérifier
 
 - Sur Discord, tape `/lien-elite` : Bob te répond (toi seul le vois) avec un lien de paiement Elite unique.
 - Va sur **overmaxx.online/admin** et connecte-toi avec Discord : le calendrier s'affiche.
@@ -143,6 +152,9 @@ Si l'application s'arrête, le message indique le réglage à corriger.
 
 | Commande | Effet |
 |---|---|
+| `/connexion` *(tout le monde)* | Bob envoie les liens personnels de connexion au site : coaching, candidature, et admin pour toi |
+| `/lier code:` *(tout le monde)* | relie un paiement mobile money au compte Discord, grâce au code affiché après le paiement, et donne le rôle |
+| `/publier bouton:` | publie le bouton **Postuler** ou **Se connecter au site** dans le salon |
 | `/lien-elite note:` | crée un lien de paiement Elite personnel, utilisable une seule fois |
 | `/prolonger membre: jours: offre:` | prolonge gratuitement un accès, sur le site et sur Whop (lien de grâce) |
 | `/membre membre:` | affiche l'accès mobile money d'un membre (offre, fin, prix garanti) |
