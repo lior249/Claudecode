@@ -64,9 +64,12 @@ Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont di
    https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot%20applications.commands&permissions=343865822227
    ```
    Ce lien donne à Bob ces droits : voir les salons, envoyer des messages, expulser des membres, gérer les rôles, gérer les salons et créer des invitations.
-   Si Bob est déjà invité : **Paramètres du serveur** → **Rôles** → rôle de Bob → active **Gérer les salons**.
-   Bob écrit **uniquement en message privé**, jamais dans un fil. Si un membre a fermé ses messages privés,
-   ou n'est pas sur le serveur, Bob te prévient (une fois par jour au maximum pour un même membre).
+   Si Bob est déjà invité : **Paramètres du serveur** → **Rôles** → rôle de Bob → active **Gérer les salons**,
+   **Créer des fils privés** et **Envoyer des messages dans les fils**.
+   Bob écrit d'abord en **message privé**. Si ça ne passe pas, il ouvre un **fil privé** (visible seulement par la personne
+   et les modérateurs) avec le même message et les mêmes boutons : dans #en-attente pour les nouveaux venus,
+   sinon dans le premier salon que la personne voit. Le fil est réutilisé pour les messages suivants.
+   Si même le fil échoue, Bob te prévient avec la raison (une fois par jour au maximum pour un même membre).
 
 ## 4. Discord : rôles et identifiants
 

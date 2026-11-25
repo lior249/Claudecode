@@ -86,19 +86,75 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       return false;
     }
   }
+  // ---------- Fil privé : quand le message privé ne passe pas ----------
+  // Bob ouvre un fil privé (visible seulement par la personne et les modérateurs) et y met le même message, avec les mêmes boutons.
+  // Salon d'attente si la personne le voit, sinon le premier salon qu'elle voit. Un seul fil par personne et par salon, réutilisé.
+  const DROITS_FIL = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessagesInThreads, PermissionFlagsBits.CreatePrivateThreads];
+  async function moiSurLeServeur() {
+    if (serveur.members.me) return serveur.members.me;
+    try { return serveur.members.fetchMe ? await serveur.members.fetchMe() : null; } catch { return null; }
+  }
+  async function salonPourFil(m) {
+    const moi = await moiSurLeServeur();
+    const convient = (c) => c && c.type === ChannelType.GuildText && c.threads && typeof c.permissionsFor === 'function'
+      && Boolean(c.permissionsFor(m)?.has(PermissionFlagsBits.ViewChannel))
+      && (!moi || Boolean(c.permissionsFor(moi)?.has(DROITS_FIL)));
+    const idAttente = salonAttenteId();
+    if (idAttente) {
+      try { const s = await serveur.channels.fetch(idAttente); if (convient(s)) return s; } catch { /* salon supprimé */ }
+    }
+    const tous = await serveur.channels.fetch();
+    return [...tous.values()].filter(convient).sort((a, b) => (a.rawPosition || 0) - (b.rawPosition || 0))[0] || null;
+  }
+  const horsDuServeur = new Set();
+  async function filPrive(discordId, contenu) {
+    if (!serveur) return false;
+    try {
+      let m = null;
+      try { m = await serveur.members.fetch(discordId); } catch { m = null; }
+      if (!m) { horsDuServeur.add(discordId); return false; }
+      horsDuServeur.delete(discordId);
+      const salon = await salonPourFil(m);
+      if (!salon) throw new Error('aucun salon où je peux ouvrir un fil privé (il me faut « Créer des fils privés » et « Envoyer des messages dans les fils »)');
+      const cle = `fil:${discordId}:${salon.id}`;
+      let fil = null;
+      const connu = q.attenteDepuis.get(cle);
+      if (connu) { try { fil = await serveur.channels.fetch(connu.envoye_le); } catch { fil = null; } }
+      if (!fil) {
+        fil = await salon.threads.create({
+          name: `Bob · ${(m.user?.globalName || m.user?.username || 'membre').slice(0, 60)}`,
+          type: ChannelType.PrivateThread, invitable: false, autoArchiveDuration: 10080, reason: 'Overmaxx : message privé impossible',
+        });
+        q.noterAttente.run(cle, fil.id);
+      }
+      if (fil.archived && fil.setArchived) await fil.setArchived(false);
+      await fil.members.add(discordId); // de nouveau à chaque fois : il a pu quitter le serveur et revenir
+      const message = typeof contenu === 'string' ? { content: contenu } : { ...contenu };
+      message.content = `<@${discordId}> ${message.content || ''}`.slice(0, 2000);
+      await fil.send(message);
+      log(`message envoyé dans le fil privé de ${discordId} (#${salon.name || salon.id})`);
+      return true;
+    } catch (err) {
+      dernieresErreurs.set(discordId, err.message);
+      console.warn(`[bob] fil privé impossible pour ${discordId} : ${err.message}`);
+      return false;
+    }
+  }
+
   const notifier = {
     admin: (contenu) => (config.discord.adminId ? messagePrive(config.discord.adminId, contenu) : Promise.resolve(false)),
+    // Message privé, sinon fil privé avec les mêmes boutons. Si rien ne passe, l'admin le sait (une fois par jour et par membre).
     membre: async (discordId, contenu) => {
       if (await messagePrive(discordId, contenu)) return true;
-      // Personne n'a pu être prévenu : l'admin le sait (une fois par jour et par membre).
+      if (await filPrive(discordId, contenu)) return true;
       const cle = `mp-ferme:${discordId}:${maintenant().toISOString().slice(0, 10)}`;
       if (!dejaEnvoye(cle) && config.discord.adminId && discordId !== config.discord.adminId) {
         marquer(cle);
-        const horsServeur = /mutual guild/i.test(dernieresErreurs.get(discordId) || '');
+        const horsServeur = horsDuServeur.has(discordId) || /mutual guild/i.test(dernieresErreurs.get(discordId) || '');
         await messagePrive(config.discord.adminId, horsServeur
           ? `Je n'arrive pas à écrire à <@${discordId}> : **il n'est pas (ou plus) sur le serveur**. Il doit le rejoindre pour recevoir mes messages.`
-          : `Je n'arrive pas à écrire à <@${discordId}> : ses messages privés sont fermés. `
-            + 'Contacte-le toi-même ou demande-lui d\'ouvrir ses MP (Paramètres > Confidentialité > Messages privés des membres du serveur).');
+          : `Je n'arrive pas à écrire à <@${discordId}> : ses messages privés sont fermés et je n'ai pas pu ouvrir de fil privé.\n`
+            + `Raison : ${dernieresErreurs.get(discordId) || 'inconnue'}`);
       }
       return false;
     },
@@ -692,7 +748,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
         + 'Pour accéder au reste du serveur, rejoins l\'un des deux programmes :',
         [{ label: 'Rejoindre la Community', url: `${config.baseUrl}/community` },
           { label: 'Postuler à l\'Elite', url: `${config.baseUrl}${config.offres.elite.base}` }]);
-    const ok = await messagePrive(m.id, contenu);
+    const ok = await notifier.membre(m.id, contenu);
     log(ok ? `message de bienvenue envoyé à ${m.id}` : `message de bienvenue impossible pour ${m.id} (voir l'erreur ci-dessus)`);
     return ok;
   }
@@ -794,6 +850,14 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
           try {
             const r = await configurerAttente(null);
             if (r.ok) {
+              try {
+                const moi = await moiSurLeServeur();
+                if (moi && r.salon.permissionsFor && !r.salon.permissionsFor(moi)?.has(DROITS_FIL)) {
+                  await notifier.admin('Quand un membre a fermé ses messages privés, je lui écris dans un **fil privé**. '
+                    + 'Pour ça, donne à mon rôle **Créer des fils privés** et **Envoyer des messages dans les fils** '
+                    + '(Paramètres du serveur > Rôles > Bob), puis relance le site.');
+                }
+              } catch (err) { console.warn('[bob] droits des fils privés :', err.message); }
               const nouveau = !dejaEnvoye(`config:bilan:${r.salon.id}`);
               if (nouveau || r.echecs.length) {
                 marquer(`config:bilan:${r.salon.id}`);

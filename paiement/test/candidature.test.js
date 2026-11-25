@@ -251,24 +251,70 @@ test('suivi sans connexion : après le formulaire, la page suit la candidature e
   } finally { await m.fermer(); }
 });
 
-test('messages privés impossibles : pas de fil automatique, l\'admin est prévenu (une fois par jour, avec la raison)', async () => {
+test('messages privés impossibles : fil privé avec les mêmes boutons, réutilisé ; l\'admin prévenu seulement si rien ne passe', async () => {
   const m = await monter({ avecCandidatures: true });
   try {
     const recus = [];
-    let creations = 0;
     const client = { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => {
-      if (id === 'F3') throw new Error('Cannot send messages to this user due to having no mutual guilds');
       if (id !== ADMIN) throw new Error('Cannot send messages to this user');
       recus.push([id, c.content]);
     } }) } };
-    const serveur = { members: { fetch: async () => null }, channels: { fetch: async () => ({ threads: { create: async () => { creations++; } } }) } };
+    // Discord simulé : #en-attente (visible par En Attente) et #general (visible par les membres d'un programme).
+    const fils = [];
+    const filsParId = new Map();
+    const salon = (id, rawPosition, visiblePar) => ({
+      id, name: id, rawPosition, type: 0,
+      permissionsFor: (qui) => ({ has: () => qui.id === 'BOB' || visiblePar(qui) }),
+      threads: { create: async (o) => {
+        const fil = { id: `fil-${fils.length + 1}`, salon: id, options: o, archived: false, membres: [], messages: [],
+          members: { add: async (u) => fil.membres.push(u) }, send: async (msg) => fil.messages.push(msg) };
+        fils.push(fil); filsParId.set(fil.id, fil); return fil;
+      } },
+    });
+    const membre = (id, roles) => ({ id, user: { username: id }, roles: { cache: { has: (r) => roles.includes(r) } } });
+    const membres = new Map([['F1', membre('F1', [ROLES.attente])], ['F2', membre('F2', [ROLES.community])]]);
+    const salons = new Map([
+      ['attente', salon('attente', 0, (qui) => qui.roles?.cache.has(ROLES.attente))],
+      ['annonces', { id: 'annonces', type: 5, permissionsFor: () => ({ has: () => true }), threads: {} }],
+      ['general', salon('general', 3, (qui) => qui.roles?.cache.has(ROLES.community))],
+    ]);
+    const serveur = { id: 'guild',
+      members: { me: { id: 'BOB' }, fetch: async (id) => membres.get(id) || null },
+      channels: { fetch: async (id) => (id ? salons.get(id) || filsParId.get(id) || null : salons) } };
+    m.db.prepare('INSERT INTO envois (cle, envoye_le) VALUES (?, ?)').run('config:salon-attente', 'attente');
     const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures, client, serveur });
-    assert.strictEqual(await bob.notifier.membre('F1', 'Bonjour'), false);
+
+    const boutons = { content: 'Bonjour', components: [{ components: [{ data: { url: 'https://overmaxx.online/community' } }] }] };
+    assert.strictEqual(await bob.notifier.membre('F1', boutons), true);
+    assert.strictEqual(fils.length, 1);
+    assert.strictEqual(fils[0].salon, 'attente', 'nouveau venu : fil dans le salon d\'attente');
+    assert.strictEqual(fils[0].options.type, 12, 'fil privé');
+    assert.deepStrictEqual(fils[0].membres, ['F1']);
+    assert.match(fils[0].messages[0].content, /^<@F1> Bonjour/);
+    assert.deepStrictEqual(urls(fils[0].messages[0].components), ['https://overmaxx.online/community'], 'mêmes boutons');
+
+    // Deuxième message : même fil, rouvert s'il était archivé.
+    fils[0].archived = true; fils[0].setArchived = async (v) => { fils[0].archived = v; };
     await bob.notifier.membre('F1', 'Encore');
-    assert.strictEqual(creations, 0, 'aucun fil créé');
-    assert.strictEqual(recus.filter(([id, t]) => id === ADMIN && /messages privés sont fermés/.test(t)).length, 1);
+    assert.strictEqual(fils.length, 1);
+    assert.strictEqual(fils[0].archived, false);
+    assert.strictEqual(fils[0].messages.length, 2);
+
+    // Membre Community (ne voit pas #en-attente) : fil dans le premier salon qu'il voit (pas un salon d'annonces).
+    await bob.notifier.membre('F2', 'Renouvelle');
+    assert.strictEqual(fils[1].salon, 'general');
+    assert.ok(!recus.length, 'l\'admin ne reçoit rien quand le fil a marché');
+
+    // Pas sur le serveur : ni MP ni fil → l'admin est prévenu (une fois par jour).
+    assert.strictEqual(await bob.notifier.membre('F3', 'Coucou'), false);
     await bob.notifier.membre('F3', 'Coucou');
-    assert.ok(recus.some(([id, t]) => id === ADMIN && /pas \(ou plus\) sur le serveur/.test(t)));
+    assert.strictEqual(recus.filter(([id, t]) => id === ADMIN && /pas \(ou plus\) sur le serveur/.test(t)).length, 1);
+
+    // Sans les droits de fil : l'admin reçoit la raison.
+    serveur.members.me = { id: 'AUTRE' };
+    membres.set('F4', membre('F4', [ROLES.attente]));
+    assert.strictEqual(await bob.notifier.membre('F4', 'Coucou'), false);
+    assert.ok(recus.some(([id, t]) => id === ADMIN && /Créer des fils privés/.test(t)));
   } finally { await m.fermer(); }
 });
 
