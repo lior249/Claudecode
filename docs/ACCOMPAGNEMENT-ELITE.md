@@ -210,9 +210,13 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
 
 ### Le suivi des modules sur Whop
 
-**[à vérifier]** Si l'API Whop donne la **progression** d'un membre dans les cours (leçons terminées), la plateforme l'affiche
-sur sa fiche, et une leçon terminée compte comme une interaction (pas d'absence). Sinon, le membre coche lui-même,
-chaque jour, les modules regardés.
+- Testé avec la clé Whop : la lecture des cours (`/courses`), des leçons (`/course_lessons?course_id=`) et de l'activité
+  des leçons (`/course_lesson_interactions?course_id=` ou `?lesson_id=`) fonctionne, mais **aucune activité n'est encore enregistrée**.
+  Les champs de cette activité (membre, leçon terminée…) restent donc inconnus.
+- **Au départ**, le membre coche lui-même, chaque jour, les modules regardés (ça compte comme une interaction).
+- **Dès qu'un vrai membre aura terminé des leçons**, on relance le test : si Whop donne le membre et la leçon terminée,
+  la plateforme l'affichera sur sa fiche et une leçon terminée comptera comme une présence, sans rien cocher.
+- La lecture des membres (`/members`, `/memberships`) est encore refusée : permission à ajouter sur la clé.
 
 ### Les annulations
 
