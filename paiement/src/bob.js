@@ -7,7 +7,7 @@ const {
 
 const STATUTS_CANDIDATURE_PROTEGES = ['examen', 'retenu', 'video', 'valide'];
 const { lienRenouvellement, lienMagique } = require('./liens');
-const { JOURS, dateISO, ajouterJours } = require('./coaching');
+const { JOURS, dateISO, ajouterJours, aHeure, lundiDe } = require('./coaching');
 const { jourLisible } = require('./suivi');
 
 const JOUR_MS = 24 * 3600 * 1000;
@@ -332,17 +332,18 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     const boutonSalon = config.discord.salonCoaching ? [{ label: 'Rejoindre le salon vocal', url: config.discord.salonCoaching }] : [];
 
     for (const s of seances) {
+      if (s.touchee) continue; // annulée par le coach (absence ou imprévu)
       const avant = s.debut - now;
       const profil = coaching.profil(s.discordId);
       const perso = (profil && profil.rappel_min) || 240;
-      const quand = `${JOURS[(s.debut.getUTCDay() + 6) % 7].toLowerCase()} à **${s.heure} GMT**`;
+      const quand = `**${quandLocal(s.discordId, s.debut)}**`;
       const clePerso = `coach-perso:${s.date}:${s.heure}:${s.discordId}`;
       const cleAuto = `coach-1h:${s.date}:${s.heure}:${s.discordId}`;
       if (avant <= perso * 60 * 1000 && avant > 60 * 60 * 1000 && !dejaEnvoye(clePerso)) {
         if (await notifier.membre(s.discordId, avecBoutons(`Rappel : ta séance de coaching privé est ${quand}.`, boutonSalon))) marquer(clePerso);
       }
       if (avant <= 60 * 60 * 1000 && !dejaEnvoye(cleAuto)) {
-        if (await notifier.membre(s.discordId, avecBoutons(`Ta séance de coaching privé commence dans **1 heure** (${s.heure} GMT).`, boutonSalon))) marquer(cleAuto);
+        if (await notifier.membre(s.discordId, avecBoutons(`Ta séance de coaching privé commence dans **1 heure** (${heureLocale(s.discordId, s.debut)}).`, boutonSalon))) marquer(cleAuto);
       }
     }
 
@@ -352,9 +353,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     for (const [date, premiere] of parJour) {
       const cle = `coach-admin:${date}`;
       if (premiere.debut - now > config.coaching.rappelAdminHeures * 3600 * 1000 || dejaEnvoye(cle)) continue;
-      const duJour = seances.filter((s) => s.date === date);
-      const ok = await notifier.admin(avecBoutons(`**${duJour.length} séance(s) de coaching** aujourd'hui, la première à **${premiere.heure} GMT**.`,
-        [{ label: 'Ouvrir le calendrier', url: `${config.baseUrl}/admin` }]));
+      const duJour = seances.filter((s) => s.date === date && !s.touchee);
+      if (!duJour.length) { marquer(cle); continue; }
+      const ok = await notifier.admin(avecBoutons(`**${duJour.length} séance(s) de coaching** aujourd'hui, la première à **${duJour[0].heure} GMT**.`,
+        [{ label: 'Ouvrir le calendrier', url: lienCoach(`/admin?semaine=${date}`) }, { label: 'J\'ai un imprévu', url: lienCoach(`/admin/imprevu?date=${date}`) }]));
       if (ok) marquer(cle);
     }
   }
@@ -962,6 +964,60 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     } catch (err) { console.warn('[bob] rôles de la réhabilitation :', err.message); }
   }
 
+  // ---------- Coaching : heures locales, disponibilités du coach, séances annulées ----------
+  // Fuseau du membre : celui de son téléphone (page coaching), sinon celui de son étape 4.
+  const fuseauDe = (id) => (coaching && (coaching.profil(id) || {}).fuseau) || (parcours && (parcours.get(id) || {}).fuseau) || null;
+  const formater = (id, d, o) => { const f = fuseauDe(id); return d.toLocaleString('fr-FR', { timeZone: f || 'UTC', ...o }) + (f ? '' : ' GMT'); };
+  const heureLocale = (id, d) => formater(id, d, { hour: '2-digit', minute: '2-digit' });
+  const quandLocal = (id, d) => formater(id, d, { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const jourHeureLocale = (id, d) => { const t = formater(id, d, { weekday: 'long', hour: '2-digit', minute: '2-digit' }); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const prevenirSeances = {
+    // Séances annulées par une absence ou un imprévu du coach : chaque membre est prévenu, avec son coaching en réserve.
+    async touchees(liste = []) {
+      for (const t of liste) {
+        const p = parcours && parcours.get(t.discordId);
+        const quand = quandLocal(t.discordId, t.debut);
+        const debut = t.touchee && t.touchee.type === 'imprevu'
+          ? `**Imprévu de ton coach** : « ${t.touchee.message} »\nTa séance du **${quand}** n'aura pas lieu.`
+          : `**Ton coach sera absent le ${quand}** : ta séance n'aura pas lieu.`;
+        const reserve = t.credite ? 'Tu reçois **1 coaching en réserve** : reprogramme-le maintenant, ou garde-le pour plus tard.'
+          : `Tu as déjà ${coaching.MAX_RESERVES} coachings en réserve (le maximum) : utilise-en un pour la remplacer.`;
+        await notifier.membre(t.discordId, avecBoutons(`${debut}\nElle ne compte pas dans ton minimum de la semaine. ${reserve}`,
+          [{ label: 'Reprogrammer ou garder', url: lienPerso(t.discordId, p && p.pseudo, '/coaching') }]));
+      }
+    },
+    async retablies(liste = []) {
+      for (const t of liste) {
+        await notifier.membre(t.discordId, avecBoutons(`**Bonne nouvelle : ton coach sera finalement là le ${quandLocal(t.discordId, t.debut)}.** Ta séance est maintenue.`,
+          [{ label: 'Mes coachings', url: lienPerso(t.discordId, null, '/coaching') }]));
+      }
+    },
+    async semaineReservee(id, seances = []) {
+      const lignes = seances.map((s) => `- ${jourHeureLocale(id, aHeure(s.date, s.heure))} (${s.date.split('-').reverse().slice(0, 2).join('/')})`).join('\n');
+      await notifier.membre(id, avecBoutons(`Ta semaine de coaching est réservée (à ton heure) :\n${lignes}\nPense à réserver la suivante.`,
+        [{ label: 'Mes coachings', url: lienPerso(id, null, '/coaching') }]));
+    },
+    async report(id, avant, apres, justification) {
+      await notifier.admin(`**Séance reportée** : ${nomCoaching(id)} (<@${id}>), du ${avant.date} ${avant.heure} GMT au **${apres.date} ${apres.heure} GMT**.\nJustification : ${justification}`);
+    },
+    async reserveUtilisee(id, seance) {
+      await notifier.admin(`**Coaching en réserve utilisé** : ${nomCoaching(id)} (<@${id}>), le **${seance.date} à ${seance.heure} GMT**.`);
+    },
+  };
+  const nomCoaching = (id) => { const p = parcours && parcours.get(id); return (p && (p.nom || p.pseudo)) || ((coaching && coaching.profil(id)) || {}).pseudo || `<@${id}>`; };
+  // Le dimanche matin (à partir de 8 h UTC), Bob demande au coach ses disponibilités de la semaine suivante.
+  async function demanderDisponibilites() {
+    if (!coaching || !config.discord.adminId) return;
+    const now = maintenant();
+    if (now.getUTCDay() !== 0 || now.getUTCHours() < 8) return;
+    const lundi = ajouterJours(lundiDe(now), 7);
+    const cle = `dispo:${lundi}`;
+    if (dejaEnvoye(cle) || coaching.dispoEnvoyee(lundi)) return;
+    if (await notifier.admin(avecBoutons(`**Tes disponibilités de la semaine du ${lundi.split('-').reverse().slice(0, 2).join('/')}.** Tout est coché par défaut : décoche seulement tes absences. `
+      + 'Les membres concernés seront prévenus et recevront un coaching en réserve.',
+    [{ label: 'Sélectionner mes disponibilités', url: lienCoach(`/admin/disponibilites?semaine=${lundi}`) }]))) marquer(cle);
+  }
+
   // ---------- Étape 4 : rappels quotidiens, à l'heure du membre ----------
   async function rappelsQuotidiens() {
     if (!parcours || !suivi) return;
@@ -1082,7 +1138,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
           log(`rappel de délai (${t.cle}, ${moment}) envoyé à ${p.discord_id}`);
         }
       }
-      if (p.etape >= 3 && coaching && !coaching.reserveurs().includes(p.discord_id)) {
+      if (p.etape >= 3 && coaching && !coaching.aUnPlanning(p.discord_id)) {
         const depuis = now - new Date(p.etape_depuis).getTime();
         const tranche = Math.floor(depuis / (12 * 3600 * 1000));
         const cle = `parcours:${p.discord_id}:planning:${p.etape_depuis}:${tranche}`;
@@ -1190,7 +1246,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await rappelsCoaching();
       if (tour % 2 === 0) await synchroRoles();
       await rappelsQuotidiens();
-      if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); await surveillerAbsences(); }
+      if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); await surveillerAbsences(); await demanderDisponibilites(); }
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
       console.error('[bob] cycle :', err);
@@ -1218,6 +1274,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     relancerParcours,
     rappelsQuotidiens,
     surveillerAbsences,
+    demanderDisponibilites,
     configurerSinistres,
     parcours: prevenirParcours,
 
@@ -1326,17 +1383,21 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     },
 
     async recapCoaching(discordId, reservations, decales) {
-      const lignes = reservations.map((r) => `- ${JOURS[r.jour]} à ${r.heure} GMT`).join('\n');
+      // Chaque créneau fixe, à l'heure du membre (jour de la semaine et heure de sa prochaine séance).
+      const prochaine = (r) => aHeure(r.effectif_le, r.heure);
+      const lignes = reservations.map((r) => `- ${jourHeureLocale(discordId, prochaine(r))}`).join('\n');
       const d = decales.length
-        ? `\n\nRéservé après 11h00 GMT pour aujourd'hui : ${decales.map((x) => `${JOURS[x.jour]} ${x.heure}`).join(', ')} ne compte qu'à partir de la semaine prochaine.`
+        ? `\n\nPas cette semaine (réservé trop tard, ou créneau indisponible ce jour-là) : ${decales.map((x) => `${x.effectifLe.split('-').reverse().slice(0, 2).join('/')} ${heureLocale(discordId, aHeure(x.effectifLe, x.heure))}`).join(', ')} est ta première séance.`
         : '';
-      await notifier.membre(discordId, avecBoutons(`Tes créneaux de coaching sont enregistrés :\n${lignes}${d}`, [{ label: 'Modifier mes créneaux', url: `${config.baseUrl}/coaching` }]));
+      await notifier.membre(discordId, avecBoutons(`Tes créneaux de coaching fixes sont enregistrés (à ton heure) :\n${lignes}${d}`,
+        [{ label: 'Mes coachings', url: lienPerso(discordId, null, '/coaching') }]));
     },
 
     async annulation(discordId, seance, justification) {
       const m = q.membresParDiscord.all(discordId).find((x) => x.programme === 'elite');
       await notifier.admin(`**Séance annulée** : ${(m && m.nom) || `<@${discordId}>`} (<@${discordId}>), le ${seance.date} à ${seance.heure} GMT.\nJustification : ${justification}`);
     },
+    seances: prevenirSeances,
 
     appliquerDecision,
     candidatureRecue,

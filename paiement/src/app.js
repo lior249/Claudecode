@@ -8,6 +8,7 @@ const { lireSession, ouvrirSession, fermerSession, verifier, signer } = require(
 const P = require('./pages');
 const E = require('./pages-espace');
 const V = require('./pages-parcours');
+const C = require('./pages-coaching');
 const { creerParcours } = require('./parcours');
 const { creerSuivi, QUESTIONS, jourLisible } = require('./suivi');
 const { creerSinistres } = require('./sinistres');
@@ -390,7 +391,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     }
     if (!elite.roleDiscord || !roles.includes(elite.roleDiscord)) return { interdit: 'Le coaching privé est réservé aux membres Elite.' };
     const p = parcours.get(session.id);
-    if (p && p.etape < 3 && !coaching.reserveurs().includes(session.id)) {
+    if (p && p.etape < 3 && !coaching.creneauxFixes(session.id).length) {
       return { interdit: 'Tes coachings réguliers s\'ouvrent à l\'étape 3 de ton parcours. Avant, tu réserves ton coaching d\'entrée depuis Mon parcours.', parcours: true };
     }
     return { ok: true };
@@ -402,10 +403,20 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/coaching', message: 'Coaching privé', lienDiscord: lienDiscord({ but: 'connexion', retour: '/coaching' }) }));
     try {
       const d = await droitsCoaching(session);
-      if (!d.ok) return res.send(E.pageCoaching(config, { session, interdit: d.interdit, versParcours: d.parcours, espace: espaceDe(session) }));
-      const message = req.query.ok ? 'Tes créneaux sont enregistrés. Bob t\'a envoyé le récapitulatif.' : req.query.annule ? 'Séance annulée. Ton coach est prévenu.' : null;
-      return res.send(E.pageCoaching(config, {
-        session, coaching, message, grille: coaching.grille(session.id), seances: coaching.prochainesSeances(session.id), espace: espaceDe(session),
+      if (!d.ok) return res.send(C.pageCoaching(config, { session, interdit: d.interdit, versParcours: d.parcours, espace: espaceDe(session) }));
+      const messages = { 1: 'Tes créneaux fixes sont enregistrés. Bob t\'a envoyé le récapitulatif.', semaine: 'Ta semaine est réservée. Bob t\'a envoyé le récapitulatif.',
+        report: 'Séance reportée. Ton coach est prévenu.', reserve: 'Coaching en réserve réservé. Ton coach est prévenu.',
+        reprogramme: 'Séance reprogrammée. Ton coach est prévenu.', garde: 'Gardé en réserve : utilise-le quand tu veux.' };
+      const message = messages[req.query.ok] || (req.query.annule ? 'Séance annulée. Ton coach est prévenu.' : null);
+      const mode = req.query.mode === 'semaine' ? 'semaine' : 'fixe';
+      const cetteSemaine = coaching.lundiDe(new Date());
+      const lundis = [cetteSemaine, coaching.ajouterJours(cetteSemaine, 7)];
+      const lundi = lundis.includes(req.query.semaine) ? req.query.semaine : lundis[0];
+      const id = session.id;
+      return res.send(C.pageCoaching(config, {
+        session, coaching, message, mode, lundis, grille: coaching.grille(id), semaine: mode === 'semaine' ? coaching.grilleSemaine(id, lundi) : null,
+        seances: coaching.prochainesSeances(id, 14), touchees: coaching.toucheesAChoisir(id), reserves: coaching.reserves(id),
+        libres: coaching.creneauxLibres(14), aDesFixes: coaching.creneauxFixes(id).length > 0, espace: espaceDe(session),
       }));
     } catch (err) {
       console.error('[coaching]', err.message);
@@ -418,8 +429,53 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!session) { res.status(401).json({ erreur: 'Reconnecte-toi.' }); return null; }
     const d = await droitsCoaching(session);
     if (!d.ok) { res.status(403).json({ erreur: d.interdit }); return null; }
+    if (req.body && req.body.fuseau) coaching.majFuseau(session.id, String(req.body.fuseau), session.pseudo);
     return session;
   }
+  const prevenirSeances = (nom, ...args) => { if (bob && bob.seances && bob.seances[nom]) bob.seances[nom](...args).catch((e) => console.error(`[bob] coaching ${nom} :`, e.message)); };
+  // Petite enveloppe commune aux appels du membre (erreurs 400, panne 500).
+  const apiCoaching = (chemin, action) => app.post(chemin, json, async (req, res) => {
+    try {
+      const session = await sessionCoaching(req, res);
+      if (!session) return undefined;
+      const r = await action(session, req.body || {});
+      if (r && r.erreur) return res.status(400).json(r);
+      return res.json({ ok: true, ...(r || {}) });
+    } catch (err) {
+      console.error('[coaching]', err.message);
+      return res.status(500).json({ erreur: 'Erreur, réessaie.' });
+    }
+  });
+  const creneauDe = (x) => ({ date: String((x && x.date) || ''), heure: String((x && x.heure) || '') });
+  apiCoaching('/api/coaching/fuseau', async () => ({}));
+  apiCoaching('/api/coaching/rappel', async (session, b) => coaching.majRappel(session.id, Number(b.rappelMin), session.pseudo));
+  apiCoaching('/api/coaching/semaine', async (session, b) => {
+    const selection = Array.isArray(b.selection) ? b.selection.slice(0, 7).map(creneauDe) : null;
+    const r = coaching.reserverSemaine(session.id, String(b.lundi || ''), selection, session.pseudo);
+    if (r.erreur) return r;
+    if (b.rappelMin !== undefined) coaching.majRappel(session.id, Number(b.rappelMin), session.pseudo);
+    prevenirSeances('semaineReservee', session.id, r.seances);
+    return { seances: r.seances.length };
+  });
+  apiCoaching('/api/coaching/retirer-fixes', async (session) => ({ retires: coaching.retirerCreneauxFixes(session.id) }));
+  apiCoaching('/api/coaching/reporter', async (session, b) => {
+    const avant = creneauDe(b);
+    const r = coaching.reporter(session.id, avant.date, avant.heure, b.justification, creneauDe(b.nouvelle));
+    if (!r.erreur) prevenirSeances('report', session.id, r.seance, r.nouvelle, String(b.justification).trim());
+    return r.erreur ? r : {};
+  });
+  apiCoaching('/api/coaching/reserve', async (session, b) => {
+    const x = creneauDe(b);
+    const r = coaching.utiliserReserve(session.id, x.date, x.heure);
+    if (!r.erreur) prevenirSeances('reserveUtilisee', session.id, r.seance);
+    return r.erreur ? r : { reserves: r.reserves };
+  });
+  apiCoaching('/api/coaching/touchee', async (session, b) => {
+    const x = creneauDe(b);
+    const r = coaching.choisirTouchee(session.id, x.date, x.heure, String(b.choix || ''), creneauDe(b.nouvelle));
+    if (!r.erreur && r.seance) prevenirSeances('reserveUtilisee', session.id, r.seance);
+    return r.erreur ? r : {};
+  });
 
   app.post('/api/coaching/creneaux', json, async (req, res) => {
     try {
@@ -622,7 +678,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       res.send(V.pageEtape2(config, { ...commun, entree: coaching.seancePonctuelle(x.session.id, 'entree'), libres: coaching.creneauxLibres(3), message }));
       return;
     }
-    const reserves = coaching.grille(x.session.id).cases.filter((c) => c.etat === 'moi').length;
+    const lundiCourant = coaching.lundiDe(new Date());
+    const reserves = coaching.creneauxFixes(x.session.id).length
+      || coaching.occurrences(lundiCourant, coaching.ajouterJours(lundiCourant, 6), { discordId: x.session.id }).filter((o) => o.type === 'semaine').length;
     res.send(V.pageEtape3(config, { ...commun, soumissions: parcours.soumissions(x.session.id, 3), remarquesDe,
       coachings: { reserves, min: config.coaching.minParSemaine, max: config.coaching.maxParSemaine || 7 } }));
   });
@@ -976,7 +1034,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const session = lireSession(req, config.secretApp);
     if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/admin', message: 'Espace admin', lienDiscord: lienDiscord({ but: 'connexion', retour: '/admin' }) }));
     if (session.id !== config.discord.adminId) return res.status(403).send(P.pageMessage(config, 'Accès refusé', 'Cet espace est réservé à l\'admin.'));
-    res.send(E.pageAdmin(config, { ...donneesAdmin(String(req.query.semaine || '')), espace: espaceDe(session) }));
+    const fait = { dispo: `Disponibilités enregistrées. ${Number(req.query.n) || 0} séance(s) annulée(s) : Bob a prévenu les membres.`,
+      imprevu: `Imprévu signalé. ${Number(req.query.n) || 0} membre(s) prévenu(s) par Bob.` }[req.query.fait] || null;
+    res.send(C.pageAdmin(config, { ...donneesAdmin(String(req.query.semaine || '')), message: fait, espace: espaceDe(session) }));
     return undefined;
   });
 
@@ -1027,7 +1087,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     candidature: () => E.pageEliteCandidature(config, { session: { id: 'apercu', pseudo: 'exemple' } }),
     coaching: () => {
       const membre = { id: 'apercu', pseudo: 'membre exemple' };
-      return E.pageCoaching(config, { session: membre, coaching, grille: coaching.grille(membre.id), seances: [], espace: { session: membre, estAdmin: false } });
+      return C.pageCoaching(config, { session: membre, coaching, grille: coaching.grille(membre.id), seances: [], libres: coaching.creneauxLibres(14), espace: { session: membre, estAdmin: false } });
     },
   };
   for (const statut of ['examen', 'video', 'valide', 'refuse']) {
@@ -1066,45 +1126,93 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   });
 
   const db = commandes.db;
+  // Qui est ce membre ? (pour le calendrier, les disponibilités et l'imprévu)
+  function infoMembre(id) {
+    const m = commandes.membresParDiscord(id).sort((a, b) => (a.programme === 'elite' ? -1 : 1) - (b.programme === 'elite' ? -1 : 1))[0] || {};
+    const profil = coaching.profil(id) || {};
+    const pc = parcours.get(id);
+    const pseudo = m.discord_pseudo || profil.pseudo || (pc && pc.pseudo);
+    const fixes = coaching.creneauxFixes(id);
+    return {
+      nom: m.nom || (pc && pc.nom) || pseudo || '(inconnu)', pseudo: pseudo || id, email: m.email || 'payé sur Whop',
+      court: (pseudo || m.nom || '?').slice(0, 8),
+      creneaux: fixes.map((x) => `${coaching.JOURS[x.jour].slice(0, 3)} ${x.heure}`).join(', ') || 'aucun',
+      rappel: profil.rappel_min ? `${profil.rappel_min >= 120 ? `${profil.rappel_min / 60} h` : '1 h 30'} avant` : null,
+      fuseau: profil.fuseau || (pc && pc.fuseau) || 'inconnue', fiche: pc ? `/admin/membres/${encodeURIComponent(id)}` : null,
+    };
+  }
+  const nomMembre = (id) => infoMembre(id).nom;
   function donneesAdmin(semaine) {
     const lundi = /^\d{4}-\d{2}-\d{2}$/.test(semaine) ? coaching.lundiDe(new Date(`${semaine}T12:00:00Z`)) : coaching.lundiDe(new Date());
     const dimanche = coaching.ajouterJours(lundi, 6);
-    const reservations = db.prepare('SELECT * FROM reservations').all();
+    const occ = coaching.occurrences(lundi, dimanche);
+    const absences = coaching.absences(lundi, dimanche);
     const annulations = db.prepare('SELECT * FROM annulations WHERE date BETWEEN ? AND ? ORDER BY date, heure').all(lundi, dimanche);
-    const membres = db.prepare('SELECT * FROM membres ORDER BY statut, acces_jusqu_au').all();
-    const parDiscord = new Map();
-    for (const m of membres) if (m.discord_id && (!parDiscord.has(m.discord_id) || m.programme === 'elite')) parDiscord.set(m.discord_id, m);
+    const infos = new Map();
+    const info = (id) => { if (!infos.has(id)) infos.set(id, infoMembre(id)); return infos.get(id); };
     const jours = [];
     const cases = [];
     for (let i = 0; i < 7; i++) {
       const date = coaching.ajouterJours(lundi, i);
       jours.push({ nom: coaching.JOURS[i], date });
       for (const heure of coaching.creneaux) {
-        const r = reservations.find((x) => x.jour === i && x.heure === heure && date >= x.effectif_le);
-        const a = annulations.find((x) => x.date === date && x.heure === heure);
-        let membre = null;
-        if (r) {
-          const m = parDiscord.get(r.discord_id) || {};
-          const profil = coaching.profil(r.discord_id) || {};
-          const siens = reservations.filter((x) => x.discord_id === r.discord_id).map((x) => `${coaching.JOURS[x.jour].slice(0, 3)} ${x.heure}`).join(', ');
-          const pseudo = m.discord_pseudo || profil.pseudo;
-          membre = {
-            nom: m.nom || pseudo || '(inconnu)', pseudo: pseudo || r.discord_id, email: m.email || 'payé sur Whop',
-            court: (pseudo || m.nom || '?').slice(0, 8),
-            fin: m.acces_jusqu_au ? P.formatDate(m.acces_jusqu_au) : 'géré par Whop', creneaux: siens,
-            rappel: profil.rappel_min ? `${profil.rappel_min >= 120 ? `${profil.rappel_min / 60} h` : '1 h 30'} avant` : null,
-            annulation: a ? a.justification : null,
-          };
-        }
-        cases.push({ date, heure, cle: `${date} ${heure}`, membre, annulee: Boolean(a) });
+        const o = occ.find((x) => x.date === date && x.heure === heure);
+        const a = absences.find((x) => x.date === date && x.heure === heure);
+        const membre = o ? { ...info(o.discordId), type: C.NOMS_TYPES[o.type] || o.type,
+          etat: o.touchee ? (o.touchee.type === 'imprevu' ? 'Annulée (imprévu)' : 'Annulée (tu es absent)') : 'Prévue' } : null;
+        cases.push({ date, heure, cle: `${date} ${heure}`, membre, touchee: o ? o.touchee || null : null, absence: a ? { type: a.type } : null });
       }
     }
-    const nomDe = (id) => (parDiscord.get(id) || {}).nom || (coaching.profil(id) || {}).pseudo || id;
+    const lundiProchain = coaching.ajouterJours(coaching.lundiDe(new Date()), 7);
     return {
-      lundi, jours, cases, membres, coaching,
-      annulations: annulations.map((a) => ({ ...a, nom: nomDe(a.discord_id) })),
+      lundi, jours, cases, coaching, lundiProchain, dispoProchaine: coaching.dispoEnvoyee(lundiProchain), aujourdhui: coaching.dateISO(new Date()),
+      annulations: annulations.map((a) => ({ ...a, nom: info(a.discord_id).nom })),
+      touchees: coaching.touchees(lundi, dimanche).map((t) => ({ ...t, nom: info(t.discord_id).nom })),
     };
   }
+
+  // ---- Disponibilités de la semaine et imprévu (coach) ----
+  const lundiValide = (x, defaut) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || '')) ? coaching.lundiDe(new Date(`${x}T12:00:00Z`)) : defaut);
+  app.get('/admin/disponibilites', (req, res) => {
+    if (!estAdmin(req, res, '/admin/disponibilites')) return;
+    const lundi = lundiValide(req.query.semaine, coaching.ajouterJours(coaching.lundiDe(new Date()), 7));
+    const d = coaching.disponibilites(lundi);
+    res.send(C.pageDisponibilites(config, { espace: espaceDe(lireSession(req, config.secretApp)), coaching, lundi, absences: d.absences, seances: d.seances,
+      envoye: d.envoye, nomDe: nomMembre }));
+  });
+  app.post('/admin/disponibilites', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/disponibilites')) return;
+    const lundi = lundiValide(req.body.semaine, null);
+    if (!lundi) { res.redirect(303, '/admin'); return; }
+    const coches = new Set([].concat(req.body.dispo || []).map(String));
+    const absences = [];
+    for (let i = 0; i < 7; i++) {
+      const date = coaching.ajouterJours(lundi, i);
+      for (const heure of coaching.creneaux) if (!coches.has(`${date}|${heure}`)) absences.push({ date, heure });
+    }
+    const r = coaching.enregistrerDisponibilites(lundi, absences);
+    prevenirSeances('touchees', r.touchees);
+    prevenirSeances('retablies', r.retablies);
+    res.redirect(303, `/admin?semaine=${lundi}&fait=dispo&n=${r.touchees.length}`);
+  });
+  function pageImprevuDe(req, res, date, erreur) {
+    const maintenant = new Date();
+    const seances = coaching.occurrences(date, date).filter((o) => o.debut > maintenant);
+    return C.pageImprevu(config, { espace: espaceDe(lireSession(req, config.secretApp)), date, seances, nomDe: nomMembre, erreur });
+  }
+  app.get('/admin/imprevu', (req, res) => {
+    if (!estAdmin(req, res, '/admin/imprevu')) return;
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : coaching.dateISO(new Date());
+    res.send(pageImprevuDe(req, res, date));
+  });
+  app.post('/admin/imprevu', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/imprevu')) return;
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body.date || '')) ? req.body.date : coaching.dateISO(new Date());
+    const r = coaching.signalerImprevu(date, [].concat(req.body.heure || []).map(String), req.body.message);
+    if (r.erreur) { res.status(400).send(pageImprevuDe(req, res, date, r.erreur)); return; }
+    prevenirSeances('touchees', r.touchees);
+    res.redirect(303, `/admin?semaine=${date}&fait=imprevu&n=${r.touchees.length}`);
+  });
 
   // ================= Webhooks =================
 

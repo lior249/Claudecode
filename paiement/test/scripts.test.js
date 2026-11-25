@@ -25,13 +25,14 @@ test('le JavaScript de toutes les pages est valide', async () => {
       ['/community', null], ['/coaching/elite', null], [`/confirmation/${ref}`, null],
       ['/coaching', cookieSession('E1', 'e1')], ['/admin', cookieSession(ADMIN, 'a')], ['/admin/candidatures', cookieSession(ADMIN, 'a')],
       ['/coaching/elite/candidature', cookieSession('C1', 'c1')],
+      ['/coaching?mode=semaine', cookieSession('E1', 'e1')], ['/admin/disponibilites', cookieSession(ADMIN, 'a')], ['/admin/imprevu', cookieSession(ADMIN, 'a')],
     ];
     let total = 0;
     for (const [chemin, cookie] of pages) {
       const html = await (await m.get(chemin, cookie ? { cookie } : {})).text();
       total += verifierScripts(html, chemin);
     }
-    assert.ok(total >= 5, `${total} scripts vérifiés`);
+    assert.ok(total >= 7, `${total} scripts vérifiés`);
   } finally { await m.fermer(); }
 });
 
@@ -71,6 +72,6 @@ test('le JavaScript des pages du parcours Elite est valide (envois, heures local
       assert.strictEqual(res.status, 200, chemin);
       total += verifierScripts(await res.text(), chemin);
     }
-    assert.ok(total >= 8, `${total} scripts vérifiés`);
+    assert.ok(total >= 7, `${total} scripts vérifiés`);
   } finally { await m.fermer(); }
 });

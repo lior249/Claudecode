@@ -147,7 +147,7 @@ test('pages coaching et admin : connexion, Elite seulement, GOAT exclu, admin', 
     assert.match(await (await m.get('/coaching', { cookie: '' })).text(), /Connecte ton compte Discord/);
     assert.match(await (await m.get('/coaching', { cookie: cookieSession('G1') })).text(), /GOAT/);
     assert.match(await (await m.get('/coaching', { cookie: cookieSession('C1') })).text(), /réservé aux membres Elite/);
-    assert.match(await (await m.get('/coaching', { cookie: cookieSession('E1') })).text(), /Mes créneaux de coaching/);
+    assert.match(await (await m.get('/coaching', { cookie: cookieSession('E1') })).text(), /Mes coachings/);
 
     const poster = (cookie, body) => fetch(`${m.base}/api/coaching/creneaux`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify(body) });
     assert.strictEqual((await poster(cookieSession('G1'), { selection: SEMAINE })).status, 403);
@@ -307,7 +307,8 @@ test('Bob : rappels de coaching (perso, 1 h avant) et récap admin 2 h avant la 
     assert.match(membre[0], /Rappel/);
     assert.match(membre[1], /1 heure/);
     assert.strictEqual(admin.length, 1);
-    assert.match(admin[0], /localhost\/admin/);
+    assert.match(admin[0], /retour=%2Fadmin%3Fsemaine/);
+    assert.match(admin[0], /retour=%2Fadmin%2Fimprevu/, "bouton J'ai un imprévu");
   } finally { await m.fermer(); }
 });
 

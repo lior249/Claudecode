@@ -246,6 +246,21 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
 - Couleurs de la grille : orange = ses séances, gris foncé = pris, gris clair = libre, vert = libre pour une réserve,
   rouge = séance touchée par une absence du coach.
 
+### Ce qui a été construit (livraison 3)
+
+- Le coaching réservé est **crédité tout de suite** quand le coach annule (absence ou imprévu) ; **Reprogrammer** l'utilise
+  aussitôt sur un créneau libre, **Garder en réserve** le garde pour plus tard.
+- Si le coach recoche un créneau (finalement disponible), la séance est **rétablie** tant que le membre n'a rien choisi,
+  et la réserve est reprise ; Bob le prévient.
+- Une séance prise sur une réserve et annulée par le membre **rend la réserve**.
+- La règle des 11 h UTC (pas de réservation pour le jour même après 11 h) vaut aussi pour les reports, les réserves
+  et le semaine par semaine.
+- Un créneau fixe réservé pour un jour où le coach est absent (ou déjà pris ce jour-là) commence la semaine suivante.
+- Passer aux créneaux fixes remplace les séances « semaine par semaine » à venir ; pour passer au semaine par semaine,
+  le membre retire d'abord ses créneaux fixes.
+- Le fuseau horaire est celui du téléphone du membre (enregistré à chaque visite de la page coaching) ;
+  Bob écrit les heures à l'heure du membre, le coach garde l'heure UTC.
+
 ### Les rappels de coaching (inchangés)
 
 - Rappel choisi par le membre : 4 h, 3 h, 2 h ou 1 h 30 avant (4 h par défaut).
@@ -311,5 +326,5 @@ Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **san
 | **0** (faite) | L'Elite en paiement unique (fin des renouvellements, du classement et du retrait), le suivi des membres payés par carte, la progression Whop (leçons terminées) |
 | **1** (faite) | La fiche, Mon parcours, À traiter, les étapes 1 à 3 (envois, niveau L1 / L2, Demander des modifications / Valider, remarques avec liens et images), le coaching d'entrée, l'accès au coaching selon l'étape (3 à 5 par semaine) |
 | **2** (faite) | L'étape 4 : heures choisies et rappels de Bob, compte rendu du jour, statistiques, objectifs, GOAT et rôles de revenus, les sinistrés |
-| **3** | Le coaching : fuseaux horaires, disponibilités du coach, imprévu (séances en rouge), annuler ou reporter, coachings en réserve, réservation semaine par semaine |
+| **3** (faite) | Le coaching : fuseaux horaires, disponibilités du coach, imprévu (séances en rouge), annuler ou reporter, coachings en réserve, réservation semaine par semaine |
 | **4** | L'application installable et ses notifications, avec le choix Bob ou application |

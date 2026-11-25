@@ -234,6 +234,22 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
 - **Membres payés par carte** : si Whop redonne de lui-même le rôle Elite à un sinistré, le salon #sinistrés ne suffit plus
   à le restreindre ; Bob ne le compte pas comme un paiement arrêté.
 
+## Le coaching (livraison 3)
+
+| Côté membre (`/coaching`) | Côté coach |
+|---|---|
+| Toutes les heures **à son heure** (fuseau de son téléphone), avec « nuit » quand un créneau tombe le lendemain chez lui | **Calendrier** (`/admin`) : séances de tous les types, tes absences (hachuré), séances que tu as annulées (rouge) |
+| **Créneaux fixes** (les mêmes chaque semaine) ou **Semaine par semaine** (cette semaine ou la prochaine), 3 à 5 par semaine | **Mes disponibilités** (`/admin/disponibilites`) : tout coché par défaut, décoche tes absences (un créneau ou un jour entier) |
+| **Annuler ou reporter** jusqu'à 30 min avant, avec une justification | **J'ai un imprévu** (`/admin/imprevu`) : les séances du jour à annuler et ton message |
+| Séance annulée par le coach **en rouge** : **Reprogrammer** ou **Garder en réserve** | |
+| **Coachings en réserve** (5 au plus), créneaux libres **en vert**, en plus de ses coachings habituels | |
+
+- **Le dimanche à partir de 8 h UTC**, Bob t'envoie le bouton **Sélectionner mes disponibilités** pour la semaine suivante.
+- **2 h avant la première séance du jour**, son récapitulatif a un bouton **J'ai un imprévu**.
+- Chaque membre touché par une absence ou un imprévu reçoit un message privé (avec ton message pour un imprévu)
+  et **1 coaching en réserve** ; la séance ne compte pas dans son minimum et n'a pas de rappel.
+- Bob te prévient quand un membre reporte une séance ou utilise une réserve.
+
 ## L'espace de gestion
 
 Sur **overmaxx.online/admin** (connexion avec `/connexion` dans Discord) : barre latérale à gauche sur ordinateur,

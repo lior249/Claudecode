@@ -92,7 +92,6 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
   });
 }
 
-const LEGENDE = `<div class="legende"><span><i style="background:#ff8a00"></i>Mes créneaux</span><span><i style="background:#1b1b1b;border:1px solid #333"></i>Pris</span><span><i style="background:#4a4a4a"></i>Libre</span></div>`;
 
 // Toutes les pages (sauf l'accueil) demandent le compte Discord. Pas de mot de passe : la personne donne son pseudo,
 // Bob lui envoie sur Discord un bouton « C'est bien moi, continuer », qui ouvre le site connecté.
@@ -380,173 +379,6 @@ function pageAdminMembres(config, { membres, cartes = [], progression = {}, tota
   </table></div></div>`, espace, 'membres');
 }
 
-function pageCoaching(config, { session, grille, seances, coaching, message, interdit, versParcours, espace = { session } }) {
-  if (interdit) {
-    return pageEspace('Coaching privé', `
-    <h1>Coaching privé</h1>
-    <div class="carte"><p style="margin:0">${echapper(interdit)}</p></div>
-    ${versParcours ? '<a class="bouton" href="/parcours" style="max-width:340px">Mon parcours</a>'
-    : '<a class="bouton secondaire" href="/deconnexion" style="max-width:340px">Changer de compte</a>'}
-    ${blocSupport(config)}`, espace, 'coaching');
-  }
-  const limite = (() => {
-    const [h, m] = coaching.creneaux[0].split(':').map(Number);
-    const t = h * 60 + m - config.coaching.delaiReservationHeures * 60;
-    return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
-  })();
-  const donnees = {
-    cases: grille.cases, jours: coaching.JOURS, min: config.coaching.minParSemaine, max: config.coaching.maxParSemaine || 7,
-  };
-  const listeSeances = seances.length
-    ? seances.map((s) => `<div class="seance"><div><b>${echapper(coaching.JOURS[(new Date(s.debut).getUTCDay() + 6) % 7])} ${echapper(s.date.slice(8, 10))}/${echapper(s.date.slice(5, 7))}</b> à ${echapper(s.heure)} GMT</div>
-        <button class="petit-bouton" type="button" data-annuler="${echapper(s.date)}|${echapper(s.heure)}">Annuler</button></div>`).join('')
-    : '<p class="doux" style="margin:0">Aucune séance prévue dans les prochains jours.</p>';
-  const script = `
-  (function () {
-    var D = ${JSON.stringify(donnees)};
-    var choix = {};
-    D.cases.forEach(function (c) { if (c.etat === 'moi') choix[c.jour] = c.heure; });
-    var grille = document.getElementById('grille');
-    var decalage = -new Date().getTimezoneOffset();
-    function local(h) {
-      if (!decalage) return '';
-      var p = h.split(':'); var t = (+p[0] * 60 + +p[1] + decalage + 1440) % 1440;
-      return ('0' + Math.floor(t / 60)).slice(-2) + ':' + ('0' + (t % 60)).slice(-2);
-    }
-    var COURTS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    var HEURES = []; D.cases.forEach(function (c) { if (HEURES.indexOf(c.heure) < 0) HEURES.push(c.heure); });
-    function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; return e; }
-    function dessiner() {
-      grille.innerHTML = '';
-      grille.appendChild(el('div'));
-      COURTS.forEach(function (n, j) { grille.appendChild(el('div', 'tete' + (choix[j] !== undefined ? ' choisi' : ''), n)); });
-      HEURES.forEach(function (h, i) {
-        if (i > 0 && +h.slice(0, 2) - +HEURES[i - 1].slice(0, 2) > 1) grille.appendChild(el('div', 'coupure'));
-        var lab = el('div', 'h', h);
-        if (local(h)) lab.appendChild(el('small', '', local(h)));
-        grille.appendChild(lab);
-        for (var j = 0; j < 7; j++) (function (j) {
-          var c = D.cases.filter(function (x) { return x.jour === j && x.heure === h; })[0];
-          var mien = choix[j] === h;
-          var b = el('button', 'case ' + (mien ? 'moi' : c.etat === 'pris' ? 'pris' : 'libre'));
-          b.type = 'button';
-          b.setAttribute('aria-label', D.jours[j] + ' ' + h + (c.etat === 'pris' ? ' (pris)' : mien ? ' (choisi)' : ''));
-          if (c.etat === 'pris') b.disabled = true;
-          else b.onclick = function () { if (mien) delete choix[j]; else choix[j] = h; dessiner(); };
-          grille.appendChild(b);
-        })(j);
-      });
-      var n = Object.keys(choix).length;
-      document.getElementById('compteur').textContent = n + ' créneau(x) choisi(s) · de ' + D.min + ' à ' + D.max + ' · 1 par jour';
-      document.getElementById('enregistrer').disabled = n < D.min || n > D.max;
-    }
-    dessiner();
-    document.getElementById('enregistrer').onclick = function () {
-      var sel = Object.keys(choix).map(function (j) { return { jour: +j, heure: choix[j] }; });
-      var btn = this; btn.disabled = true; btn.textContent = 'Enregistrement…';
-      fetch('/api/coaching/creneaux', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selection: sel, rappelMin: +document.getElementById('rappel').value }) })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d.erreur) { alert(d.erreur); btn.disabled = false; btn.textContent = 'Enregistrer mes créneaux'; return; }
-          location.href = '/coaching?ok=1';
-        });
-    };
-    var dlg = document.getElementById('dlg-annuler'); var cible = null;
-    document.querySelectorAll('[data-annuler]').forEach(function (b) {
-      b.onclick = function () { cible = b.getAttribute('data-annuler').split('|'); document.getElementById('dlg-quand').textContent = cible[0] + ' à ' + cible[1] + ' GMT'; dlg.showModal(); };
-    });
-    document.getElementById('dlg-fermer').onclick = function () { dlg.close(); };
-    document.getElementById('dlg-valider').onclick = function () {
-      var j = document.getElementById('justif').value;
-      fetch('/api/coaching/annuler', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: cible[0], heure: cible[1], justification: j }) })
-        .then(function (r) { return r.json(); })
-        .then(function (d) { if (d.erreur) alert(d.erreur); else location.href = '/coaching?annule=1'; });
-    };
-  })();`;
-  const rappelOptions = coaching.RAPPELS_POSSIBLES.map((m) => `<option value="${m}"${m === grille.rappelMin ? ' selected' : ''}>${m >= 120 ? `${m / 60} h` : '1 h 30'} avant</option>`).join('');
-  return pageEspace('Coaching privé', `
-  <h1 style="font-size:19px;margin:0 0 2px">Mes créneaux de coaching</h1>
-  <p class="doux petit" style="margin-bottom:8px">${echapper(session.pseudo)} · ${config.coaching.minParSemaine} à ${config.coaching.maxParSemaine || 7} par semaine, 1 par jour, chaque semaine. Heures GMT.</p>
-  ${message ? `<p class="ok petit" style="margin-bottom:8px">${echapper(message)}</p>` : ''}
-  <div class="colonnes">
-    <div>
-      <div class="alerte">Réserve avant <b>${limite} GMT</b> pour qu'une séance compte le jour même.</div>
-      ${LEGENDE}
-      <div id="grille" class="tableau"></div>
-      <div class="barre-action">
-        <p id="compteur" class="compteur" style="margin:0"></p>
-        <button id="enregistrer" class="bouton" type="button" style="margin-top:6px;min-height:46px">Enregistrer mes créneaux</button>
-      </div>
-    </div>
-    <div class="cote">
-      <div class="carte" style="padding:14px 16px;margin-top:14px">
-        <label for="rappel" style="margin-top:0">Mon rappel personnalisé</label>
-        <select id="rappel">${rappelOptions}</select>
-        <p class="doux petit" style="margin:6px 0 0">En plus : rappel automatique 1 h avant chaque séance.</p>
-      </div>
-      <div class="carte">
-        <h2>Mes prochaines séances</h2>
-        ${listeSeances}
-        <p class="doux petit" style="margin:10px 0 0">Annulation possible jusqu'à ${config.coaching.annulationMinutes} minutes avant, avec une justification.</p>
-      </div>
-    </div>
-  </div>
-  <dialog id="dlg-annuler">
-    <h2>Annuler la séance du <span id="dlg-quand"></span></h2>
-    <label for="justif">Justification (obligatoire)</label>
-    <textarea id="justif" maxlength="500" placeholder="Ex. : j'ai un empêchement familial"></textarea>
-    <button id="dlg-valider" class="bouton" type="button">Confirmer l'annulation</button>
-    <button id="dlg-fermer" class="bouton secondaire" type="button">Garder la séance</button>
-  </dialog>`, espace, 'coaching', { script });
-}
-
-function pageAdmin(config, { lundi, jours, cases, annulations, coaching, espace }) {
-  const script = `
-  (function () {
-    var dlg = document.getElementById('dlg'); var I = ${JSON.stringify(cases.filter((c) => c.membre).reduce((acc, c) => { acc[c.cle] = c.membre; return acc; }, {}))};
-    document.querySelectorAll('[data-cle]').forEach(function (b) {
-      b.onclick = function () {
-        var m = I[b.getAttribute('data-cle')]; if (!m) return;
-        var t = document.getElementById('dlg-corps'); t.innerHTML = '';
-        [['Membre', m.nom], ['Discord', m.pseudo], ['Email', m.email], ['Accès jusqu\\'au', m.fin], ['Créneaux', m.creneaux], ['Rappel', m.rappel], ['Séance', b.getAttribute('data-quand')], ['Annulation', m.annulation || '—']]
-          .forEach(function (l) { var d = document.createElement('div'); var a = document.createElement('dt'); a.textContent = l[0]; var v = document.createElement('dd'); v.textContent = l[1] || '—'; d.appendChild(a); d.appendChild(v); t.appendChild(d); });
-        dlg.showModal();
-      };
-    });
-    document.getElementById('dlg-fermer').onclick = function () { dlg.close(); };
-  })();`;
-  const heures = coaching.creneaux;
-  const grille = `<div class="tableau"><div></div>${jours.map((j) => `<div class="tete">${echapper(j.nom.slice(0, 3))}<small>${echapper(j.date.slice(8, 10))}/${echapper(j.date.slice(5, 7))}</small></div>`).join('')}${
-    heures.map((h, i) => `${i > 0 && Number(h.slice(0, 2)) - Number(heures[i - 1].slice(0, 2)) > 1 ? '<div class="coupure"></div>' : ''}<div class="h">${echapper(h)}</div>${
-      jours.map((j) => {
-        const c = cases.find((x) => x.date === j.date && x.heure === h);
-        return `<button type="button" class="case ${c.membre ? 'moi' : 'libre'}${c.annulee ? ' annulee' : ''}"${c.membre
-          ? ` data-cle="${echapper(c.cle)}" data-quand="${echapper(j.nom)} ${echapper(c.date)} ${echapper(c.heure)} GMT" aria-label="${echapper(c.membre.court)}"` : ' disabled'}>${c.membre ? `<span class="c-court">${echapper(c.membre.court.slice(0, 3))}</span><span class="c-long">${echapper(c.membre.court)}</span>` : ''}</button>`;
-      }).join('')}`).join('')}</div>`;
-  const lignesAnnul = annulations.length
-    ? annulations.map((a) => `<div class="seance"><div><b>${echapper(a.date)} ${echapper(a.heure)}</b> · ${echapper(a.nom)}<br><span class="doux petit">${echapper(a.justification)}</span></div></div>`).join('')
-    : '<p class="doux" style="margin:0">Aucune annulation cette semaine.</p>';
-  return pageEspace('Calendrier', `
-  <div class="titre-page">
-    <div><p class="etiquette">Gestion</p><h1>Calendrier des coachings</h1></div>
-    <div class="nav-semaine" style="margin:0;gap:8px">
-      <a class="petit-bouton" href="/admin?semaine=${echapper(coaching.ajouterJours(lundi, -7))}">${ICONE.retour.replace('<svg', '<svg style="width:14px;height:14px;vertical-align:-2px"')} Précédente</a>
-      <span class="doux petit">Semaine du ${echapper(lundi.slice(8, 10))}/${echapper(lundi.slice(5, 7))}</span>
-      <a class="petit-bouton" href="/admin?semaine=${echapper(coaching.ajouterJours(lundi, 7))}">Suivante</a>
-    </div>
-  </div>
-  <div class="colonnes">
-    <div>
-      <div class="legende"><span><i style="background:#ff8a00"></i>Réservé (clique pour voir le profil)</span><span><i style="background:#4a4a4a"></i>Libre</span><span><i style="outline:2px solid var(--erreur)"></i>Annulé</span></div>
-      ${grille}
-    </div>
-    <div class="cote"><div class="carte"><h2>Annulations de la semaine</h2>${lignesAnnul}</div></div>
-  </div>
-  <dialog id="dlg"><h2>Réservation</h2><dl class="details" id="dlg-corps"></dl><button id="dlg-fermer" class="bouton secondaire" type="button">Fermer</button></dialog>`, espace, 'calendrier', { script });
-}
-
 // /admin/pages : tous les liens du site, un par un. Les aperçus utilisent des données d'exemple (rien n'est enregistré).
 function pageAdminPages(config, { espace }) {
   const video = (id, nom) => (id ? '<span class="ok">vidéo réglée</span>' : `<span style="color:#f1d38a">vidéo à ajouter</span> <code>${nom}</code>`);
@@ -592,4 +424,4 @@ function pageAdminPages(config, { espace }) {
   ${groupes.map(([titre, liste]) => `<div class="carte"><h2>${echapper(titre)}</h2><ul class="liste">${lignes(liste)}</ul></div>`).join('')}`, espace, 'pages');
 }
 
-module.exports = { navEspace, pageEspace, pageAdminPages, pageConnexionRequise, pageConnexionEnvoyee, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminCandidature, pageAdminMembres, pageCoaching, pageAdmin };
+module.exports = { navEspace, pageEspace, pageAdminPages, pageConnexionRequise, pageConnexionEnvoyee, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminCandidature, pageAdminMembres };

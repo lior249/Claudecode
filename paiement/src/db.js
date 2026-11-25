@@ -366,6 +366,54 @@ function migrerV13(db) {
   db.exec('PRAGMA user_version = 13');
 }
 
+// v14 : coaching (livraison 3) : absences et imprévus du coach, séances touchées, coachings en réserve,
+// fuseau horaire du membre ; une annulation par membre (et non plus une seule par créneau).
+function migrerV14(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 14) return;
+  const c = colonnes(db, 'profils_coaching');
+  if (!c.includes('reserves')) db.exec('ALTER TABLE profils_coaching ADD COLUMN reserves INTEGER NOT NULL DEFAULT 0');
+  if (!c.includes('fuseau')) db.exec('ALTER TABLE profils_coaching ADD COLUMN fuseau TEXT');
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS absences_coach (
+    date    TEXT NOT NULL,
+    heure   TEXT NOT NULL,
+    type    TEXT NOT NULL DEFAULT 'absence',   -- absence (disponibilités de la semaine) | imprevu
+    message TEXT,
+    cree_le TEXT NOT NULL,
+    PRIMARY KEY (date, heure)
+  );
+  CREATE TABLE IF NOT EXISTS seances_touchees (
+    date       TEXT NOT NULL,
+    heure      TEXT NOT NULL,
+    discord_id TEXT NOT NULL,
+    type       TEXT NOT NULL,                  -- absence | imprevu
+    message    TEXT,
+    credite    INTEGER NOT NULL DEFAULT 0,     -- 1 : un coaching en réserve a été donné
+    choix      TEXT,                           -- NULL (à choisir) | reserve | reprogramme
+    cree_le    TEXT NOT NULL,
+    choisi_le  TEXT,
+    PRIMARY KEY (date, heure)
+  );
+  CREATE TABLE IF NOT EXISTS disponibilites_coach (
+    lundi     TEXT PRIMARY KEY,                -- semaine dont le coach a envoyé ses disponibilités
+    envoye_le TEXT NOT NULL
+  );
+  CREATE TABLE annulations_v14 (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id    TEXT NOT NULL,
+    date          TEXT NOT NULL,
+    heure         TEXT NOT NULL,
+    justification TEXT NOT NULL,
+    cree_le       TEXT NOT NULL,
+    UNIQUE (date, heure, discord_id)
+  );
+  INSERT INTO annulations_v14 (id, discord_id, date, heure, justification, cree_le)
+    SELECT id, discord_id, date, heure, justification, cree_le FROM annulations;
+  DROP TABLE annulations;
+  ALTER TABLE annulations_v14 RENAME TO annulations;
+  PRAGMA user_version = 14;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -388,6 +436,7 @@ function ouvrirBase(fichier) {
   migrerV11(db);
   migrerV12(db);
   migrerV13(db);
+  migrerV14(db);
   return db;
 }
 
