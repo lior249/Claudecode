@@ -304,8 +304,8 @@ function pageAdminMembres(config, { membres, cartes = [], progression = {}, tota
   const formation = (m) => {
     const p = m.whop_user_id && progression[m.whop_user_id];
     if (!totalLecons) return '<span class="doux">—</span>';
-    if (!p) return `<span class="doux">0 / ${totalLecons}</span>`;
-    return `${p.terminees} / ${totalLecons}<br><span class="doux">${echapper(formatDate(p.derniere))}</span>`;
+    if (!p) return '<span class="doux">Pas commencé</span>';
+    return `${p.terminees} / ${p.total || totalLecons}<br><span class="doux">${echapper(formatDate(p.derniere))}</span>`;
   };
   const statut = (m) => {
     if (m.statut !== 'actif') return '<span class="erreur-form">Expiré</span>';

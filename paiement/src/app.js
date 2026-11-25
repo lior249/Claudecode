@@ -563,8 +563,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     const db = commandes.db;
     const membres = db.prepare('SELECT * FROM membres ORDER BY statut, acces_jusqu_au').all();
     const cartes = db.prepare('SELECT * FROM abonnes_carte ORDER BY termine_le IS NOT NULL, perdu_le IS NOT NULL, depuis DESC').all();
-    const progression = Object.fromEntries(db.prepare(`SELECT whop_user_id, SUM(termine) terminees, MAX(maj_le) derniere
-      FROM progression_whop GROUP BY whop_user_id`).all().map((p) => [p.whop_user_id, p]));
+    // Leçons terminées sur le total des cours que le membre a commencés.
+    const progression = Object.fromEntries(db.prepare(`SELECT p.whop_user_id, SUM(p.termine) terminees, MAX(p.maj_le) derniere,
+      (SELECT COALESCE(SUM(c.lecons), 0) FROM cours_whop c WHERE c.id IN (SELECT DISTINCT cours_id FROM progression_whop x WHERE x.whop_user_id = p.whop_user_id)) total
+      FROM progression_whop p GROUP BY p.whop_user_id`).all().map((p) => [p.whop_user_id, p]));
     const totalLecons = db.prepare('SELECT COALESCE(SUM(lecons), 0) n FROM cours_whop').get().n;
     res.send(E.pageAdminMembres(config, { membres, cartes, progression, totalLecons, espace: espaceDe(lireSession(req, config.secretApp)) }));
   });
