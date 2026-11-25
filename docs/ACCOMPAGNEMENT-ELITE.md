@@ -11,6 +11,8 @@
 - **3 mois d'accompagnement.**
 - Plus de renouvellement à 60 €, plus de caution, plus de classement Insatisfait / Inconstant.
 - **Personne n'est retiré du serveur** à la fin des 3 mois.
+- **Après les 3 mois**, tant qu'il n'est pas GOAT, le membre **garde ses lives individuels**
+  (sauf les règles des sinistrés, partie 6).
 - **PC obligatoire** pour rejoindre l'accompagnement : les vidéos se font sur PC, pas sur téléphone.
 - Les membres qui paient **par carte** suivent exactement le même parcours : dès que Whop leur donne le rôle Elite,
   Bob leur crée leur fiche.
@@ -102,6 +104,13 @@ L'étape 1 fonctionne sans lui en attendant.
   - « Je ne gagne pas assez d'abonnés. » ;
   - « Est-ce que j'ai mal appliqué quelque chose sur mes vidéos ? ».
 
+### Ce qui accompagne tout le parcours
+
+- **Mon parcours** : la page d'accueil du membre. Son étape, ce qu'il doit faire maintenant, son prochain coaching,
+  la dernière remarque du coach.
+- **À traiter** : la page du coach qui regroupe tous les envois en attente de validation, tous membres confondus.
+  Bob prévient le coach à chaque nouvel envoi.
+
 ## 3. Objectifs, GOAT et rôles
 
 - **Objectifs de revenus** (affichés avec une barre de progression), en **totaux cumulés depuis le début** :
@@ -109,7 +118,15 @@ L'étape 1 fonctionne sans lui en attendant.
 - **Rôle GOAT** : dès qu'il atteint **1 000 € sur 28 jours** (une seule fois suffit).
   Il garde la plateforme et ses comptes rendus, mais **n'a plus de lives individuels**, seulement le live de groupe.
 - **Rôles de revenus** : **1 500 €, 5 000 € et 10 000 € au total**, en euros.
-  Les identifiants des rôles seront fournis plus tard.
+
+| Rôle | Identifiant Discord |
+|---|---|
+| GOAT | 1574770119178195024 |
+| 1 500 € | 1573303409455407274 |
+| 5 000 € | 1573303677106520227 |
+| 10 000 € | 1573303848003571733 |
+| Sinistré | 1573304134138855585 |
+
 - Les revenus sont **déclarés par le membre**, avec une preuve.
   Quand un seuil est atteint, le coach reçoit un message avec un bouton **Confirmer** : Bob donne le rôle
   seulement après ce clic, pour éviter les fausses déclarations.
@@ -188,7 +205,37 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
 - Rappel automatique 1 h avant.
 - Pour le coach : un récapitulatif 2 h avant la première séance du jour.
 
-## 6. Les notifications : l'application Overmaxx
+## 6. Les sinistrés
+
+Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **sans raison donnée**.
+
+### Avant le sinistre
+- **[à confirmer]** Ce qui compte comme absence :
+  - étape 4 : 7 jours sans compte rendu ;
+  - étapes 1 à 3 : 7 jours sans aucune action (envoi, connexion au site, coaching) : Bob prévient le coach, qui décide ;
+  - le coach peut aussi déclarer un sinistre lui-même, à tout moment.
+- Bob prévient avant : relance **après 2 jours** d'absence, puis **avertissement après 5 jours**
+  (« dans 2 jours, tu seras sinistré »), et le coach est prévenu après 3 jours.
+- **[à confirmer]** Un bouton **Prévenir d'une absence** : le membre qui donne sa raison à l'avance (maladie, voyage…)
+  n'est pas sinistré, puisqu'un sinistre, c'est une absence sans raison.
+
+### Pendant le sinistre
+- Il reçoit le rôle **Sinistré**. Comme pour En Attente, il ne voit plus **qu'un seul salon** : **#sinistrés**.
+- **Bob lui retire temporairement son rôle Elite** et le lui rend à la réhabilitation : sinon Discord lui laisserait voir
+  les salons Elite, car l'autorisation d'un rôle l'emporte sur l'interdiction d'un autre.
+- Sur la plateforme, il ne voit que son profil : **plus de réservation de coaching**, et ses créneaux sont libérés.
+- Dans #sinistrés, un bouton ouvre la **fiche de sinistre** : pourquoi il était absent, et ses engagements à partir de maintenant.
+- Le coach lit la fiche et choisit **Demander des précisions** ou **Réhabiliter**. La réhabilitation retire le rôle Sinistré,
+  rend le rôle Elite, et Bob le prévient.
+
+### Le compteur
+- Les sinistres sont **comptés** et visibles sur sa fiche (1 / 3, 2 / 3, 3 / 3).
+- **Au 3e sinistre** (21 jours d'absence au total, pas forcément de suite) : il est **sinistré total**.
+  Il n'a **plus jamais droit aux lives individuels**, même pendant ses 3 mois.
+- **[à confirmer]** Après les 3 mois : un seul sinistre suffit pour perdre les lives individuels ;
+  avant les 3 mois, il les retrouve à la réhabilitation (tant qu'il n'a pas 3 sinistres).
+
+## 7. Les notifications : l'application Overmaxx
 
 - Overmaxx devient une **application web installable** (« PWA ») : le membre l'ajoute à l'écran d'accueil de son téléphone,
   avec l'icône Overmaxx, et elle s'ouvre comme une vraie application. Pas besoin de passer par un store.
@@ -198,12 +245,12 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
 - **Exception : les rappels de paiement** passent par les deux. D'abord Bob, puis l'application 10 minutes plus tard,
   seulement s'il n'a pas encore payé.
 
-## 7. Livraisons proposées
+## 8. Livraisons proposées
 
 | Livraison | Contenu |
 |---|---|
 | **0** | L'Elite en paiement unique (fin des renouvellements, du classement et du retrait), le suivi des membres payés par carte |
-| **1** | La fiche, les étapes 1 à 3 (envois, niveau L1 / L2, retours écrits, remarques avec liens et images), le coaching d'entrée, l'accès au coaching selon l'étape (3 à 5 par semaine) |
-| **2** | L'étape 4 : heures choisies et rappels de Bob, compte rendu du jour, statistiques, objectifs, GOAT et rôles de revenus |
+| **1** | La fiche, Mon parcours, À traiter, les étapes 1 à 3 (envois, niveau L1 / L2, Demander des modifications / Valider, remarques avec liens et images), le coaching d'entrée, l'accès au coaching selon l'étape (3 à 5 par semaine) |
+| **2** | L'étape 4 : heures choisies et rappels de Bob, compte rendu du jour, statistiques, objectifs, GOAT et rôles de revenus, les sinistrés |
 | **3** | Le coaching : fuseaux horaires, disponibilités du coach, imprévu (séances en rouge), annuler ou reporter, coachings en réserve, réservation semaine par semaine |
 | **4** | L'application installable et ses notifications, avec le choix Bob ou application |
