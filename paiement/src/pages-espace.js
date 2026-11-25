@@ -75,8 +75,10 @@ function navEspace(espace = {}) {
   if (!espace.estAdmin) {
     nav.push({ section: espace.parcours ? 'Mon accompagnement' : 'Mon espace' });
     if (espace.parcours) {
-      nav.push({ cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' },
-        { cle: 'profil', libelle: 'Mon profil', lien: '/profil', icone: 'profil' },
+      nav.push({ cle: 'profil', libelle: 'Mon profil', lien: '/profil', icone: 'profil' },
+        { cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' },
+        { cle: 'communaute', libelle: 'Communauté', lien: '/communaute', icone: 'communaute' },
+        { cle: 'remarques', libelle: 'Remarques du coach', lien: '/remarques', icone: 'remarques' },
         { cle: 'fiche', libelle: 'Ma fiche', lien: '/fiche', icone: 'fiche' });
     }
     nav.push({ cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
@@ -91,6 +93,12 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
   const session = espace && espace.session;
   return gabaritEspace(titre, `${STYLE_GRILLE}${STYLE_BUREAU}${contenu}`, {
     ...options, nav: navEspace(espace), actif, jetonApp: espace && espace.jetonApp,
+    // Élèves de l'accompagnement : la barre du bas sur téléphone.
+    barreBas: espace && espace.parcours && !espace.estAdmin ? [
+      { cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' },
+      { cle: 'remarques', libelle: 'Remarques', lien: '/remarques', icone: 'remarques' },
+      { cle: 'notifications', libelle: 'Mes rappels', lien: '/notifications', icone: 'notifications' },
+      { cle: 'profil', libelle: 'Profil', lien: '/profil', icone: 'profil' }] : null,
     compte: session ? { pseudo: session.pseudo || 'Membre', role: espace.estAdmin ? 'Coach' : 'Membre Elite' } : null,
   });
 }

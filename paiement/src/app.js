@@ -17,6 +17,9 @@ const { creerParcours } = require('./parcours');
 const { creerSuivi, QUESTIONS, jourLisible } = require('./suivi');
 const { creerSinistres } = require('./sinistres');
 const { creerAccesManuels } = require('./acces-manuels');
+const { creerCommunaute } = require('./communaute');
+const PF = require('./pages-profil');
+const { roleLePlusHaut } = require('./pages-classement');
 const { verifierReponses } = require('./formulaires');
 
 const EMAIL_REGEX = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
@@ -36,7 +39,7 @@ const retourSur = (r, defaut = '/coaching') => (typeof r === 'string' && /^\/(?!
 // Le bouton pointe DIRECTEMENT vers discord.com : sur téléphone, c'est ce qui ouvre l'application Discord
 // (une redirection depuis notre site ouvrirait la page web de Discord, qui redemande l'identifiant et le mot de passe).
 
-function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours: parcoursDonne, suivi: suiviDonne, sinistres: sinistresDonnes, push: pushDonne, accesManuels }) {
+function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours: parcoursDonne, suivi: suiviDonne, sinistres: sinistresDonnes, push: pushDonne, accesManuels, communaute: communauteDonnee }) {
   const parcours = parcoursDonne || creerParcours({ db: commandes.db, config });
   const suivi = suiviDonne || creerSuivi({ db: commandes.db, parcours });
   const sinistres = sinistresDonnes || creerSinistres({ db: commandes.db, parcours });
@@ -44,6 +47,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const push = pushDonne || require('./push').creerPush({ db: commandes.db, config });
   // Rôles donnés à la main : les réponses du coach (Oui / Non), partagées avec Bob.
   const acces = accesManuels || (bob && bob.acces) || creerAccesManuels({ db: commandes.db, parcours, coaching });
+  // Suivis, concurrences et chaîne d'activité des élèves Elite.
+  const communaute = communauteDonnee || creerCommunaute({ db: commandes.db, parcours, suivi });
   // Jeton de l'application installée (dans son manifeste) : elle s'ouvre déjà connectée, même sur iPhone.
   // Le même toute la journée, valable un an.
   const jetonApp = (session) => signer({ but: 'app', id: session.id, pseudo: session.pseudo, exp: (Math.floor(Date.now() / 864e5) + 365) * 864e5 }, config.secretApp);
@@ -132,7 +137,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   }
   function espaceDe_(session) {
     const p = parcoursDe(session);
-    if (p) return p.sinistre_depuis ? '/sinistre' : '/parcours';
+    if (p) return p.sinistre_depuis ? '/sinistre' : '/profil';
     const membres = commandes.membresParDiscord(session.id);
     if (coaching.aUnPlanning(session.id) || membres.some((x) => x.programme === 'elite' && x.statut === 'actif')) return '/coaching';
     const c = candidatures && candidatures.parDiscord(session.id);
@@ -153,7 +158,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       return {
         id: p.discord_id, nom: profil.prenom || p.pseudo || 'Membre', pseudo: p.pseudo, avatar: profil.avatar || null, elite: true,
         revenus: st.revenusTotal || 0, vues: st.vues || 0, jours: Math.max(1, Math.floor((maintenant - new Date(p.entree_le)) / 864e5) + 1),
-        recompenses: suivi.recompenses(p.discord_id),
+        recompenses: suivi.recompenses(p.discord_id), chaine: communaute.chaine(p.discord_id),
       };
     }).sort((a, b) => b.revenus - a.revenus || b.vues - a.vues || a.nom.localeCompare(b.nom, 'fr'));
     liste.forEach((m, i) => { m.rang = i + 1; });
@@ -1108,10 +1113,94 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
 
   // Mon profil : tableau de bord des récompenses, objectifs, statistiques.
   const donneesProfil = (p) => ({ parcours: p, tableau: suivi.tableau(p.discord_id), stats: suivi.stats(p.discord_id), recompenses: suivi.recompenses(p.discord_id) });
+  // Un membre tel que les autres le voient : prénom ou pseudo (jamais le nom complet), photo, rang, chaîne.
+  const membreVu = (id) => {
+    const p = parcours.get(id) || {};
+    const profil = qProfils.get.get(id) || {};
+    return { id, nom: profil.prenom || p.pseudo || 'Membre', avatar: profil.avatar || null, role: roleLePlusHaut(suivi.recompenses(id)), chaine: communaute.chaine(id) };
+  };
+  const decaler = (jour, n) => new Date(Date.parse(`${jour}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+  function donneesMonProfil(p) {
+    const id = p.discord_id;
+    const profil = qProfils.get.get(id) || {};
+    const aujourdhui = p.fuseau ? suivi.aujourdhui(p) : new Date().toISOString().slice(0, 10);
+    const entree = (p.entree_le || aujourdhui).slice(0, 10);
+    const debut = entree > decaler(aujourdhui, -45) ? entree : decaler(aujourdhui, -45);
+    const pubs = Object.fromEntries(commandes.db.prepare('SELECT jour, COUNT(*) n FROM publications WHERE discord_id = ? GROUP BY jour').all(id).map((x) => [x.jour, x.n]));
+    const crs = Object.fromEntries(suivi.comptesRendus(id).map((c) => [c.jour, c]));
+    const gains = Object.fromEntries(suivi.gains(id).map((g) => [g.jour, g.gain]));
+    const jours = [];
+    for (let j = debut; j <= decaler(aujourdhui, 3); j = decaler(j, 1)) {
+      const cr = crs[j];
+      jours.push({ j, aujourdhui: j === aujourdhui, futur: j > aujourdhui, e: cr ? cr.etat : pubs[j] ? 'publie' : 'vide',
+        g: cr && gains[j] !== undefined ? gains[j] : null, v: cr ? cr.vues_jour : null, n: pubs[j] || 0 });
+    }
+    const envoyes = new Set(Object.values(crs).filter((c) => c.envoye_le).map((c) => c.jour));
+    const chaine = communaute.chaine(id);
+    const suivis = communaute.suivis(id);
+    const tache = p.etape === 4 ? suivi.tache(p) : parcours.tache(id);
+    return {
+      parcours: p, prenom: profil.prenom, avatar: profil.avatar, stats: suivi.stats(id) || {}, role: roleLePlusHaut(suivi.recompenses(id)) || 'elite',
+      jourDepuis: Math.max(1, Math.floor((Date.now() - new Date(p.entree_le)) / 864e5) + 1), jours, chaine, flamme: communaute.flamme(chaine),
+      derniers7: [7, 6, 5, 4, 3, 2, 1].map((k) => envoyes.has(decaler(aujourdhui, -k))), tache,
+      suivis: suivis.map((s) => membreVu(s.suivi)), nbSuivis: suivis.length, nbConcurrents: communaute.concurrents(id).length,
+      invitations: communaute.invitationsRecues(id).length, tableau: suivi.tableau(id), notifications: communaute.invitationsRecues(id).length > 0,
+    };
+  }
   app.get('/profil', (req, res) => {
     const x = membreParcours(req, res, '/profil', { sinistreOk: true });
     if (!x) return;
-    res.send(V.pageProfil(config, { espace: x.espace, ...donneesProfil(x.p) }));
+    res.send(PF.pageMonProfil(config, { espace: x.espace, ...donneesMonProfil(x.p) }));
+  });
+
+  // ---- Communauté : suivre (10 places), concurrences (3), invitations ----
+  app.get('/communaute', (req, res) => {
+    const x = membreParcours(req, res, '/communaute', { sinistreOk: true });
+    if (!x) return;
+    const id = x.p.discord_id;
+    const stats = (a) => (suivi.stats(a) || {}).revenusTotal || 0;
+    const suivis = communaute.suivis(id).map((s) => ({ ...s, membre: membreVu(s.suivi) }));
+    res.send(PF.pageCommunaute(config, { espace: x.espace, suivis,
+      concurrents: communaute.concurrents(id).map((c) => ({ ...c, membre: membreVu(c.autre), moi: stats(id), lui: stats(c.autre) })),
+      recues: communaute.invitationsRecues(id).map((c) => ({ ...c, membre: membreVu(c.de) })),
+      envoyees: communaute.invitationsEnvoyees(id).map((c) => ({ ...c, membre: membreVu(c.vers) })),
+      enVogue: communaute.enVogue(id).map((v) => ({ ...v, membre: membreVu(v.parcours.discord_id) })),
+      proches: communaute.proches(id).map((v) => ({ ...v, membre: membreVu(v.parcours.discord_id) })),
+      peutConcourir: communaute.peutConcourir(id), places: suivis.length + communaute.invitationsEnvoyees(id).filter((c) => !communaute.suit(id, c.vers)).length,
+      message: { suivi: 'Tu le suis : tu recevras ses nouveaux résultats.', retire: 'Tu ne le suis plus.', defi: 'Invitation envoyée : Bob le prévient.', accepte: 'Concurrence lancée !', refuse: 'Invitation refusée.', abandon: 'Concurrence arrêtée.' }[req.query.fait],
+      erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  const versCommunaute = (res, r, fait) => res.redirect(303, `/communaute?${r.erreur ? `erreur=${encodeURIComponent(r.erreur)}` : `fait=${fait}`}`);
+  const membreCommunaute = (req, res) => { const x = membreParcours(req, res, '/communaute', { sinistreOk: true }); return x ? x.p.discord_id : null; };
+  app.post('/communaute/suivre', formulaire, (req, res) => {
+    const id = membreCommunaute(req, res); if (!id) return;
+    versCommunaute(res, communaute.suivre(id, String(req.body.id || '')), 'suivi');
+  });
+  app.post('/communaute/ne-plus-suivre', formulaire, (req, res) => {
+    const id = membreCommunaute(req, res); if (!id) return;
+    versCommunaute(res, communaute.nePlusSuivre(id, String(req.body.id || '')), 'retire');
+  });
+  app.post('/communaute/defier', formulaire, (req, res) => {
+    const id = membreCommunaute(req, res); if (!id) return;
+    const r = communaute.inviter(id, String(req.body.id || ''));
+    if (r.ok) prevenir('invitationConcurrence', r.concurrence, membreVu(id));
+    versCommunaute(res, r, 'defi');
+  });
+  app.post('/communaute/concurrences/:cid', formulaire, (req, res) => {
+    const id = membreCommunaute(req, res); if (!id) return;
+    const oui = req.body.reponse === 'oui';
+    const r = communaute.repondre(id, req.params.cid, oui);
+    if (r.ok) prevenir('reponseConcurrence', r.concurrence, membreVu(id), oui);
+    versCommunaute(res, r, oui ? 'accepte' : 'refuse');
+  });
+  app.post('/communaute/concurrences/:cid/abandon', formulaire, (req, res) => {
+    const id = membreCommunaute(req, res); if (!id) return;
+    versCommunaute(res, communaute.annuler(id, req.params.cid), 'abandon');
+  });
+  app.get('/remarques', (req, res) => {
+    const x = membreParcours(req, res, '/remarques', { sinistreOk: true });
+    if (!x) return;
+    res.send(PF.pageRemarques(config, { espace: x.espace, remarques: parcours.remarques(x.p.discord_id) }));
   });
 
   // Données de la fiche (membre et coach).
@@ -1175,6 +1264,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const p = parcours.get(cr.discord_id);
     prevenir('compteRenduDecide', r.compteRendu, p, decision);
     if (r.nouvelles.length) prevenir('recompensesAtteintes', p, r.nouvelles);
+    if (decision === 'valider') {
+      const suiveurs = communaute.suiveurs(cr.discord_id);
+      if (suiveurs.length) prevenir('resultatPartage', membreVu(cr.discord_id), communaute.nouvelle(cr.discord_id, cr.jour), suiveurs);
+      for (const c of communaute.verifierConcurrences(cr.discord_id)) prevenir('concurrenceGagnee', c, membreVu(cr.discord_id), membreVu(c.autre));
+    }
     res.redirect(303, '/admin/a-traiter#etape-4');
   });
   function envoiDe(req, res) {

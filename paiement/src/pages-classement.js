@@ -16,6 +16,8 @@ function vuesCourtes(n) {
   if (v < 1e9) return court(v / 1e6, 'M');
   return court(v / 1e9, 'Md');
 }
+// La chaîne d'activité (3 jours d'affilée ou plus) juste avant le nombre de jours.
+const feu = (n) => (n >= 3 ? `<span class="feu" title="${n} jours d'affilée">🔥${n}</span> · ` : '');
 const dollars = (n) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 // Le rôle le plus élevé obtenu (confirmé par le coach).
 const roleLePlusHaut = (recompenses = []) => ORDRE_ROLES.find((r) => recompenses.some((x) => String(x.role) === r && x.confirme_le)) || null;
@@ -28,6 +30,7 @@ const MEDAILLE = `<svg class="medaille" viewBox="0 0 64 96" aria-label="Médaill
   <text x="32" y="72" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="26" fill="#6b4700">1</text></svg>`;
 
 const STYLE_CLASSEMENT = `<style>
+  .feu { color:#ff9a3c; font-weight:700; white-space:nowrap; }
   .cl-stats { display:grid; grid-template-columns:1fr 1fr 2fr; gap:14px; margin-bottom:18px; }
   .cl-stat { background:var(--surface); border:1px solid var(--bord); border-radius:18px; padding:18px; min-width:0; }
   .cl-stat b { display:block; font-size:30px; font-weight:800; letter-spacing:-0.02em; overflow-wrap:anywhere; }
@@ -109,7 +112,7 @@ function cartePodium(m, metal) {
     <div class="qui">${avatar(m, true)}<div style="min-width:0"><a class="nom" href="/classement/${encodeURIComponent(m.id)}">${echapper(m.nom)}</a>
       <span class="pseudo">@${echapper(m.pseudo || '')}</span></div></div>
     <div class="chiffres"><div class="gros"><small>Revenus générés</small><b>${dollars(m.revenus)}</b></div>
-      <div><small>Vues</small><b>${vuesCourtes(m.vues)}</b></div><div><small>Jours</small><b>${m.jours}</b></div></div>
+      <div><small>Vues</small><b>${vuesCourtes(m.vues)}</b></div><div><small>Jours</small><b>${feu(m.chaine)}${m.jours}</b></div></div>
     ${roles(m)}
   </div></article>`;
 }
@@ -133,7 +136,7 @@ function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRa
     <table class="cl"><thead><tr><th>Rang</th><th>Membre</th><th>Revenus générés</th><th class="optionnel">Vues</th><th class="optionnel">Jours</th><th class="optionnel">Rôle</th></tr></thead><tbody>
     ${reste.map((m) => `<tr${m.id === moi ? ' class="moi"' : ''}><td><span class="n">${m.rang}</span></td>
       <td><div class="membre-cl">${avatar(m)}<div><a href="/classement/${encodeURIComponent(m.id)}">${echapper(m.nom)}</a><small>@${echapper(m.pseudo || '')}</small></div></div></td>
-      <td><b>${dollars(m.revenus)}</b></td><td class="optionnel">${vuesCourtes(m.vues)}</td><td class="optionnel">${m.jours}</td>
+      <td><b>${dollars(m.revenus)}</b></td><td class="optionnel">${vuesCourtes(m.vues)}</td><td class="optionnel">${feu(m.chaine)}${m.jours}</td>
       <td class="optionnel">${pastilleRole(roleLePlusHaut(m.recompenses) || (m.elite ? 'elite' : 'membre'))}</td></tr>`).join('')}
     </tbody></table></section>` : ''}`, espace, 'classement');
 }

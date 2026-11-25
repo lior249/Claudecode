@@ -107,7 +107,7 @@ test('application installable : manifeste, service worker, ouverture déjà conn
     assert.match(parcoursPage, /<dialog class="fenetre" id="a-faire"/);
     assert.match(parcoursPage, /Termine ton accueil[\s\S]*Envoie tes exercices L1 et L2/);
     assert.strictEqual((await poste('/api/bienvenue/fini', {})).status, 200);
-    assert.strictEqual((await m.get('/app', { cookie: membre })).headers.get('location'), '/parcours');
+    assert.strictEqual((await m.get('/app', { cookie: membre })).headers.get('location'), '/profil');
     assert.doesNotMatch(await (await m.get('/parcours', { cookie: membre })).text(), /Termine ton accueil/);
     // Le réglage Discord pour que Bob puisse écrire : sur la page d'accueil, avec les 4 captures.
     const visiteur = await (await m.get('/', { cookie: '' })).text();

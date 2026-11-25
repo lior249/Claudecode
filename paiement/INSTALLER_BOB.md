@@ -302,6 +302,23 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
   mise à jour par Bob.
 - Hors du top 100 : il voit sa place (« Tu es 134e sur 210 ») ; son profil n'est visible que de lui et du coach.
 
+## Mon profil (accueil des élèves), communauté et chaîne 🔥
+
+- **Mon profil** est maintenant la page d'accueil des élèves Elite : photo, prénom et @pseudo ; revenus totaux, rang le plus haut
+  et jours depuis l'entrée ; la **roue des jours** (elle défile au doigt, le jour au centre grossit, « Revenir à aujourd'hui ») ;
+  sous la roue, le jour choisi : aujourd'hui la tâche du moment, les autres jours le résultat (gain, vues) ou le compte rendu à faire ;
+  la carte **Je suis**, la carte **chaîne**, la tâche du moment, puis le tableau de bord des revenus.
+- **Chaîne 🔥** : jours d'affilée avec un compte rendu **envoyé**. La flamme s'allume à 3 jours ; un jour manqué et elle repart à zéro.
+  Elle apparaît aussi dans le classement, avant le nombre de jours.
+- **Communauté** (`/communaute`) : suivre jusqu'à **10 personnes** (on retire quelqu'un pour en suivre un autre) ; « En vogue » propose
+  les meilleurs résultats de la semaine. Quand tu valides un compte rendu, ceux qui le suivent sont prévenus : l'argent gagné,
+  sinon les vues, sinon « vient de poster ».
+- **Concurrence** : à l'étape 4, après le premier compte rendu. « Profils proches » propose ceux qui ont, sur 10 jours, des revenus
+  à 200 $ près et des vues à 500 000 près. Invitation acceptée ou refusée ; **3 concurrents** au plus, chacun prend une des 10 places.
+  Objectif : le prochain palier (1 000, 1 500, 5 000, 10 000 $) ; le premier qui l'atteint gagne, Bob prévient les deux.
+- Sur téléphone, **barre du bas** : Classement · Remarques · Mes rappels · Profil. La vibration de la roue marche sur Android ;
+  Apple ne la permet pas aux sites (iPhone).
+
 ## Connexion par code et appareil reconnu
 
 - Sur la page de connexion, la personne donne son pseudo Discord. Bob lui envoie un **code à 6 chiffres** (valable 10 minutes,

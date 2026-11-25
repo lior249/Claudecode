@@ -509,6 +509,30 @@ function migrerV19(db) {
   PRAGMA user_version = 19;`);
 }
 
+// v20 : communauté des élèves Elite. Suivis (10 places) et concurrences (3 au plus, invitation acceptée ou refusée).
+function migrerV20(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 20) return;
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS suivis (
+    suiveur  TEXT NOT NULL,
+    suivi    TEXT NOT NULL,
+    type     TEXT NOT NULL DEFAULT 'suivi',   -- suivi | concurrent
+    cree_le  TEXT NOT NULL,
+    PRIMARY KEY (suiveur, suivi)
+  );
+  CREATE INDEX IF NOT EXISTS suivis_suivi ON suivis(suivi);
+  CREATE TABLE IF NOT EXISTS concurrences (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    de        TEXT NOT NULL,
+    vers      TEXT NOT NULL,
+    objectif  REAL NOT NULL,                  -- palier de revenus ($) : le premier qui l'atteint gagne
+    statut    TEXT NOT NULL,                  -- attente | accepte | refuse | abandon | fini
+    gagnant   TEXT,
+    cree_le   TEXT NOT NULL, decide_le TEXT, fini_le TEXT
+  );
+  PRAGMA user_version = 20;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -537,6 +561,7 @@ function ouvrirBase(fichier) {
   migrerV17(db);
   migrerV18(db);
   migrerV19(db);
+  migrerV20(db);
   return db;
 }
 

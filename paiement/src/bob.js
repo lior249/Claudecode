@@ -1053,6 +1053,30 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await notifier.membre(cr.discord_id, avecBoutons(`**Ton compte rendu du ${jourLisible(cr.jour)} est validé.**${st ? ` Récompenses validées au total : **${euros(st.revenusTotal)}**.` : ''}`,
         [{ label: 'Mon parcours', url: lienPerso(cr.discord_id, p && p.pseudo, '/parcours') }]));
     },
+    // ---- Communauté : jamais le nom complet, seulement le prénom ou le pseudo (nom). ----
+    // Nouveau résultat validé : ceux qui le suivent sont prévenus (l'argent d'abord, sinon les vues, sinon « a posté »).
+    async resultatPartage(auteur, nouvelle, suiveurs) {
+      const vues = (n) => (n >= 1e6 ? `${(Math.floor(n / 1e5) / 10)}M` : n >= 1e3 ? `${(Math.floor(n / 100) / 10)}K` : String(n));
+      const quoi = nouvelle.type === 'gain' ? `vient de gagner **${euros(nouvelle.valeur)}**` : nouvelle.type === 'vues' ? `vient de faire **${vues(nouvelle.valeur)} vues**` : 'vient de poster un nouveau résultat';
+      for (const f of suiveurs) {
+        const qui = f.type === 'concurrent' ? `Ton concurrent **${auteur.nom}**` : `**${auteur.nom}**`;
+        await notifier.membre(f.suiveur, avecBoutons(`${qui} ${quoi}. ${f.type === 'concurrent' ? 'À toi de jouer 🔥' : 'Et toi, ta vidéo du jour ?'}`,
+          [{ label: 'Voir son profil', url: lienPerso(f.suiveur, pseudoParcours(f.suiveur), `/classement/${encodeURIComponent(auteur.id)}`) }]));
+      }
+    },
+    async invitationConcurrence(c, de) {
+      await notifier.membre(c.vers, avecBoutons(`**${de.nom}** te défie : le premier à **${euros(c.objectif)}** de récompenses gagne. Tu acceptes ?`,
+        [{ label: 'Répondre', url: lienPerso(c.vers, pseudoParcours(c.vers), '/communaute') }]));
+    },
+    async reponseConcurrence(c, vers, oui) {
+      await notifier.membre(c.de, avecBoutons(oui ? `**${vers.nom}** accepte ton défi : le premier à **${euros(c.objectif)}** gagne. C'est parti 🔥` : `**${vers.nom}** a refusé ton défi.`,
+        [{ label: 'Ma communauté', url: lienPerso(c.de, pseudoParcours(c.de), '/communaute') }]));
+    },
+    async concurrenceGagnee(c, gagnant, perdant) {
+      await notifier.membre(gagnant.id, `🏆 **Tu as gagné ta concurrence contre ${perdant.nom}** : tu as atteint **${euros(c.objectif)}** en premier !`);
+      await notifier.membre(perdant.id, avecBoutons(`**${gagnant.nom}** a atteint **${euros(c.objectif)}** en premier et gagne votre concurrence. Lance un nouveau défi !`,
+        [{ label: 'Ma communauté', url: lienPerso(perdant.id, pseudoParcours(perdant.id), '/communaute') }]));
+    },
     // Seuil atteint (GOAT ou rôle de revenus) : le coach confirme, ici ou sur la plateforme.
     async recompensesAtteintes(p, roles) {
       for (const role of roles) {
@@ -1092,6 +1116,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await notifier.membre(p.discord_id, avecBoutons(texte, [{ label: 'Mon parcours', url: lienPerso(p.discord_id, p.pseudo, '/parcours') }]));
     },
   };
+  const pseudoParcours = (id) => ((parcours && parcours.get(id)) || {}).pseudo || null;
   const nomDe = (p) => (p && (p.nom || p.pseudo)) || (p && p.discord_id) || '?';
   // Récompenses TikTok en dollars, écrites comme sur TikTok ($1,500 ; $48.70).
   const euros = (n) => { const x = Math.round(Number(n || 0) * 100) / 100; return `$${x.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(x) ? 0 : 2, maximumFractionDigits: 2 })}`; };

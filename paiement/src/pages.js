@@ -221,6 +221,8 @@ const ICONES_NAV = {
   membres: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg>',
   coaching: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
   parcours: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="18" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M6.2 16.3l4.6-8.6M13.2 7.7l4.6 8.6"/></svg>',
+  remarques: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-4 3.5v-3.5h0a2 2 0 0 1-1.5-2z"/><path d="M8.5 9h7M8.5 12.2h4.5"/></svg>',
+  communaute: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="9" r="3.2"/><circle cx="16.5" cy="10" r="2.6"/><path d="M3.5 19.5c.8-3.2 3-5 5.5-5s4.7 1.8 5.5 5M14.5 15c2.6-.6 5 .9 6 4"/></svg>',
   profil: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c1-3.8 4-6 7.5-6s6.5 2.2 7.5 6"/></svg>',
   fiche: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="11" r="2.2"/><path d="M5.8 16.3c.6-1.7 1.8-2.6 3.2-2.6s2.6.9 3.2 2.6M14.5 10h3.5M14.5 13.5h3.5"/></svg>',
   traiter: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13.5l2.4-7.2A2 2 0 0 1 8.3 5h7.4a2 2 0 0 1 1.9 1.3L20 13.5V18a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18z"/><path d="M4 13.5h4.5l1.2 2h4.6l1.2-2H20"/></svg>',
@@ -236,6 +238,14 @@ const STYLE_ESPACE = `
   body.espace-body { background:var(--fond); }
   .espace { min-height:100vh; }
   main.espace-contenu { max-width:1120px; margin:0 auto; padding:20px 20px 56px; }
+  /* Barre du bas (élèves, sur téléphone) : Classement, Remarques, Rappels, Profil. */
+  .barre-bas { position:fixed; z-index:25; left:0; right:0; bottom:0; display:grid; grid-template-columns:repeat(4, 1fr); padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+    background:rgba(10,10,10,.94); border-top:1px solid #1d1d1d; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  .barre-bas a { position:relative; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 2px; color:#8a8a8a; text-decoration:none; font-size:11.5px; font-weight:600; }
+  .barre-bas svg { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .barre-bas a.actif { color:#c8f23a; } .barre-bas a.actif::before { content:""; position:absolute; top:-9px; width:34px; height:3px; border-radius:0 0 3px 3px; background:#c8f23a; }
+  .avec-barre-bas main.espace-contenu { padding-bottom:110px; }
+  @media (min-width: 960px) { .barre-bas { display:none; } .avec-barre-bas main.espace-contenu { padding-bottom:64px; } }
   .sidebar { position:fixed; z-index:30; top:0; bottom:0; left:-290px; width:264px; display:flex; flex-direction:column; gap:6px;
     padding:18px 12px 14px; background:#0a0a0a; border-right:1px solid #1c1c1c; transition:left .22s ease; overflow-y:auto; }
   #menu-ouvert:checked ~ .sidebar { left:0; }
@@ -269,13 +279,13 @@ const STYLE_ESPACE = `
 `;
 
 // nav : [{ cle, libelle, lien, icone, badge }] ; actif : cle de la page ; compte : { pseudo, role }.
-function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp } = {}) {
+function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp, barreBas } = {}) {
   const liens = nav.map((n) => (n.section
     ? `<p class="sb-section">${echapper(n.section)}</p>`
     : `<a class="sb-lien${n.cle === actif ? ' actif' : ''}" href="${echapper(n.lien)}"${n.externe ? ' target="_blank" rel="noopener"' : ''}>${ICONES_NAV[n.icone] || ''}<span>${echapper(n.libelle)}</span>${n.badge ? `<span class="sb-badge">${echapper(n.badge)}</span>` : ''}</a>`)).join('');
   const initiale = compte && compte.pseudo ? compte.pseudo.trim().charAt(0).toUpperCase() : '?';
   return gabarit(titre, `<style>${STYLE_ESPACE}</style>
-<div class="espace">
+<div class="espace${barreBas ? ' avec-barre-bas' : ''}">
   <input type="checkbox" id="menu-ouvert" hidden>
   <aside class="sidebar" aria-label="Navigation">
     <a class="sb-logo" href="${echapper((nav.find((n) => n.lien) || {}).lien || '/')}">${logo()}</a>
@@ -290,6 +300,7 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonA
     <header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label>${logo()}</header>
     <main class="espace-contenu">${contenu}</main>
   </div>
+  ${barreBas ? `<nav class="barre-bas" aria-label="Navigation rapide">${barreBas.map((n) => `<a href="${echapper(n.lien)}"${n.cle === actif ? ' class="actif" aria-current="page"' : ''}>${ICONES_NAV[n.icone] || ''}<span>${echapper(n.libelle)}</span></a>`).join('')}</nav>` : ''}
 </div>`, { script, entete: false, brut: true, jetonApp });
 }
 
