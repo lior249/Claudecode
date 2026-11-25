@@ -80,7 +80,16 @@ function chargerConfig({ strict = true } = {}) {
       clientId: lire('DISCORD_CLIENT_ID'),
       clientSecret: lire('DISCORD_CLIENT_SECRET'),
       serveurId: lire('DISCORD_GUILD_ID'),
-      roleGoat: lire('DISCORD_ROLE_GOAT'),
+      // Rôles de l'accompagnement Elite (docs/ACCOMPAGNEMENT-ELITE.md) : identifiants du serveur Overmaxx par défaut.
+      roleGoat: lire('DISCORD_ROLE_GOAT', '1574770119178195024'),
+      roleSinistre: lire('DISCORD_ROLE_SINISTRE', '1573304134138855585'),
+      rolesRevenus: {
+        1500: lire('DISCORD_ROLE_1500', '1573303409455407274'),
+        5000: lire('DISCORD_ROLE_5000', '1573303677106520227'),
+        10000: lire('DISCORD_ROLE_10000', '1573303848003571733'),
+      },
+      // Salon #sinistrés existant (identifiant). Vide : Bob le crée tout seul au démarrage.
+      salonSinistres: lire('DISCORD_SALON_SINISTRES_ID', ''),
       roleAttente: lire('DISCORD_ROLE_ATTENTE'),
       // Nouveaux venus « En Attente » sans programme : retirés du serveur après ce délai (0 = jamais, par défaut).
       attenteNouveauxHeures: Number(lire('ATTENTE_NOUVEAUX_HEURES', '0')),
@@ -136,6 +145,8 @@ function chargerConfig({ strict = true } = {}) {
     ['DISCORD_GUILD_ID', config.discord.serveurId], ['DISCORD_ADMIN_ID', config.discord.adminId],
     ['DISCORD_ROLE_COMMUNITY', config.offres.community.roleDiscord], ['DISCORD_ROLE_ELITE', config.offres.elite.roleDiscord],
     ['DISCORD_ROLE_GOAT', config.discord.roleGoat], ['DISCORD_ROLE_ATTENTE', config.discord.roleAttente],
+    ['DISCORD_ROLE_SINISTRE', config.discord.roleSinistre], ['DISCORD_SALON_SINISTRES_ID', config.discord.salonSinistres],
+    ...Object.entries(config.discord.rolesRevenus).map(([k, v]) => [`DISCORD_ROLE_${k}`, v]),
   ]) {
     if (v && !ID_DISCORD.test(v)) manquantes.push(`${nom} (identifiant Discord : uniquement des chiffres)`);
   }

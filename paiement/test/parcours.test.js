@@ -128,7 +128,7 @@ test('parcours Elite : étape 1 (exercices), étape 2 (coaching d\'entrée), ét
     p = parcours.get(E1);
     assert.strictEqual(p.etape, 4);
     assert.strictEqual(parcours.soumission(v.V1).fichier, null, 'vidéos de l\'étape 3 supprimées');
-    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /autorisé à publier/);
+    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Choisis tes 3 heures/);
 
     // Remarque avec lien et image : le membre la voit, Bob le prévient ; l'image n'est visible que par lui et le coach.
     const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');

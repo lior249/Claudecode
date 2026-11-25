@@ -47,6 +47,24 @@ test('le JavaScript des pages du parcours Elite est valide (envois, heures local
     const pages = [['/parcours', membre], ['/parcours/etape-1', membre], ['/fiche', membre], ['/admin/a-traiter', coach], [`/admin/envois/${r.soumission.id}`, coach], ['/admin/membres/P1', coach]];
     parcours.changerEtape('P1', 3);
     pages.push(['/parcours/etape-2', membre], ['/parcours/etape-3', membre]);
+    // Étape 4 : heures, déclaration, compte rendu (membre) et sa validation (coach).
+    parcours.assurer('P2', { pseudo: 'p2' });
+    parcours.changerEtape('P2', 4);
+    const membre2 = cookieSession('P2', 'p2');
+    pages.push(['/parcours/etape-4', membre2]);
+    m.suivi.choisirHeures('P2', { creation: '09:00', publication: '10:00', compteRendu: '10:00', fuseau: 'Africa/Lome' });
+    const hier = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    m.db.prepare("INSERT INTO publications (discord_id, jour, lien, cree_le) VALUES ('P2', ?, 'https://www.tiktok.com/@p2/video/1', ?)").run(hier, new Date().toISOString());
+    m.db.prepare("INSERT INTO images_membres (nom, discord_id, cree_le) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaa.png', 'P2', ?)").run(new Date().toISOString());
+    pages.push(['/parcours/etape-4', membre2], [`/parcours/compte-rendu/${hier}`, membre2]);
+    const cr = m.suivi.enregistrerCompteRendu('P2', hier, { abonnes_total: 120, vues_total: 5400, abonnes_jour: 12, vues_jour: 900, pays_vues: ['France'], pays_abonnes: ['France'],
+      capture_revenus: 'aaaaaaaaaaaaaaaaaaaaaaaa.png', videos: { 1: { vues: 900, abonnes: 12, heure: '10:00', visionnage_s: 7, retention_10s: 41.5, revenus: 3.2 } } });
+    assert.ok(cr.compteRendu, JSON.stringify(cr));
+    pages.push([`/admin/comptes-rendus/${cr.compteRendu.id}`, coach], ['/admin/membres/P2', coach]);
+    // Sinistré : sa fiche de sinistre.
+    parcours.assurer('P3', { pseudo: 'p3' });
+    m.sinistres.ouvrir('P3');
+    pages.push(['/sinistre', cookieSession('P3', 'p3')]);
     let total = 0;
     for (const [chemin, cookie] of pages) {
       const res = await m.get(chemin, { cookie });

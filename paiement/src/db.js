@@ -289,6 +289,75 @@ function migrerV11(db) {
   PRAGMA user_version = 11;`);
 }
 
+// v12 : étape 4 (heures, publications, comptes rendus), objectifs et rôles à confirmer, activité et sinistres.
+function migrerV12(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 12) return;
+  const c = colonnes(db, 'parcours');
+  for (const [nom, type] of [['fuseau', 'TEXT'], ['heure_creation', 'TEXT'], ['heure_publication', 'TEXT'], ['heure_compte_rendu', 'TEXT'],
+    ['derniere_activite', 'TEXT'], ['sinistres', 'INTEGER NOT NULL DEFAULT 0'], ['sinistre_depuis', 'TEXT'], ['sinistre_total', 'INTEGER NOT NULL DEFAULT 0']]) {
+    if (!c.includes(nom)) db.exec(`ALTER TABLE parcours ADD COLUMN ${nom} ${type}`);
+  }
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS publications (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id TEXT NOT NULL,
+    jour       TEXT NOT NULL,                  -- date locale du membre (AAAA-MM-JJ)
+    lien       TEXT NOT NULL,
+    cree_le    TEXT NOT NULL,
+    UNIQUE (discord_id, lien)
+  );
+  CREATE INDEX IF NOT EXISTS publications_jour ON publications(discord_id, jour);
+  CREATE TABLE IF NOT EXISTS captures_jour (
+    discord_id TEXT NOT NULL,
+    jour       TEXT NOT NULL,
+    image      TEXT NOT NULL,                  -- capture du compte : preuve des publications du jour
+    cree_le    TEXT NOT NULL,
+    PRIMARY KEY (discord_id, jour)
+  );
+  CREATE TABLE IF NOT EXISTS comptes_rendus (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id      TEXT NOT NULL,
+    jour            TEXT NOT NULL,             -- jour des publications dont on rend compte
+    etat            TEXT NOT NULL,             -- attente, corriger, valide
+    abonnes_total   INTEGER, vues_total INTEGER, abonnes_jour INTEGER, vues_jour INTEGER,
+    pays_vues       TEXT, pays_abonnes TEXT,   -- JSON : top 3
+    capture_revenus TEXT,
+    question        TEXT,
+    envoye_le       TEXT, decide_le TEXT, cree_le TEXT NOT NULL,
+    UNIQUE (discord_id, jour)
+  );
+  CREATE TABLE IF NOT EXISTS stats_videos (
+    compte_rendu_id INTEGER NOT NULL,
+    publication_id  INTEGER NOT NULL,
+    vues INTEGER, abonnes INTEGER, heure TEXT, visionnage_s INTEGER, retention_10s REAL, revenus REAL,
+    PRIMARY KEY (compte_rendu_id, publication_id)
+  );
+  CREATE TABLE IF NOT EXISTS recompenses (
+    discord_id  TEXT NOT NULL,
+    role        TEXT NOT NULL,                 -- goat, 1500, 5000, 10000
+    atteint_le  TEXT NOT NULL,
+    confirme_le TEXT,
+    PRIMARY KEY (discord_id, role)
+  );
+  CREATE TABLE IF NOT EXISTS sinistres (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id        TEXT NOT NULL,
+    absent_depuis     TEXT NOT NULL,           -- dernière interaction avant le sinistre
+    debut             TEXT NOT NULL,
+    numero            INTEGER NOT NULL,        -- compteur atteint pendant cet épisode (1 à 3)
+    etat              TEXT NOT NULL,           -- ouvert, fiche, precisions, rehabilite, retire
+    fiche_pourquoi    TEXT, fiche_engagements TEXT, fiche_le TEXT,
+    fin               TEXT,
+    cree_le           TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS images_membres (
+    nom        TEXT PRIMARY KEY,
+    discord_id TEXT NOT NULL,
+    cree_le    TEXT NOT NULL
+  );
+  PRAGMA user_version = 12;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -309,6 +378,7 @@ function ouvrirBase(fichier) {
   migrerV9(db);
   migrerV10(db);
   migrerV11(db);
+  migrerV12(db);
   return db;
 }
 

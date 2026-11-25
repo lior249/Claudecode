@@ -102,19 +102,24 @@ function cookieSession(id, pseudo = 'membre') {
 
 // Les pages (sauf l'accueil) demandent une connexion Discord : par défaut, les tests naviguent connectés avec ce compte.
 const VISITEUR = '400000000000000099';
-async function monter({ config = configTest(), saspay = fauxSaspay(), whop = fauxWhop(), oauth = fauxOAuth(), maintenant, bob = null, avecCandidatures = false, surPaiement, connecte = true } = {}) {
+async function monter({ config = configTest(), saspay = fauxSaspay(), whop = fauxWhop(), oauth = fauxOAuth(), maintenant, bob = null, avecCandidatures = false, surPaiement, connecte = true, parcours: parcoursDonne } = {}) {
   const db = ouvrirBase(':memory:');
   completerPrixGarantis(db, config);
   const horloge = maintenant || (() => new Date());
   const commandes = creerCommandes({ db, saspay, whop, config, maintenant: horloge, surPaiement });
   const coaching = creerCoaching({ db, config, maintenant: horloge });
   const candidatures = avecCandidatures ? require('../src/candidatures').creerCandidatures({ db, config, commandes, maintenant: horloge }) : null;
-  const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures });
+  // Parcours Elite, suivi de l'étape 4 et sinistres : sur la même horloge que le reste.
+  const parcours = parcoursDonne || require('../src/parcours').creerParcours({ db, config, maintenant: horloge });
+  const suivi = require('../src/suivi').creerSuivi({ db, parcours, maintenant: horloge });
+  if (!parcours.suivi) parcours.suivi = suivi;
+  const sinistres = require('../src/sinistres').creerSinistres({ db, parcours, maintenant: horloge });
+  const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours, suivi, sinistres });
   const serveur = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
   const base = `http://127.0.0.1:${serveur.address().port}`;
   const parDefaut = connecte ? { cookie: cookieSession(VISITEUR, 'visiteur') } : {};
   return {
-    config, db, saspay, whop, oauth, commandes, coaching, candidatures, base,
+    config, db, saspay, whop, oauth, commandes, coaching, candidatures, parcours, suivi, sinistres, base,
     fermer: () => new Promise((r) => serveur.close(r)),
     poster: (chemin, champs, headers = {}) => fetch(base + chemin, {
       method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...parDefaut, ...headers }, body: new URLSearchParams(champs),

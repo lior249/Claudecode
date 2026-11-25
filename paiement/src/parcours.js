@@ -72,6 +72,8 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
     remarques: db.prepare('SELECT * FROM remarques WHERE discord_id = ? ORDER BY cree_le DESC, id DESC'),
     remarquesDe: db.prepare('SELECT * FROM remarques WHERE soumission_id = ? ORDER BY cree_le DESC, id DESC'),
     imageDe: db.prepare('SELECT discord_id FROM remarques WHERE images LIKE ?'),
+    imageMembre: db.prepare('SELECT discord_id FROM images_membres WHERE nom = ?'),
+    noterImageMembre: db.prepare('INSERT OR IGNORE INTO images_membres (nom, discord_id, cree_le) VALUES (?, ?, ?)'),
     entree: db.prepare("SELECT * FROM seances_ponctuelles WHERE discord_id = ? AND type = 'entree' ORDER BY date DESC, heure DESC LIMIT 1"),
   };
   const iso = () => maintenant().toISOString();
@@ -194,22 +196,28 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
     },
 
     // Images jointes aux remarques (coach) : enregistrées à part, puis citées par leur nom.
-    async recevoirImage(flux, { type, taille }) {
+    // Images : jointes par le coach (remarques), ou envoyées par le membre (captures du compte et des revenus).
+    async recevoirImage(flux, { type, taille }, proprietaire = null) {
       const ext = TYPES_IMAGE[String(type || '').split(';')[0].trim().toLowerCase()];
       if (!ext) return { erreur: 'Image non acceptée (JPG, PNG, WEBP ou GIF).' };
       if (taille && taille > tailleImage) return { erreur: 'Image trop lourde (8 Mo maximum).' };
       const nom = `${crypto.randomBytes(12).toString('hex')}.${ext}`;
       const r = await enregistrerFlux(flux, path.join(dossierImages, nom), tailleImage);
-      return r.erreur ? { erreur: r.erreur } : { nom };
+      if (r.erreur) return { erreur: r.erreur };
+      if (proprietaire) q.noterImageMembre.run(nom, proprietaire, iso());
+      return { nom };
     },
     cheminImage(nom) {
       return /^[a-f0-9]{24}\.(jpg|png|webp|gif)$/.test(String(nom)) ? path.join(dossierImages, nom) : null;
     },
     // À qui appartient une image (pour que seul le membre concerné et le coach la voient).
     proprietaireImage(nom) {
+      const m = q.imageMembre.get(String(nom));
+      if (m) return m.discord_id;
       const r = q.imageDe.get(`%"${String(nom).replace(/[%_"]/g, '')}"%`);
       return r ? r.discord_id : null;
     },
+    imageDuMembre(nom, discordId) { const m = q.imageMembre.get(String(nom)); return Boolean(m && m.discord_id === discordId); },
 
     // Le coach ouvre l'étape 3 après le coaching d'entrée (compte TikTok, niche, pays notés sur la fiche).
     ouvrirEtape3(discordId, { compte, niche, pays } = {}) {
@@ -271,9 +279,12 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
           ? { cle: 'etape3', titre: 'Envoie tes 3 vidéos', texte: `Il en reste ${manquantes.length} à envoyer. Ne publie rien pour l'instant.`, lien: '/parcours/etape-3', bouton: 'Ouvrir l\'étape 3', delai: fin(DELAIS.etape3) }
           : { cle: 'attente3', titre: 'Ton coach regarde tes vidéos', texte: 'Tu seras prévenu à chaque décision.', lien: '/parcours/etape-3', bouton: 'Voir mes vidéos' };
       }
-      if (p.etape === 4) return { cle: 'etape4', titre: 'Tu es autorisé à publier', texte: 'Le suivi quotidien de tes publications arrive très bientôt sur la plateforme.', lien: '/parcours', bouton: 'Mon parcours' };
+      if (p.etape === 4) return api.suivi ? api.suivi.tache(p) : { cle: 'etape4', titre: 'Publie et suis tes vidéos', texte: 'Une vidéo par jour, puis son compte rendu le lendemain.', lien: '/parcours/etape-4', bouton: 'Ouvrir l\'étape 4' };
       return { cle: 'goat', titre: 'Tu es GOAT', texte: 'Bravo : tu as atteint l\'objectif de l\'accompagnement.', lien: '/fiche', bouton: 'Ma fiche' };
     },
+
+    // Le suivi de l'étape 4 (src/suivi.js), branché par l'application.
+    suivi: null,
 
     // Pour la page À traiter du coach.
     aTraiter() {
@@ -281,7 +292,7 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       const envois = q.enAttente.all().map((s) => ({ ...s, parcours: q.get.get(s.discord_id) }));
       const etape2 = q.tous.all().filter((p) => p.etape === 2).map((p) => ({ parcours: p, entree: q.entree.get(p.discord_id) }))
         .filter((x) => x.entree && new Date(`${x.entree.date}T${x.entree.heure}:00Z`).getTime() < maintenantMs);
-      const retards = q.tous.all().filter((p) => p.etape <= 3).map((p) => ({ parcours: p, tache: api.tache(p.discord_id) }))
+      const retards = q.tous.all().filter((p) => p.etape <= 4 && !p.sinistre_depuis).map((p) => ({ parcours: p, tache: api.tache(p.discord_id) }))
         .filter((x) => x.tache && x.tache.delai && new Date(x.tache.delai.fin).getTime() < maintenantMs);
       return { envois, etape2, retards, total: envois.length + etape2.length };
     },

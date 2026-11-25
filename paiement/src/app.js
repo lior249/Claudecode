@@ -9,6 +9,8 @@ const P = require('./pages');
 const E = require('./pages-espace');
 const V = require('./pages-parcours');
 const { creerParcours } = require('./parcours');
+const { creerSuivi, QUESTIONS, jourLisible } = require('./suivi');
+const { creerSinistres } = require('./sinistres');
 const { verifierReponses } = require('./formulaires');
 
 const EMAIL_REGEX = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
@@ -28,15 +30,19 @@ const retourSur = (r, defaut = '/coaching') => (typeof r === 'string' && /^\/(?!
 // Le bouton pointe DIRECTEMENT vers discord.com : sur téléphone, c'est ce qui ouvre l'application Discord
 // (une redirection depuis notre site ouvrirait la page web de Discord, qui redemande l'identifiant et le mot de passe).
 
-function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours: parcoursDonne }) {
+function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours: parcoursDonne, suivi: suiviDonne, sinistres: sinistresDonnes }) {
   const parcours = parcoursDonne || creerParcours({ db: commandes.db, config });
+  const suivi = suiviDonne || creerSuivi({ db: commandes.db, parcours });
+  const sinistres = sinistresDonnes || creerSinistres({ db: commandes.db, parcours });
+  if (!parcours.suivi) parcours.suivi = suivi;
   const prevenir = (nom, ...args) => { if (bob && bob.parcours && bob.parcours[nom]) bob.parcours[nom](...args).catch((e) => console.error(`[bob] parcours ${nom} :`, e.message)); };
   const lienDiscord = (state, options) => (config.oauthActif && oauth ? oauth.urlAutorisation(state, options) : null);
   // Barre latérale : qui est connecté, et combien de candidatures attendent une décision.
   const espaceDe = (session) => {
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
-    const aTraiterParcours = estAdmin ? parcours.aTraiter().total + aTraiter : 0;
+    const aTraiterParcours = estAdmin
+      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + aTraiter : 0;
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(!estAdmin && session && parcours.get(session.id)) };
   };
   const app = express();
@@ -372,6 +378,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const estLeCoach = (session) => Boolean(session && session.id === config.discord.adminId);
   async function droitsCoaching(session) {
     if (estLeCoach(session)) return { interdit: 'C\'est toi le coach : tu ne réserves pas de séance. Ton calendrier est dans l\'espace admin.' };
+    const pp = parcours.get(session.id);
+    if (pp) sinistres.noterActivite(session.id); // réserver ses coachings, c'est aussi être présent
+    if (pp && pp.sinistre_depuis) return { interdit: 'Tu es sinistré : plus de coaching tant que ton coach ne t\'a pas réhabilité. Remplis ta fiche de sinistre.', parcours: true };
+    if (pp && pp.sinistre_total) return { interdit: 'Sinistré total : tu n\'as plus de live individuel. Tu gardes les lives de groupe sur Discord.', parcours: true };
+    if (pp && pp.fin_le && new Date(pp.fin_le) < new Date()) return { interdit: 'Tes 90 jours d\'accompagnement sont terminés : il n\'y a plus de live individuel.', parcours: true };
     const roles = await oauth.rolesSurServeur(session.id);
     if (!roles) return { interdit: 'Tu n\'es pas sur le serveur Discord Overmaxx avec ce compte.' };
     if (config.discord.roleGoat && roles.includes(config.discord.roleGoat)) {
@@ -555,7 +566,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (carte) return parcours.assurer(session.id, { pseudo: session.pseudo || carte.pseudo, entree: carte.depuis });
     return null;
   }
-  function membreParcours(req, res, retour) {
+  function membreParcours(req, res, retour, { sinistreOk = false } = {}) {
     const session = connecte(req, res, retour, 'Overmaxx Elite');
     if (!session) return null;
     if (estLeCoach(session)) { res.redirect(302, '/admin/a-traiter'); return null; }
@@ -564,7 +575,19 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       res.status(403).send(P.pageMessage(config, 'Accompagnement Elite', 'Cette page est réservée aux membres de l\'accompagnement Elite.', { lien: elite.base, texteLien: 'Découvrir l\'Elite' }));
       return null;
     }
-    return { session, p, espace: espaceDe(session) };
+    // Absence = aucune interaction sur la plateforme (docs/ACCOMPAGNEMENT-ELITE.md, partie 6).
+    sinistres.noterActivite(session.id);
+    if (sinistres.estSinistre(p) && !sinistreOk) { res.redirect(303, '/sinistre'); return null; }
+    return { session, p: parcours.get(session.id), espace: espaceDe(session) };
+  }
+  // Envois par l'API (vidéos, images) : membre du parcours, pas sinistré.
+  function membreApi(req) {
+    const session = lireSession(req, config.secretApp);
+    const p = session && parcoursDe(session);
+    if (!p) return { statut: 401, erreur: 'Ta connexion a expiré. Recharge la page.' };
+    if (sinistres.estSinistre(p)) return { statut: 403, erreur: 'Tu es sinistré : remplis d\'abord ta fiche de sinistre.' };
+    sinistres.noterActivite(session.id);
+    return { session, p };
   }
   // Progression dans les cours Whop (leçons terminées), si son compte Whop est connu.
   function formationDe(discordId) {
@@ -583,14 +606,16 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!x) return;
     const prochaine = coaching.prochainesSeances(x.session.id, 14)[0];
     res.send(V.pageParcours(config, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id),
-      prochain: prochaine ? prochaine.debut : null, derniere: parcours.remarques(x.session.id)[0] || null, formation: formationDe(x.session.id) }));
+      prochain: prochaine ? prochaine.debut : null, derniere: parcours.remarques(x.session.id)[0] || null, formation: formationDe(x.session.id),
+      stats: x.p.etape >= 4 ? suivi.stats(x.session.id) : null }));
   });
   app.get('/parcours/etape-:n', (req, res) => {
     const n = Number(req.params.n);
     const x = membreParcours(req, res, `/parcours/etape-${n}`);
     if (!x) return;
-    if (![1, 2, 3].includes(n) || x.p.etape < n) { res.redirect(302, '/parcours'); return; }
+    if (![1, 2, 3, 4].includes(n) || x.p.etape < n) { res.redirect(302, '/parcours'); return; }
     const commun = { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id), maxMo };
+    if (n === 4) { res.send(pageEtape4(x, commun, MESSAGES_ETAPE4[req.query.ok] ? { texte: MESSAGES_ETAPE4[req.query.ok] } : null)); return; }
     if (n === 1) { res.send(V.pageEtape1(config, { ...commun, soumissions: parcours.soumissions(x.session.id, 1), remarquesDe, formation: formationDe(x.session.id) })); return; }
     if (n === 2) {
       const message = req.query.ok ? { texte: 'Ton coaching d\'entrée est réservé. Bob te le rappellera.' } : null;
@@ -604,16 +629,18 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
 
   // Envoi en deux temps : les informations (note et retour de l'IA à l'étape 1), puis la vidéo.
   app.post('/api/parcours/envoi', json, (req, res) => {
-    const session = lireSession(req, config.secretApp);
-    if (!session || !parcoursDe(session)) return res.status(401).json({ erreur: 'Ta connexion a expiré. Recharge la page.' });
+    const m = membreApi(req);
+    if (m.erreur) return res.status(m.statut).json({ erreur: m.erreur });
+    const { session } = m;
     const b = req.body || {};
     const r = parcours.preparerEnvoi(session.id, String(b.emplacement || ''), { note: b.note, retour: b.retour });
     if (r.erreur) return res.status(400).json(r);
     return res.json({ id: r.soumission.id });
   });
   app.post('/api/parcours/envoi/:id/video', async (req, res) => {
-    const session = lireSession(req, config.secretApp);
-    if (!session || !parcoursDe(session)) { req.resume(); return res.status(401).json({ erreur: 'Ta connexion a expiré. Recharge la page.' }); }
+    const m = membreApi(req);
+    if (m.erreur) { req.resume(); return res.status(m.statut).json({ erreur: m.erreur }); }
+    const { session } = m;
     try {
       const r = await parcours.recevoirVideo(session.id, req.params.id, req, { type: req.get('content-type'), taille: Number(req.get('content-length')) || 0 });
       if (r.erreur) { req.resume(); return res.status(400).json(r); }
@@ -640,10 +667,126 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     res.redirect(303, '/parcours/etape-2?ok=1');
   });
 
-  app.get('/fiche', (req, res) => {
-    const x = membreParcours(req, res, '/fiche');
+  // ---- Étape 4 : publication et suivi ----
+  const MESSAGES_ETAPE4 = {
+    heures: 'Tes heures sont enregistrées. Bob te les rappellera chaque jour.',
+    publication: 'Vidéo déclarée. Demain, à ton heure de compte rendu, tu enverras ses résultats.',
+    'compte-rendu': 'Compte rendu envoyé. Ton coach le regarde, Bob te prévient de sa décision.',
+  };
+  function pageEtape4(x, commun, message) {
+    const id = x.session.id;
+    const jour = suivi.aujourdhui(x.p);
+    return V.pageEtape4(config, { ...commun, aujourdhui: x.p.fuseau ? jour : null, publications: suivi.publications(id, jour), capture: suivi.captureDuJour(id, jour),
+      aFaire: suivi.comptesRendusAFaire(id), stats: suivi.stats(id), message });
+  }
+  // Une image n'est acceptée que si ce membre l'a lui-même envoyée.
+  const imageDe = (nom, discordId) => (nom && parcours.imageDuMembre(String(nom), discordId) ? String(nom) : null);
+  app.post('/parcours/etape-4/heures', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-4');
     if (!x) return;
-    res.send(V.pageFiche(config, { espace: x.espace, parcours: x.p, remarques: parcours.remarques(x.session.id), toutes: Boolean(req.query.toutes) }));
+    if (x.p.etape < 4) { res.redirect(303, '/parcours'); return; }
+    const b = req.body;
+    const r = suivi.choisirHeures(x.session.id, { creation: b.creation, publication: b.publication, compteRendu: b.compte_rendu, fuseau: String(b.fuseau || '') });
+    if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
+    res.redirect(303, '/parcours/etape-4?ok=heures');
+  });
+  app.post('/parcours/etape-4/publication', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-4');
+    if (!x) return;
+    if (x.p.etape < 4) { res.redirect(303, '/parcours'); return; }
+    const liens = String(req.body.liens || '').split(/\s+/).filter(Boolean);
+    const r = suivi.declarer(x.session.id, { liens, capture: imageDe(req.body.capture, x.session.id) });
+    if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
+    res.redirect(303, '/parcours/etape-4?ok=publication');
+  });
+  function compteRenduMembre(req, res) {
+    const jour = String(req.params.jour || '');
+    const x = membreParcours(req, res, `/parcours/compte-rendu/${encodeURIComponent(jour)}`);
+    if (!x) return null;
+    const videos = /^\d{4}-\d{2}-\d{2}$/.test(jour) && x.p.etape >= 4 ? suivi.publications(x.session.id, jour) : [];
+    if (!videos.length) { res.redirect(303, '/parcours/etape-4'); return null; }
+    const cr = suivi.compteRendu(x.session.id, jour);
+    if (cr && cr.etat === 'valide') {
+      res.send(P.pageMessage(config, 'Compte rendu validé', `Ton compte rendu du ${jourLisible(jour)} est validé par ton coach.`, { lien: '/parcours/etape-4', texteLien: 'Étape 4' }));
+      return null;
+    }
+    const remarques = parcours.remarques(x.session.id).filter((r) => String(r.texte || '').startsWith(`Compte rendu du ${jourLisible(jour)}`));
+    return { ...x, jour, videos, cr, remarques };
+  }
+  app.get('/parcours/compte-rendu/:jour', (req, res) => {
+    const x = compteRenduMembre(req, res);
+    if (!x) return;
+    res.send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, videos: x.videos, cr: x.cr, questions: QUESTIONS, remarques: x.remarques }));
+  });
+  app.post('/parcours/compte-rendu/:jour', formulaire, (req, res) => {
+    const x = compteRenduMembre(req, res);
+    if (!x) return;
+    const b = req.body;
+    const d = {
+      abonnes_total: b.abonnes_total, vues_total: b.vues_total, abonnes_jour: b.abonnes_jour, vues_jour: b.vues_jour,
+      pays_vues: [b.pays_vues_1, b.pays_vues_2, b.pays_vues_3], pays_abonnes: [b.pays_abonnes_1, b.pays_abonnes_2, b.pays_abonnes_3],
+      capture_revenus: imageDe(b.capture_revenus, x.session.id),
+      question: b.question === 'autre' ? b.question_autre : b.question,
+      videos: {},
+    };
+    for (const v of x.videos) {
+      d.videos[v.id] = Object.fromEntries(['vues', 'abonnes', 'heure', 'visionnage_s', 'retention_10s', 'revenus'].map((k) => [k, b[`v_${v.id}_${k}`]]));
+    }
+    const r = suivi.enregistrerCompteRendu(x.session.id, x.jour, d);
+    if (r.erreur) {
+      // On réaffiche ce qu'il a tapé.
+      const saisi = { ...d, etat: x.cr ? x.cr.etat : null, capture_revenus: d.capture_revenus || (x.cr && x.cr.capture_revenus) || null,
+        pays_vues: d.pays_vues.map((v) => String(v || '')), pays_abonnes: d.pays_abonnes.map((v) => String(v || '')),
+        videos: Object.entries(d.videos).map(([id, v]) => ({ publication_id: Number(id), ...v })) };
+      res.status(400).send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, videos: x.videos, cr: saisi, questions: QUESTIONS, remarques: x.remarques, erreur: r.erreur }));
+      return;
+    }
+    prevenir('compteRenduRecu', r.compteRendu, x.p);
+    res.redirect(303, '/parcours/etape-4?ok=compte-rendu');
+  });
+  // Captures envoyées par le membre (compte du jour, revenus).
+  app.post('/api/parcours/image', async (req, res) => {
+    const m = membreApi(req);
+    if (m.erreur) { req.resume(); res.status(m.statut).json({ erreur: m.erreur }); return; }
+    try {
+      const r = await parcours.recevoirImage(req, { type: req.get('content-type'), taille: Number(req.get('content-length')) || 0 }, m.session.id);
+      if (r.erreur) { req.resume(); res.status(400).json(r); return; }
+      res.json(r);
+    } catch (err) {
+      console.error('[parcours] image du membre :', err.message);
+      res.status(500).json({ erreur: 'Envoi impossible.' });
+    }
+  });
+
+  // ---- Sinistré : sa fiche de sinistre ----
+  function pageSinistreDe(x, erreur) {
+    const s = sinistres.enCours(x.session.id);
+    const remarques = parcours.remarques(x.session.id).filter((r) => String(r.texte || '').startsWith('Fiche de sinistre'));
+    return V.pageSinistre(config, { espace: x.espace, parcours: x.p, sinistre: s, joursAbsence: sinistres.joursAbsence(x.session.id), remarques, erreur });
+  }
+  app.get('/sinistre', (req, res) => {
+    const x = membreParcours(req, res, '/sinistre', { sinistreOk: true });
+    if (!x) return;
+    if (!sinistres.estSinistre(x.p)) { res.redirect(302, '/parcours'); return; }
+    res.send(pageSinistreDe(x));
+  });
+  app.post('/sinistre', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/sinistre', { sinistreOk: true });
+    if (!x) return;
+    if (!sinistres.estSinistre(x.p)) { res.redirect(303, '/parcours'); return; }
+    const r = sinistres.remplirFiche(x.session.id, { pourquoi: req.body.pourquoi, engagements: req.body.engagements });
+    if (r.erreur) { res.status(400).send(pageSinistreDe(x, r.erreur)); return; }
+    prevenir('ficheSinistre', x.p, r.sinistre);
+    res.redirect(303, '/sinistre');
+  });
+
+  // Données de la fiche (membre et coach).
+  const donneesFiche = (id) => ({ stats: suivi.stats(id), recompenses: suivi.recompenses(id), sinistre: sinistres.enCours(id),
+    historique: sinistres.historique(id), joursAbsence: sinistres.joursAbsence(id) });
+  app.get('/fiche', (req, res) => {
+    const x = membreParcours(req, res, '/fiche', { sinistreOk: true });
+    if (!x) return;
+    res.send(V.pageFiche(config, { espace: x.espace, parcours: x.p, remarques: parcours.remarques(x.session.id), toutes: Boolean(req.query.toutes), ...donneesFiche(x.session.id) }));
   });
 
   // Images jointes aux remarques : visibles par le coach et par le membre concerné.
@@ -664,7 +807,33 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       const r = (c.reponses || []).find((x) => /nom/i.test(x.label) && !/discord|pseudo/i.test(x.label)) || (c.reponses || [])[0];
       return { id: c.id, nom: (r && r.valeur) || c.pseudo || c.discord_id, pseudo: c.pseudo, statut: c.statut, maj_le: c.maj_le };
     }) : [];
-    res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter(), candidatures: demandes }));
+    res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter(), candidatures: demandes,
+      comptesRendus: suivi.enAttente(), fichesSinistre: sinistres.fichesATraiter(), roles: suivi.aConfirmer() }));
+  });
+  // Comptes rendus de l'étape 4.
+  function compteRenduDe(req, res) {
+    const cr = suivi.compteRenduParId(req.params.id);
+    if (!cr) { res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce compte rendu n\'existe pas.', { lien: '/admin/a-traiter', texteLien: 'À traiter' })); return null; }
+    return cr;
+  }
+  app.get('/admin/comptes-rendus/:id', (req, res) => {
+    if (!estAdmin(req, res, `/admin/comptes-rendus/${encodeURIComponent(req.params.id)}`)) return;
+    const cr = compteRenduDe(req, res);
+    if (!cr) return;
+    res.send(V.pageCompteRenduCoach(config, { espace: espaceDe(lireSession(req, config.secretApp)), cr, parcours: parcours.get(cr.discord_id),
+      capture: suivi.captureDuJour(cr.discord_id, cr.jour), message: req.query.erreur || null }));
+  });
+  app.post('/admin/comptes-rendus/:id/decision', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const cr = compteRenduDe(req, res);
+    if (!cr) return;
+    const decision = String(req.body.decision || '');
+    const r = suivi.decider(cr.id, decision, { texte: req.body.texte, images: imagesDe(req.body) });
+    if (r.erreur) { res.redirect(303, `/admin/comptes-rendus/${cr.id}?erreur=${encodeURIComponent(r.erreur)}`); return; }
+    const p = parcours.get(cr.discord_id);
+    prevenir('compteRenduDecide', r.compteRendu, p, decision);
+    if (r.nouvelles.length) prevenir('recompensesAtteintes', p, r.nouvelles);
+    res.redirect(303, '/admin/a-traiter#etape-4');
   });
   function envoiDe(req, res) {
     const s = parcours.soumission(req.params.id);
@@ -715,8 +884,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, `/admin/membres/${encodeURIComponent(req.params.id)}`)) return;
     const p = ficheDe(req, res);
     if (!p) return;
-    const message = { remarque: 'Remarque publiée. Bob a prévenu le membre.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.' }[req.query.fait] || null;
-    res.send(V.pageFiche(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, parcours: p, remarques: parcours.remarques(p.discord_id), toutes: Boolean(req.query.toutes), message }));
+    const message = { remarque: 'Remarque publiée. Bob a prévenu le membre.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.',
+      recompense: 'Rôle confirmé. Bob le donne et prévient le membre.', precisions: 'Précisions demandées. Bob a prévenu le membre.', rehabiliter: 'Membre réhabilité : Bob lui rend le rôle Elite.',
+      declarer: 'Sinistre déclaré. Bob l\'a prévenu.', retirer: 'Sinistres retirés : jours d\'absence rendus sur ses 90 jours.' }[req.query.fait] || req.query.erreur || null;
+    res.send(V.pageFiche(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, parcours: p, remarques: parcours.remarques(p.discord_id),
+      toutes: Boolean(req.query.toutes), message, ...donneesFiche(p.discord_id) }));
   });
   app.post('/admin/membres/:id/remarque', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/membres')) return;
@@ -739,6 +911,38 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     }
     parcours.majCompte(p.discord_id, champs);
     res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=compte`);
+  });
+  app.post('/admin/membres/:id/recompense', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/membres')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const role = String(req.body.role || '');
+    const r = suivi.confirmerRecompense(p.discord_id, role);
+    if (!r.erreur) prevenir('recompenseConfirmee', r.parcours, role);
+    res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?${r.erreur ? `erreur=${encodeURIComponent(r.erreur)}` : 'fait=recompense'}`);
+  });
+  app.post('/admin/membres/:id/sinistre', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/membres')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const action = String(req.body.action || '');
+    const texte = String(req.body.texte || '').trim();
+    let r;
+    if (action === 'precisions') {
+      r = texte ? sinistres.demanderPrecisions(p.discord_id) : { erreur: 'Écris ce qu\'il doit préciser.' };
+      if (!r.erreur) { parcours.ajouterRemarque(p.discord_id, { texte: `Fiche de sinistre : ${texte}`, type: 'corriger' }); prevenir('sinistre', 'precisions', p); }
+    } else if (action === 'rehabiliter') {
+      r = sinistres.rehabiliter(p.discord_id);
+      if (!r.erreur) prevenir('sinistre', 'rehabilite', r.parcours);
+    } else if (action === 'declarer') {
+      r = sinistres.ouvrir(p.discord_id);
+      if (!r.erreur) prevenir('sinistre', 'ouvert', r.parcours, r);
+    } else if (action === 'retirer') {
+      const etait = Boolean(p.sinistre_depuis);
+      r = sinistres.retirerSinistres(p.discord_id);
+      if (!r.erreur) prevenir('sinistre', 'retire', r.parcours, { joursRendus: r.joursRendus, etaitSinistre: etait });
+    } else r = { erreur: 'Action inconnue.' };
+    res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?${r.erreur ? `erreur=${encodeURIComponent(r.erreur)}` : `fait=${action}`}`);
   });
   app.post('/admin/membres/:id/etape', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/membres')) return;

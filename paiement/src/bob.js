@@ -8,6 +8,7 @@ const {
 const STATUTS_CANDIDATURE_PROTEGES = ['examen', 'retenu', 'video', 'valide'];
 const { lienRenouvellement, lienMagique } = require('./liens');
 const { JOURS, dateISO, ajouterJours } = require('./coaching');
+const { jourLisible } = require('./suivi');
 
 const JOUR_MS = 24 * 3600 * 1000;
 const PALIERS_JOURS = [10, 5, 3, 1]; // 1 = dernières 24 h
@@ -24,7 +25,7 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'nu
 // - Elite : alerte à l'admin 10 jours avant la fin (insatisfait / inconstant) ;
 // - coaching : rappel personnalisé, rappel 1 h avant, récap admin 2 h avant la première séance du jour ;
 // - commandes admin : /lien-elite, /prolonger, /membre ; candidatures Tally.
-function creerBob({ config, db, commandes, coaching, candidatures, parcours, maintenant = () => new Date(), client: clientInjecte, serveur: serveurInjecte } = {}) {
+function creerBob({ config, db, commandes, coaching, candidatures, parcours, suivi, sinistres, maintenant = () => new Date(), client: clientInjecte, serveur: serveurInjecte } = {}) {
   const actif = config.discordActif || Boolean(clientInjecte);
   const client = clientInjecte || (actif ? new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -295,8 +296,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
 
   // ---------- Rôles ----------
   // Accès en cours : rôle de l'offre présent, rôle Attente retiré (par exemple juste après un renouvellement).
+  const estSinistre = (id) => Boolean(parcours && (parcours.get(id) || {}).sinistre_depuis);
   async function synchroRoles() {
     for (const m of q.actifsEnCours.all(maintenant().toISOString())) {
+      if (m.programme === 'elite' && estSinistre(m.discord_id)) continue; // rôle Elite retiré pendant le sinistre
       try {
         await donnerRole(m.discord_id, config.offres[m.programme].roleDiscord);
         await retirerRole(m.discord_id, config.discord.roleAttente);
@@ -484,6 +487,64 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
     return { ok: true, salon, ...bilan };
   }
 
+  // ---------- Salon #sinistrés : seul salon visible pour le rôle Sinistré ----------
+  const cleSalonSinistres = 'config:salon-sinistres';
+  const salonSinistresId = () => (q.attenteDepuis.get(cleSalonSinistres) || {}).envoye_le || null;
+  async function bloquerPourSinistres(salon) {
+    const role = config.discord.roleSinistre;
+    if (!role || !salon || salon.id === salonSinistresId()) return 'ignoré';
+    if (salon.parentId && salon.permissionsLocked) return 'hérité';
+    await salon.permissionOverwrites.edit(role, { ViewChannel: false }, { reason: 'Overmaxx : un sinistré ne voit que #sinistrés' });
+    return 'bloqué';
+  }
+  async function configurerSinistres() {
+    const role = config.discord.roleSinistre;
+    if (!serveur || !role) return { erreur: 'DISCORD_ROLE_SINISTRE ou le serveur est introuvable.' };
+    let salon = null;
+    for (const id of [salonSinistresId(), config.discord.salonSinistres]) {
+      if (salon || !id) continue;
+      try { salon = await serveur.channels.fetch(id); } catch { /* supprimé : on en recrée un */ }
+    }
+    if (!salon) {
+      salon = await serveur.channels.create({
+        name: 'sinistrés',
+        type: ChannelType.GuildText,
+        permissionOverwrites: [
+          { id: serveur.id, deny: [PermissionFlagsBits.ViewChannel] },
+          { id: role, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] },
+          { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+        ],
+        reason: 'Overmaxx : salon des sinistrés',
+      });
+    } else {
+      if (salon.parentId && salon.permissionsLocked && salon.lockPermissions) await salon.edit({ lockPermissions: false });
+      await salon.permissionOverwrites.edit(role, { ViewChannel: true, ReadMessageHistory: true, SendMessages: false });
+    }
+    q.noterAttente.run(cleSalonSinistres, salon.id);
+    const bilan = { bloques: 0, herites: 0, echecs: [] };
+    const tous = await serveur.channels.fetch();
+    const liste = [...tous.values()].filter(Boolean).sort((a, b) => (a.type === ChannelType.GuildCategory ? -1 : 0) - (b.type === ChannelType.GuildCategory ? -1 : 0));
+    for (const c of liste) {
+      if (c.id === salon.id) continue;
+      try {
+        const r = await bloquerPourSinistres(c);
+        if (r === 'bloqué') bilan.bloques++; else if (r === 'hérité') bilan.herites++;
+      } catch { bilan.echecs.push(c.name || c.id); }
+    }
+    const cleMessage = `config:message-sinistres:v1:${salon.id}`;
+    if (!dejaEnvoye(cleMessage)) {
+      await salon.send({
+        content: '**Tu es sinistré.**\nTu as disparu du processus pendant plus de 7 jours sans prévenir : tu ne vois plus que ce salon et tu n\'as plus de coaching.\n\n'
+          + 'Pour revenir : remplis ta **fiche de sinistre** (pourquoi tu étais absent, et tes engagements). Ton coach la lit et décide de ta réhabilitation.\n'
+          + 'Tant qu\'elle n\'est pas remplie, chaque semaine d\'absence de plus compte comme un sinistre de plus. Au 3e : plus de live individuel.',
+        components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setLabel('Remplir ma fiche de sinistre').setStyle(ButtonStyle.Link).setURL(`${config.baseUrl}/sinistre`))],
+      });
+      marquer(cleMessage);
+    }
+    log(`salon des sinistrés configuré : ${salon.id} (${bilan.bloques} bloqués, ${bilan.herites} hérités, ${bilan.echecs.length} échecs)`);
+    return { ok: true, salon, ...bilan };
+  }
+
   async function surInteraction(i) {
     const estAdmin = i.user.id === config.discord.adminId;
     if (i.isButton() && i.customId.startsWith('cand:')) {
@@ -495,6 +556,14 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
       return i.update({ content: `${i.message.content}\n\n**${libelle}**.`, components: [] });
     }
 
+    if (i.isButton() && i.customId.startsWith('recompense:')) {
+      if (!estAdmin) return i.reply({ content: 'Réservé à l\'admin.', flags: MessageFlags.Ephemeral });
+      const [, role, id] = i.customId.split(':');
+      const r = suivi ? suivi.confirmerRecompense(id, role) : { erreur: 'Indisponible.' };
+      if (r.erreur) return i.reply({ content: r.erreur, flags: MessageFlags.Ephemeral });
+      await prevenirParcours.recompenseConfirmee(r.parcours, role);
+      return i.update({ content: `${i.message.content}\n\n**Confirmé : rôle donné.**`, components: [] });
+    }
     if (i.isButton() && i.customId === 'ovx:postuler') return postuler(i);
     if (i.isButton() && i.customId === 'ovx:connexion') return i.reply({ ...(await liensConnexion(i.user)), flags: MessageFlags.Ephemeral });
 
@@ -744,6 +813,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
       for (const r of q.cartesActives.all(o.id)) {
         const m = tous.get(r.discord_id);
         if (m && m.roles.cache.has(o.roleDiscord)) continue;
+        if (o.id === 'elite' && estSinistre(r.discord_id)) continue; // rôle retiré par Bob pendant le sinistre
         if (payeMobile(r.discord_id)) { q.carteTerminee.run(iso, r.discord_id, o.id); continue; } // passé au mobile money
         q.cartePerdue.run(iso, r.discord_id, o.id);
         log(`abonnement ${o.id} par carte arrêté : ${r.discord_id}`);
@@ -809,7 +879,171 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
     async entreeReservee(p, seance) {
       await notifier.admin(`**${p.nom || p.pseudo || p.discord_id}** (<@${p.discord_id}>) a réservé son **coaching d'entrée** : ${seance.date} à ${seance.heure} GMT.`);
     },
+
+    // ---- Étape 4 ----
+    async compteRenduRecu(cr, p) {
+      await notifier.admin(avecBoutons(`**${nomDe(p)}** (<@${cr.discord_id}>) a envoyé son **compte rendu du ${jourLisible(cr.jour)}**.`,
+        [{ label: 'Ouvrir', url: lienCoach(`/admin/comptes-rendus/${cr.id}`) }]));
+    },
+    async compteRenduDecide(cr, p, decision) {
+      if (decision === 'corriger') {
+        await notifier.membre(cr.discord_id, avecBoutons(`**Ton coach demande des modifications sur ton compte rendu du ${jourLisible(cr.jour)}.** Lis sa remarque et renvoie-le.`,
+          [{ label: 'Corriger mon compte rendu', url: lienPerso(cr.discord_id, p && p.pseudo, `/parcours/compte-rendu/${cr.jour}`) }]));
+        return;
+      }
+      const st = suivi ? suivi.stats(cr.discord_id) : null;
+      await notifier.membre(cr.discord_id, avecBoutons(`**Ton compte rendu du ${jourLisible(cr.jour)} est validé.**${st ? ` Revenus validés au total : **${euros(st.revenusTotal)}**.` : ''}`,
+        [{ label: 'Mon parcours', url: lienPerso(cr.discord_id, p && p.pseudo, '/parcours') }]));
+    },
+    // Seuil atteint (GOAT ou rôle de revenus) : le coach confirme, ici ou sur la plateforme.
+    async recompensesAtteintes(p, roles) {
+      for (const role of roles) {
+        const quoi = role === 'goat' ? '**GOAT** (1 000 € sur 28 jours)' : `le rôle **${euros(Number(role))}** de revenus`;
+        const boutons = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`recompense:${role}:${p.discord_id}`).setLabel(role === 'goat' ? 'Confirmer GOAT' : `Confirmer ${euros(Number(role))}`).setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setLabel('Voir sa fiche').setStyle(ButtonStyle.Link).setURL(lienCoach(`/admin/membres/${encodeURIComponent(p.discord_id)}`)));
+        await notifier.admin({ content: `**${nomDe(p)}** (<@${p.discord_id}>) a atteint ${quoi} d'après ses comptes rendus validés. Confirme pour que je lui donne le rôle.`, components: [boutons] });
+      }
+    },
+    async recompenseConfirmee(p, role) {
+      const roleId = role === 'goat' ? config.discord.roleGoat : (config.discord.rolesRevenus || {})[role];
+      try { await donnerRole(p.discord_id, roleId); } catch (err) { console.warn('[bob] rôle de récompense :', err.message); }
+      const texte = role === 'goat'
+        ? '**Tu es GOAT !** 1 000 € en 28 jours : tu as atteint l\'objectif de l\'accompagnement. Ton rôle GOAT est ajouté : tu rejoins le live de groupe des GOAT.'
+        : `**${euros(Number(role))} de revenus au total : bravo !** Ton rôle est ajouté sur le serveur.`;
+      await notifier.membre(p.discord_id, avecBoutons(texte, [{ label: 'Ma fiche', url: lienPerso(p.discord_id, p.pseudo, '/fiche') }]));
+      log(`récompense ${role} donnée à ${p.discord_id}`);
+    },
+
+    // ---- Sinistres ----
+    async ficheSinistre(p) {
+      await notifier.admin(avecBoutons(`**${nomDe(p)}** (<@${p.discord_id}>) a rempli sa **fiche de sinistre**. Demande des précisions ou réhabilite-le.`,
+        [{ label: 'Lire sa fiche', url: lienCoach(`/admin/membres/${encodeURIComponent(p.discord_id)}`) }]));
+    },
+    async sinistre(action, p, extra = {}) {
+      if (action === 'ouvert') { await appliquerSinistre(p, extra, 'déclaré par ton coach'); return; }
+      if (action === 'precisions') {
+        await notifier.membre(p.discord_id, avecBoutons('**Ton coach demande des précisions sur ta fiche de sinistre.** Lis sa remarque et complète ta fiche.',
+          [{ label: 'Compléter ma fiche', url: lienPerso(p.discord_id, p.pseudo, '/sinistre') }]));
+        return;
+      }
+      if (action === 'rehabilite' || (action === 'retire' && extra.etaitSinistre)) await leverSinistre(p);
+      const texte = action === 'rehabilite'
+        ? '**Tu es réhabilité.** Ton accès au serveur et aux coachings est rétabli. Reprends ton parcours dès maintenant.'
+        : `**Tes sinistres sont retirés (force majeure).** Compteur remis à 0, lives individuels rendus${extra.joursRendus ? `, et **${extra.joursRendus} jour(s)** ajoutés à tes 90 jours (fin le ${formatDate(p.fin_le)})` : ''}.`;
+      await notifier.membre(p.discord_id, avecBoutons(texte, [{ label: 'Mon parcours', url: lienPerso(p.discord_id, p.pseudo, '/parcours') }]));
+    },
   };
+  const nomDe = (p) => (p && (p.nom || p.pseudo)) || (p && p.discord_id) || '?';
+  const euros = (n) => `${(Math.round(Number(n || 0) * 100) / 100).toLocaleString('fr-FR')} €`;
+
+  // Sinistre : rôle Elite retiré (le rôle Sinistré ne voit que #sinistrés), créneaux de coaching libérés.
+  async function appliquerSinistre(p, r, raison) {
+    try {
+      await donnerRole(p.discord_id, config.discord.roleSinistre);
+      await retirerRole(p.discord_id, config.offres.elite.roleDiscord);
+    } catch (err) { console.warn('[bob] rôles du sinistre :', err.message); }
+    if (coaching) coaching.supprimerMembre(p.discord_id);
+    const n = (r && r.numero) || p.sinistres;
+    await notifier.membre(p.discord_id, avecBoutons(`**Tu es sinistré (${n} / 3)** : ${raison}.
+`
+      + 'Tu ne vois plus que le salon #sinistrés et tu n\'as plus de coaching. Remplis ta fiche de sinistre : ton coach décidera de ta réhabilitation.'
+      + (r && r.total ? '\n**C\'est ton 3e sinistre : sinistré total.** Plus de live individuel, seulement les lives de groupe.' : ''),
+      [{ label: 'Remplir ma fiche de sinistre', url: lienPerso(p.discord_id, p.pseudo, '/sinistre') }]));
+    await notifier.admin(avecBoutons(`**${nomDe(p)}** (<@${p.discord_id}>) est **sinistré (${n} / 3)** : ${raison}.${r && r.total ? ' Sinistré total.' : ''} Ses créneaux de coaching sont libérés.`,
+      [{ label: 'Voir sa fiche', url: lienCoach(`/admin/membres/${encodeURIComponent(p.discord_id)}`) }]));
+    log(`sinistre ${n} pour ${p.discord_id} (${raison})`);
+  }
+  async function leverSinistre(p) {
+    try {
+      await donnerRole(p.discord_id, config.offres.elite.roleDiscord);
+      await retirerRole(p.discord_id, config.discord.roleSinistre);
+    } catch (err) { console.warn('[bob] rôles de la réhabilitation :', err.message); }
+  }
+
+  // ---------- Étape 4 : rappels quotidiens, à l'heure du membre ----------
+  async function rappelsQuotidiens() {
+    if (!parcours || !suivi) return;
+    const now = maintenant();
+    for (const p of parcours.tous()) {
+      if (p.etape < 4 || p.sinistre_depuis || (p.fin_le && new Date(p.fin_le) < now)) continue;
+      for (const r of suivi.rappelsDuMoment(p, now)) {
+        const cle = `suivi:${p.discord_id}:${r.type}:${r.jour}`;
+        if (dejaEnvoye(cle)) continue;
+        marquer(cle);
+        const lien = (chemin) => lienPerso(p.discord_id, p.pseudo, chemin);
+        let contenu = null;
+        if (r.type === 'creation') contenu = avecBoutons('**C\'est l\'heure de créer ta vidéo du jour.** Le montage prend 1 h maximum.', [{ label: 'Étape 4', url: lien('/parcours/etape-4') }]);
+        if (r.type === 'publication' && !suivi.publications(p.discord_id, r.jour).length) {
+          contenu = avecBoutons('**C\'est l\'heure de publier.** Une fois ta vidéo en ligne, déclare-la : son lien et la capture de ton compte.', [{ label: 'Déclarer ma vidéo', url: lien('/parcours/etape-4') }]);
+        }
+        if (r.type === 'compte-rendu') {
+          // Les comptes rendus en retard ou à corriger, listés chaque jour à son heure de compte rendu.
+          const aFaire = suivi.comptesRendusAFaire(p.discord_id);
+          if (aFaire.length) {
+            const corriger = aFaire.filter((x) => x.cr && x.cr.etat === 'corriger').length;
+            contenu = avecBoutons(`**C'est l'heure de ton compte rendu.** ${aFaire.length === 1 ? `Celui du ${jourLisible(aFaire[0].jour)} est à ${corriger ? 'corriger' : 'envoyer'}.` : `${aFaire.length} sont à envoyer ou à corriger${corriger ? ` (dont ${corriger} à corriger)` : ''}.`}`,
+              aFaire.slice(0, 10).map((x) => ({ label: `${x.cr && x.cr.etat === 'corriger' ? 'Corriger' : 'Compte rendu'} du ${jourLisible(x.jour)}`, url: lien(`/parcours/compte-rendu/${x.jour}`) })));
+          }
+        }
+        if (contenu) { await notifier.membre(p.discord_id, contenu); log(`rappel ${r.type} envoyé à ${p.discord_id}`); }
+      }
+    }
+  }
+
+  // ---------- Absences et sinistres ----------
+  // Absence = aucune interaction sur la plateforme (ni leçon terminée sur Whop) : 3 jours, 6 jours, puis sinistre à 7 jours.
+  // Les jours où le membre attend son coach (exercices ou vidéos envoyés, coaching d'entrée fait) ne comptent pas.
+  const ATTEND_LE_COACH = ['attente1', 'attente3'];
+  async function surveillerAbsences() {
+    if (!parcours || !sinistres) return;
+    const now = maintenant();
+    for (const p of parcours.tous()) {
+      if (p.fin_le && new Date(p.fin_le) < now && !p.sinistre_depuis) continue; // 90 jours terminés
+      const id = p.discord_id;
+      const lien = (chemin) => lienPerso(id, p.pseudo, chemin);
+      if (p.sinistre_depuis) {
+        const s = sinistres.enCours(id);
+        const plus = sinistres.ajouterSiToujoursAbsent(id);
+        if (plus) {
+          await notifier.membre(id, avecBoutons(`**Toujours absent : sinistre ${plus.numero} / 3.**${plus.total ? ' **Sinistré total** : plus de live individuel, seulement les lives de groupe.' : ''} Remplis ta fiche de sinistre.`,
+            [{ label: 'Remplir ma fiche', url: lien('/sinistre') }]));
+          await notifier.admin(`**${nomDe(p)}** (<@${id}>) toujours absent : **sinistre ${plus.numero} / 3**${plus.total ? ' (sinistré total)' : ''}.`);
+        }
+        // Fiche pas encore remplie (ou précisions demandées) : un rappel toutes les 24 h.
+        if (s && ['ouvert', 'precisions'].includes(s.etat)) {
+          const tranche = Math.floor((now - new Date(p.sinistre_depuis)) / JOUR_MS);
+          const cle = `sinistre:${id}:${s.id}:${s.etat}:${tranche}`;
+          if (tranche >= 1 && !dejaEnvoye(cle)) {
+            marquer(cle);
+            await notifier.membre(id, avecBoutons(s.etat === 'precisions' ? '**Rappel : ton coach attend les précisions sur ta fiche de sinistre.**' : '**Rappel : remplis ta fiche de sinistre.** Sans elle, ton coach ne peut pas te réhabiliter.',
+              [{ label: 'Ma fiche de sinistre', url: lien('/sinistre') }]));
+          }
+        }
+        continue;
+      }
+      const t = parcours.tache(id);
+      const attendCoach = (t && ATTEND_LE_COACH.includes(t.cle)) || (p.etape === 2 && parcours.aTraiter().etape2.some((x) => x.parcours.discord_id === id));
+      // Première surveillance (mise en service) ou attente du coach : le compteur repart de maintenant.
+      if (!p.derniere_activite || attendCoach) { sinistres.noterActivite(id); continue; }
+      const derniere = sinistres.derniereActivite(p).toISOString();
+      const jours = sinistres.joursAbsent(p);
+      if (jours >= sinistres.SEUILS.sinistre) {
+        const r = sinistres.ouvrir(id);
+        if (!r.erreur) await appliquerSinistre(r.parcours, r, `${jours} jours sans passer sur la plateforme`);
+        continue;
+      }
+      const palier = jours >= sinistres.SEUILS.avertissement ? 'avertissement' : jours >= sinistres.SEUILS.message ? 'message' : null;
+      const cle = palier && `absence:${id}:${derniere}:${palier}`;
+      if (!cle || dejaEnvoye(cle)) continue;
+      marquer(cle);
+      const texte = palier === 'message'
+        ? `**Pourquoi tu n'es pas là ?** Ça fait ${jours} jours que tu n'es pas passé sur la plateforme.${t ? ` Ta tâche du moment : ${t.titre.charAt(0).toLowerCase()}${t.titre.slice(1)}.` : ''}`
+        : `**Demain, tu seras sinistré.** ${jours} jours sans passer sur la plateforme. Si tu ne reviens pas d'ici demain, tu perds l'accès au serveur et aux coachings.`;
+      await notifier.membre(id, avecBoutons(texte, [{ label: t ? t.bouton : 'Mon parcours', url: lien(t ? t.lien : '/parcours') }]));
+      log(`absence (${palier}, ${jours} j) : ${id}`);
+    }
+  }
 
   // Rappels des délais : à la moitié du délai, 1 h avant la fin, puis toutes les 12 h en retard.
   // Étape 3 sans planning de coaching : un rappel toutes les 12 h.
@@ -817,9 +1051,19 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
     if (!parcours) return;
     const now = maintenant().getTime();
     for (const p of parcours.tous()) {
-      if (p.etape > 4) continue;
-      const t = p.etape <= 3 ? parcours.tache(p.discord_id) : null;
-      if (t && t.delai) {
+      if (p.etape > 4 || p.sinistre_depuis) continue;
+      const t = parcours.tache(p.discord_id);
+      if (p.etape === 4) {
+        if (t && t.cle === 'heures') {
+          const tranche = Math.floor((now - new Date(p.etape_depuis).getTime()) / (6 * 3600 * 1000));
+          const cle = `parcours:${p.discord_id}:heures:${p.etape_depuis}:${tranche}`;
+          if (tranche >= 1 && !dejaEnvoye(cle)) {
+            marquer(cle);
+            await notifier.membre(p.discord_id, avecBoutons(`**Choisis tes 3 heures** (création, publication, compte rendu) : tu avais 12 heures pour le faire${tranche >= 2 ? ', le délai est dépassé' : ''}.`,
+              [{ label: 'Choisir mes heures', url: lienPerso(p.discord_id, p.pseudo, '/parcours/etape-4') }]));
+          }
+        }
+      } else if (t && t.delai) {
         const fin = new Date(t.delai.fin).getTime();
         const debut = fin - t.delai.duree;
         let moment = null;
@@ -944,7 +1188,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
       await renouvellements();
       await rappelsCoaching();
       if (tour % 2 === 0) await synchroRoles();
-      if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); }
+      await rappelsQuotidiens();
+      if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); await surveillerAbsences(); }
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
       console.error('[bob] cycle :', err);
@@ -970,6 +1215,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
     relancerWhop,
     suivreCarte,
     relancerParcours,
+    rappelsQuotidiens,
+    surveillerAbsences,
+    configurerSinistres,
     parcours: prevenirParcours,
 
     async demarrer() {
@@ -983,8 +1231,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
         if (roleAjoute || (avant.pending && !apres.pending)) accueillir(apres).catch((e) => console.warn('[bob] arrivée :', e.message));
       });
       client.on('channelCreate', (c) => {
-        if (!c.guild || c.guild.id !== config.discord.serveurId || !salonAttenteId()) return;
-        bloquerPourAttente(c).catch((e) => console.warn('[bob] nouveau salon :', e.message));
+        if (!c.guild || c.guild.id !== config.discord.serveurId) return;
+        if (salonAttenteId()) bloquerPourAttente(c).catch((e) => console.warn('[bob] nouveau salon :', e.message));
+        if (salonSinistresId()) bloquerPourSinistres(c).catch((e) => console.warn('[bob] nouveau salon (sinistrés) :', e.message));
       });
       client.once('clientReady', async () => {
         log(`connecté en tant que ${client.user.tag}`);
@@ -1013,6 +1262,20 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, mai
               }
             } else console.warn('[bob] salon d\'attente :', r.erreur);
           } catch (err) { console.error('[bob] salon d\'attente :', err.message); }
+        }
+        // Salon #sinistrés, configuré de la même façon.
+        if (serveur && config.discord.roleSinistre && parcours) {
+          try {
+            const r = await configurerSinistres();
+            if (r.ok) {
+              const cle = `config:bilan-sinistres:${r.salon.id}`;
+              if (!dejaEnvoye(cle) || r.echecs.length) {
+                marquer(cle);
+                await notifier.admin(`Salon des sinistrés prêt : <#${r.salon.id}>. ${r.bloques} salon(s) ou catégorie(s) cachés au rôle Sinistré.`
+                  + (r.echecs.length ? `\nJe n'ai pas pu modifier : ${r.echecs.join(', ')}. Donne-moi l'accès à ces salons, puis relance le site.` : ''));
+              }
+            } else console.warn('[bob] salon des sinistrés :', r.erreur);
+          } catch (err) { console.error('[bob] salon des sinistrés :', err.message); }
         }
         cycle();
         setInterval(cycle, 60 * 1000).unref();

@@ -3,6 +3,7 @@
 // Parcours de l'accompagnement Elite : Mon parcours, les étapes 1 à 3, la fiche du membre,
 // et côté coach : À traiter et la validation d'un envoi. Voir docs/ACCOMPAGNEMENT-ELITE.md.
 const { ICONE, echapper, formatDate, blocVideo } = require('./pages');
+const { jourLisible } = require('./suivi');
 const { pageEspace } = require('./pages-espace');
 
 const ETAPES = [
@@ -79,6 +80,26 @@ const STYLE_PARCOURS = `<style>
   .apercus img { width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--bord); }
   details > summary { cursor:pointer; font-weight:600; }
   .message-ok { color:var(--ok); font-weight:600; }
+  .barre-objectifs { height:10px; border-radius:10px; background:var(--surface-2); overflow:hidden; margin:14px 0 10px; }
+  .barre-objectifs i { display:block; height:100%; background:var(--ok); }
+  .paliers { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; font-size:12px; color:var(--gris); text-align:center; }
+  .paliers span { display:inline-flex; align-items:center; justify-content:center; gap:3px; }
+  .paliers span[data-atteint="1"] { color:var(--ok); font-weight:700; }
+  .paliers svg { width:13px; height:13px; stroke-width:3; }
+  .grille-champs { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 140px), 1fr)); gap:10px; align-items:end; }
+  .trois { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .trois input { margin:0; min-width:0; }
+  .captures-cr { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:12px; }
+  .captures-cr figure { margin:0; display:grid; gap:6px; }
+  .captures-cr img { width:100%; max-height:460px; object-fit:contain; background:#000; border-radius:12px; border:1px solid var(--bord); }
+  .captures-cr figcaption { color:var(--doux); font-size:12.5px; }
+  .grille-champs .champ input { margin:0; }
+  .video-cr { padding:14px; border-radius:14px; border:1px solid var(--bord); display:grid; gap:10px; }
+  .video-cr a { color:#fff; overflow-wrap:anywhere; font-size:13px; }
+  table.cr { width:100%; border-collapse:collapse; font-size:13px; }
+  table.cr th, table.cr td { text-align:left; padding:8px 6px; border-top:1px solid var(--bord); vertical-align:top; }
+  table.cr th { color:var(--doux); font-weight:600; border-top:0; }
+  .compteur-sinistres { font-size:28px; font-weight:800; letter-spacing:-0.03em; }
   @media (min-width: 960px) { .etapes li { font-size:12.5px; } .colonnes-2 { display:grid; grid-template-columns:minmax(0, 1fr) 360px; gap:24px; align-items:start; } }
 </style>`;
 
@@ -158,15 +179,17 @@ const SCRIPT_IMAGES = `
 (function () {
   document.querySelectorAll('[data-images]').forEach(function (zone) {
     var input = zone.querySelector('input[type=file]'), cache = zone.querySelector('input[type=hidden]'), liste = zone.querySelector('.apercus'), noms = [];
+    var adresse = zone.getAttribute('data-images') || '/admin/images', une = zone.hasAttribute('data-une');
     input.addEventListener('change', function () {
       Array.prototype.forEach.call(input.files, function (f) {
         var x = new XMLHttpRequest();
-        x.open('POST', '/admin/images');
+        x.open('POST', adresse);
         x.setRequestHeader('Content-Type', f.type || 'image/jpeg');
         x.onload = function () {
           var d = {};
           try { d = JSON.parse(x.responseText); } catch (e) { d = {}; }
           if (x.status === 200 && d.nom) {
+            if (une) { noms = []; liste.innerHTML = ''; }
             noms.push(d.nom); cache.value = noms.join(',');
             var i = document.createElement('img'); i.src = '/fichiers/images/' + d.nom; i.alt = ''; liste.appendChild(i);
           } else { alert(d.erreur || 'Image refusée.'); }
@@ -210,9 +233,13 @@ function remarque(r) {
     ${(r.images || []).length ? `<div class="images">${r.images.map((n) => `<a href="/fichiers/images/${echapper(n)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(n)}" alt="Image jointe par le coach" loading="lazy"></a>`).join('')}</div>` : ''}
   </div>`;
 }
-const zoneImages = () => `<div data-images>
+const zoneImages = () => `<div data-images="/admin/images">
   <label class="fichier">${ICONE.plus}<span><b>Joindre des images</b><br>Captures, exemples…</span><input type="file" accept="image/*" multiple hidden></label>
   <input type="hidden" name="images" value=""><div class="apercus" style="margin-top:8px"></div></div>`;
+// Une capture envoyée par le membre (compte, revenus).
+const zoneCapture = (nom, titre, aide, deja) => `<div data-images="/api/parcours/image" data-une>
+  <label class="fichier">${ICONE.plus}<span><b>${echapper(titre)}</b><br>${echapper(aide)}</span><input type="file" accept="image/*" hidden></label>
+  <input type="hidden" name="${nom}" value="${echapper(deja || '')}"><div class="apercus" style="margin-top:8px">${deja ? `<img src="/fichiers/images/${echapper(deja)}" alt="">` : ''}</div></div>`;
 
 function formVideo(emplacement, { etape1 = false, libelle } = {}) {
   return `<form data-envoi="${emplacement}">
@@ -225,14 +252,39 @@ function formVideo(emplacement, { etape1 = false, libelle } = {}) {
   </form>`;
 }
 
-const page = (titre, contenu, espace, actif, maxMo) => pageEspace(titre, `${STYLE_PARCOURS}${contenu}`, espace, actif, {
-  script: `${SCRIPT_LOCAL}${maxMo ? scriptEnvoi(maxMo) : ''}${espace && espace.estAdmin ? SCRIPT_IMAGES : ''}`,
+// Statistiques et objectifs (comptes rendus validés).
+const euros = (n) => `${Number(n || 0).toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+function blocStats(s) {
+  if (!s) return '';
+  const regularite = s.joursDepuisEtape4 ? `${s.joursPublies} / ${s.joursDepuisEtape4} jours` : '—';
+  return `<div class="carte"><h2>Statistiques</h2>
+    <div class="recap">
+      <div><b>${s.abonnes === null ? '—' : Number(s.abonnes).toLocaleString('fr-FR')}</b><span>abonnés</span></div>
+      <div><b>${s.vues === null ? '—' : Number(s.vues).toLocaleString('fr-FR')}</b><span>vues au total</span></div>
+      <div><b>${echapper(s.paysPrincipal || '—')}</b><span>pays principal des abonnés</span></div>
+      <div><b>${s.videosPubliees}</b><span>vidéos publiées</span></div>
+      <div><b>${regularite}</b><span>régularité (jours publiés)</span></div>
+      <div><b>${euros(s.revenus28)}</b><span>revenus des 28 derniers jours</span></div>
+    </div></div>`;
+}
+function blocObjectifs(s) {
+  if (!s) return '';
+  const max = s.objectifs[s.objectifs.length - 1].montant;
+  const pct = Math.min(100, Math.round((s.revenusTotal / max) * 100));
+  return `<div class="carte"><div class="envoi-tete"><h2>Objectifs de revenus</h2><span class="etat" data-etat="${s.revenusTotal >= max ? 'valide' : 'attente'}">${euros(s.revenusTotal)}</span></div>
+    <div class="barre-objectifs"><i style="width:${pct}%"></i></div>
+    <div class="paliers">${s.objectifs.map((o) => `<span data-atteint="${o.atteint ? 1 : 0}">${o.atteint ? ICONE.ok : ''}${euros(o.montant)}</span>`).join('')}</div>
+    <p class="doux petit" style="margin:10px 0 0">Revenus cumulés des comptes rendus validés. GOAT : ${euros(1000)} sur 28 jours (${euros(s.revenus28)} en ce moment).</p></div>`;
+}
+
+const page = (titre, contenu, espace, actif, maxMo, plus = '') => pageEspace(titre, `${STYLE_PARCOURS}${contenu}`, espace, actif, {
+  script: `${SCRIPT_LOCAL}${maxMo ? scriptEnvoi(maxMo) : ''}${SCRIPT_IMAGES}${plus}`,
 });
 const enTete = (n, titre, d) => `<div class="titre-page"><div><p class="etiquette">Étape ${n} sur 4</p><h1>${echapper(titre)}</h1></div>${delai(d)}</div>${frise(n)}`;
 const jourDe = (p) => Math.min(90, Math.max(1, Math.floor((Date.now() - new Date(p.entree_le)) / 86400000) + 1));
 
 // ---------- Membre : Mon parcours ----------
-function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, formation }) {
+function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, formation, stats }) {
   return page('Mon parcours', `
   <div class="titre-page"><div><p class="etiquette">Overmaxx Elite · jour ${jourDe(p)} sur 90</p><h1>Mon parcours</h1></div></div>
   ${frise(p.etape)}
@@ -246,6 +298,7 @@ function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, 
       </div>
       ${derniere ? `<div class="carte"><div class="envoi-tete"><h2>Dernière remarque du coach</h2><a class="doux petit" href="/fiche#remarques">Toutes les remarques</a></div>
         <div style="margin-top:12px">${remarque(derniere)}</div></div>` : ''}
+      ${p.etape >= 4 ? `${blocObjectifs(stats)}${blocStats(stats)}` : ''}
     </div>
     <div>
       <div class="carte">
@@ -379,8 +432,10 @@ function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarques
 }
 
 // ---------- La fiche (membre ou coach) ----------
-function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message }) {
+function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0 }) {
   const visibles = toutes ? remarques : remarques.slice(0, 1);
+  // Ce qui attend une décision du coach (sinistre, rôle à confirmer) passe en haut de la colonne.
+  const aConfirmer = recompenses.some((r) => !r.confirme_le);
   const base = vueCoach ? `/admin/membres/${encodeURIComponent(p.discord_id)}` : '/fiche';
   const dates = [['Prise en main', p.etape1_le], ['Coaching d\'entrée', p.etape2_le], ['Validation du contenu', p.etape3_le]]
     .map(([t, le], i) => [t, le ? formatDate(le) : p.etape === i + 1 ? 'en cours' : '—']);
@@ -404,6 +459,8 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
       </div>
     </div>
     <div>
+      ${sinistre ? blocSinistres({ vueCoach, base, p, sinistre, historique, joursAbsence }) : ''}
+      ${vueCoach && aConfirmer ? blocRecompenses(base, recompenses) : ''}
       <div class="carte"><h2>Identité</h2><dl class="details">
         <div><dt>Discord</dt><dd>${echapper(p.pseudo || p.discord_id)}</dd></div>
         <div><dt>Entrée</dt><dd>${echapper(formatDate(p.entree_le))}</dd></div>
@@ -426,9 +483,41 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
           <label class="doux petit" for="etape">Corriger l'étape à la main</label>
           <select id="etape" name="etape">${ETAPES.map((e) => `<option value="${e.n}"${e.n === p.etape ? ' selected' : ''}>${e.n} · ${echapper(e.titre)}</option>`).join('')}</select>
           <button class="bouton secondaire" type="submit" style="margin-top:0">Changer d'étape</button></form>` : ''}</div>
-      <div class="carte"><h2>Statistiques</h2><p class="doux" style="margin:0">Elles s'afficheront à partir de l'étape 4, avec les comptes rendus.</p></div>
+      ${p.etape >= 4 && stats ? `${blocObjectifs(stats)}${blocStats(stats)}` : '<div class="carte"><h2>Statistiques</h2><p class="doux" style="margin:0">Elles s\'afficheront à partir de l\'étape 4, avec les comptes rendus.</p></div>'}
+      ${vueCoach && !aConfirmer ? blocRecompenses(base, recompenses) : ''}
+      ${sinistre ? '' : blocSinistres({ vueCoach, base, p, sinistre, historique, joursAbsence })}
     </div>
   </div>`, espace, vueCoach ? 'membres' : 'fiche');
+}
+
+const NOMS_ROLES = { goat: 'GOAT', 1500: '1 500 €', 5000: '5 000 €', 10000: '10 000 €' };
+function blocRecompenses(base, recompenses) {
+  if (!recompenses.length) return '';
+  return `<div class="carte"><h2>Rôles</h2>${recompenses.map((r) => `<div class="ligne-envoi"><div class="qui"><b>${echapper(NOMS_ROLES[r.role] || r.role)}</b>
+    <span>${r.confirme_le ? `donné le ${echapper(formatDate(r.confirme_le))}` : `seuil atteint le ${echapper(formatDate(r.atteint_le))}`}</span></div>
+    ${r.confirme_le ? `<span class="etat" data-etat="valide">${ICONE.ok}Donné</span>` : `<form method="post" action="${base}/recompense"><input type="hidden" name="role" value="${echapper(r.role)}"><button class="bouton vert" type="submit" style="width:auto;min-height:38px;margin:0;padding:8px 16px">Confirmer</button></form>`}</div>`).join('')}</div>`;
+}
+function blocSinistres({ vueCoach, base, p, sinistre, historique, joursAbsence }) {
+  const n = p.sinistres || 0;
+  const s = sinistre;
+  const fiche = s && s.fiche_le ? `<div class="remarque"><span class="qui">Fiche de sinistre · ${echapper(formatDate(s.fiche_le))}</span>
+      <p><b>Pourquoi :</b> ${texteRiche(s.fiche_pourquoi)}</p><p><b>Ses engagements :</b> ${texteRiche(s.fiche_engagements)}</p></div>` : '';
+  const actions = !vueCoach ? '' : s
+    ? `${s.etat === 'fiche' ? `<form method="post" action="${base}/sinistre" style="display:grid;gap:10px;margin-top:12px">
+        <textarea name="texte" placeholder="Ce qu'il doit préciser (obligatoire pour demander des précisions)."></textarea>
+        <div class="deux-boutons"><button class="bouton secondaire" type="submit" name="action" value="precisions">Demander des précisions</button>
+        <button class="bouton vert" type="submit" name="action" value="rehabiliter">Réhabiliter</button></div></form>`
+      : `<p class="doux petit" style="margin:10px 0 0">${s.etat === 'precisions' ? 'Tu lui as demandé des précisions : il doit compléter sa fiche.' : 'Il n\'a pas encore rempli sa fiche de sinistre.'}</p>
+        <form method="post" action="${base}/sinistre"><button class="bouton secondaire" type="submit" name="action" value="rehabiliter">Réhabiliter quand même</button></form>`}`
+    : `<form method="post" action="${base}/sinistre"><button class="bouton secondaire" type="submit" name="action" value="declarer">Déclarer un sinistre</button></form>`;
+  const force = vueCoach && (n || historique.length) ? `<form method="post" action="${base}/sinistre" style="margin-top:8px">
+      <button class="bouton secondaire" type="submit" name="action" value="retirer" style="border-color:var(--erreur);color:var(--erreur)">Force majeure : retirer les sinistres</button>
+      <p class="doux petit" style="margin:6px 0 0">Compteur remis à 0, lives individuels rendus, ${joursAbsence} jour(s) d'absence rendus sur ses 90 jours.</p></form>` : '';
+  if (!vueCoach && !n && !s) return '';
+  return `<div class="carte"><div class="envoi-tete"><h2>Sinistres</h2>${s ? '<span class="etat" data-etat="corriger">Sinistré</span>' : ''}</div>
+    <p style="margin:8px 0 0"><span class="compteur-sinistres">${n} / 3</span>${p.sinistre_total ? ' <span class="etat" data-etat="corriger">Sinistré total : plus de lives individuels</span>' : ''}</p>
+    <p class="doux petit" style="margin:4px 0 10px">${joursAbsence} jour(s) d'absence au total.</p>
+    ${fiche}${actions}${force}</div>`;
 }
 
 // ---------- Coach : À traiter ----------
@@ -456,7 +545,7 @@ const STYLE_TRAITER = `<style>
   .vide-traiter { color:var(--gris); font-size:13px; margin:0; padding:14px 16px; border:1px dashed var(--bord); border-radius:14px; }
 </style>`;
 
-function pageATraiter(config, { espace, a, candidatures = [] }) {
+function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], fichesSinistre = [], roles = [] }) {
   const nom = (p) => (p && (p.nom || p.pseudo)) || '?';
   const carte = ({ qui, pseudo, quoi, quand, lien, bouton = 'Ouvrir', retard }) => `<div class="carte-traiter">
     <span class="qui">${echapper(qui)}</span>${pseudo ? `<span class="pseudo">${echapper(pseudo)}</span>` : ''}
@@ -471,6 +560,12 @@ function pageATraiter(config, { espace, a, candidatures = [] }) {
   const etape2 = a.etape2.map((x) => carte({ qui: nom(x.parcours), pseudo: x.parcours.pseudo, quoi: 'Coaching d\'entrée fait : ouvre son étape 3',
     quand: `Coaching du ${x.entree.date} à ${x.entree.heure} GMT`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}` }));
   const etape3 = a.envois.filter((s) => s.etape === 3).map(envoi);
+  const etape4 = comptesRendus.map((cr) => carte({ qui: nom(cr.parcours), pseudo: cr.parcours && cr.parcours.pseudo, quoi: `Compte rendu du ${jourLisible(cr.jour)}`,
+    quand: `Envoyé le ${formatDate(cr.envoye_le)}`, lien: `/admin/comptes-rendus/${cr.id}` }));
+  const sinistres = fichesSinistre.map((s) => carte({ qui: nom(s.parcours), pseudo: s.parcours && s.parcours.pseudo, quoi: `Fiche de sinistre (${s.numero} / 3)`,
+    quand: `Remplie le ${formatDate(s.fiche_le)}`, lien: `/admin/membres/${encodeURIComponent(s.discord_id)}` }));
+  const recompenses = roles.map((r) => carte({ qui: nom(r.parcours), pseudo: r.parcours && r.parcours.pseudo, quoi: `Rôle ${NOMS_ROLES[r.role] || r.role} à confirmer`,
+    quand: `Seuil atteint le ${formatDate(r.atteint_le)}`, lien: `/admin/membres/${encodeURIComponent(r.discord_id)}` }));
   const cand = (c, quoi) => carte({ qui: c.nom, pseudo: c.pseudo, quoi, quand: `Le ${formatDate(c.maj_le)}`, lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
   const videosCand = candidatures.filter((c) => c.statut === 'video').map((c) => cand(c, 'Vidéo de présentation reçue'));
   const nouvellesCand = candidatures.filter((c) => c.statut === 'examen').map((c) => cand(c, 'Formulaire de candidature à examiner'));
@@ -480,7 +575,9 @@ function pageATraiter(config, { espace, a, candidatures = [] }) {
     { id: 'etape-1', puce: 'Étape 1', titre: 'Étape 1 · Exercices à valider', aide: 'Exercices L1 et L2 : tes remarques, puis Valider.', n: etape1.length, corps: grille(etape1) },
     { id: 'etape-2', puce: 'Étape 2', titre: 'Étape 2 · Étape 3 à ouvrir', aide: 'Coaching d\'entrée fait : note son compte, sa niche et son pays, puis ouvre son étape 3.', n: etape2.length, corps: grille(etape2) },
     { id: 'etape-3', puce: 'Étape 3', titre: 'Étape 3 · Vidéos à valider', aide: 'Ses 3 vidéos avant publication : Demander des modifications ou Valider.', n: etape3.length, corps: grille(etape3) },
-    { id: 'etape-4', puce: 'Étape 4', titre: 'Étape 4 · Comptes rendus', aide: 'Les comptes rendus de publication arrivent avec la prochaine livraison.', n: 0, corps: '<p class="vide-traiter">Bientôt disponible.</p>' },
+    { id: 'etape-4', puce: 'Étape 4', titre: 'Étape 4 · Comptes rendus', aide: 'Les résultats de ses vidéos : Demander des modifications ou Valider. Les revenus validés font avancer ses objectifs.', n: etape4.length, corps: grille(etape4) },
+    { id: 'roles', puce: 'Rôles', titre: 'GOAT et rôles de revenus à confirmer', aide: 'Seuil atteint d\'après ses comptes rendus validés : confirme, et Bob donne le rôle.', n: recompenses.length, corps: grille(recompenses) },
+    { id: 'sinistres', puce: 'Sinistrés', titre: 'Fiches de sinistre', aide: 'Lis sa fiche : Demander des précisions ou Réhabiliter.', n: sinistres.length, corps: grille(sinistres) },
     { id: 'demandes', puce: 'Demandes d\'intégration', titre: 'Demandes d\'intégration', aide: 'Les candidats retenus qui ont envoyé leur vidéo passent avant les nouvelles candidatures.',
       n: videosCand.length + nouvellesCand.length,
       corps: `<h3 class="sous">Vidéos de présentation (${videosCand.length})</h3>${grille(videosCand)}<h3 class="sous">Nouvelles candidatures (${nouvellesCand.length})</h3>${grille(nouvellesCand)}` },
@@ -531,4 +628,156 @@ function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, m
   </div>`, espace, 'traiter');
 }
 
-module.exports = { ETAPES, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+// ---------- Membre : étape 4 (publication et suivi) ----------
+const SCRIPT_FUSEAU = `
+(function () {
+  var f = ''; try { f = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { f = ''; }
+  document.querySelectorAll('input[name=fuseau]').forEach(function (i) { if (!i.value) i.value = f; });
+})();`;
+function formHeures(p, { titre = 'Choisis tes 3 heures' } = {}) {
+  const h = (nom, val, label, conseil) => `<div class="champ"><label for="${nom}">${label}</label><input id="${nom}" name="${nom}" type="time" value="${echapper(val || '')}" required><small>${conseil}</small></div>`;
+  return `<form method="post" action="/parcours/etape-4/heures" style="display:grid;gap:14px">
+    ${titre ? `<h2 style="margin:0">${echapper(titre)}</h2>` : ''}
+    <p class="doux" style="margin:0">Des heures fixes, chaque jour. Bob te les rappelle, à ton heure (<span data-fuseau>GMT</span>).</p>
+    ${h('creation', p.heure_creation, 'Création de ta vidéo', 'Le moment où tu es le plus libre et le plus en forme. Il n\'y a pas de bon moment : le meilleur est celui que tu décides d\'y consacrer.')}
+    ${h('publication', p.heure_publication, 'Publication', 'Je te conseille 1 h après la création : le montage prend 1 h maximum.')}
+    ${h('compte_rendu', p.heure_compte_rendu, 'Compte rendu', '24 h après la publication : tu envoies les résultats de la veille.')}
+    <input type="hidden" name="fuseau" value="">
+    <button class="bouton" type="submit" style="margin-top:0">Enregistrer mes heures</button></form>`;
+}
+function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publications, capture, aFaire, stats, message }) {
+  const corps = !p.heure_creation ? `<div class="carte">${formHeures(p)}</div>` : `
+  <div class="carte">
+    <div class="envoi-tete"><h2>Aujourd'hui</h2>${publications.length ? `<span class="etat" data-etat="valide">${ICONE.ok}${publications.length} vidéo(s) déclarée(s)</span>` : '<span class="etat" data-etat="attente">À déclarer</span>'}</div>
+    <p class="doux" style="margin:8px 0 12px">Au moins une vidéo par jour. Après avoir publié, colle son lien et ajoute la capture de ton compte.</p>
+    ${publications.length ? `<ul class="liste" style="margin-bottom:12px">${publications.map((x, i) => `<li>${ICONE.ok}<span>Vidéo ${i + 1} : <a href="${echapper(x.lien)}" target="_blank" rel="noopener">${echapper(x.lien)}</a></span></li>`).join('')}</ul>` : ''}
+    <form method="post" action="/parcours/etape-4/publication" style="display:grid;gap:12px">
+      <div class="champ"><label for="liens">${publications.length ? 'Une autre vidéo publiée aujourd\'hui ?' : 'Lien de ta vidéo TikTok'}</label>
+        <textarea id="liens" name="liens" placeholder="https://www.tiktok.com/@ton.compte/video/…" style="min-height:70px"></textarea><small>Un lien par ligne si tu en as publié plusieurs.</small></div>
+      ${capture ? '<p class="doux petit" style="margin:0">Capture du compte reçue pour aujourd\'hui. Tu peux la remplacer :</p>' : ''}
+      ${zoneCapture('capture', capture ? 'Remplacer la capture du compte' : 'Capture de ton compte', 'Ton profil TikTok tel qu\'il est maintenant : on y voit tes vidéos publiées.', '')}
+      <button class="bouton" type="submit" style="margin-top:0">Déclarer</button>
+    </form>
+  </div>
+  <div class="carte">
+    <div class="envoi-tete"><h2>Comptes rendus</h2>${aFaire.length ? `<span class="etat" data-etat="corriger">${aFaire.length} à faire</span>` : `<span class="etat" data-etat="valide">${ICONE.ok}À jour</span>`}</div>
+    ${aFaire.length ? aFaire.map((x) => `<div class="ligne-envoi"><div class="qui"><b>Compte rendu du ${echapper(jourLisible(x.jour))}</b><span>${x.videos} vidéo(s)${x.cr && x.cr.etat === 'corriger' ? ' · à corriger' : ''}</span></div>
+      <a class="bouton" href="/parcours/compte-rendu/${echapper(x.jour)}">Faire</a></div>`).join('')
+    : '<p class="doux" style="margin:8px 0 0">Rien à envoyer pour l\'instant. Le compte rendu d\'un jour se fait le lendemain, à ton heure de compte rendu.</p>'}
+  </div>
+  <div class="carte"><div class="envoi-tete"><h2>Mes heures</h2><span class="doux petit">à ton heure</span></div>
+    <div class="recap" style="grid-template-columns:repeat(3,1fr)"><div><b>${echapper(p.heure_creation)}</b><span>création</span></div><div><b>${echapper(p.heure_publication)}</b><span>publication</span></div><div><b>${echapper(p.heure_compte_rendu)}</b><span>compte rendu</span></div></div>
+    <details style="margin-top:12px"><summary>Modifier mes heures</summary><div style="margin-top:12px">${formHeures(p, { titre: '' })}</div></details></div>
+  ${blocObjectifs(stats)}${blocStats(stats)}`;
+  return page('Étape 4 · Publication et suivi', `
+  <div class="titre-page"><div><p class="etiquette">Étape 4 sur 4${aujourdhui ? ` · ${echapper(jourLisible(aujourdhui))}` : ''}</p><h1>Publication et suivi</h1></div>${delai(tache && tache.delai)}</div>
+  ${frise(Math.min(p.etape, 5))}
+  ${message ? `<p class="${message.erreur ? 'erreur-form' : 'message-ok'}">${echapper(message.texte)}</p>` : ''}
+  ${corps}`, espace, 'parcours', null, SCRIPT_FUSEAU);
+}
+
+// ---------- Membre : le compte rendu d'un jour ----------
+function pageCompteRendu(config, { espace, parcours: p, jour, videos, cr, questions, remarques = [], erreur }) {
+  const v = (k) => (cr && cr[k] !== null && cr[k] !== undefined ? cr[k] : '');
+  const stat = (id, k) => { const x = cr && (cr.videos || []).find((y) => y.publication_id === id); return x && x[k] !== null ? x[k] : ''; };
+  const pays = (k, i) => (cr && cr[k] && cr[k][i]) || '';
+  const champ = (nom, label, val, { type = 'number', aide, pas } = {}) => `<div class="champ"><label for="${nom}">${label}</label><input id="${nom}" name="${nom}" type="${type}" ${type === 'number' ? `min="0" inputmode="decimal"${pas ? ` step="${pas}"` : ''}` : ''} value="${echapper(val)}" required>${aide ? `<small>${aide}</small>` : ''}</div>`;
+  const troisPays = (k, label) => `<div class="champ"><label for="${k}_1">${label}</label><div class="trois">${[0, 1, 2].map((i) => `<input id="${k}_${i + 1}" name="${k}_${i + 1}" type="text" placeholder="${['1er', '2e', '3e'][i]}" aria-label="${label} : n° ${i + 1}" value="${echapper(pays(k, i))}"${i ? '' : ' required'}>`).join('')}</div></div>`;
+  const question = cr && cr.question;
+  const predefinie = questions.includes(question);
+  return page(`Compte rendu du ${jourLisible(jour)}`, `
+  <p class="doux petit"><a href="/parcours/etape-4">← Étape 4</a></p>
+  <div class="titre-page"><div><p class="etiquette">Compte rendu</p><h1>Résultats du ${echapper(jourLisible(jour))}</h1></div>${cr && cr.etat ? etatPuce(cr.etat) : ''}</div>
+  ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  ${cr && cr.etat === 'corriger' && remarques[0] ? remarque({ ...remarques[0], type: 'corriger' }) : ''}
+  <form method="post" action="/parcours/compte-rendu/${echapper(jour)}" style="display:grid;gap:14px;margin-top:14px">
+    <div class="carte" style="display:grid;gap:12px;margin:0"><h2 style="margin:0">Ton compte</h2>
+      <div class="grille-champs">
+        ${champ('abonnes_total', 'Abonnés au total', v('abonnes_total'))}${champ('vues_total', 'Vues au total', v('vues_total'))}
+        ${champ('abonnes_jour', 'Abonnés gagnés', v('abonnes_jour'))}${champ('vues_jour', 'Vues du jour', v('vues_jour'))}
+      </div>
+      ${troisPays('pays_vues', 'Top 3 des pays de tes vues')}
+      ${troisPays('pays_abonnes', 'Top 3 des pays de tes abonnés')}
+    </div>
+    ${videos.map((x, i) => `<div class="carte video-cr" style="margin:0"><h2 style="margin:0">Vidéo ${i + 1}</h2><a href="${echapper(x.lien)}" target="_blank" rel="noopener">${echapper(x.lien)}</a>
+      <div class="grille-champs">
+        ${champ(`v_${x.id}_vues`, 'Vues', stat(x.id, 'vues'))}${champ(`v_${x.id}_abonnes`, 'Abonnés gagnés', stat(x.id, 'abonnes'))}
+        ${champ(`v_${x.id}_heure`, 'Heure de publication', stat(x.id, 'heure'), { type: 'time' })}
+        ${champ(`v_${x.id}_visionnage_s`, 'Visionnage moyen (s)', stat(x.id, 'visionnage_s'))}
+        ${champ(`v_${x.id}_retention_10s`, 'Rétention à 10 s (%)', stat(x.id, 'retention_10s'), { pas: '0.1' })}
+        ${champ(`v_${x.id}_revenus`, 'Revenus (€)', stat(x.id, 'revenus'), { pas: '0.01' })}
+      </div></div>`).join('')}
+    <div class="carte" style="display:grid;gap:12px;margin:0"><h2 style="margin:0">Preuve des revenus</h2>
+      ${zoneCapture('capture_revenus', cr && cr.capture_revenus ? 'Remplacer la capture des revenus' : 'Capture de ta page des revenus TikTok', 'Une capture par compte rendu.', cr ? cr.capture_revenus : '')}</div>
+    <div class="carte" style="display:grid;gap:12px;margin:0"><h2 style="margin:0">Ta question du moment</h2>
+      <select name="question" id="question">
+        <option value="">Pas de question</option>
+        ${questions.map((x) => `<option${x === question ? ' selected' : ''}>${echapper(x)}</option>`).join('')}
+        <option value="autre"${question && !predefinie ? ' selected' : ''}>Autre (je l'écris)</option>
+      </select>
+      <textarea name="question_autre" placeholder="Ta question, si tu as choisi « Autre ».">${question && !predefinie ? echapper(question) : ''}</textarea></div>
+    <button class="bouton" type="submit" style="margin-top:0">Envoyer mon compte rendu</button>
+  </form>`, espace, 'parcours');
+}
+
+// ---------- Membre : la fiche de sinistre ----------
+function pageSinistre(config, { espace, parcours: p, sinistre: s, joursAbsence, remarques = [], erreur }) {
+  const fiche = s && s.etat === 'fiche'
+    ? `<div class="carte"><div class="envoi-tete"><h2>Ta fiche est envoyée</h2>${etatPuce('attente')}</div><p class="doux" style="margin:8px 0 0">Ton coach la lit. Bob te prévient dès qu'il t'a réhabilité.</p></div>`
+    : `<form class="carte" method="post" action="/sinistre" style="display:grid;gap:12px">
+      <h2 style="margin:0">Ta fiche de sinistre</h2>
+      ${s && s.etat === 'precisions' ? `<p class="erreur-form" style="margin:0">Ton coach te demande des précisions : complète ta fiche.</p>${remarques[0] ? remarque(remarques[0]) : ''}` : ''}
+      <div class="champ"><label for="pourquoi">Pourquoi étais-tu absent ?</label><textarea id="pourquoi" name="pourquoi" required>${echapper((s && s.fiche_pourquoi) || '')}</textarea></div>
+      <div class="champ"><label for="engagements">Quels sont tes engagements maintenant ?</label><textarea id="engagements" name="engagements" required>${echapper((s && s.fiche_engagements) || '')}</textarea></div>
+      <button class="bouton" type="submit" style="margin-top:0">Envoyer ma fiche</button></form>`;
+  return page('Sinistré', `
+  <div class="titre-page"><div><p class="etiquette">Overmaxx Elite</p><h1>Tu es sinistré</h1></div><span class="etat" data-etat="corriger">${p.sinistres} / 3</span></div>
+  ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <div class="carte"><p style="margin:0">Tu as disparu du processus pendant plus de 7 jours, sans prévenir. Tant que ton coach ne t'a pas réhabilité,
+    tu n'as plus accès au serveur (sauf #sinistrés) ni aux coachings.</p>
+    <p class="doux petit" style="margin:10px 0 0">${joursAbsence} jour(s) d'absence au total. Au 3e sinistre, plus de lives individuels.${p.sinistres < 3 ? ' Chaque semaine de plus sans revenir compte comme un sinistre de plus.' : ''}</p></div>
+  ${fiche}`, espace, 'parcours');
+}
+
+// ---------- Coach : valider un compte rendu ----------
+function pageCompteRenduCoach(config, { espace, cr, parcours: p, capture, message }) {
+  const nb = (n) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('fr-FR'));
+  const decision = cr.etat !== 'attente'
+    ? `<div class="carte"><h2>Déjà traité</h2><p class="doux" style="margin:0">${cr.etat === 'valide' ? 'Validé' : 'Modifications demandées'} le ${echapper(formatDate(cr.decide_le))}.</p></div>`
+    : `<form class="carte" method="post" action="/admin/comptes-rendus/${cr.id}/decision" style="display:grid;gap:12px">
+        <h2 style="margin:0">Ta décision</h2>
+        <div class="champ"><label for="texte">Ton retour</label><textarea id="texte" name="texte" placeholder="Obligatoire pour demander des modifications."></textarea></div>
+        ${zoneImages()}
+        <div class="deux-boutons"><button class="bouton secondaire" type="submit" name="decision" value="corriger">Demander des modifications</button><button class="bouton vert" type="submit" name="decision" value="valider">Valider</button></div>
+        <p class="doux petit" style="margin:0">Validé : ses revenus comptent pour ses objectifs, GOAT et ses rôles.</p></form>`;
+  const revenus = cr.videos.reduce((t, x) => t + (x.revenus || 0), 0);
+  return page(`Compte rendu de ${p.pseudo || ''}`, `
+  <p class="doux petit"><a href="/admin/a-traiter#etape-4">← À traiter</a></p>
+  <div class="titre-page"><div><p class="etiquette">${echapper(p.nom || p.pseudo || '')} · étape 4</p><h1>Compte rendu du ${echapper(jourLisible(cr.jour))}</h1></div>${etatPuce(cr.etat)}</div>
+  ${message ? `<p class="erreur-form">${echapper(message)}</p>` : ''}
+  <div class="colonnes-2">
+    <div>
+      <div class="carte"><h2>Son compte</h2><div class="recap">
+        <div><b>${nb(cr.abonnes_total)}</b><span>abonnés au total</span></div><div><b>${nb(cr.vues_total)}</b><span>vues au total</span></div>
+        <div><b>+${nb(cr.abonnes_jour)}</b><span>abonnés ce jour-là</span></div><div><b>${nb(cr.vues_jour)}</b><span>vues ce jour-là</span></div></div>
+        <dl class="details" style="margin-top:12px"><div><dt>Pays des vues</dt><dd>${echapper(cr.pays_vues.join(', ') || '—')}</dd></div>
+        <div><dt>Pays des abonnés</dt><dd>${echapper(cr.pays_abonnes.join(', ') || '—')}</dd></div></dl></div>
+      <div class="carte"><h2>Ses vidéos (${cr.videos.length}) · ${euros(revenus)}</h2><div class="defile"><table class="cr">
+        <tr><th>Vidéo</th><th>Vues</th><th>Abonnés</th><th>Publiée à</th><th>Visionnage</th><th>Rétention 10 s</th><th>Revenus</th></tr>
+        ${cr.videos.map((x, i) => `<tr><td><a href="${echapper(x.lien)}" target="_blank" rel="noopener">Vidéo ${i + 1}</a></td><td>${nb(x.vues)}</td><td>${nb(x.abonnes)}</td><td>${echapper(x.heure || '—')}</td>
+          <td>${nb(x.visionnage_s)} s</td><td>${nb(x.retention_10s)} %</td><td>${euros(x.revenus)}</td></tr>`).join('')}
+      </table></div></div>
+      ${cr.question ? `<div class="carte"><h2>Sa question</h2><p style="margin:0">${texteRiche(cr.question)}</p></div>` : ''}
+      <div class="carte"><h2>Captures</h2><div class="captures-cr">
+        ${capture ? `<figure><a href="/fichiers/images/${echapper(capture.image)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(capture.image)}" alt="Capture du compte"></a><figcaption>Son compte, ${echapper(jourLisible(cr.jour))}</figcaption></figure>` : ''}
+        ${cr.capture_revenus ? `<figure><a href="/fichiers/images/${echapper(cr.capture_revenus)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(cr.capture_revenus)}" alt="Capture des revenus"></a><figcaption>Sa page des revenus</figcaption></figure>` : ''}</div></div>
+    </div>
+    <div>
+      ${decision}
+      <div class="carte"><h2>${echapper(p.pseudo || p.discord_id)}</h2><p class="doux petit" style="margin:0">${p.compte_tiktok ? echapper(p.compte_tiktok) : ''}${p.niche ? ` · ${echapper(p.niche)}` : ''}</p>
+        <a class="bouton secondaire" href="/admin/membres/${encodeURIComponent(p.discord_id)}">Voir sa fiche</a></div>
+    </div>
+  </div>`, espace, 'traiter');
+}
+
+module.exports = { ETAPES, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
