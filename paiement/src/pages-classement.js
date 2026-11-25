@@ -5,6 +5,7 @@
 // puis le reste du classement. Sur téléphone, tout s'affiche en lignes.
 const { echapper } = require('./pages');
 const { pageEspace } = require('./pages-espace');
+const { ORDRE_ROLES, pastilleRole, nomRole, STYLE_ROLES } = require('./roles');
 
 // Vues : 999, puis 1.2K, 1.2M, 1.2Md.
 function vuesCourtes(n) {
@@ -16,8 +17,6 @@ function vuesCourtes(n) {
   return court(v / 1e9, 'Md');
 }
 const dollars = (n) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-const NOMS_ROLES = { goat: 'GOAT', 1500: '$1,500', 5000: '$5,000', 10000: '$10,000' };
-const ORDRE_ROLES = ['10000', '5000', '1500', 'goat'];
 // Le rôle le plus élevé obtenu (confirmé par le coach).
 const roleLePlusHaut = (recompenses = []) => ORDRE_ROLES.find((r) => recompenses.some((x) => String(x.role) === r && x.confirme_le)) || null;
 
@@ -65,8 +64,6 @@ const STYLE_CLASSEMENT = `<style>
   .chiffres .gros b { font-size:24px; }
   .metal.or .chiffres .gros b { font-size:28px; }
   .roles { display:flex; flex-wrap:wrap; gap:6px; margin-top:auto; }
-  .roles span { font-size:12px; font-weight:700; padding:5px 10px; border-radius:999px; background:#232428; border:1px solid var(--bord-fort); }
-  .roles .goat { color:#f5c542; border-color:#6b5414; } .roles .elite { color:#9ec5ff; border-color:#284a7a; } .roles .membre { color:#cfcfcf; }
   .classement { background:var(--surface); border:1px solid var(--bord); border-radius:22px; padding:18px; }
   .classement h2 { margin:0 0 14px; font-size:22px; }
   table.cl { width:100%; border-collapse:separate; border-spacing:0; font-size:14px; border:1px solid var(--bord); border-radius:14px; overflow:hidden; }
@@ -104,7 +101,7 @@ function avatar(m, avecRang) {
 }
 function roles(m) {
   const haut = roleLePlusHaut(m.recompenses);
-  return `<div class="roles">${haut ? `<span class="goat">${echapper(NOMS_ROLES[haut])}</span>` : ''}<span class="${m.elite ? 'elite' : 'membre'}">${m.elite ? 'Elite' : 'Membre'}</span></div>`;
+  return `<div class="roles">${haut ? pastilleRole(haut) : ''}${pastilleRole(m.elite ? 'elite' : 'membre')}</div>`;
 }
 function cartePodium(m, metal) {
   return `<article class="metal ${metal}"><div class="interieur">
@@ -122,7 +119,7 @@ function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRa
   const reste = top.slice(3);
   const metaux = ['or', 'argent', 'bronze'];
   const moi = espace && espace.session && espace.session.id;
-  return pageEspace('Classement', `${STYLE_CLASSEMENT}
+  return pageEspace('Classement', `${STYLE_CLASSEMENT}${STYLE_ROLES}
   <div class="titre-page"><div><p class="etiquette">Overmaxx</p><h1>Classement</h1></div><span class="doux petit">Top 100</span></div>
   <div class="cl-stats">
     <div class="cl-stat"><b>${dollars(totalRevenus)}</b><span>Revenus générés sur Overmaxx</span></div>
@@ -137,8 +134,8 @@ function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRa
     ${reste.map((m) => `<tr${m.id === moi ? ' class="moi"' : ''}><td><span class="n">${m.rang}</span></td>
       <td><div class="membre-cl">${avatar(m)}<div><a href="/classement/${encodeURIComponent(m.id)}">${echapper(m.nom)}</a><small>@${echapper(m.pseudo || '')}</small></div></div></td>
       <td><b>${dollars(m.revenus)}</b></td><td class="optionnel">${vuesCourtes(m.vues)}</td><td class="optionnel">${m.jours}</td>
-      <td class="optionnel">${echapper(NOMS_ROLES[roleLePlusHaut(m.recompenses)] || (m.elite ? 'Elite' : 'Membre'))}</td></tr>`).join('')}
+      <td class="optionnel">${pastilleRole(roleLePlusHaut(m.recompenses) || (m.elite ? 'elite' : 'membre'))}</td></tr>`).join('')}
     </tbody></table></section>` : ''}`, espace, 'classement');
 }
 
-module.exports = { pageClassement, vuesCourtes, roleLePlusHaut };
+module.exports = { pageClassement, vuesCourtes, roleLePlusHaut, nomRole };

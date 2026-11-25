@@ -9,6 +9,7 @@ const STATUTS_CANDIDATURE_PROTEGES = ['examen', 'retenu', 'video', 'valide'];
 const { lienRenouvellement, lienMagique } = require('./liens');
 const { JOURS, dateISO, ajouterJours, aHeure, lundiDe } = require('./coaching');
 const { jourLisible } = require('./suivi');
+const { nomRole, nomCourt, ROLES: ROLES_DISCORD } = require('./roles');
 
 const JOUR_MS = 24 * 3600 * 1000;
 const PALIERS_JOURS = [10, 5, 3, 1]; // 1 = dernières 24 h
@@ -938,9 +939,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     // Seuil atteint (GOAT ou rôle de revenus) : le coach confirme, ici ou sur la plateforme.
     async recompensesAtteintes(p, roles) {
       for (const role of roles) {
-        const quoi = role === 'goat' ? '**GOAT** ($1,000 sur 28 jours)' : `le rôle **${euros(Number(role))}** de revenus`;
+        const quoi = role === 'goat' ? '**GOAT** ($1,000 sur 28 jours)' : `le rôle **${nomRole(role)}** (${ROLES_DISCORD[role].seuil} de récompenses validées)`;
         const boutons = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId(`recompense:${role}:${p.discord_id}`).setLabel(role === 'goat' ? 'Confirmer GOAT' : `Confirmer ${euros(Number(role))}`).setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`recompense:${role}:${p.discord_id}`).setLabel(`Confirmer ${nomCourt(role)}`).setStyle(ButtonStyle.Success),
           new ButtonBuilder().setLabel('Voir sa fiche').setStyle(ButtonStyle.Link).setURL(lienCoach(`/admin/membres/${encodeURIComponent(p.discord_id)}`)));
         await notifier.admin({ content: `**${nomDe(p)}** (<@${p.discord_id}>) a atteint ${quoi} d'après ses comptes rendus validés. Confirme pour que je lui donne le rôle.`, components: [boutons] });
       }
@@ -950,7 +951,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       try { await donnerRole(p.discord_id, roleId); } catch (err) { console.warn('[bob] rôle de récompense :', err.message); }
       const texte = role === 'goat'
         ? '**Tu es GOAT !** $1,000 en 28 jours : tu as atteint l\'objectif de l\'accompagnement. Ton rôle GOAT est ajouté : tu rejoins le live de groupe des GOAT.'
-        : `**${euros(Number(role))} de revenus au total : bravo !** Ton rôle est ajouté sur le serveur.`;
+        : `**${ROLES_DISCORD[role].seuil} de récompenses au total : bravo !** Tu rejoins le **${nomRole(role)}** sur le serveur.`;
       await notifier.membre(p.discord_id, avecBoutons(texte, [{ label: 'Ma fiche', url: lienPerso(p.discord_id, p.pseudo, '/fiche') }]));
       log(`récompense ${role} donnée à ${p.discord_id}`);
     },

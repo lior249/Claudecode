@@ -293,7 +293,8 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
   et les événements (aucun pour le moment).
 - Le podium : cartes or, argent et bronze, avec un reflet qui passe sur la bordure ; la médaille pour le premier seulement.
   Chaque carte : revenus générés (en grand), vues (999, puis 1.2K, 1.2M, 1.2Md) et jours depuis son entrée,
-  puis son rôle le plus élevé (GOAT, $1,500, $5,000, $10,000) et son programme (Elite ; Membre pour la formation, plus tard).
+  puis son rôle le plus élevé (👑 €10k Club 👑, 👑 €5k Club 👑, 👑 €1.5k Club 👑, GOAT) et son programme (Elite ; Membre pour la formation),
+  en pastilles aux couleurs des rôles Discord (`src/roles.js`). Les seuils restent comptés en dollars ($10,000, $5,000, $1,500).
 - Puis le classement général jusqu'à la 100e place. Sur téléphone, tout s'affiche en lignes.
 - On n'y voit que son prénom (accueil) et son pseudo Discord, jamais son nom complet. La photo est celle de Discord,
   mise à jour par Bob.

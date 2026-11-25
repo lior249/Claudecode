@@ -552,10 +552,11 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
   </div>`, espace, vueCoach ? 'membres' : 'fiche');
 }
 
-const NOMS_ROLES = { goat: 'GOAT', 1500: '$1,500', 5000: '$5,000', 10000: '$10,000' };
+const { nomRole, nomCourt, pastilleRole, STYLE_ROLES, ROLES } = require('./roles');
+const NOMS_ROLES = { goat: nomCourt('goat'), 1500: nomCourt('1500'), 5000: nomCourt('5000'), 10000: nomCourt('10000') };
 function blocRecompenses(base, recompenses) {
   if (!recompenses.length) return '';
-  return `<div class="carte"><h2>Rôles</h2>${recompenses.map((r) => `<div class="ligne-envoi"><div class="qui"><b>${echapper(NOMS_ROLES[r.role] || r.role)}</b>
+  return `${STYLE_ROLES}<div class="carte"><h2>Rôles</h2>${recompenses.map((r) => `<div class="ligne-envoi"><div class="qui"><b>${pastilleRole(r.role) || echapper(r.role)}</b>
     <span>${r.confirme_le ? `donné le ${echapper(formatDate(r.confirme_le))}` : `seuil atteint le ${echapper(formatDate(r.atteint_le))}`}</span></div>
     ${r.confirme_le ? `<span class="etat" data-etat="valide">${ICONE.ok}Donné</span>` : `<form method="post" action="${base}/recompense"><input type="hidden" name="role" value="${echapper(r.role)}"><button class="bouton vert" type="submit" style="width:auto;min-height:38px;margin:0;padding:8px 16px">Confirmer</button></form>`}</div>`).join('')}</div>`;
 }
@@ -626,7 +627,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
     quand: `Envoyé le ${formatDate(cr.envoye_le)}`, lien: `/admin/comptes-rendus/${cr.id}` }));
   const sinistres = fichesSinistre.map((s) => carte({ qui: nom(s.parcours), pseudo: s.parcours && s.parcours.pseudo, quoi: `Fiche de sinistre (${s.numero} / 3)`,
     quand: `Remplie le ${formatDate(s.fiche_le)}`, lien: `/admin/membres/${encodeURIComponent(s.discord_id)}` }));
-  const recompenses = roles.map((r) => carte({ qui: nom(r.parcours), pseudo: r.parcours && r.parcours.pseudo, quoi: `Rôle ${NOMS_ROLES[r.role] || r.role} à confirmer`,
+  const recompenses = roles.map((r) => carte({ qui: nom(r.parcours), pseudo: r.parcours && r.parcours.pseudo, quoi: `Rôle ${nomRole(r.role)} à confirmer (${(ROLES[r.role] || {}).seuil || ''})`,
     quand: `Seuil atteint le ${formatDate(r.atteint_le)}`, lien: `/admin/membres/${encodeURIComponent(r.discord_id)}` }));
   const cand = (c, quoi) => carte({ qui: c.nom, pseudo: c.pseudo, quoi, quand: `Le ${formatDate(c.maj_le)}`, lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
   const videosCand = candidatures.filter((c) => c.statut === 'video').map((c) => cand(c, 'Vidéo de présentation reçue'));
@@ -1051,13 +1052,13 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
     .badges { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .badges span { font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid var(--bord-fort); }
     .badges .trophee { border-color:#f5c542; color:#f5c542; }
-  </style>
+  </style>${STYLE_ROLES}
   ${vueCoach ? `<p class="doux petit"><a href="/admin/membres/${encodeURIComponent(p.discord_id)}">← Sa fiche</a></p>` : ''}
   ${vuePublique ? '<p class="doux petit"><a href="/classement">← Classement</a></p>' : ''}
   <div class="profil-tete"><div class="avatar" aria-hidden="true">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : echapper(nom.charAt(0).toUpperCase())}</div>
     <div><h1>${echapper(nom)}</h1><p>${echapper([p.compte_tiktok, p.niche].filter(Boolean).join(' · ') || 'Overmaxx Elite')}</p>
       <div class="badges"><span>${p.etape >= 5 ? 'GOAT' : `Étape ${p.etape}`}</span><span>Jour ${jourDe(p)} sur 90</span>
-        ${trophees.map((r) => `<span class="trophee">${echapper(NOMS_ROLES[r.role] || r.role)}</span>`).join('')}</div></div></div>
+        ${trophees.map((r) => pastilleRole(r.role)).join('')}${pastilleRole('elite')}</div></div></div>
   <div class="colonnes-2">
     <div>${blocTableau(tableau)}</div>
     <div>${blocObjectifs(stats)}${blocStats(stats)}</div>

@@ -40,7 +40,8 @@ test('classement : podium or / argent / bronze, top 100, sa place, profils publi
     assert.strictEqual((page.match(/class="medaille"/g) || []).length, 1, 'médaille pour le premier seulement');
     assert.match(page, /class="metal or"[\s\S]*Kodjo[\s\S]*class="metal argent"[\s\S]*Awa[\s\S]*class="metal bronze"[\s\S]*Yao/);
     assert.match(page, /3\.4M/);
-    assert.match(page, /\$5,000/);
+    assert.match(page, /👑 €5k Club 👑/);
+    assert.match(page, /role-d" style="--rc:#4f46ff">Elite/, "pastille Elite aux couleurs du rôle Discord");
     assert.doesNotMatch(page, /Nom-de-famille/, 'jamais son nom complet');
     assert.strictEqual((page.match(/<tr[ >]/g) || []).length - 1, 97, 'top 100 : 3 sur le podium, 97 dans le tableau');
 
