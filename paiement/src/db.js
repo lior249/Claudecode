@@ -190,6 +190,13 @@ function migrerV8(db) {
   db.exec('PRAGMA user_version = 8');
 }
 
+// v9 : le membre peut indiquer l'email qu'il a donné à Whop s'il diffère de celui du paiement.
+function migrerV9(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 9) return;
+  if (!colonnes(db, 'membres').includes('email_whop')) db.exec('ALTER TABLE membres ADD COLUMN email_whop TEXT');
+  db.exec('PRAGMA user_version = 9');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -207,6 +214,7 @@ function ouvrirBase(fichier) {
   migrerV6(db);
   migrerV7(db);
   migrerV8(db);
+  migrerV9(db);
   return db;
 }
 

@@ -27,6 +27,13 @@ Copie l'identifiant `plan_…` de chacune, depuis leur lien `whop.com/checkout/p
 
 Les anciennes offres payantes débloquées par code promo ne servent plus.
 
+**Si l'accès Whop n'arrive pas** :
+- la page après paiement montre l'email avec un bouton **Copier**, à coller à la question de Whop ;
+- dès qu'une demande Whop arrive avec un email inconnu, tu es prévenu (elle est refusée au bout de 48 h) ;
+- 1 h puis 24 h après le paiement, Bob relance la personne avec l'email exact et un bouton
+  **J'ai donné un autre email à Whop** : elle le corrige elle-même, et la demande est acceptée dans la minute ;
+- 48 h après le paiement, si l'accès n'est toujours pas validé, tu es prévenu.
+
 **Membres qui paient directement sur Whop (par carte)** : sur ton offre Elite payante Whop, garde l'application
 **Discord** de Whop et choisis le **même rôle Elite** que dans `DISCORD_ROLE_ELITE`, sur le nouveau serveur. Ces membres ont
 alors accès à `/coaching` comme les autres. C'est Whop qui gère leur abonnement. Si Whop leur retire le rôle (abonnement

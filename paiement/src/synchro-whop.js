@@ -5,12 +5,16 @@ const { JOUR_MS } = require('./commandes');
 
 // Toutes les minutes :
 //  1. accepte les demandes de la liste d'attente Whop dont l'email correspond à un paiement réussi ;
-//  2. refuse celles qui ne correspondent à rien au bout de 48 h (et prévient l'admin) ;
+//  2. prévient l'admin dès qu'une demande ne correspond à rien, et la refuse au bout de 48 h ;
 //  3. récupère l'accès Whop créé et l'aligne sur la date de fin payée ;
 //  4. applique les prolongations en attente (renouvellements payés).
 function creerSynchroWhop({ db, whop, config, notifier = {}, maintenant = () => new Date() }) {
   const q = {
     membre: db.prepare('SELECT * FROM membres WHERE programme = ? AND email = ?'),
+    // L'email que le membre a dit avoir donné à Whop (s'il s'est trompé ou en a utilisé un autre).
+    membreParEmailWhop: db.prepare("SELECT * FROM membres WHERE programme = ? AND email_whop = ? AND statut = 'actif' ORDER BY maj_le DESC"),
+    dejaPrevenu: db.prepare('SELECT 1 FROM envois WHERE cle = ?'),
+    prevenir: db.prepare('INSERT OR IGNORE INTO envois (cle, envoye_le) VALUES (?, ?)'),
     marquerDemande: db.prepare('UPDATE membres SET whop_entry_id = ?, maj_le = ? WHERE id = ?'),
     enAttenteMembership: db.prepare("SELECT * FROM membres WHERE whop_entry_id IS NOT NULL AND whop_membership_id IS NULL AND statut = 'actif'"),
     marquerMembership: db.prepare('UPDATE membres SET whop_membership_id = ?, whop_jours_a_ajouter = whop_jours_a_ajouter + ?, maj_le = ? WHERE id = ?'),
@@ -28,9 +32,11 @@ function creerSynchroWhop({ db, whop, config, notifier = {}, maintenant = () => 
     for (const d of demandes) {
       try {
         const email = emailDeLaDemande(d);
-        const m = email ? q.membre.get(o.id, email) : null;
-        const valable = m && m.statut === 'actif' && new Date(m.acces_jusqu_au) > now && !m.whop_membership_id
-          && (!m.whop_entry_id || m.whop_entry_id === d.id);
+        const ok = (x) => x && x.statut === 'actif' && new Date(x.acces_jusqu_au) > now && !x.whop_membership_id
+          && (!x.whop_entry_id || x.whop_entry_id === d.id);
+        const direct = email ? q.membre.get(o.id, email) : null;
+        const m = ok(direct) ? direct : (email ? q.membreParEmailWhop.all(o.id, email).find(ok) : null) || direct;
+        const valable = ok(m);
         if (valable) {
           await whop.accepter(d.id);
           q.marquerDemande.run(d.id, now.toISOString(), m.id);
@@ -38,11 +44,21 @@ function creerSynchroWhop({ db, whop, config, notifier = {}, maintenant = () => 
           if (notifier.membre && m.discord_id) {
             notifier.membre(m.discord_id, `Ton accès Whop à **${o.nom}** est validé. Ouvre Whop pour commencer la formation.`).catch(() => {});
           }
-        } else if (now - new Date(d.created_at) > config.whop.refusApresHeures * 3600 * 1000) {
-          await whop.refuser(d.id);
-          log(`demande ${d.id} refusée (${o.id}, ${email || 'sans email'})`);
-          const qui = d.user && (d.user.username || d.user.name) ? ` (compte Whop : ${d.user.username || d.user.name})` : '';
-          admin(`Demande Whop **${o.nom}** refusée après ${config.whop.refusApresHeures} h${qui} : l'email « ${email || 'aucun'} » ne correspond à aucun paiement mobile money valide.`);
+        } else {
+          // Prévenu tout de suite (une fois), au lieu d'un refus silencieux 48 h plus tard.
+          const cle = `whop-inconnu:${d.id}`;
+          if (!q.dejaPrevenu.get(cle)) {
+            q.prevenir.run(cle, now.toISOString());
+            const qui = d.user && (d.user.username || d.user.name) ? ` (compte Whop : ${d.user.username || d.user.name})` : '';
+            const raison = !m ? 'ne correspond à aucun paiement mobile money'
+              : m.whop_membership_id ? 'correspond à un membre qui a déjà son accès Whop' : 'correspond à un accès terminé';
+            admin(`Demande d'accès Whop **${o.nom}**${qui} : l'email « ${email || 'aucun'} » ${raison}. `
+              + `Si c'est un membre qui s'est trompé d'email, Bob lui propose de le corriger. Sinon, elle sera refusée dans ${config.whop.refusApresHeures} h.`);
+          }
+          if (now - new Date(d.created_at) > config.whop.refusApresHeures * 3600 * 1000) {
+            await whop.refuser(d.id);
+            log(`demande ${d.id} refusée (${o.id}, ${email || 'sans email'})`);
+          }
         }
       } catch (err) {
         console.error(`[whop] demande ${d.id} :`, err.message);

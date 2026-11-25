@@ -355,7 +355,8 @@ test('renouvellement pendant l\'attente : rôle Community rendu, Attente retiré
     m.saspay.payer(m.saspay.derniere().id);
     const e = await m.etat(ref(m.saspay.derniere()));
     const page = await (await m.get(e.redirection)).text();
-    assert.match(page, /Retrouve l'accès à la formation/);
+    assert.match(page, /Retrouve l(&#39;|')accès à la formation/);
+    assert.match(page, /data-copier="awa@example\.com"/, 'email à copier en un clic');
     const apres = m.db.prepare('SELECT * FROM membres WHERE id = ?').get(mb.id);
     assert.strictEqual(apres.whop_membership_id, null);
     assert.ok((new Date(apres.acces_jusqu_au) - Date.now()) / JOUR > 29.9, '30 jours à partir d\'aujourd\'hui');
@@ -537,5 +538,56 @@ test('pages du site : liste des liens et aperçus réservés à l\'admin ; vidé
     assert.strictEqual((await m.get('/admin/apercu/inconnu', { cookie: admin })).status, 404);
     assert.strictEqual((await m.get('/admin/apercu/guide-elite', { cookie: cookieSession('123456789012345678', 'x') })).status, 403);
     assert.doesNotMatch(await (await m.get('/admin/pages')).text(), /Pages du site<\/h1>/, 'non connecté : connexion demandée');
+  } finally { await m.fermer(); }
+});
+
+test('accès Whop : page après paiement en une étape (email + Copier) ; correction de l\'email Whop par le membre ; relances de Bob', async () => {
+  const m = await monter();
+  try {
+    const cookie = cookieSession('W1', 'awa');
+    await m.poster('/community/paiement', { nom: 'Awa', email: 'awa@example.com' }, { cookie });
+    const s = m.saspay.derniere();
+    m.saspay.payer(s.id);
+    await m.etat(ref(s));
+    const guide = await (await m.get(`/acces/${ref(s)}`)).text();
+    assert.match(guide, /Débloque ta formation sur Whop/);
+    assert.match(guide, /data-copier="awa@example\.com"/);
+    assert.match(guide, /href="\/acces\/email-whop"/);
+    assert.match(guide, /Discord connecté \(awa\)/);
+
+    // Le membre a donné un autre email à Whop : il le corrige ; la synchro l'accepte avec celui-là.
+    assert.match(await (await m.get('/acces/email-whop', { cookie })).text(), /Quel email as-tu donné à Whop/);
+    assert.strictEqual((await m.poster('/acces/email-whop', { email: 'pas-un-email' }, { cookie })).status, 400);
+    assert.match(await (await m.poster('/acces/email-whop', { email: 'Awa.Perso@Gmail.com' }, { cookie })).text(), /C(&#39;|')est noté/);
+    const notifs = [];
+    const synchro = creerSynchroWhop({ db: m.db, whop: m.whop, config: m.config, notifier: { admin: async (t) => notifs.push(t) } });
+    m.whop.ajouterDemande('e9', 'awa.perso@gmail.com');
+    m.whop.ajouterDemande('e10', 'inconnu@example.com', 'plan_com', 3600 * 1000);
+    await synchro.executer(); await synchro.executer();
+    assert.deepStrictEqual(m.whop.appels[0], ['accepter', 'e9']);
+    assert.strictEqual(notifs.filter((t) => /inconnu@example\.com/.test(t)).length, 1, 'admin prévenu tout de suite, une seule fois');
+    assert.ok(!m.whop.appels.some((a) => a[1] === 'e10'), 'pas encore refusée (moins de 48 h)');
+    // Un autre membre ne peut pas prendre cet email.
+    assert.strictEqual((await m.poster('/acces/email-whop', { email: 'awa@example.com' }, { cookie: cookieSession('W2') })).status, 200, 'W2 n\'a pas d\'accès en attente');
+
+    // Relances de Bob : 1 h puis 24 h après le paiement, puis l'admin à 48 h.
+    m.db.prepare('UPDATE membres SET whop_membership_id = NULL, whop_entry_id = NULL, email_whop = NULL').run();
+    const payeLe = new Date(m.db.prepare('SELECT payee_le FROM commandes WHERE ref = ?').get(ref(s)).payee_le).getTime();
+    const b = await monterBob(m, new Date(payeLe + 30 * 60 * 1000));
+    await b.bob.relancerWhop();
+    assert.strictEqual(b.d.dms.length, 0, '30 min : rien');
+    b.aller(payeLe + 61 * 60 * 1000); await b.bob.relancerWhop(); await b.bob.relancerWhop();
+    assert.strictEqual(b.d.dms.length, 1);
+    const [id, texte, composants] = b.d.dms[0];
+    assert.strictEqual(id, 'W1');
+    assert.match(texte, /exactement cet email : \*\*awa@example\.com\*\*/);
+    const [etapes, correction] = urls(composants);
+    assert.strictEqual(etapes, `http://localhost/acces/${ref(s)}`);
+    assert.match(correction, /retour=%2Facces%2Femail-whop$/);
+    b.aller(payeLe + 25 * 3600 * 1000); await b.bob.relancerWhop();
+    assert.strictEqual(b.d.dms.length, 2);
+    b.aller(payeLe + 49 * 3600 * 1000); await b.bob.relancerWhop();
+    assert.ok(b.d.dms.some(([qui, t]) => qui === ADMIN && /plus de 48 h/.test(t)));
+    assert.strictEqual(b.d.dms.filter(([qui]) => qui === 'W1').length, 2, 'pas de 3e relance au membre');
   } finally { await m.fermer(); }
 });

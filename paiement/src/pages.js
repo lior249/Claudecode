@@ -143,6 +143,13 @@ const STYLE = `
   /* Guide */
   .video { position:relative; aspect-ratio:16/9; border-radius:18px; overflow:hidden; background:var(--surface-2); border:1px solid var(--bord); margin:4px 0 16px; }
   .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  /* Email à coller sur Whop, avec un bouton Copier. */
+  .copie { display:flex; align-items:center; gap:8px; padding:8px 8px 8px 16px; border-radius:14px; background:var(--surface-2); border:1px solid var(--bord-fort); margin:10px 0 0; }
+  .copie code { flex:1; min-width:0; font:700 15px/1.3 ui-monospace,"SF Mono",Menlo,monospace; color:#fff; overflow-wrap:anywhere; }
+  .copie .bouton { width:auto; flex:none; min-height:40px; margin:0; padding:8px 16px; }
+  .etapes-whop { margin:6px 0 0; padding-left:20px; color:var(--doux); }
+  .etapes-whop li { margin:6px 0; }
+  .etapes-whop b { color:#fff; }
   /* Emplacement réservé tant que la vidéo n'est pas réglée. */
   .video-vide { display:grid; place-items:center; border-style:dashed; border-color:var(--bord-fort); }
   .video-vide > div { display:grid; justify-items:center; gap:4px; padding:16px; text-align:center; }
@@ -482,7 +489,39 @@ function pageConfirmation(config, { ref, type, details }) {
   <noscript><p class="centre"><a href="/confirmation/${echapper(ref)}">Recharger la page</a></p></noscript>`, { script, entete: false });
 }
 
-// Étape 4 — guide d'accès (inscription) : vidéo Wistia + étapes écrites
+// Bouton « Copier » (avec secours pour les anciens téléphones).
+const SCRIPT_COPIER = `
+  function copierSecours(t) { var z = document.createElement('textarea'); z.value = t; z.setAttribute('readonly', ''); z.style.position = 'fixed'; z.style.opacity = '0';
+    document.body.appendChild(z); z.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(z); }
+  document.querySelectorAll('[data-copier]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.getAttribute('data-copier');
+      var fini = function () { b.textContent = 'Copié'; setTimeout(function () { b.textContent = 'Copier'; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(fini, function () { copierSecours(t); fini(); });
+      else { copierSecours(t); fini(); }
+    });
+  });`;
+
+// L'étape Whop, en une fois : copier l'email, ouvrir l'offre, coller l'email. La validation est automatique.
+function blocWhop({ titre, intro, email, lienWhop }) {
+  return `<div class="carte">
+    <h2>${echapper(titre)}</h2>
+    ${intro ? `<p class="doux">${intro}</p>` : ''}
+    <ol class="etapes-whop">
+      <li><b>Copie ton email</b> :</li>
+    </ol>
+    <div class="copie"><code>${echapper(email)}</code><button class="bouton" type="button" data-copier="${echapper(email)}">Copier</button></div>
+    <ol class="etapes-whop" start="2">
+      <li><b>Ouvre l'offre sur Whop</b>, connecte-toi (ou crée ton compte), puis demande l'accès.</li>
+      <li>À la question de Whop, <b>colle cet email</b>.</li>
+    </ol>
+    <a class="bouton" href="${echapper(lienWhop)}" target="_blank" rel="noopener">Ouvrir l'offre sur Whop</a>
+    <p class="doux petit" style="margin:12px 0 0">Ton accès est validé automatiquement en moins d'une minute. Bob te prévient sur Discord.
+      <a href="/acces/email-whop">J'ai donné un autre email à Whop</a></p>
+  </div>`;
+}
+
+// Étape 4 — guide d'accès (inscription) : vidéo, puis une seule chose à faire (Whop) ; le reste est déjà fait.
 function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDiscord, lienDiscord, codeLiaison }) {
   const video = blocVideo(offre.wistiaGuide, `Comment accéder à ${offre.nom}`);
   const periode = offre.dureeJours === 30 ? 'par mois' : `tous les ${offre.dureeJours} jours`;
@@ -494,37 +533,32 @@ function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDis
        <div class="code" style="font-size:18px;letter-spacing:1px">/lier ${echapper(codeLiaison)}</div>` : ''}
        ${erreurDiscord ? `<p class="erreur-form">${echapper(erreurDiscord)}</p>` : ''}
        ${config.oauthActif ? `<p class="doux petit" style="margin:12px 0 0">Ou, depuis un ordinateur : <a href="${echapper(lienDiscord || `/discord/lier/${ref}`)}">connecter Discord sur le web</a>.</p>` : ''}`;
+  const whopFait = Boolean(membre.whop_membership_id);
   return gabarit('Accéder à ton espace', `
   <p class="etiquette">Étape 4 sur 4 · ${echapper(offre.nom)}</p>
   <h1>Bienvenue dans ${echapper(offre.nom)}</h1>
-  <p class="doux">Regarde la vidéo, puis suis les étapes ci-dessous.</p>
+  <p class="doux">${whopFait ? 'Tout est prêt : ta formation t\'attend sur Whop.' : 'Regarde la vidéo, puis débloque ta formation sur Whop : c\'est la seule chose qu\'il te reste à faire.'}</p>
   ${video}
+  ${whopFait ? `<a class="bouton" href="${echapper(lienWhop)}" target="_blank" rel="noopener">Ouvrir la formation sur Whop</a>`
+    : blocWhop({ titre: 'Débloque ta formation sur Whop', email: membre.email_whop || membre.email, lienWhop })}
   <div class="carte">
-    <ul class="liste etapes-guide">
-      <li><span class="numero">1</span><div><h2>Connecte ton Discord</h2>${etapeDiscord}</div></li>
-      <li><span class="numero">2</span><div><h2>Rejoins la formation sur Whop</h2>
-        <p class="doux">Ouvre l'offre, puis clique pour la rejoindre. Whop te pose une question : réponds avec <b style="color:#fff">exactement cet email</b>.</p>
-        <div class="code" style="font-size:16px;letter-spacing:0">${echapper(membre.email)}</div>
-        <a class="bouton" href="${echapper(lienWhop)}" target="_blank" rel="noopener">Ouvrir l'offre sur Whop</a></div></li>
-      <li><span class="numero">3</span><div><h2>Validation automatique</h2>
-        <p class="doux">Bob vérifie ta demande en quelques minutes : l'accès s'ouvre tout seul sur Whop. Utilise bien le même email, sinon la demande est refusée.</p></div></li>
-      <li><span class="numero">4</span><div><h2>Ton abonnement</h2>
-        <p class="doux">Ton accès est payé jusqu'au <b style="color:#fff">${echapper(formatDate(membre.acces_jusqu_au))}</b>. Bob te rappellera de renouveler (${formatPrix(membre.prix_renouvellement || offre.prixRenouvellement, config.devise).texte} ${periode}).</p>
-        ${offre.id === 'elite' ? '<a class="bouton secondaire" href="/coaching">Réserver mes coachings</a>' : ''}</div></li>
+    <h2>Déjà fait</h2>
+    <ul class="liste">
+      <li>${ICONE.ok}<span>Paiement confirmé : accès jusqu'au <b style="color:#fff">${echapper(formatDate(membre.acces_jusqu_au))}</b>.
+        Bob te rappellera de renouveler (${formatPrix(membre.prix_renouvellement || offre.prixRenouvellement, config.devise).texte} ${periode}).</span></li>
+      ${discordLie ? `<li>${ICONE.ok}<span>Discord connecté${membre.discord_pseudo ? ` (${echapper(membre.discord_pseudo)})` : ''} : ton rôle est ajouté sur le serveur.</span></li>` : ''}
+      ${whopFait ? `<li>${ICONE.ok}<span>Accès Whop validé.</span></li>` : ''}
     </ul>
+    ${discordLie ? '' : `<h2 style="margin-top:14px">Connecte ton Discord</h2>${etapeDiscord}`}
+    ${offre.id === 'elite' ? '<a class="bouton secondaire" href="/coaching">Réserver mes coachings</a>' : ''}
   </div>
-  ${blocSupport(config)}`);
+  ${blocSupport(config)}`, { script: SCRIPT_COPIER });
 }
 
 // Fin du renouvellement
 function pageRenouvele(config, { accesJusquAu, whopARejoindre, lienWhop, email }) {
-  const whop = whopARejoindre && lienWhop ? `
-    <div class="carte">
-      <h2>Retrouve l'accès à la formation</h2>
-      <p class="doux">Ton accès Whop avait été coupé pendant l'attente. Rejoins à nouveau l'offre et réponds avec <b style="color:#fff">exactement cet email</b> : Bob valide en quelques minutes.</p>
-      <div class="code" style="font-size:16px;letter-spacing:0">${echapper(email)}</div>
-      <a class="bouton" href="${echapper(lienWhop)}" target="_blank" rel="noopener">Ouvrir l'offre sur Whop</a>
-    </div>` : '';
+  const whop = whopARejoindre && lienWhop
+    ? blocWhop({ titre: 'Retrouve l\'accès à la formation', intro: 'Ton accès Whop avait été coupé pendant l\'attente : redemande-le.', email, lienWhop }) : '';
   return gabarit('Abonnement renouvelé', `
   <div id="icone" class="icone-ronde" style="margin-top:20px">${ICONE.ok}</div>
   <h1 class="centre">Abonnement renouvelé</h1>
@@ -535,6 +569,36 @@ function pageRenouvele(config, { accesJusquAu, whopARejoindre, lienWhop, email }
     ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">Retourner sur le Discord</a>` : ''}
   </div>
   ${whop}
+  ${blocSupport(config)}`, whop ? { script: SCRIPT_COPIER } : {});
+}
+
+// /acces/email-whop : le membre indique l'email qu'il a donné à Whop ; la synchro l'accepte avec celui-là.
+function pageEmailWhop(config, { membres = [], erreur, valeur, fait } = {}) {
+  if (fait) {
+    return gabarit('Email Whop', `
+    <div class="icone-ronde">${ICONE.ok}</div>
+    <h1 class="centre">C'est noté</h1>
+    <div class="carte"><p style="margin:0">Ta demande d'accès Whop faite avec <b>${echapper(fait)}</b> sera validée dans la minute.
+      Bob te prévient sur Discord. Si tu n'as pas encore fait la demande sur Whop, fais-la avec cet email.</p></div>`);
+  }
+  if (!membres.length) {
+    return gabarit('Email Whop', `
+    <h1>Email Whop</h1>
+    <div class="carte"><p style="margin:0">Aucun accès en attente de Whop n'est relié à ton compte Discord : soit ton accès Whop est déjà validé,
+      soit ton paiement a été fait avec un autre compte Discord.</p></div>
+    ${blocSupport(config)}`);
+  }
+  const payes = membres.map((m) => `<b>${echapper(m.email)}</b> (${echapper(config.offres[m.programme].nom)})`).join(', ');
+  return gabarit('Email Whop', `
+  <p class="etiquette">Accès à la formation</p>
+  <h1>Quel email as-tu donné à Whop ?</h1>
+  <p class="doux">Ton paiement est enregistré avec ${payes}. Si tu as répondu autre chose à la question de Whop, écris-le ici : on validera ta demande avec cet email.</p>
+  <form class="carte" method="post" action="/acces/email-whop" novalidate>
+    <label for="email"><b>L'email donné à Whop</b></label>
+    <input id="email" name="email" type="email" value="${echapper(valeur || '')}" autocomplete="email" autocapitalize="none" maxlength="200" required style="margin-top:8px">
+    ${erreur ? `<p class="erreur-form" style="margin:10px 0 0">${echapper(erreur)}</p>` : ''}
+    <button class="bouton" type="submit">Valider cet email</button>
+  </form>
   ${blocSupport(config)}`);
 }
 
@@ -548,5 +612,5 @@ function pageMessage(config, titre, message, { lien = '/', texteLien = 'Retour' 
 
 module.exports = {
   CONTENU, ICONE, echapper, gabarit, gabaritEspace, logo, formatPrix, formatDate, blocSupport, blocVideo,
-  pageBienvenue, pageAccueil, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
+  pageBienvenue, pageAccueil, pageEmailWhop, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
 };

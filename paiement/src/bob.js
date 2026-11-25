@@ -45,6 +45,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     attenteDepuis: db.prepare('SELECT envoye_le FROM envois WHERE cle = ?'),
     noterAttente: db.prepare('INSERT INTO envois (cle, envoye_le) VALUES (?, ?) ON CONFLICT(cle) DO UPDATE SET envoye_le = excluded.envoye_le'),
     payeeParCarte: db.prepare('UPDATE invitations_elite SET utilisee_le = ?, ref_commande = ? WHERE token = ? AND utilisee_le IS NULL'),
+    sansAccesWhop: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND whop_membership_id IS NULL AND acces_jusqu_au > ?"),
+    dernierPaiement: db.prepare("SELECT ref, type, payee_le FROM commandes WHERE programme = ? AND email = ? AND statut = 'PAYEE' ORDER BY payee_le DESC LIMIT 1"),
   };
   const dejaEnvoye = (cle) => Boolean(q.deja.get(cle));
   const marquer = (cle) => q.marquer.run(cle, maintenant().toISOString());
@@ -715,6 +717,38 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     }
   }
 
+  // ---------- Accès Whop pas encore débloqué ----------
+  // 1 h puis 24 h après le paiement, Bob rappelle l'étape Whop (avec l'email exact) et propose de corriger l'email.
+  // 48 h après, l'admin est prévenu. Un seul message par palier, même si plusieurs sont dépassés.
+  const PALIERS_WHOP = [[1, 'membre'], [24, 'membre'], [48, 'admin']];
+  async function relancerWhop() {
+    const now = maintenant();
+    for (const m of q.sansAccesWhop.all(now.toISOString())) {
+      const p = q.dernierPaiement.get(m.programme, m.email);
+      if (!p || !p.payee_le) continue;
+      const heures = (now - new Date(p.payee_le)) / 3600000;
+      const atteints = PALIERS_WHOP.filter(([h]) => heures >= h);
+      const cle = (h) => `relance-whop:${m.id}:${p.payee_le}:${h}`;
+      const aEnvoyer = atteints.filter(([h]) => !dejaEnvoye(cle(h)));
+      if (!aEnvoyer.length) continue;
+      for (const [h] of atteints) marquer(cle(h));
+      const o = config.offres[m.programme];
+      const etapes = `${config.baseUrl}/${p.type === 'inscription' ? 'acces' : 'renouvele'}/${p.ref}`;
+      if (aEnvoyer.some(([, qui]) => qui === 'admin')) {
+        await notifier.admin(`**${m.nom}**${m.discord_id ? ` (<@${m.discord_id}>)` : ''} a payé **${o.nom}** il y a plus de 48 h mais n'a toujours pas son accès Whop. `
+          + `Email du paiement : ${m.email}${m.email_whop ? ` · email Whop indiqué : ${m.email_whop}` : ''}.`);
+      }
+      if (m.discord_id && aEnvoyer.some(([, qui]) => qui === 'membre')) {
+        await notifier.membre(m.discord_id, avecBoutons(`**Il te reste une étape pour accéder à la formation ${o.nom}.**\n`
+          + `Je ne vois pas encore ta demande d'accès sur Whop. Ouvre l'offre et, à la question, réponds avec exactement cet email : **${m.email_whop || m.email}**\n`
+          + 'Tu as donné un autre email à Whop ? Dis-le-moi avec le 2e bouton : je corrige tout seul.',
+        [{ label: 'Voir les étapes', url: etapes },
+          { label: 'J\'ai donné un autre email à Whop', url: lienPerso(m.discord_id, m.discord_pseudo, '/acces/email-whop') }]));
+        log(`relance Whop envoyée au membre ${m.id}`);
+      }
+    }
+  }
+
   // ---------- Paiement Elite par carte (Whop) ----------
   // Whop donne le rôle Elite au candidat validé qui paie par carte : sa candidature passe « intégration confirmée »
   // et son lien mobile money est désactivé (pas de double paiement).
@@ -808,7 +842,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       await renouvellements();
       await rappelsCoaching();
       if (tour % 2 === 0) await synchroRoles();
-      if (tour % 10 === 0) { await nettoyerAttente(); await relancerCandidats(); }
+      if (tour % 10 === 0) { await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); }
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
       console.error('[bob] cycle :', err);
@@ -831,6 +865,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     bloquerPourAttente,
     accueillir,
     paiementCarteDetecte,
+    relancerWhop,
 
     async demarrer() {
       if (!actif) { log('désactivé : DISCORD_BOT_TOKEN ou DISCORD_GUILD_ID manquant.'); return; }

@@ -210,6 +210,31 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     }
   });
 
+  // Le membre a donné un autre email à Whop : il le corrige lui-même (connecté avec Discord).
+  const membresSansWhop = (session) => commandes.membresParDiscord(session.id)
+    .filter((x) => x.statut === 'actif' && !x.whop_membership_id && new Date(x.acces_jusqu_au) > new Date());
+  app.get('/acces/email-whop', (req, res) => {
+    const session = connecte(req, res, '/acces/email-whop', 'Accès à la formation');
+    if (!session) return;
+    const membres = membresSansWhop(session);
+    res.send(P.pageEmailWhop(config, { membres, valeur: (membres[0] && membres[0].email_whop) || '' }));
+  });
+  app.post('/acces/email-whop', formulaire, (req, res) => {
+    const session = connecte(req, res, '/acces/email-whop', 'Accès à la formation');
+    if (!session) return undefined;
+    const membres = membresSansWhop(session);
+    const email = String(req.body.email || '').trim().toLowerCase().slice(0, 200);
+    const refus = (erreur) => res.status(400).send(P.pageEmailWhop(config, { membres, erreur, valeur: email }));
+    if (!membres.length) return res.send(P.pageEmailWhop(config, { membres }));
+    if (!EMAIL_REGEX.test(email)) return refus('L\'email n\'est pas valide.');
+    // Pas l'email d'un autre membre : sa demande Whop doit rester la sienne.
+    const pris = commandes.db.prepare('SELECT discord_id FROM membres WHERE (email = ? OR email_whop = ?) AND (discord_id IS NULL OR discord_id != ?)').get(email, email, session.id);
+    if (pris) return refus('Cet email est déjà utilisé par un autre membre. Écris celui que tu as donné à Whop.');
+    const maj = commandes.db.prepare('UPDATE membres SET email_whop = ?, maj_le = ? WHERE id = ?');
+    for (const m of membres) maj.run(email === m.email ? null : email, new Date().toISOString(), m.id);
+    return res.send(P.pageEmailWhop(config, { fait: email }));
+  });
+
   app.get('/acces/:ref', async (req, res) => {
     const { ref } = req.params;
     if (!REF_REGEX.test(ref)) return introuvable(res);
