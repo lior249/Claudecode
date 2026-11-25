@@ -30,9 +30,12 @@ test('Community : accueil → connexion Discord → formulaire → SasPay → st
   const m = await monter({ surPaiement: async (membre, cmd) => paiements.push([membre, cmd]) });
   try {
     const accueil = await (await m.get('/', { cookie: '' })).text();
-    assert.match(accueil, /Se connecter à Overmaxx/);
+    assert.match(accueil, /Bienvenue sur Overmaxx/);
     assert.ok(accueil.includes('href="/connexion?retour=%2Fapp"'), 'Se connecter, puis son espace');
-    assert.ok(accueil.indexOf('Se connecter') < accueil.indexOf('Rejoindre le Discord'), 'Rejoindre le Discord en dessous');
+    assert.ok(accueil.indexOf('video-vide') < accueil.indexOf('Rejoindre le Discord'), 'la vidéo au-dessus des boutons');
+    assert.ok(accueil.indexOf('Rejoindre le Discord') < accueil.indexOf('Déjà membre ?') && accueil.indexOf('Déjà membre ?') < accueil.indexOf('>Se connecter<'), 'Rejoindre le Discord, puis « Déjà membre ? » Se connecter');
+    assert.match(accueil, /<a class="bouton" href="https:\/\/discord\.gg\/test" data-tuto-bob>/, 'Rejoindre le Discord en blanc');
+    assert.match(accueil, /<a class="bouton secondaire" href="\/connexion\?retour=%2Fapp"/, 'Se connecter en transparent');
     assert.match(accueil, /Rejoindre le Discord/);
     assert.match(await (await m.get('/connexion?retour=%2Fapp', { cookie: '' })).text(), /<h1>Se connecter à Overmaxx<\/h1>/);
     assert.strictEqual((await m.get('/connexion?retour=%2Fapp')).headers.get('location'), '/app', 'déjà connecté');

@@ -174,9 +174,9 @@ Sur téléphone, personne n'a besoin de son mot de passe Discord : Bob envoie de
 
 ## Connexion au site (compte Discord obligatoire)
 
-Seule la page d'accueil (**overmaxx.online**) est ouverte à tous : **Se connecter à Overmaxx** (pseudo Discord, bouton de Bob,
-puis l'espace de chacun s'ouvre tout seul : Mon parcours, À traiter pour le coach, Mes coachings, sa candidature ou son renouvellement),
-et en dessous **Rejoindre le Discord** pour ceux qui ne sont pas encore sur le serveur. Déjà connecté : **Ouvrir mon espace**.
+Seule la page d'accueil (**overmaxx.online**) est ouverte à tous : la vidéo de présentation, puis **Rejoindre le Discord**
+(bouton blanc), puis « Déjà membre ? » **Se connecter** (pseudo Discord, bouton de Bob, puis l'espace de chacun s'ouvre tout seul :
+Mon parcours, À traiter pour le coach, Mes coachings, sa candidature ou son renouvellement). Déjà connecté : **Ouvrir mon espace**.
 Toutes les autres pages (Community, paiements, renouvellements, candidature Elite, coaching, admin) demandent le compte Discord :
 
 - **Boutons personnels de Bob** (bienvenue, rappels de renouvellement, candidature, paiement Elite) : ils ouvrent le site

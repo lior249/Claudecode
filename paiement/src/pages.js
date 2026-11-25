@@ -345,17 +345,18 @@ function fenetreTutoBob(config, { rejoindre = true } = {}) {
   })();</script>`;
 }
 
-// Page d'accueil : se connecter d'abord (avec son compte Discord, via Bob) ; rejoindre le Discord pour les nouveaux.
+// Page d'accueil : la vidéo, puis rejoindre le Discord ; « Déjà membre ? » se connecter (avec son compte Discord, via Bob).
 // Déjà connecté : un bouton vers son espace (ou, s'il n'a pas encore de programme, les deux programmes).
 function pageBienvenue(config, { pseudo, espace } = {}) {
   const changer = '<p class="doux petit" style="margin:16px 0 0"><a href="/deconnexion">Ce n\'est pas toi ? Changer de compte</a></p>';
+  // Visiteur : la vidéo, puis Rejoindre le Discord (bouton blanc) ; « Déjà membre ? » Se connecter (bouton transparent).
   const actions = !pseudo ? `
-    <h1>Se connecter à Overmaxx</h1>
-    <p class="doux">Avec ton compte Discord : indique ton pseudo, Bob t'envoie un bouton, et ton espace s'ouvre. Aucun mot de passe.</p>
-    <a class="bouton" href="/connexion?retour=%2Fapp">Se connecter</a>
-    ${config.lienDiscord ? `<p class="doux petit" style="margin:22px 0 0">Pas encore membre du serveur Overmaxx ?</p>
-    <a class="bouton secondaire" href="${echapper(config.lienDiscord)}" style="margin-top:8px" data-tuto-bob>Rejoindre le Discord</a>
-    ${fenetreTutoBob(config)}` : ''}`
+    <h1>Bienvenue sur Overmaxx</h1>
+    <p class="doux">Rejoins le serveur Discord : Bob, notre bot, t'accueille et t'ouvre ton espace.</p>
+    ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}" data-tuto-bob>Rejoindre le Discord</a>
+    ${fenetreTutoBob(config)}` : ''}
+    <p class="doux petit" style="margin:22px 0 0">Déjà membre ?</p>
+    <a class="bouton secondaire" href="/connexion?retour=%2Fapp" style="margin-top:8px">Se connecter</a>`
     : espace ? `
     <h1>Bon retour, ${echapper(pseudo)}</h1>
     <p class="doux">Ton espace Overmaxx t'attend.</p>
@@ -368,8 +369,8 @@ function pageBienvenue(config, { pseudo, espace } = {}) {
   return gabarit(config.nomFormation || 'Overmaxx', `
   <div class="bienvenue">
     <div class="hero"><div class="globe"></div>${logo('anime')}</div>
+    ${blocVideo(config.wistiaAccueil, 'Présentation Overmaxx')}
     ${actions}
-    <div style="margin-top:34px">${blocVideo(config.wistiaAccueil, 'Présentation Overmaxx')}</div>
   </div>`, { entete: false });
 }
 
