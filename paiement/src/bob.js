@@ -24,7 +24,7 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'nu
 // - Elite : alerte à l'admin 10 jours avant la fin (insatisfait / inconstant) ;
 // - coaching : rappel personnalisé, rappel 1 h avant, récap admin 2 h avant la première séance du jour ;
 // - commandes admin : /lien-elite, /prolonger, /membre ; candidatures Tally.
-function creerBob({ config, db, commandes, coaching, candidatures, maintenant = () => new Date(), client: clientInjecte, serveur: serveurInjecte } = {}) {
+function creerBob({ config, db, commandes, coaching, candidatures, parcours, maintenant = () => new Date(), client: clientInjecte, serveur: serveurInjecte } = {}) {
   const actif = config.discordActif || Boolean(clientInjecte);
   const client = clientInjecte || (actif ? new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -374,6 +374,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
         { label: 'Membres', url: lienMagique(config, u, '/admin/membres') },
       ]);
     }
+    if (parcours && parcours.get(user.id)) boutons.push({ label: 'Mon parcours', url: lienMagique(config, u, '/parcours') });
     if (eliteOk) boutons.push({ label: 'Réserver mes coachings', url: lienMagique(config, u, '/coaching') });
     if (!eliteOk) boutons.push({ label: 'Candidature Elite', url: lienMagique(config, u, `${config.offres.elite.base}/candidature`) });
     return avecBoutons('Tes accès à overmaxx.online (personnels, ne les partage pas) :', boutons);
@@ -732,7 +733,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       for (const m of tous.values()) {
         if (m.user?.bot || m.id === config.discord.adminId || !m.roles.cache.has(o.roleDiscord) || payeMobile(m.id)) continue;
         const r = q.carte.get(m.id, o.id);
-        if (!r) { q.carteNouveau.run(m.id, o.id, m.user?.username || null, iso); log(`membre ${o.id} payé par carte repéré : ${m.id}`); }
+        if (!r) {
+          q.carteNouveau.run(m.id, o.id, m.user?.username || null, iso);
+          log(`membre ${o.id} payé par carte repéré : ${m.id}`);
+          if (o.id === 'elite' && parcours && !parcours.get(m.id)) parcours.assurer(m.id, { pseudo: m.user?.username || null, entree: iso });
+        }
         else if (r.perdu_le || r.termine_le) { q.carteRetour.run(m.user?.username || null, m.id, o.id); log(`abonnement ${o.id} par carte repris : ${m.id}`); }
       }
       // 2. Rôle retiré par Whop.
@@ -769,6 +774,82 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     }
   }
 
+  // ---------- Parcours de l'accompagnement Elite ----------
+  const ETAPES_NOMS = { 1: 'Prise en main', 2: 'Coaching d\'entrée', 3: 'Validation du contenu', 4: 'Publication et suivi', 5: 'GOAT' };
+  const quoi = (s) => (s.etape === 1 ? `ton exercice ${s.emplacement}` : `ta vidéo ${s.emplacement.slice(1)}`);
+  const lienCoach = (chemin) => lienPerso(config.discord.adminId, 'coach', chemin);
+  const prevenirParcours = {
+    // Le membre a envoyé un exercice ou une vidéo : le coach est prévenu.
+    async envoiRecu(s, p) {
+      if (!config.discord.adminId) return;
+      await notifier.admin(avecBoutons(`**${(p && (p.nom || p.pseudo)) || s.discord_id}** (<@${s.discord_id}>) a envoyé ${s.etape === 1 ? `l'exercice ${s.emplacement}` : `la vidéo ${s.emplacement.slice(1)}`} (étape ${s.etape}).`,
+        [{ label: 'Ouvrir', url: lienCoach(`/admin/envois/${s.id}`) }]));
+    },
+    // Décision du coach : le membre est prévenu, avec la suite.
+    async decision(s, p, etapeSuivante) {
+      if (s.etat === 'corriger') {
+        await notifier.membre(s.discord_id, avecBoutons(`**Ton coach demande des modifications sur ${quoi(s)}.** Lis sa remarque, puis renvoie la nouvelle version : tu as **24 h**.`,
+          [{ label: 'Voir sa remarque', url: lienPerso(s.discord_id, p && p.pseudo, `/parcours/etape-${s.etape}`) }]));
+        return;
+      }
+      const suite = etapeSuivante
+        ? `\n**Étape ${etapeSuivante} ouverte : ${ETAPES_NOMS[etapeSuivante]}.**${etapeSuivante === 2 ? ' Réserve ton coaching d\'entrée dans les 12 heures.' : etapeSuivante === 4 ? ' Tu es maintenant autorisé à publier.' : ''}`
+        : '';
+      await notifier.membre(s.discord_id, avecBoutons(`**${quoi(s).charAt(0).toUpperCase()}${quoi(s).slice(1)} est validé${s.etape === 3 ? 'e' : ''}.**${suite}`,
+        [{ label: etapeSuivante && etapeSuivante <= 3 ? `Ouvrir l'étape ${etapeSuivante}` : 'Mon parcours', url: lienPerso(s.discord_id, p && p.pseudo, etapeSuivante && etapeSuivante <= 3 ? `/parcours/etape-${etapeSuivante}` : '/parcours') }]));
+    },
+    async remarque(p) {
+      await notifier.membre(p.discord_id, avecBoutons('**Ton coach a ajouté une remarque sur ta fiche.**',
+        [{ label: 'Lire la remarque', url: lienPerso(p.discord_id, p.pseudo, '/fiche#remarques') }]));
+    },
+    async etapeOuverte(p, n) {
+      await notifier.membre(p.discord_id, avecBoutons(`**Étape ${n} ouverte : ${ETAPES_NOMS[n] || ''}.**${n === 3 ? ' Envoie tes 3 vidéos dans les 72 heures, et ne publie rien avant qu\'elles soient validées.' : ''}`,
+        [{ label: n <= 3 ? `Ouvrir l'étape ${n}` : 'Mon parcours', url: lienPerso(p.discord_id, p.pseudo, n <= 3 ? `/parcours/etape-${n}` : '/parcours') }]));
+    },
+    async entreeReservee(p, seance) {
+      await notifier.admin(`**${p.nom || p.pseudo || p.discord_id}** (<@${p.discord_id}>) a réservé son **coaching d'entrée** : ${seance.date} à ${seance.heure} GMT.`);
+    },
+  };
+
+  // Rappels des délais : à la moitié du délai, 1 h avant la fin, puis toutes les 12 h en retard.
+  // Étape 3 sans planning de coaching : un rappel toutes les 12 h.
+  async function relancerParcours() {
+    if (!parcours) return;
+    const now = maintenant().getTime();
+    for (const p of parcours.tous()) {
+      if (p.etape > 4) continue;
+      const t = p.etape <= 3 ? parcours.tache(p.discord_id) : null;
+      if (t && t.delai) {
+        const fin = new Date(t.delai.fin).getTime();
+        const debut = fin - t.delai.duree;
+        let moment = null;
+        if (now >= fin) moment = `retard-${Math.floor((now - fin) / (12 * 3600 * 1000))}`;
+        else if (now >= fin - 3600 * 1000) moment = 'h-1';
+        else if (now >= debut + t.delai.duree / 2) moment = 'moitie';
+        const cle = moment && `parcours:${p.discord_id}:${t.cle}:${t.delai.fin}:${moment}`;
+        if (cle && !dejaEnvoye(cle)) {
+          marquer(cle);
+          const reste = fin - now;
+          const h = Math.max(1, Math.round(Math.abs(reste) / 3600000));
+          const texte = reste > 0 ? `**Rappel : ${t.titre.charAt(0).toLowerCase()}${t.titre.slice(1)}.** Il te reste **${h} h**.`
+            : `**En retard : ${t.titre.charAt(0).toLowerCase()}${t.titre.slice(1)}.** Le délai est dépassé de ${h} h : fais-le dès maintenant.`;
+          await notifier.membre(p.discord_id, avecBoutons(texte, [{ label: t.bouton, url: lienPerso(p.discord_id, p.pseudo, t.lien) }]));
+          log(`rappel de délai (${t.cle}, ${moment}) envoyé à ${p.discord_id}`);
+        }
+      }
+      if (p.etape >= 3 && coaching && !coaching.reserveurs().includes(p.discord_id)) {
+        const depuis = now - new Date(p.etape_depuis).getTime();
+        const tranche = Math.floor(depuis / (12 * 3600 * 1000));
+        const cle = `parcours:${p.discord_id}:planning:${p.etape_depuis}:${tranche}`;
+        if (tranche >= 1 && !dejaEnvoye(cle)) {
+          marquer(cle);
+          await notifier.membre(p.discord_id, avecBoutons(`**Tu n'as pas encore de planning de coaching.** Réserve de ${config.coaching.minParSemaine} à ${config.coaching.maxParSemaine || 7} coachings par semaine.`,
+            [{ label: 'Réserver mes coachings', url: lienPerso(p.discord_id, p.pseudo, '/coaching') }]));
+        }
+      }
+    }
+  }
+
   // ---------- Paiement Elite par carte (Whop) ----------
   // Whop donne le rôle Elite au candidat validé qui paie par carte : sa candidature passe « intégration confirmée »
   // et son lien mobile money est désactivé (pas de double paiement).
@@ -779,8 +860,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     if (!c || c.statut !== 'valide' || !c.invitation_token) return false;
     if (q.payeeParCarte.run(maintenant().toISOString(), 'carte-whop', c.invitation_token).changes !== 1) return false;
     log(`candidature ${c.id} : payée par carte (rôle Elite donné par Whop)`);
-    await notifier.membre(m.id, avecBoutons('**Paiement reçu : bienvenue dans l\'Elite !**\nRéserve maintenant tes créneaux de coaching.',
-      [{ label: 'Réserver mes coachings', url: lienMagique(config, { id: m.id, pseudo: c.pseudo }, '/coaching') }]));
+    if (parcours) parcours.assurer(m.id, { pseudo: c.pseudo });
+    await notifier.membre(m.id, avecBoutons('**Paiement reçu : bienvenue dans l\'Elite !**\nTon parcours commence : étape 1, la prise en main.',
+      [{ label: 'Commencer mon parcours', url: lienMagique(config, { id: m.id, pseudo: c.pseudo }, '/parcours') }]));
     await notifier.admin(`**${c.pseudo}** (<@${m.id}>) a payé l'Elite **par carte** sur Whop : intégration confirmée.`);
     return true;
   }
@@ -862,7 +944,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       await renouvellements();
       await rappelsCoaching();
       if (tour % 2 === 0) await synchroRoles();
-      if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); }
+      if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); }
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
       console.error('[bob] cycle :', err);
@@ -887,6 +969,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     paiementCarteDetecte,
     relancerWhop,
     suivreCarte,
+    relancerParcours,
+    parcours: prevenirParcours,
 
     async demarrer() {
       if (!actif) { log('désactivé : DISCORD_BOT_TOKEN ou DISCORD_GUILD_ID manquant.'); return; }
@@ -948,9 +1032,15 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       if (cmd && cmd.type === 'renouvellement') {
         await notifier.membre(membre.discord_id, `**Renouvellement confirmé.** Ton accès à **${o.nom}** est valable jusqu'au **${formatDate(membre.acces_jusqu_au)}**.`);
       } else {
+        const elite = membre.programme === 'elite';
+        if (elite && parcours) {
+          parcours.assurer(membre.discord_id, { pseudo: membre.discord_pseudo, nom: membre.nom, entree: membre.cree_le, fin: membre.acces_jusqu_au });
+        }
         await notifier.membre(membre.discord_id, avecBoutons(`**Paiement confirmé : bienvenue dans ${o.nom} !** Ton rôle est ajouté sur le serveur.\n`
-          + `Ton accès est valable jusqu'au **${formatDate(membre.acces_jusqu_au)}**. Il te reste à rejoindre la formation sur Whop.`,
-          cmd ? [{ label: 'Accéder à la formation', url: `${config.baseUrl}/acces/${cmd.ref}` }] : []));
+          + (elite ? `Ton accompagnement de 90 jours court jusqu'au **${formatDate(membre.acces_jusqu_au)}**. Débloque la formation sur Whop, puis commence ton parcours : étape 1, la prise en main.`
+            : `Ton accès est valable jusqu'au **${formatDate(membre.acces_jusqu_au)}**. Il te reste à rejoindre la formation sur Whop.`),
+          [...(cmd ? [{ label: 'Accéder à la formation', url: `${config.baseUrl}/acces/${cmd.ref}` }] : []),
+            ...(elite && parcours ? [{ label: 'Commencer mon parcours', url: lienPerso(membre.discord_id, membre.discord_pseudo, '/parcours') }] : [])]));
       }
     },
 

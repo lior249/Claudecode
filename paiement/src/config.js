@@ -48,6 +48,10 @@ function chargerConfig({ strict = true } = {}) {
         roleDiscord: lire('DISCORD_ROLE_ELITE'),
         wistiaGuide: lire('WISTIA_GUIDE_ELITE', ''),
         wistiaVsl: lire('WISTIA_VSL_ELITE', ''),
+        // Tutos vidéo des étapes du parcours (emplacement réservé tant qu'ils sont vides).
+        wistiaEtape1: lire('WISTIA_ETAPE_1', ''),
+        wistiaEtape2: lire('WISTIA_ETAPE_2', ''),
+        wistiaEtape3: lire('WISTIA_ETAPE_3', ''),
         // Paiement par carte : lien de l'offre Whop cachée (même prix). Proposé à côté du mobile money après validation.
         lienCarte: lire('LIEN_CARTE_ELITE', 'https://whop.com/overmaxx/legroupe-secret-accompagnement-prive/'),
         tallyFormId: lire('TALLY_FORM_ID', ''),
@@ -88,11 +92,13 @@ function chargerConfig({ strict = true } = {}) {
 
     tally: { secret: lire('TALLY_SIGNING_SECRET', '') },
     videoMaxMo: Number(lire('VIDEO_MAX_MO', '20')),
+    videoParcoursMo: Number(lire('VIDEO_PARCOURS_MO', '150')), // vidéos des étapes 1 et 3 de l'accompagnement
 
     coaching: {
       // Heures GMT des créneaux de 30 minutes.
       creneaux: lire('COACHING_CRENEAUX', '15:00,15:30,16:00,16:30,17:00,17:30,21:00,21:30,22:00,22:30').split(',').map((s) => s.trim()),
-      minParSemaine: Number(lire('COACHING_MIN_PAR_SEMAINE', '4')),
+      minParSemaine: Number(lire('COACHING_MIN_PAR_SEMAINE', '3')),
+      maxParSemaine: Number(lire('COACHING_MAX_PAR_SEMAINE', '5')),
       delaiReservationHeures: Number(lire('COACHING_DELAI_HEURES', '4')),
       annulationMinutes: Number(lire('COACHING_ANNULATION_MINUTES', '30')),
       rappelAdminHeures: Number(lire('COACHING_RAPPEL_ADMIN_HEURES', '2')),

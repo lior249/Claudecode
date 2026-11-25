@@ -188,6 +188,24 @@ Chaque paiement est relié au compte Discord connecté : **le rôle est donné t
 (En Attente retiré), sans `/lier`. La page **Membres** affiche le Discord de chacun. `/lier CODE` reste possible
 pour les paiements faits avant ce changement.
 
+## Le parcours Elite (livraison 1)
+
+Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
+
+| Côté membre | Côté coach |
+|---|---|
+| **Mon parcours** (`/parcours`) : son étape, ce qu'il doit faire, le temps qui reste | **À traiter** (`/admin/a-traiter`) : envois à valider, étapes à ouvrir, retards |
+| **Étape 1** : exercices L1 et L2 (vidéo, note et retour de l'IA) | **Valider un envoi** : la vidéo, tes remarques, Valider (étape 1) ou Demander des modifications / Valider (étape 3) |
+| **Étape 2** : réserver le coaching d'entrée (un seul, à son heure) | **Fiche** (nom d'un membre Elite dans Membres) : remarques avec liens et images, compte TikTok, ouvrir l'étape 3 |
+| **Étape 3** : 3 vidéos, 24 h pour renvoyer une vidéo à corriger | |
+| **Ma fiche** (`/fiche`) : tes remarques, son compte, son parcours | |
+
+- Bob te prévient à chaque envoi ; il prévient le membre à chaque décision, remarque et étape ouverte, et le relance
+  selon les délais (moitié du délai, 1 h avant la fin, puis toutes les 12 h en retard).
+- Les vidéos d'une étape (150 Mo maximum, `VIDEO_PARCOURS_MO`) sont supprimées du serveur dès que l'étape est validée.
+- Les coachings réguliers s'ouvrent à l'étape 3 : **3 à 5 par semaine** (`COACHING_MIN_PAR_SEMAINE`, `COACHING_MAX_PAR_SEMAINE`).
+- Tutos vidéo des étapes : `WISTIA_ETAPE_1`, `WISTIA_ETAPE_2`, `WISTIA_ETAPE_3`.
+
 ## L'espace de gestion
 
 Sur **overmaxx.online/admin** (connexion avec `/connexion` dans Discord) : barre latérale à gauche sur ordinateur,

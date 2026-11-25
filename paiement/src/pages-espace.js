@@ -65,12 +65,20 @@ function navEspace(espace = {}) {
   if (espace.estAdmin) {
     nav.push({ section: 'Gestion' },
       { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
+      { cle: 'traiter', libelle: 'À traiter', lien: '/admin/a-traiter', icone: 'traiter', badge: espace.aTraiterParcours || null },
       { cle: 'candidatures', libelle: 'Candidatures', lien: '/admin/candidatures', icone: 'candidatures', badge: espace.aTraiter || null },
       { cle: 'membres', libelle: 'Membres', lien: '/admin/membres', icone: 'membres' },
       { cle: 'pages', libelle: 'Pages du site', lien: '/admin/pages', icone: 'pages' });
   }
   // Le coach (admin) ne réserve pas de séance : pas de « Mes coachings » pour lui.
-  if (!espace.estAdmin) nav.push({ section: 'Mon espace' }, { cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
+  if (!espace.estAdmin) {
+    nav.push({ section: espace.parcours ? 'Mon accompagnement' : 'Mon espace' });
+    if (espace.parcours) {
+      nav.push({ cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' },
+        { cle: 'fiche', libelle: 'Ma fiche', lien: '/fiche', icone: 'fiche' });
+    }
+    nav.push({ cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
+  }
   nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/', icone: 'site', externe: true });
   return nav;
 }
@@ -79,7 +87,7 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
   const session = espace && espace.session;
   return gabaritEspace(titre, `${STYLE_GRILLE}${STYLE_BUREAU}${contenu}`, {
     ...options, nav: navEspace(espace), actif,
-    compte: session ? { pseudo: session.pseudo || 'Membre', role: espace.estAdmin ? 'Admin' : 'Membre Elite' } : null,
+    compte: session ? { pseudo: session.pseudo || 'Membre', role: espace.estAdmin ? 'Coach' : 'Membre Elite' } : null,
   });
 }
 
@@ -317,7 +325,9 @@ function pageAdminCandidature(config, { candidature, espace, message }) {
 }
 
 // /admin/membres : tous les membres dans une seule liste ; le moyen de paiement est une colonne parmi d'autres.
-function pageAdminMembres(config, { membres, cartes = [], progression = {}, totalLecons = 0, espace }) {
+function pageAdminMembres(config, { membres, cartes = [], progression = {}, totalLecons = 0, fiches = new Set(), espace }) {
+  // Les membres Elite qui ont un parcours : leur nom ouvre leur fiche.
+  const avecFiche = (id, html) => (id && fiches.has(id) ? `<a href="/admin/membres/${encodeURIComponent(id)}" style="color:#fff">${html}</a>` : html);
   const maintenant = new Date();
   const offre = (prog) => (config.offres[prog] ? config.offres[prog].nom.replace('Overmaxx ', '') : prog);
   const formation = (m) => {
@@ -337,7 +347,7 @@ function pageAdminMembres(config, { membres, cartes = [], progression = {}, tota
     ...membres.map((m) => {
       const [ordre, statut] = statutMobile(m);
       return { ordre, nom: m.nom, html: `<tr>
-        <td><b>${echapper(m.nom)}</b><br><span class="doux">${echapper(m.email)}</span></td>
+        <td>${avecFiche(m.discord_id, `<b>${echapper(m.nom)}</b>`)}<br><span class="doux">${echapper(m.email)}</span></td>
         <td>${echapper(m.discord_pseudo || '—')}</td>
         <td>${echapper(offre(m.programme))}</td>
         <td>Mobile money</td>
@@ -350,7 +360,7 @@ function pageAdminMembres(config, { membres, cartes = [], progression = {}, tota
     ...cartes.map((c) => {
       const [ordre, statut] = statutCarte(c);
       return { ordre, nom: c.pseudo || c.discord_id, html: `<tr>
-        <td><b>${echapper(c.pseudo || c.discord_id)}</b><br><span class="doux">depuis le ${echapper(formatDate(c.depuis))}</span></td>
+        <td>${avecFiche(c.discord_id, `<b>${echapper(c.pseudo || c.discord_id)}</b>`)}<br><span class="doux">depuis le ${echapper(formatDate(c.depuis))}</span></td>
         <td>${echapper(c.pseudo || '—')}</td>
         <td>${echapper(offre(c.programme))}</td>
         <td>Carte (Whop)</td>
@@ -369,12 +379,13 @@ function pageAdminMembres(config, { membres, cartes = [], progression = {}, tota
   </table></div></div>`, espace, 'membres');
 }
 
-function pageCoaching(config, { session, grille, seances, coaching, message, interdit, espace = { session } }) {
+function pageCoaching(config, { session, grille, seances, coaching, message, interdit, versParcours, espace = { session } }) {
   if (interdit) {
     return pageEspace('Coaching privé', `
     <h1>Coaching privé</h1>
     <div class="carte"><p style="margin:0">${echapper(interdit)}</p></div>
-    <a class="bouton secondaire" href="/deconnexion" style="max-width:340px">Changer de compte</a>
+    ${versParcours ? '<a class="bouton" href="/parcours" style="max-width:340px">Mon parcours</a>'
+    : '<a class="bouton secondaire" href="/deconnexion" style="max-width:340px">Changer de compte</a>'}
     ${blocSupport(config)}`, espace, 'coaching');
   }
   const limite = (() => {
@@ -383,7 +394,7 @@ function pageCoaching(config, { session, grille, seances, coaching, message, int
     return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
   })();
   const donnees = {
-    cases: grille.cases, jours: coaching.JOURS, min: config.coaching.minParSemaine,
+    cases: grille.cases, jours: coaching.JOURS, min: config.coaching.minParSemaine, max: config.coaching.maxParSemaine || 7,
   };
   const listeSeances = seances.length
     ? seances.map((s) => `<div class="seance"><div><b>${echapper(coaching.JOURS[(new Date(s.debut).getUTCDay() + 6) % 7])} ${echapper(s.date.slice(8, 10))}/${echapper(s.date.slice(5, 7))}</b> à ${echapper(s.heure)} GMT</div>
@@ -425,8 +436,8 @@ function pageCoaching(config, { session, grille, seances, coaching, message, int
         })(j);
       });
       var n = Object.keys(choix).length;
-      document.getElementById('compteur').textContent = n + ' créneau(x) choisi(s) · minimum ' + D.min + ' · 1 par jour';
-      document.getElementById('enregistrer').disabled = n < D.min;
+      document.getElementById('compteur').textContent = n + ' créneau(x) choisi(s) · de ' + D.min + ' à ' + D.max + ' · 1 par jour';
+      document.getElementById('enregistrer').disabled = n < D.min || n > D.max;
     }
     dessiner();
     document.getElementById('enregistrer').onclick = function () {
@@ -456,7 +467,7 @@ function pageCoaching(config, { session, grille, seances, coaching, message, int
   const rappelOptions = coaching.RAPPELS_POSSIBLES.map((m) => `<option value="${m}"${m === grille.rappelMin ? ' selected' : ''}>${m >= 120 ? `${m / 60} h` : '1 h 30'} avant</option>`).join('');
   return pageEspace('Coaching privé', `
   <h1 style="font-size:19px;margin:0 0 2px">Mes créneaux de coaching</h1>
-  <p class="doux petit" style="margin-bottom:8px">${echapper(session.pseudo)} · au moins ${config.coaching.minParSemaine} par semaine, 1 par jour, chaque semaine. Heures GMT.</p>
+  <p class="doux petit" style="margin-bottom:8px">${echapper(session.pseudo)} · ${config.coaching.minParSemaine} à ${config.coaching.maxParSemaine || 7} par semaine, 1 par jour, chaque semaine. Heures GMT.</p>
   ${message ? `<p class="ok petit" style="margin-bottom:8px">${echapper(message)}</p>` : ''}
   <div class="colonnes">
     <div>
@@ -556,6 +567,13 @@ function pageAdminPages(config, { espace }) {
       ['/admin/apercu/candidature-refuse', 'Candidature refusée', ''],
       ['/admin/apercu/paiement-elite', 'Paiement Elite (mobile money)', 'Page du lien personnel, avec « Payer plutôt par carte ».'],
     ]],
+    ['Parcours Elite (tutos des étapes)', [
+      ['/admin/a-traiter', 'À traiter', 'Envois des membres à valider, étapes à ouvrir, retards.'],
+      ['/admin/membres', 'Fiches des membres Elite', 'Depuis Membres : le nom d\'un membre Elite ouvre sa fiche.'],
+      ['/admin/a-traiter', 'Tuto de l\'étape 1', 'Affiché en haut de l\'étape 1 du membre.', video(config.offres.elite.wistiaEtape1, 'WISTIA_ETAPE_1')],
+      ['/admin/a-traiter', 'Tuto de l\'étape 2', 'Affiché en haut de l\'étape 2.', video(config.offres.elite.wistiaEtape2, 'WISTIA_ETAPE_2')],
+      ['/admin/a-traiter', 'Tuto de l\'étape 3', 'Affiché en haut de l\'étape 3.', video(config.offres.elite.wistiaEtape3, 'WISTIA_ETAPE_3')],
+    ]],
     ['Membres et gestion', [
       ['/admin/apercu/coaching', 'Coachings d\'un membre', 'La grille de réservation, telle qu\'un membre Elite la voit (aperçu).'],
       ['/admin', 'Calendrier', ''],
@@ -573,4 +591,4 @@ function pageAdminPages(config, { espace }) {
   ${groupes.map(([titre, liste]) => `<div class="carte"><h2>${echapper(titre)}</h2><ul class="liste">${lignes(liste)}</ul></div>`).join('')}`, espace, 'pages');
 }
 
-module.exports = { pageAdminPages, pageConnexionRequise, pageConnexionEnvoyee, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminCandidature, pageAdminMembres, pageCoaching, pageAdmin };
+module.exports = { navEspace, pageEspace, pageAdminPages, pageConnexionRequise, pageConnexionEnvoyee, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminCandidature, pageAdminMembres, pageCoaching, pageAdmin };

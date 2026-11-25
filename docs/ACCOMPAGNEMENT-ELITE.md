@@ -300,7 +300,7 @@ Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **san
 | Livraison | Contenu |
 |---|---|
 | **0** (faite) | L'Elite en paiement unique (fin des renouvellements, du classement et du retrait), le suivi des membres payés par carte, la progression Whop (leçons terminées) |
-| **1** | La fiche, Mon parcours, À traiter, les étapes 1 à 3 (envois, niveau L1 / L2, Demander des modifications / Valider, remarques avec liens et images), le coaching d'entrée, l'accès au coaching selon l'étape (3 à 5 par semaine) |
+| **1** (faite) | La fiche, Mon parcours, À traiter, les étapes 1 à 3 (envois, niveau L1 / L2, Demander des modifications / Valider, remarques avec liens et images), le coaching d'entrée, l'accès au coaching selon l'étape (3 à 5 par semaine) |
 | **2** | L'étape 4 : heures choisies et rappels de Bob, compte rendu du jour, statistiques, objectifs, GOAT et rôles de revenus, les sinistrés |
 | **3** | Le coaching : fuseaux horaires, disponibilités du coach, imprévu (séances en rouge), annuler ou reporter, coachings en réserve, réservation semaine par semaine |
 | **4** | L'application installable et ses notifications, avec le choix Bob ou application |

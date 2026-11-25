@@ -11,6 +11,7 @@ const { creerSynchroWhop } = require('./synchro-whop');
 const { creerDiscordOAuth } = require('./discord-oauth');
 const { creerBob } = require('./bob');
 const { creerCandidatures } = require('./candidatures');
+const { creerParcours } = require('./parcours');
 const { creerApp } = require('./app');
 
 const config = chargerConfig();
@@ -24,10 +25,11 @@ const commandes = creerCommandes({ db, saspay, whop, config, envoyerEmail: creer
 const coaching = creerCoaching({ db, config });
 const oauth = config.oauthActif ? creerDiscordOAuth(config) : null;
 const candidatures = creerCandidatures({ db, config, commandes });
-const bob = creerBob({ config, db, commandes, coaching, candidatures });
+const parcours = creerParcours({ db, config });
+const bob = creerBob({ config, db, commandes, coaching, candidatures, parcours });
 const synchro = creerSynchroWhop({ db, whop, config, notifier: bob.notifier });
 
-const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures });
+const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours });
 
 const serveurHttp = app.listen(config.port, () => {
   console.log(`Serveur Overmaxx prêt sur le port ${config.port}`);

@@ -101,11 +101,12 @@ function coachingA(m, iso) {
 }
 const SEMAINE = [0, 1, 2, 3].map((jour) => ({ jour, heure: '15:00' }));
 
-test('coaching : minimum 4, un par jour, créneau déjà pris, limite de 11h00 GMT', async () => {
+test('coaching : 3 à 5 par semaine, un par jour, créneau déjà pris, limite de 11h00 GMT', async () => {
   const m = await monter();
   try {
     const lundi10h = coachingA(m, '2026-11-23T10:59:00.000Z'); // lundi
-    assert.match(lundi10h.enregistrer('A', SEMAINE.slice(0, 3)).erreur, /au moins 4/);
+    assert.match(lundi10h.enregistrer('A', SEMAINE.slice(0, 2)).erreur, /au moins 3/);
+    assert.match(lundi10h.enregistrer('A', [0, 1, 2, 3, 4, 5].map((jour) => ({ jour, heure: '16:00' }))).erreur, /5 créneaux au maximum/);
     assert.match(lundi10h.enregistrer('A', [...SEMAINE, { jour: 0, heure: '21:00' }]).erreur, /seul créneau par jour/);
     const r = lundi10h.enregistrer('A', SEMAINE);
     assert.ok(r.ok);

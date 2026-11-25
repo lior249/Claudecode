@@ -555,7 +555,7 @@ function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDis
       ${whopFait ? `<li>${ICONE.ok}<span>Accès Whop validé.</span></li>` : ''}
     </ul>
     ${discordLie ? '' : `<h2 style="margin-top:14px">Connecte ton Discord</h2>${etapeDiscord}`}
-    ${offre.id === 'elite' ? '<a class="bouton secondaire" href="/coaching">Réserver mes coachings</a>' : ''}
+    ${offre.id === 'elite' ? '<a class="bouton" href="/parcours">Commencer mon parcours</a>' : ''}
   </div>
   ${blocSupport(config)}`, { script: SCRIPT_COPIER });
 }

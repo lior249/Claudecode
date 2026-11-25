@@ -34,3 +34,25 @@ test('le JavaScript de toutes les pages est valide', async () => {
     assert.ok(total >= 5, `${total} scripts vérifiés`);
   } finally { await m.fermer(); }
 });
+
+test('le JavaScript des pages du parcours Elite est valide (envois, heures locales, images du coach)', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const { creerParcours } = require('../src/parcours');
+    const parcours = creerParcours({ db: m.db, config: m.config });
+    parcours.assurer('P1', { pseudo: 'p1' });
+    const membre = cookieSession('P1', 'p1');
+    const coach = cookieSession(ADMIN, 'a');
+    const r = parcours.preparerEnvoi('P1', 'L1', { note: 80, retour: 'Retour complet de l\'IA.' });
+    const pages = [['/parcours', membre], ['/parcours/etape-1', membre], ['/fiche', membre], ['/admin/a-traiter', coach], [`/admin/envois/${r.soumission.id}`, coach], ['/admin/membres/P1', coach]];
+    parcours.changerEtape('P1', 3);
+    pages.push(['/parcours/etape-2', membre], ['/parcours/etape-3', membre]);
+    let total = 0;
+    for (const [chemin, cookie] of pages) {
+      const res = await m.get(chemin, { cookie });
+      assert.strictEqual(res.status, 200, chemin);
+      total += verifierScripts(await res.text(), chemin);
+    }
+    assert.ok(total >= 8, `${total} scripts vérifiés`);
+  } finally { await m.fermer(); }
+});

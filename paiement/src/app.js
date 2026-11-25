@@ -7,6 +7,8 @@ const { lireJetonMembre, lienRenouvellement } = require('./liens');
 const { lireSession, ouvrirSession, fermerSession, verifier, signer } = require('./discord-oauth');
 const P = require('./pages');
 const E = require('./pages-espace');
+const V = require('./pages-parcours');
+const { creerParcours } = require('./parcours');
 const { verifierReponses } = require('./formulaires');
 
 const EMAIL_REGEX = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
@@ -26,13 +28,16 @@ const retourSur = (r, defaut = '/coaching') => (typeof r === 'string' && /^\/(?!
 // Le bouton pointe DIRECTEMENT vers discord.com : sur téléphone, c'est ce qui ouvre l'application Discord
 // (une redirection depuis notre site ouvrirait la page web de Discord, qui redemande l'identifiant et le mot de passe).
 
-function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures }) {
+function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours: parcoursDonne }) {
+  const parcours = parcoursDonne || creerParcours({ db: commandes.db, config });
+  const prevenir = (nom, ...args) => { if (bob && bob.parcours && bob.parcours[nom]) bob.parcours[nom](...args).catch((e) => console.error(`[bob] parcours ${nom} :`, e.message)); };
   const lienDiscord = (state, options) => (config.oauthActif && oauth ? oauth.urlAutorisation(state, options) : null);
   // Barre latérale : qui est connecté, et combien de candidatures attendent une décision.
   const espaceDe = (session) => {
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
-    return { session, estAdmin, aTraiter };
+    const aTraiterParcours = estAdmin ? parcours.aTraiter().total : 0;
+    return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(!estAdmin && session && parcours.get(session.id)) };
   };
   const app = express();
   app.disable('x-powered-by');
@@ -373,6 +378,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
       return { interdit: 'Les GOAT ont un live de groupe dédié : il n\'y a pas de coaching individuel à réserver.' };
     }
     if (!elite.roleDiscord || !roles.includes(elite.roleDiscord)) return { interdit: 'Le coaching privé est réservé aux membres Elite.' };
+    const p = parcours.get(session.id);
+    if (p && p.etape < 3 && !coaching.reserveurs().includes(session.id)) {
+      return { interdit: 'Tes coachings réguliers s\'ouvrent à l\'étape 3 de ton parcours. Avant, tu réserves ton coaching d\'entrée depuis Mon parcours.', parcours: true };
+    }
     return { ok: true };
   }
 
@@ -382,7 +391,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/coaching', message: 'Coaching privé', lienDiscord: lienDiscord({ but: 'connexion', retour: '/coaching' }) }));
     try {
       const d = await droitsCoaching(session);
-      if (!d.ok) return res.send(E.pageCoaching(config, { session, interdit: d.interdit, espace: espaceDe(session) }));
+      if (!d.ok) return res.send(E.pageCoaching(config, { session, interdit: d.interdit, versParcours: d.parcours, espace: espaceDe(session) }));
       const message = req.query.ok ? 'Tes créneaux sont enregistrés. Bob t\'a envoyé le récapitulatif.' : req.query.annule ? 'Séance annulée. Ton coach est prévenu.' : null;
       return res.send(E.pageCoaching(config, {
         session, coaching, message, grille: coaching.grille(session.id), seances: coaching.prochainesSeances(session.id), espace: espaceDe(session),
@@ -533,6 +542,208 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     }
   });
 
+  // ================= Parcours de l'accompagnement Elite =================
+
+  // Le parcours d'un membre Elite est créé à sa première visite (paiement mobile money ou carte).
+  function parcoursDe(session) {
+    if (!session || estLeCoach(session)) return null;
+    const p = parcours.get(session.id);
+    if (p) return p;
+    const m = commandes.membresParDiscord(session.id).find((x) => x.programme === 'elite' && x.statut === 'actif');
+    if (m) return parcours.assurer(session.id, { pseudo: session.pseudo || m.discord_pseudo, nom: m.nom, entree: m.cree_le, fin: m.acces_jusqu_au });
+    const carte = commandes.db.prepare("SELECT * FROM abonnes_carte WHERE discord_id = ? AND programme = 'elite' AND termine_le IS NULL").get(session.id);
+    if (carte) return parcours.assurer(session.id, { pseudo: session.pseudo || carte.pseudo, entree: carte.depuis });
+    return null;
+  }
+  function membreParcours(req, res, retour) {
+    const session = connecte(req, res, retour, 'Overmaxx Elite');
+    if (!session) return null;
+    if (estLeCoach(session)) { res.redirect(302, '/admin/a-traiter'); return null; }
+    const p = parcoursDe(session);
+    if (!p) {
+      res.status(403).send(P.pageMessage(config, 'Accompagnement Elite', 'Cette page est réservée aux membres de l\'accompagnement Elite.', { lien: elite.base, texteLien: 'Découvrir l\'Elite' }));
+      return null;
+    }
+    return { session, p, espace: espaceDe(session) };
+  }
+  // Progression dans les cours Whop (leçons terminées), si son compte Whop est connu.
+  function formationDe(discordId) {
+    const m = commandes.db.prepare('SELECT whop_user_id FROM membres WHERE discord_id = ? AND whop_user_id IS NOT NULL ORDER BY maj_le DESC LIMIT 1').get(discordId);
+    if (!m) return null;
+    const r = commandes.db.prepare(`SELECT COALESCE(SUM(termine), 0) faites, MAX(maj_le) derniere,
+      (SELECT COALESCE(SUM(c.lecons), 0) FROM cours_whop c WHERE c.id IN (SELECT DISTINCT cours_id FROM progression_whop x WHERE x.whop_user_id = ?)) total
+      FROM progression_whop WHERE whop_user_id = ?`).get(m.whop_user_id, m.whop_user_id);
+    return { faites: r.faites, total: r.total, derniere: r.derniere };
+  }
+  const remarquesDe = (id) => parcours.remarquesDe(id);
+  const maxMo = config.videoParcoursMo || 150;
+
+  app.get('/parcours', (req, res) => {
+    const x = membreParcours(req, res, '/parcours');
+    if (!x) return;
+    const prochaine = coaching.prochainesSeances(x.session.id, 14)[0];
+    res.send(V.pageParcours(config, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id),
+      prochain: prochaine ? prochaine.debut : null, derniere: parcours.remarques(x.session.id)[0] || null, formation: formationDe(x.session.id) }));
+  });
+  app.get('/parcours/etape-:n', (req, res) => {
+    const n = Number(req.params.n);
+    const x = membreParcours(req, res, `/parcours/etape-${n}`);
+    if (!x) return;
+    if (![1, 2, 3].includes(n) || x.p.etape < n) { res.redirect(302, '/parcours'); return; }
+    const commun = { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id), maxMo };
+    if (n === 1) { res.send(V.pageEtape1(config, { ...commun, soumissions: parcours.soumissions(x.session.id, 1), remarquesDe, formation: formationDe(x.session.id) })); return; }
+    if (n === 2) {
+      const message = req.query.ok ? { texte: 'Ton coaching d\'entrée est réservé. Bob te le rappellera.' } : null;
+      res.send(V.pageEtape2(config, { ...commun, entree: coaching.seancePonctuelle(x.session.id, 'entree'), libres: coaching.creneauxLibres(3), message }));
+      return;
+    }
+    const reserves = coaching.grille(x.session.id).cases.filter((c) => c.etat === 'moi').length;
+    res.send(V.pageEtape3(config, { ...commun, soumissions: parcours.soumissions(x.session.id, 3), remarquesDe,
+      coachings: { reserves, min: config.coaching.minParSemaine, max: config.coaching.maxParSemaine || 7 } }));
+  });
+
+  // Envoi en deux temps : les informations (note et retour de l'IA à l'étape 1), puis la vidéo.
+  app.post('/api/parcours/envoi', json, (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    if (!session || !parcoursDe(session)) return res.status(401).json({ erreur: 'Ta connexion a expiré. Recharge la page.' });
+    const b = req.body || {};
+    const r = parcours.preparerEnvoi(session.id, String(b.emplacement || ''), { note: b.note, retour: b.retour });
+    if (r.erreur) return res.status(400).json(r);
+    return res.json({ id: r.soumission.id });
+  });
+  app.post('/api/parcours/envoi/:id/video', async (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    if (!session || !parcoursDe(session)) { req.resume(); return res.status(401).json({ erreur: 'Ta connexion a expiré. Recharge la page.' }); }
+    try {
+      const r = await parcours.recevoirVideo(session.id, req.params.id, req, { type: req.get('content-type'), taille: Number(req.get('content-length')) || 0 });
+      if (r.erreur) { req.resume(); return res.status(400).json(r); }
+      prevenir('envoiRecu', r.soumission, parcours.get(session.id));
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error('[parcours] vidéo :', err.message);
+      return res.status(500).json({ erreur: 'L\'envoi a échoué. Réessaie.' });
+    }
+  });
+
+  app.post('/parcours/etape-2/reserver', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-2');
+    if (!x) return;
+    if (x.p.etape !== 2) { res.redirect(303, '/parcours'); return; }
+    const [date, heure] = String(req.body.creneau || '').split('|');
+    const r = coaching.reserverPonctuelle(x.session.id, date, heure, 'entree');
+    if (r.erreur) {
+      res.status(409).send(V.pageEtape2(config, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id), maxMo,
+        entree: coaching.seancePonctuelle(x.session.id, 'entree'), libres: coaching.creneauxLibres(3), message: { erreur: true, texte: r.erreur } }));
+      return;
+    }
+    prevenir('entreeReservee', x.p, r.seance);
+    res.redirect(303, '/parcours/etape-2?ok=1');
+  });
+
+  app.get('/fiche', (req, res) => {
+    const x = membreParcours(req, res, '/fiche');
+    if (!x) return;
+    res.send(V.pageFiche(config, { espace: x.espace, parcours: x.p, remarques: parcours.remarques(x.session.id), toutes: Boolean(req.query.toutes) }));
+  });
+
+  // Images jointes aux remarques : visibles par le coach et par le membre concerné.
+  app.get('/fichiers/images/:nom', (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    const chemin = parcours.cheminImage(req.params.nom);
+    if (!session || !chemin) { res.status(404).end(); return; }
+    if (!estLeCoach(session) && parcours.proprietaireImage(req.params.nom) !== session.id) { res.status(403).end(); return; }
+    res.set('Cache-Control', 'private, max-age=86400');
+    res.sendFile(chemin, (err) => { if (err && !res.headersSent) res.status(404).end(); });
+  });
+
+  // ---- Côté coach ----
+  app.get('/admin/a-traiter', (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter() }));
+  });
+  function envoiDe(req, res) {
+    const s = parcours.soumission(req.params.id);
+    if (!s) { res.status(404).send(P.pageMessage(config, 'Introuvable', 'Cet envoi n\'existe pas.', { lien: '/admin/a-traiter', texteLien: 'À traiter' })); return null; }
+    return s;
+  }
+  app.get('/admin/envois/:id', (req, res) => {
+    if (!estAdmin(req, res, `/admin/envois/${encodeURIComponent(req.params.id)}`)) return;
+    const s = envoiDe(req, res);
+    if (!s) return;
+    res.send(V.pageEnvoi(config, { espace: espaceDe(lireSession(req, config.secretApp)), s, parcours: parcours.get(s.discord_id),
+      remarques: parcours.remarquesDe(s.id), niveauPropose: parcours.niveauPropose(s.discord_id), message: req.query.erreur || null }));
+  });
+  app.get('/admin/envois/:id/video', (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const chemin = parcours.cheminVideo(parcours.soumission(req.params.id));
+    if (!chemin) { res.status(404).end(); return; }
+    res.set('Cache-Control', 'private, max-age=0');
+    res.sendFile(chemin, (err) => { if (err && !res.headersSent) res.status(404).end(); });
+  });
+  const imagesDe = (b) => String((b && b.images) || '').split(',').map((n) => n.trim()).filter((n) => parcours.cheminImage(n)).slice(0, 10);
+  app.post('/admin/envois/:id/decision', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const s = envoiDe(req, res);
+    if (!s) return;
+    const r = parcours.decider(s.id, String(req.body.decision || ''), { texte: req.body.texte, images: imagesDe(req.body), niveau: req.body.niveau });
+    if (r.erreur) { res.redirect(303, `/admin/envois/${s.id}?erreur=${encodeURIComponent(r.erreur)}`); return; }
+    prevenir('decision', r.soumission, r.parcours, r.etapeSuivante);
+    res.redirect(303, '/admin/a-traiter');
+  });
+  app.post('/admin/images', async (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) { req.resume(); return; }
+    try {
+      const r = await parcours.recevoirImage(req, { type: req.get('content-type'), taille: Number(req.get('content-length')) || 0 });
+      if (r.erreur) { req.resume(); res.status(400).json(r); return; }
+      res.json(r);
+    } catch (err) {
+      console.error('[parcours] image :', err.message);
+      res.status(500).json({ erreur: 'Envoi impossible.' });
+    }
+  });
+  function ficheDe(req, res) {
+    const p = parcours.get(req.params.id);
+    if (!p) { res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce membre n\'a pas de parcours Elite.', { lien: '/admin/membres', texteLien: 'Membres' })); return null; }
+    return p;
+  }
+  app.get('/admin/membres/:id', (req, res) => {
+    if (!estAdmin(req, res, `/admin/membres/${encodeURIComponent(req.params.id)}`)) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const message = { remarque: 'Remarque publiée. Bob a prévenu le membre.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.' }[req.query.fait] || null;
+    res.send(V.pageFiche(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, parcours: p, remarques: parcours.remarques(p.discord_id), toutes: Boolean(req.query.toutes), message }));
+  });
+  app.post('/admin/membres/:id/remarque', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/membres')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const r = parcours.ajouterRemarque(p.discord_id, { texte: req.body.texte, images: imagesDe(req.body) });
+    if (!r.erreur) prevenir('remarque', p);
+    res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}${r.erreur ? '' : '?fait=remarque'}#remarques`);
+  });
+  app.post('/admin/membres/:id/compte', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/membres')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const champs = { compte: req.body.compte, niche: req.body.niche, pays: req.body.pays };
+    if (req.body.ouvrir === '3') {
+      const r = parcours.ouvrirEtape3(p.discord_id, champs);
+      if (!r.erreur) prevenir('etapeOuverte', r.parcours, 3);
+      res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=etape3`);
+      return;
+    }
+    parcours.majCompte(p.discord_id, champs);
+    res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=compte`);
+  });
+  app.post('/admin/membres/:id/etape', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/membres')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const r = parcours.changerEtape(p.discord_id, req.body.etape);
+    if (!r.erreur && r.parcours.etape !== p.etape) prevenir('etapeOuverte', r.parcours, r.parcours.etape);
+    res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=etape`);
+  });
+
   // ================= Admin =================
 
   app.get('/admin', (req, res) => {
@@ -573,7 +784,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
       (SELECT COALESCE(SUM(c.lecons), 0) FROM cours_whop c WHERE c.id IN (SELECT DISTINCT cours_id FROM progression_whop x WHERE x.whop_user_id = p.whop_user_id)) total
       FROM progression_whop p GROUP BY p.whop_user_id`).all().map((p) => [p.whop_user_id, p]));
     const totalLecons = db.prepare('SELECT COALESCE(SUM(lecons), 0) n FROM cours_whop').get().n;
-    res.send(E.pageAdminMembres(config, { membres, cartes, progression, totalLecons, espace: espaceDe(lireSession(req, config.secretApp)) }));
+    const fiches = new Set(parcours.tous().map((p) => p.discord_id));
+    res.send(E.pageAdminMembres(config, { membres, cartes, progression, totalLecons, fiches, espace: espaceDe(lireSession(req, config.secretApp)) }));
   });
 
   // Tous les liens du site, et des aperçus des pages qu'on ne voit qu'après un paiement ou une décision.

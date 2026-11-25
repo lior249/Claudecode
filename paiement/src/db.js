@@ -228,6 +228,67 @@ function migrerV10(db) {
   PRAGMA user_version = 10;`);
 }
 
+// v11 : parcours de l'accompagnement Elite (étapes, envois du membre, remarques du coach, coaching d'entrée).
+function migrerV11(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 11) return;
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS parcours (
+    discord_id    TEXT PRIMARY KEY,
+    pseudo        TEXT,
+    nom           TEXT,
+    etape         INTEGER NOT NULL DEFAULT 1,     -- 1 à 4, puis 5 = GOAT
+    etape_depuis  TEXT NOT NULL,                  -- début de l'étape en cours (sert aux délais)
+    niveau        TEXT,                           -- L1 ou L2
+    compte_tiktok TEXT,
+    niche         TEXT,
+    pays          TEXT,
+    entree_le     TEXT NOT NULL,
+    fin_le        TEXT NOT NULL,                  -- fin des 90 jours
+    etape1_le     TEXT,
+    etape2_le     TEXT,
+    etape3_le     TEXT,
+    cree_le       TEXT NOT NULL,
+    maj_le        TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS soumissions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id     TEXT NOT NULL,
+    etape          INTEGER NOT NULL,
+    emplacement    TEXT NOT NULL,                 -- L1, L2 (étape 1) ; V1, V2, V3 (étape 3)
+    etat           TEXT NOT NULL,                 -- brouillon, attente, corriger, valide
+    note           INTEGER,
+    retour_ia      TEXT,
+    fichier        TEXT,
+    type           TEXT,
+    taille         INTEGER,
+    envoye_le      TEXT,
+    decide_le      TEXT,
+    corriger_avant TEXT,
+    cree_le        TEXT NOT NULL,
+    UNIQUE (discord_id, emplacement)
+  );
+  CREATE TABLE IF NOT EXISTS remarques (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id    TEXT NOT NULL,
+    soumission_id INTEGER,
+    type          TEXT NOT NULL DEFAULT 'remarque', -- remarque, corriger, valide
+    texte         TEXT NOT NULL,
+    images        TEXT,                             -- JSON : noms des images jointes
+    cree_le       TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS remarques_membre ON remarques(discord_id);
+  CREATE TABLE IF NOT EXISTS seances_ponctuelles (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id TEXT NOT NULL,
+    date       TEXT NOT NULL,
+    heure      TEXT NOT NULL,
+    type       TEXT NOT NULL DEFAULT 'entree',
+    cree_le    TEXT NOT NULL,
+    UNIQUE (date, heure)
+  );
+  PRAGMA user_version = 11;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -247,6 +308,7 @@ function ouvrirBase(fichier) {
   migrerV8(db);
   migrerV9(db);
   migrerV10(db);
+  migrerV11(db);
   return db;
 }
 

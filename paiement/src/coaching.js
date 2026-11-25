@@ -38,6 +38,11 @@ function creerCoaching({ db, config, maintenant = () => new Date() }) {
                            ON CONFLICT(discord_id) DO UPDATE SET pseudo = COALESCE(excluded.pseudo, pseudo),
                            rappel_min = COALESCE(?, rappel_min), maj_le = excluded.maj_le`),
     reserveurs: db.prepare('SELECT DISTINCT discord_id FROM reservations'),
+    // Séances ponctuelles (coaching d'entrée de l'accompagnement) : une date précise, pas un créneau répété.
+    ponctuelles: db.prepare('SELECT * FROM seances_ponctuelles WHERE date BETWEEN ? AND ?'),
+    ponctuelle: db.prepare('SELECT * FROM seances_ponctuelles WHERE discord_id = ? AND type = ? ORDER BY date DESC, heure DESC LIMIT 1'),
+    insererPonctuelle: db.prepare('INSERT INTO seances_ponctuelles (discord_id, date, heure, type, cree_le) VALUES (?, ?, ?, ?, ?)'),
+    supprimerPonctuelle: db.prepare('DELETE FROM seances_ponctuelles WHERE id = ?'),
   };
 
   // Limite de réservation pour un jour donné (ex. 11h00 si la première séance est à 15h00).
@@ -62,6 +67,7 @@ function creerCoaching({ db, config, maintenant = () => new Date() }) {
     const jours = new Set(selection.map((s) => s.jour));
     if (jours.size !== selection.length) return 'Un seul créneau par jour.';
     if (selection.length < c.minParSemaine) return `Choisis au moins ${c.minParSemaine} créneaux dans la semaine.`;
+    if (c.maxParSemaine && selection.length > c.maxParSemaine) return `${c.maxParSemaine} créneaux au maximum par semaine.`;
     return null;
   }
 
@@ -76,6 +82,10 @@ function creerCoaching({ db, config, maintenant = () => new Date() }) {
         if (r.jour !== j || d < r.effectif_le || annul.has(`${d} ${r.heure}`)) continue;
         liste.push({ date: d, heure: r.heure, discordId: r.discord_id, debut: aHeure(d, r.heure) });
       }
+    }
+    for (const p of q.ponctuelles.all(du, au)) {
+      if (discordId && p.discord_id !== discordId) continue;
+      liste.push({ date: p.date, heure: p.heure, discordId: p.discord_id, debut: aHeure(p.date, p.heure), type: p.type });
     }
     return liste.sort((a, b) => a.debut - b.debut);
   }
@@ -154,6 +164,46 @@ function creerCoaching({ db, config, maintenant = () => new Date() }) {
 
     profil(discordId) {
       return q.profil.get(discordId) || null;
+    },
+
+    // Créneaux libres des prochains jours, pour une séance ponctuelle (au moins 1 h à l'avance).
+    creneauxLibres(jours = 7) {
+      const now = maintenant();
+      const du = dateISO(now);
+      const au = ajouterJours(du, jours);
+      const pris = new Set(occurrences(du, au).map((o) => `${o.date} ${o.heure}`));
+      const libres = [];
+      for (let d = du; d <= au; d = ajouterJours(d, 1)) {
+        for (const heure of creneaux) {
+          const debut = aHeure(d, heure);
+          if (debut - now < 3600 * 1000 || pris.has(`${d} ${heure}`)) continue;
+          libres.push({ date: d, heure, debut });
+        }
+      }
+      return libres;
+    },
+    seancePonctuelle(discordId, type = 'entree') {
+      return q.ponctuelle.get(discordId, type) || null;
+    },
+    // Réserve (ou reporte) la séance ponctuelle du membre.
+    reserverPonctuelle(discordId, date, heure, type = 'entree') {
+      const libre = this.creneauxLibres(14).find((x) => x.date === date && x.heure === heure);
+      if (!libre) return { erreur: "Ce créneau n'est plus libre. Choisis-en un autre." };
+      const ancienne = q.ponctuelle.get(discordId, type);
+      if (ancienne && aHeure(ancienne.date, ancienne.heure) - maintenant() < c.annulationMinutes * 60 * 1000 && aHeure(ancienne.date, ancienne.heure) > maintenant()) {
+        return { erreur: `Ton coaching commence dans moins de ${c.annulationMinutes} minutes : il ne peut plus être reporté.` };
+      }
+      try {
+        db.exec('BEGIN IMMEDIATE');
+        if (ancienne && aHeure(ancienne.date, ancienne.heure) > maintenant()) q.supprimerPonctuelle.run(ancienne.id);
+        q.insererPonctuelle.run(discordId, date, heure, type, maintenant().toISOString());
+        db.exec('COMMIT');
+      } catch (err) {
+        db.exec('ROLLBACK');
+        if (/UNIQUE/.test(err.message)) return { erreur: "Ce créneau vient d'être pris. Choisis-en un autre." };
+        throw err;
+      }
+      return { ok: true, seance: q.ponctuelle.get(discordId, type) };
     },
 
     reserveurs() {
