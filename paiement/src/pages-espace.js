@@ -150,6 +150,11 @@ const SCRIPT_CODE = `(function () {
     if (c.value !== v) c.value = v;
     if (v.length === 6 && !c.form.dataset.envoye) { c.form.dataset.envoye = '1'; c.form.submit(); }
   });
+  // Un seul envoi : le bouton ne repart pas si le code est déjà parti.
+  c.form.addEventListener('submit', function (e) {
+    if (c.form.dataset.parti) { e.preventDefault(); return; }
+    c.form.dataset.parti = '1'; c.form.dataset.envoye = '1';
+  });
 })();`;
 function pageConnexionEnvoyee(config, { url, retour = '/', demande, erreur }) {
   const formulaire = demande ? `<form class="carte" method="post" action="/connexion/code" style="display:grid;gap:12px">

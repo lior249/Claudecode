@@ -1565,7 +1565,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
           + '*Ce n\'est pas toi ? Ignore ce message et ne donne ce code à personne.*'
         : '**Connexion à overmaxx.online**\nTu viens de demander à te connecter au site. Clique sur le bouton pour continuer.\n'
           + '*Ce n\'est pas toi ? Ignore simplement ce message.*';
-      const r = await envoyer(id, avecBoutons(texte, [{ label: 'C\'est bien moi, continuer', url: lienPerso(id, pseudo, retour) }]));
+      // Le bouton d'une demande de connexion ne vaut que 15 minutes (les autres boutons de Bob, 30 jours).
+      const r = await envoyer(id, avecBoutons(texte, [{ label: 'C\'est bien moi, continuer', url: lienMagique(config, { id, pseudo }, retour, code ? 15 : undefined) }]));
       return { id, pseudo, ok: r.ok, url: r.url };
     },
 

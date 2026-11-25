@@ -494,12 +494,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   };
 
   // Codes de connexion : Bob envoie aussi un code à 6 chiffres. Tapé sur l'appareil qui l'a demandé (l'application
-  // installée comprise), il connecte cet appareil-là. Valable 10 minutes, 5 essais.
+  // installée comprise), il connecte cet appareil-là. Valable 10 minutes, 3 essais ; 10 erreurs par jour et par compte au plus.
+  // Le même bon code renvoyé juste après (double envoi du formulaire, remplissage automatique) reconnecte sans erreur.
   const codesConnexion = new Map();
   const empreinteCode = (demande, code) => crypto.createHmac('sha256', config.secretApp).update(`code:${demande}:${code}`).digest();
   function nouveauCode(id, retour) {
     const t = Date.now();
-    for (const [k, v] of codesConnexion) if (v.expire < t) codesConnexion.delete(k);
+    for (const [k, v] of codesConnexion) if (v.expire < t || (v.utilise && t - v.utilise > 2 * 60 * 1000)) codesConnexion.delete(k);
     const demande = crypto.randomBytes(18).toString('base64url');
     const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
     codesConnexion.set(demande, { id, pseudo: null, retour, empreinte: empreinteCode(demande, code), expire: t + 10 * 60 * 1000, essais: 0 });
@@ -546,6 +547,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
 
   // Le code de Bob, tapé sur l'appareil qui l'a demandé.
   const essaisCode = new Map();
+  const erreursCompte = new Map();
   app.post('/connexion/code', formulaire, (req, res) => {
     const demande = String(req.body.demande || '').slice(0, 64);
     const code = String(req.body.code || '').replace(/\D/g, '').slice(0, 6);
@@ -553,14 +555,18 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const retour = d ? d.retour : retourSur(String(req.body.retour || ''), '/app');
     const page = (erreur, statut = 400, garder = true) => res.status(statut).send(E.pageConnexionEnvoyee(config, { retour, demande: garder && d ? demande : null, erreur }));
     if (depasse(essaisCode, req.ip || 'inconnue', 20, 15 * 60 * 1000)) return page('Trop d\'essais. Réessaie dans un quart d\'heure.', 429, false);
-    if (!d || d.expire < Date.now()) { codesConnexion.delete(demande); return page('Ce code n\'est plus valable (10 minutes). Demande un nouveau code.', 410, false); }
+    const t = Date.now();
+    const deuxMinutes = 2 * 60 * 1000;
+    if (!d || d.expire < t || (d.utilise && t - d.utilise > deuxMinutes)) { codesConnexion.delete(demande); return page('Ce code n\'est plus valable (10 minutes). Demande un nouveau code.', 410, false); }
     const bon = code.length === 6 && crypto.timingSafeEqual(empreinteCode(demande, code), d.empreinte);
     if (!bon) {
+      if (d.utilise) return page('Ce code a déjà servi. Demande un nouveau code.', 410, false);
       d.essais += 1;
-      if (d.essais >= 5) { codesConnexion.delete(demande); return page('Trop d\'essais avec ce code. Demande un nouveau code.', 429, false); }
+      if (depasse(erreursCompte, d.id, 10, 24 * 3600 * 1000)) { codesConnexion.delete(demande); return page('Trop d\'erreurs aujourd\'hui pour ce compte. Utilise le bouton « C\'est bien moi, continuer » du message de Bob.', 429, false); }
+      if (d.essais >= 3) { codesConnexion.delete(demande); return page('Trop d\'essais avec ce code. Demande un nouveau code.', 429, false); }
       return page('Ce n\'est pas le bon code. Regarde le dernier message de Bob.');
     }
-    codesConnexion.delete(demande);
+    d.utilise = d.utilise || t; // gardé 2 minutes : un double envoi du même bon code ne montre pas d'erreur
     ouvrirSession(res, { id: d.id, pseudo: d.pseudo }, config);
     apresConnexion(d, d.retour);
     return res.redirect(303, d.retour);

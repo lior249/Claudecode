@@ -505,7 +505,11 @@ test('connexion par code (application installée) et appareil reconnu : « Me re
     const c1 = cookies(bon);
     assert.ok(c1.ovx_session && c1.ovx_appareil, 'session ouverte et appareil reconnu');
     assert.match(bon.headers.getSetCookie().find((c) => c.startsWith('ovx_appareil=')), /Max-Age=31536000/, 'reconnu un an');
-    assert.strictEqual((await m.poster('/connexion/code', { demande: a.demande, code: a.code })).status, 410, 'un code ne sert qu\'une fois');
+    // Double envoi du même bon code (bouton + envoi automatique) : pas d'erreur, il est connecté.
+    const double = await m.poster('/connexion/code', { demande: a.demande, code: a.code });
+    assert.strictEqual(double.status, 303);
+    assert.strictEqual(double.headers.get('location'), '/app');
+    assert.strictEqual((await m.poster('/connexion/code', { demande: a.demande, code: '123x' })).status, 410, 'code déjà servi : plus d\'essais possibles');
 
     // Se déconnecter : l'appareil reste reconnu ; l'accueil et la page de connexion proposent « Me reconnecter ».
     const appareil = `ovx_appareil=${c1.ovx_appareil}`;
@@ -531,9 +535,9 @@ test('connexion par code (application installée) et appareil reconnu : « Me re
     assert.strictEqual(oubli.headers.get('location'), '/connexion?retour=%2Fapp');
     assert.ok((await m.get('/deconnexion?autre=1', { cookie: appareil })).headers.getSetCookie().some((c) => c.startsWith('ovx_appareil=;')));
 
-    // 5 mauvais codes : le code ne vaut plus rien.
+    // 3 mauvais codes : le code ne vaut plus rien.
     const b = await demander();
-    for (let k = 0; k < 4; k++) assert.strictEqual((await m.poster('/connexion/code', { demande: b.demande, code: 'abc' })).status, 400);
+    for (let k = 0; k < 2; k++) assert.strictEqual((await m.poster('/connexion/code', { demande: b.demande, code: 'abc' })).status, 400);
     assert.strictEqual((await m.poster('/connexion/code', { demande: b.demande, code: 'abc' })).status, 429);
     assert.strictEqual((await m.poster('/connexion/code', { demande: b.demande, code: b.code })).status, 410);
   } finally { await m.fermer(); }

@@ -305,7 +305,7 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
 ## Connexion par code et appareil reconnu
 
 - Sur la page de connexion, la personne donne son pseudo Discord. Bob lui envoie un **code à 6 chiffres** (valable 10 minutes,
-  5 essais) et le bouton « C'est bien moi, continuer ». Le code se tape **sur la page où il a été demandé** : c'est ce qui
+  3 essais, 10 erreurs par jour au plus) et le bouton « C'est bien moi, continuer », valable 15 minutes. Le code se tape **sur la page où il a été demandé** : c'est ce qui
   permet de se connecter dans l'application installée (qui ne partage pas la connexion du navigateur). Le bouton, lui,
   ouvre le site dans le navigateur.
 - Après une connexion, l'appareil reste **reconnu un an**. « Se déconnecter » ferme la session mais garde l'appareil :
