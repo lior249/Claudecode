@@ -52,7 +52,9 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
 
   const q = {
     get: db.prepare('SELECT * FROM parcours WHERE discord_id = ?'),
-    tous: db.prepare('SELECT * FROM parcours ORDER BY etape, entree_le'),
+    tous: db.prepare('SELECT * FROM parcours WHERE retire_le IS NULL ORDER BY etape, entree_le'),
+    retirer: db.prepare('UPDATE parcours SET retire_le = ?, maj_le = ? WHERE discord_id = ? AND retire_le IS NULL'),
+    rouvrir: db.prepare('UPDATE parcours SET retire_le = NULL, maj_le = ? WHERE discord_id = ? AND retire_le IS NOT NULL'),
     creer: db.prepare(`INSERT OR IGNORE INTO parcours (discord_id, pseudo, nom, etape, etape_depuis, entree_le, fin_le, cree_le, maj_le)
                        VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`),
     etape: db.prepare('UPDATE parcours SET etape = ?, etape_depuis = ?, maj_le = ? WHERE discord_id = ?'),
@@ -114,8 +116,11 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       const debut = entree ? new Date(entree) : maintenant();
       const finLe = fin ? new Date(fin) : new Date(debut.getTime() + 90 * 24 * H);
       q.creer.run(discordId, pseudo || null, nom || null, iso(), debut.toISOString(), finLe.toISOString(), iso(), iso());
+      q.rouvrir.run(iso(), discordId); // accès rouvert : il retrouve son parcours là où il en était
       return q.get.get(discordId);
     },
+    // Accès au site refusé : son parcours ne s'ouvre plus et sort des listes (rien n'est effacé).
+    retirer(discordId) { return q.retirer.run(iso(), iso(), discordId).changes === 1; },
 
     soumissions(discordId, etape) { return q.soumissionsEtape.all(discordId, etape); },
     soumission(id) { return q.soumission.get(Number(id)) || null; },

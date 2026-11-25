@@ -2,7 +2,7 @@
 
 const {
   Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle,
-  SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType,
+  SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType, AuditLogEvent,
 } = require('discord.js');
 
 const STATUTS_CANDIDATURE_PROTEGES = ['examen', 'retenu', 'video', 'valide'];
@@ -10,6 +10,7 @@ const { lienRenouvellement, lienMagique } = require('./liens');
 const { JOURS, dateISO, ajouterJours, aHeure, lundiDe } = require('./coaching');
 const { jourLisible } = require('./suivi');
 const { nomRole, nomCourt, ROLES: ROLES_DISCORD } = require('./roles');
+const { creerAccesManuels } = require('./acces-manuels');
 
 const JOUR_MS = 24 * 3600 * 1000;
 const PALIERS_JOURS = [10, 5, 3, 1]; // 1 = dernières 24 h
@@ -26,7 +27,9 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'nu
 // - Elite : alerte à l'admin 10 jours avant la fin (insatisfait / inconstant) ;
 // - coaching : rappel personnalisé, rappel 1 h avant, récap admin 2 h avant la première séance du jour ;
 // - commandes admin : /lien-elite, /prolonger, /membre ; candidatures Tally.
-function creerBob({ config, db, commandes, coaching, candidatures, parcours, suivi, sinistres, push, maintenant = () => new Date(), client: clientInjecte, serveur: serveurInjecte } = {}) {
+function creerBob({ config, db, commandes, coaching, candidatures, parcours, suivi, sinistres, push, accesManuels, maintenant = () => new Date(),
+  attendre = (ms) => new Promise((r) => setTimeout(r, ms)), client: clientInjecte, serveur: serveurInjecte } = {}) {
+  const acces = accesManuels || creerAccesManuels({ db, parcours, coaching, maintenant });
   const actif = config.discordActif || Boolean(clientInjecte);
   const client = clientInjecte || (actif ? new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -605,6 +608,15 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await prevenirParcours.recompenseConfirmee(r.parcours, role);
       return i.update({ content: `${i.message.content}\n\n**Confirmé : rôle donné.**`, components: [] });
     }
+    if (i.isButton() && i.customId.startsWith('acces:')) {
+      if (!estAdmin) return i.reply({ content: 'Réservé à l\'admin.', flags: MessageFlags.Ephemeral });
+      const [, choix, programme, id] = i.customId.split(':');
+      const r = acces.decider(id, programme, choix === 'oui');
+      if (r.erreur) return i.reply({ content: r.erreur, flags: MessageFlags.Ephemeral });
+      await accesDecide(r);
+      const fait = choix === 'oui' ? (r.ouvert ? 'Accès au site donné : je l\'ai prévenu.' : 'Accès au site gardé.') : (r.retire ? 'Accès au site retiré (son rôle Discord reste).' : 'Pas d\'accès au site (son rôle Discord reste).');
+      return i.update({ content: `${i.message.content}\n\n**${fait}**`, components: [] });
+    }
     if (i.isButton() && i.customId === 'ovx:postuler') return postuler(i);
     if (i.isButton() && i.customId === 'ovx:connexion') return i.reply({ ...(await liensConnexion(i.user)), flags: MessageFlags.Ephemeral });
 
@@ -838,17 +850,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     const iso = now.toISOString();
     for (const o of Object.values(config.offres)) {
       if (!o.roleDiscord) continue;
-      const payeMobile = (id) => q.membresParDiscord.all(id).some((x) => x.programme === o.id && x.statut === 'actif');
-      // 1. Rôle présent sans paiement mobile money : abonné par carte (nouveau, ou de retour).
+      const payeMobile = (id) => payeMobileOffre(id, o.id);
+      // 1. Rôle présent sans paiement mobile money : abonné par carte qui revient, ou question au coach (rôle donné à la main ?).
       for (const m of tous.values()) {
-        if (m.user?.bot || m.id === config.discord.adminId || !m.roles.cache.has(o.roleDiscord) || payeMobile(m.id)) continue;
-        const r = q.carte.get(m.id, o.id);
-        if (!r) {
-          q.carteNouveau.run(m.id, o.id, m.user?.username || null, iso);
-          log(`membre ${o.id} payé par carte repéré : ${m.id}`);
-          if (o.id === 'elite' && parcours && !parcours.get(m.id)) parcours.assurer(m.id, { pseudo: m.user?.username || null, entree: iso });
-        }
-        else if (r.perdu_le || r.termine_le) { q.carteRetour.run(m.user?.username || null, m.id, o.id); log(`abonnement ${o.id} par carte repris : ${m.id}`); }
+        if (m.roles.cache.has(o.roleDiscord)) await roleRecu(m, o);
       }
       // 2. Rôle retiré par Whop.
       for (const r of q.cartesActives.all(o.id)) {
@@ -856,6 +861,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         if (m && m.roles.cache.has(o.roleDiscord)) continue;
         if (o.id === 'elite' && estSinistre(r.discord_id)) continue; // rôle retiré par Bob pendant le sinistre
         if (payeMobile(r.discord_id)) { q.carteTerminee.run(iso, r.discord_id, o.id); continue; } // passé au mobile money
+        if (r.source === 'main') { q.carteTerminee.run(iso, r.discord_id, o.id); log(`rôle ${o.id} donné à la main retiré : ${r.discord_id}`); continue; } // retiré par le coach
         q.cartePerdue.run(iso, r.discord_id, o.id);
         log(`abonnement ${o.id} par carte arrêté : ${r.discord_id}`);
         if (!m) { q.carteTerminee.run(iso, r.discord_id, o.id); continue; } // parti du serveur
@@ -882,6 +888,117 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         try { await m.kick(`Overmaxx : abonnement ${o.nom} par carte non repris`); } catch (err) { console.warn('[bob] retrait carte :', err.message); }
         await notifier.admin(`**${r.pseudo || r.discord_id}** (<@${r.discord_id}>) retiré du serveur : abonnement **${o.nom}** par carte non repris après ${o.graceJours} jours.`);
       }
+    }
+    await prevenirAcces();
+  }
+
+  // ---------- Rôles donnés à la main ----------
+  // Quelqu'un reçoit le rôle d'un programme sans avoir payé sur le site. Le journal d'audit du serveur dit qui l'a donné :
+  // le bot de Whop (paiement par carte) : accès au site comme avant ; une personne (le coach) : Bob lui demande Oui ou Non.
+  const payeMobileOffre = (id, programme) => q.membresParDiscord.all(id).some((x) => x.programme === programme && x.statut === 'actif');
+  let auditIndisponible = false;
+  async function auteurDuRole(m, roleId) {
+    if (!serveur || typeof serveur.fetchAuditLogs !== 'function') return null;
+    for (const delai of [1500, 4000]) {
+      await attendre(delai); // le journal d'audit est écrit juste après l'événement
+      try {
+        const journal = await serveur.fetchAuditLogs({ type: AuditLogEvent.MemberRoleUpdate, limit: 25 });
+        const depuis = maintenant().getTime() - 10 * 60 * 1000;
+        const e = [...journal.entries.values()].find((x) => (x.targetId || x.target?.id) === m.id && x.createdTimestamp >= depuis
+          && (x.changes || []).some((c) => c.key === '$add' && (c.new || []).some((r) => r.id === roleId)));
+        if (e && e.executor) return { id: e.executor.id, bot: Boolean(e.executor.bot), pseudo: e.executor.globalName || e.executor.username || e.executor.id };
+      } catch (err) {
+        if (!auditIndisponible) console.warn('[bob] journal d\'audit illisible (permission « Voir les logs du serveur ») :', err.message);
+        auditIndisponible = true;
+        return null;
+      }
+    }
+    return null;
+  }
+
+  // Le rôle de l'offre o est là. auteur : qui l'a donné (journal d'audit), ou undefined (repéré par le passage de Bob).
+  async function roleRecu(m, o, { auteur } = {}) {
+    if (!m || m.user?.bot || m.id === config.discord.adminId || !o.roleDiscord || !m.roles.cache.has(o.roleDiscord)) return null;
+    if (payeMobileOffre(m.id, o.id)) return null;
+    if (auteur && client.user && auteur.id === client.user.id) return null; // donné par Bob lui-même
+    const pseudo = m.user?.username || null;
+    const iso = maintenant().toISOString();
+    const r = q.carte.get(m.id, o.id);
+    if (r && !r.perdu_le && !r.termine_le) return null; // il a déjà accès au site
+    // Donné par le bot de Whop : paiement par carte.
+    if (auteur && auteur.bot) {
+      acces.oublier(m.id, o.id);
+      if (r) q.carteRetour.run(pseudo, m.id, o.id);
+      else q.carteNouveau.run(m.id, o.id, pseudo, iso);
+      db.prepare("UPDATE abonnes_carte SET source = 'whop' WHERE discord_id = ? AND programme = ?").run(m.id, o.id);
+      log(`membre ${o.id} payé par carte (rôle donné par ${auteur.pseudo}) : ${m.id}`);
+      if (o.id === 'elite' && parcours) parcours.assurer(m.id, { pseudo, entree: iso });
+      return 'carte';
+    }
+    const a = acces.get(m.id, o.id);
+    if (a && a.statut === 'accorde') { acces.rouvrir(m.id, o.id, pseudo); log(`accès ${o.id} donné à la main rouvert : ${m.id}`); return 'rouvert'; }
+    if (a) return null; // déjà demandé (en attente) ou refusé
+    // Ancien abonné par carte dont le rôle revient tout seul (carte mise à jour) : comme avant.
+    if (r && !auteur) { q.carteRetour.run(pseudo, m.id, o.id); log(`abonnement ${o.id} par carte repris : ${m.id}`); return 'carte'; }
+    acces.demander(m.id, o.id, { pseudo, donnePar: auteur ? auteur.pseudo : null });
+    log(`rôle ${o.id} sans paiement sur le site : question au coach pour ${m.id}`);
+    return 'question';
+  }
+
+  // Les questions au coach : une par message (Oui / Non). Beaucoup d'un coup (premier passage) : un seul message et la liste sur le site.
+  const LIMITE_QUESTIONS = 5;
+  function boutonsAcces(a) {
+    return new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`acces:oui:${a.programme}:${a.discord_id}`).setLabel(a.ancien ? 'Oui, il garde l\'accès' : 'Oui, donner l\'accès').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`acces:non:${a.programme}:${a.discord_id}`).setLabel(a.ancien ? 'Non, retirer l\'accès' : 'Non').setStyle(ButtonStyle.Danger));
+  }
+  function questionAcces(a) {
+    const o = config.offres[a.programme] || { nom: a.programme };
+    const qui = `**${a.pseudo || a.discord_id}** (<@${a.discord_id}>)`;
+    if (a.ancien) {
+      return `${qui} a le rôle **${o.nom}** sans avoir payé sur le site. Il a déjà accès au site (repéré avant la validation).\n`
+        + 'Lui laisser l\'accès au site ?\nSi c\'est un paiement par carte sur Whop, ou s\'il t\'a déjà payé, réponds Oui.';
+    }
+    return `${qui} a reçu le rôle **${o.nom}** sans avoir payé sur le site${a.donne_par ? ` (rôle donné par **${a.donne_par}**)` : ''}.\n`
+      + 'Lui donner accès au site quand même ?' + (a.donne_par ? '' : '\nSi c\'est un paiement par carte sur Whop, réponds Oui.');
+  }
+  async function prevenirAcces() {
+    if (!config.discord.adminId) return 0;
+    const liste = acces.aPrevenir().filter((a) => config.offres[a.programme]);
+    if (!liste.length) return 0;
+    if (liste.length > LIMITE_QUESTIONS) {
+      const n = liste.length;
+      const ok = await notifier.admin(avecBoutons(`**${n} personnes** ont un rôle Overmaxx sans avoir payé sur le site.\n`
+        + 'Pour chacune, dis-moi si je lui ouvre le site : **Oui** ou **Non**. Ceux qui y avaient déjà accès le gardent en attendant ta réponse.',
+      [{ label: 'Répondre', url: lienCoach('/admin/a-traiter#acces') }]));
+      if (ok) for (const a of liste) acces.marquerPrevenu(a.discord_id, a.programme);
+      return ok ? n : 0;
+    }
+    let n = 0;
+    for (const a of liste) {
+      if (await notifier.admin({ content: questionAcces(a), components: [boutonsAcces(a)] })) { acces.marquerPrevenu(a.discord_id, a.programme); n++; }
+    }
+    return n;
+  }
+  // Après la réponse du coach (sur Discord ou sur le site) : le membre apprend que son site est ouvert.
+  async function accesDecide(r) {
+    if (!r || !r.ok || !r.ouvert) return false;
+    const a = r.acces;
+    const o = config.offres[a.programme];
+    const pseudo = a.pseudo || null;
+    const ouvrir = lienPerso(a.discord_id, pseudo, '/app');
+    return notifier.membre(a.discord_id, avecBoutons(`**Ton accès au site Overmaxx est ouvert** (${o ? o.nom : a.programme}).\n`
+      + (a.programme === 'elite' ? 'Ton parcours de l\'accompagnement t\'y attend.' : 'Tu y retrouves tes notifications et le classement.'),
+    [{ label: 'Ouvrir mon espace', url: ouvrir }]));
+  }
+  // Rôle d'un programme ajouté sur Discord (événement) : on regarde qui l'a donné, puis on décide.
+  async function surRoleAjoute(avant, apres) {
+    if (!apres || (apres.guild && apres.guild.id !== config.discord.serveurId) || avant?.partial) return;
+    for (const o of Object.values(config.offres)) {
+      if (!o.roleDiscord || !apres.roles.cache.has(o.roleDiscord) || (avant && avant.roles.cache.has(o.roleDiscord))) continue;
+      if (apres.user?.bot || apres.id === config.discord.adminId || payeMobileOffre(apres.id, o.id)) continue;
+      const auteur = await auteurDuRole(apres, o.roleDiscord);
+      if ((await roleRecu(apres, o, { auteur: auteur || undefined })) === 'question') await prevenirAcces();
     }
   }
 
@@ -1323,6 +1440,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     bloquerPourAttente,
     accueillir,
     paiementCarteDetecte,
+    roleRecu,
+    surRoleAjoute,
+    prevenirAcces,
+    accesDecide,
+    acces,
     relancerWhop,
     suivreCarte,
     relancerParcours,
@@ -1344,6 +1466,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         const role = config.discord.roleAttente;
         const roleAjoute = role && apres.roles.cache.has(role) && (avant.partial || !avant.roles.cache.has(role));
         if (roleAjoute || (avant.pending && !apres.pending)) accueillir(apres).catch((e) => console.warn('[bob] arrivée :', e.message));
+        surRoleAjoute(avant, apres).catch((e) => console.warn('[bob] rôle donné :', e.message));
       });
       client.on('channelCreate', (c) => {
         if (!c.guild || c.guild.id !== config.discord.serveurId) return;
@@ -1392,6 +1515,14 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
             } else console.warn('[bob] salon des sinistrés :', r.erreur);
           } catch (err) { console.error('[bob] salon des sinistrés :', err.message); }
         }
+        // Savoir qui donne les rôles (Whop ou toi) : Bob lit le journal d'audit du serveur.
+        try {
+          const moi = serveur ? await moiSurLeServeur() : null;
+          if (moi && moi.permissions && !moi.permissions.has(PermissionFlagsBits.ViewAuditLog)) {
+            await notifier.admin('Pour savoir si un rôle vient de **Whop** (paiement par carte) ou de **toi** (donné à la main), donne à mon rôle '
+              + 'la permission **Voir les logs du serveur** (Paramètres du serveur > Rôles > Bob), puis relance le site.');
+          }
+        } catch (err) { console.warn('[bob] droit du journal d\'audit :', err.message); }
         cycle();
         setInterval(cycle, 60 * 1000).unref();
       });

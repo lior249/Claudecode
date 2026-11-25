@@ -16,6 +16,7 @@ const T = require('./pages-classement');
 const { creerParcours } = require('./parcours');
 const { creerSuivi, QUESTIONS, jourLisible } = require('./suivi');
 const { creerSinistres } = require('./sinistres');
+const { creerAccesManuels } = require('./acces-manuels');
 const { verifierReponses } = require('./formulaires');
 
 const EMAIL_REGEX = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
@@ -35,12 +36,14 @@ const retourSur = (r, defaut = '/coaching') => (typeof r === 'string' && /^\/(?!
 // Le bouton pointe DIRECTEMENT vers discord.com : sur téléphone, c'est ce qui ouvre l'application Discord
 // (une redirection depuis notre site ouvrirait la page web de Discord, qui redemande l'identifiant et le mot de passe).
 
-function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours: parcoursDonne, suivi: suiviDonne, sinistres: sinistresDonnes, push: pushDonne }) {
+function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours: parcoursDonne, suivi: suiviDonne, sinistres: sinistresDonnes, push: pushDonne, accesManuels }) {
   const parcours = parcoursDonne || creerParcours({ db: commandes.db, config });
   const suivi = suiviDonne || creerSuivi({ db: commandes.db, parcours });
   const sinistres = sinistresDonnes || creerSinistres({ db: commandes.db, parcours });
   if (!parcours.suivi) parcours.suivi = suivi;
   const push = pushDonne || require('./push').creerPush({ db: commandes.db, config });
+  // Rôles donnés à la main : les réponses du coach (Oui / Non), partagées avec Bob.
+  const acces = accesManuels || (bob && bob.acces) || creerAccesManuels({ db: commandes.db, parcours, coaching });
   // Jeton de l'application installée (dans son manifeste) : elle s'ouvre déjà connectée, même sur iPhone.
   // Le même toute la journée, valable un an.
   const jetonApp = (session) => signer({ but: 'app', id: session.id, pseudo: session.pseudo, exp: (Math.floor(Date.now() / 864e5) + 365) * 864e5 }, config.secretApp);
@@ -51,8 +54,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
     const aTraiterParcours = estAdmin
-      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + aTraiter : 0;
-    return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(!estAdmin && session && parcours.get(session.id)), jetonApp: session ? jetonApp(session) : null };
+      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + aTraiter : 0;
+    const p = !estAdmin && session ? parcours.get(session.id) : null;
+    return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null };
   };
   const app = express();
   app.disable('x-powered-by');
@@ -155,6 +159,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const moi = liste.find((m) => m.id === session.id);
     const membres = new Set(liste.map((m) => m.id));
     for (const m of commandes.db.prepare("SELECT DISTINCT discord_id FROM membres WHERE statut = 'actif' AND discord_id IS NOT NULL").all()) membres.add(m.discord_id);
+    for (const m of commandes.db.prepare('SELECT DISTINCT discord_id FROM abonnes_carte WHERE termine_le IS NULL').all()) membres.add(m.discord_id);
     res.send(T.pageClassement(config, { espace: espaceDe(session), top: liste.slice(0, 100), total: liste.length, monRang: moi ? moi.rang : null,
       totalRevenus: liste.reduce((t, m) => t + m.revenus, 0), totalMembres: membres.size }));
   });
@@ -782,7 +787,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   function parcoursDe(session) {
     if (!session || estLeCoach(session)) return null;
     const p = parcours.get(session.id);
-    if (p) return p;
+    if (p && !p.retire_le) return p;
     const m = commandes.membresParDiscord(session.id).find((x) => x.programme === 'elite' && x.statut === 'actif');
     if (m) return parcours.assurer(session.id, { pseudo: session.pseudo || m.discord_pseudo, nom: m.nom, entree: m.cree_le, fin: m.acces_jusqu_au });
     const carte = commandes.db.prepare("SELECT * FROM abonnes_carte WHERE discord_id = ? AND programme = 'elite' AND termine_le IS NULL").get(session.id);
@@ -1060,7 +1065,15 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       return { id: c.id, nom: (r && r.valeur) || c.pseudo || c.discord_id, pseudo: c.pseudo, statut: c.statut, maj_le: c.maj_le };
     }) : [];
     res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter(), candidatures: demandes,
-      comptesRendus: suivi.enAttente(), fichesSinistre: sinistres.fichesATraiter(), roles: suivi.aConfirmer() }));
+      comptesRendus: suivi.enAttente(), fichesSinistre: sinistres.fichesATraiter(), roles: suivi.aConfirmer(),
+      acces: acces.enAttente(), accesRefuses: acces.refuses(), nomsOffres: Object.fromEntries(Object.values(config.offres).map((o) => [o.id, o.nom])) }));
+  });
+  // Rôle donné à la main : Oui (accès au site) ou Non. Même décision que les boutons de Bob.
+  app.post('/admin/acces/:programme/:id', formulaire, async (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const r = acces.decider(req.params.id, req.params.programme, req.body.decision === 'oui');
+    if (r.ok && bob && bob.accesDecide) { try { await bob.accesDecide(r); } catch (err) { console.error('[bob] accès ouvert :', err.message); } }
+    res.redirect(303, '/admin/a-traiter#acces');
   });
   // Comptes rendus de l'étape 4.
   function compteRenduDe(req, res) {

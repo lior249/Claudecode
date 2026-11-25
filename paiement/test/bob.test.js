@@ -585,7 +585,7 @@ test('accès Whop : page après paiement en une étape (email + Copier) ; correc
   } finally { await m.fermer(); }
 });
 
-test('membres payés par carte : repérés par le rôle Whop, prévenus quand Whop le retire, Community 15 jours En Attente puis retrait', async () => {
+test('membres payés par carte : rôle donné par le bot de Whop, prévenus quand Whop le retire, Community 15 jours En Attente puis retrait', async () => {
   const m = await monter();
   try {
     await inscrire(m, 'mobile@example.com', { discordId: 'U1' });
@@ -604,10 +604,13 @@ test('membres payés par carte : repérés par le rôle Whop, prévenus quand Wh
       client: { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content, c.components]) }) } },
       serveur: { members: { fetch: async (id) => (id === undefined ? membres : membres.get(id) || null) } } });
 
+    // Le journal d'audit du serveur dit que c'est le bot de Whop qui a donné les rôles.
+    const whop = { id: 'WHOPBOT', bot: true, pseudo: 'Whop' };
+    for (const [id, o] of [['C1', 'community'], ['C2', 'community'], ['E9', 'elite'], ['U1', 'community']]) await bob.roleRecu(membres.get(id), m.config.offres[o], { auteur: whop });
     await bob.suivreCarte();
     const cartes = () => m.db.prepare('SELECT * FROM abonnes_carte ORDER BY discord_id').all();
-    assert.deepStrictEqual(cartes().map((c) => `${c.discord_id}:${c.programme}`), ['C1:community', 'C2:community', 'E9:elite'], 'U1 paie en mobile money : pas compté');
-    assert.strictEqual(dms.length, 0, 'aucun message quand tout va bien (pas de rappel avant la fin)');
+    assert.deepStrictEqual(cartes().map((c) => `${c.discord_id}:${c.programme}:${c.source}`), ['C1:community:whop', 'C2:community:whop', 'E9:elite:whop'], 'U1 paie en mobile money : pas compté');
+    assert.strictEqual(dms.length, 0, 'aucun message quand tout va bien (pas de rappel avant la fin, aucune question au coach)');
 
     // Whop retire les rôles (carte refusée).
     membres.get('C1').roles.cache.set.delete(ROLES.community);
@@ -687,5 +690,131 @@ test('le coach (admin) ne réserve pas de coaching et ne postule pas à l\'Elite
     await bob.surInteraction({ user: { id: ADMIN, username: 'overmaxx' }, isButton: () => false, isChatInputCommand: () => true, commandName: 'connexion', reply: async (o) => reponses.push(o) });
     const libelles = reponses[0].components.flatMap((rangee) => rangee.components.map((b) => b.data.label));
     assert.deepStrictEqual(libelles, ['Espace admin', 'Candidatures', 'Membres']);
+  } finally { await m.fermer(); }
+});
+
+test('rôle donné à la main : Bob demande au coach Oui ou Non ; Oui ouvre le site, Non le ferme sans toucher au rôle', async () => {
+  const m = await monter();
+  try {
+    await inscrire(m, 'mobile@example.com', { discordId: 'U1' });
+    const now = new Date('2026-12-01T10:00:00Z');
+    const dms = [];
+    const membres = new Map();
+    const journal = [];
+    const ajouter = (id, roles) => {
+      const set = new Set(roles);
+      membres.set(id, { id, user: { bot: false, username: `pseudo_${id}` }, roles: { cache: { has: (r) => set.has(r), set }, add: async (r) => set.add(r), remove: async (r) => set.delete(r) } });
+      return membres.get(id);
+    };
+    // Un rôle donné : l'événement Discord et sa ligne dans le journal d'audit.
+    const donner = async (id, role, executor) => {
+      const membre = membres.get(id) || ajouter(id, []);
+      const avant = { partial: false, roles: { cache: { has: (r) => membre.roles.cache.set.has(r) } } };
+      const copie = new Set(membre.roles.cache.set);
+      avant.roles.cache.has = (r) => copie.has(r);
+      membre.roles.cache.set.add(role);
+      journal.push({ targetId: id, createdTimestamp: now.getTime(), executor, changes: [{ key: '$add', new: [{ id: role }] }] });
+      await bob.surRoleAjoute(avant, membre);
+    };
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, parcours: m.parcours, accesManuels: m.acces,
+      maintenant: () => now, attendre: async () => {},
+      client: { isReady: () => true, user: { id: 'BOB' }, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content, c.components]) }) } },
+      serveur: { members: { fetch: async (id) => (id === undefined ? membres : membres.get(id) || null) },
+        fetchAuditLogs: async () => ({ entries: new Map(journal.map((e, k) => [String(k), e])) }) } });
+    // Le site passe par le même Bob (décisions prises sur le site).
+    const cliquer = async (customId, qui = ADMIN) => {
+      const r = {};
+      await bob.surInteraction({ isButton: () => true, isChatInputCommand: () => false, customId, user: { id: qui }, message: { content: 'question' },
+        update: async (x) => { r.update = x; }, reply: async (x) => { r.reply = x; } });
+      return r;
+    };
+    const versAdmin = () => dms.filter(([id]) => id === ADMIN);
+    const ids = (composants) => (composants || []).flatMap((r) => r.components.map((b) => b.data.custom_id || b.data.url));
+
+    // 1. Le coach donne le rôle Elite à M1 à la main : question avec Oui / Non.
+    await donner('M1', ROLES.elite, { id: ADMIN, bot: false, username: 'coach_ovx' });
+    assert.strictEqual(versAdmin().length, 1);
+    const [, texte, composants] = versAdmin()[0];
+    assert.match(texte, /\*\*pseudo_M1\*\* \(<@M1>\) a reçu le rôle \*\*Overmaxx Elite\*\* sans avoir payé sur le site \(rôle donné par \*\*coach_ovx\*\*\)/);
+    assert.match(texte, /Lui donner accès au site quand même \?/);
+    assert.deepStrictEqual(ids(composants), ['acces:oui:elite:M1', 'acces:non:elite:M1']);
+    assert.strictEqual((await m.get('/parcours', { cookie: cookieSession('M1', 'pseudo_M1') })).status, 403, 'pas encore d\'accès au site');
+    await bob.suivreCarte();
+    assert.strictEqual(versAdmin().length, 1, 'pas de seconde question');
+
+    // Un membre ne peut pas répondre à sa place.
+    assert.match((await cliquer('acces:oui:elite:M1', 'M1')).reply.content, /Réservé à l'admin/);
+    // Oui : accès au site, il est prévenu ; le message de Bob garde la réponse.
+    const r1 = await cliquer('acces:oui:elite:M1');
+    assert.match(r1.update.content, /Accès au site donné/);
+    assert.deepStrictEqual(r1.update.components, []);
+    const versM1 = dms.filter(([id]) => id === 'M1');
+    assert.strictEqual(versM1.length, 1);
+    assert.match(versM1[0][1], /Ton accès au site Overmaxx est ouvert/);
+    assert.match(urls(versM1[0][2])[0], /retour=%2Fapp$/);
+    assert.strictEqual((await m.get('/parcours', { cookie: cookieSession('M1', 'pseudo_M1') })).status, 200);
+    assert.strictEqual(m.db.prepare("SELECT source FROM abonnes_carte WHERE discord_id = 'M1'").get().source, 'main');
+    assert.match((await cliquer('acces:non:elite:M1')).reply.content, /Déjà fait/);
+
+    // 2. Rôle donné par le bot de Whop (carte) : pas de question. Rôle donné par Bob (paiement mobile money) : rien non plus.
+    await donner('C5', ROLES.community, { id: 'WHOPBOT', bot: true, username: 'Whop' });
+    await donner('U1', ROLES.community, { id: 'BOB', bot: true, username: 'Bob' });
+    assert.strictEqual(versAdmin().length, 1);
+    assert.strictEqual(m.db.prepare("SELECT source FROM abonnes_carte WHERE discord_id = 'C5'").get().source, 'whop');
+
+    // 3. Repéré par le passage de Bob (rôle donné quand Bob était éteint) : question ; Non depuis le site.
+    ajouter('M2', [ROLES.community]);
+    await bob.suivreCarte();
+    assert.strictEqual(versAdmin().length, 2);
+    assert.match(versAdmin()[1][1], /pseudo_M2[\s\S]*Overmaxx Community[\s\S]*Si c'est un paiement par carte sur Whop, réponds Oui/);
+    const admin = { cookie: cookieSession(ADMIN, 'coach') };
+    let page = await (await m.get('/admin/a-traiter', admin)).text();
+    assert.match(page, /Rôles donnés à la main[\s\S]*pseudo_M2/);
+    assert.match(page, /action="\/admin\/acces\/community\/M2"/);
+    const rep = await m.poster('/admin/acces/community/M2', { decision: 'non' }, admin);
+    assert.strictEqual(rep.status, 303);
+    assert.strictEqual(m.acces.get('M2', 'community').statut, 'refuse');
+    assert.ok(!dms.some(([id]) => id === 'M2'), 'Non : rien envoyé au membre');
+    assert.ok(membres.get('M2').roles.cache.set.has(ROLES.community), 'son rôle Discord reste');
+    await bob.suivreCarte();
+    assert.strictEqual(versAdmin().length, 2, 'refusé : on ne redemande pas');
+
+    // 4. Avant la validation, L1 avait déjà accès (repéré comme carte) : il le garde en attendant ; Non ferme son parcours, Oui le rouvre.
+    ajouter('L1', [ROLES.elite]);
+    m.db.prepare("INSERT INTO abonnes_carte (discord_id, programme, pseudo, depuis) VALUES ('L1', 'elite', 'pseudo_L1', ?)").run(now.toISOString());
+    m.db.prepare("INSERT INTO acces_manuels (discord_id, programme, pseudo, statut, ancien, demande_le) VALUES ('L1', 'elite', 'pseudo_L1', 'attente', 1, ?)").run(now.toISOString());
+    m.parcours.assurer('L1', { pseudo: 'pseudo_L1' });
+    const eleve = { cookie: cookieSession('L1', 'pseudo_L1') };
+    assert.strictEqual((await m.get('/parcours', eleve)).status, 200, 'en attendant ta réponse, il garde l\'accès');
+    await bob.suivreCarte();
+    const question = versAdmin()[2];
+    assert.match(question[1], /a le rôle \*\*Overmaxx Elite\*\* sans avoir payé sur le site\. Il a déjà accès au site/);
+    assert.deepStrictEqual(ids(question[2]), ['acces:oui:elite:L1', 'acces:non:elite:L1']);
+    assert.match((await cliquer('acces:non:elite:L1')).update.content, /Accès au site retiré \(son rôle Discord reste\)/);
+    assert.strictEqual((await m.get('/parcours', eleve)).status, 403);
+    assert.ok(!m.parcours.tous().some((p) => p.discord_id === 'L1'), 'hors du tableau des élèves et du classement');
+    assert.ok(m.parcours.get('L1'), 'rien n\'est effacé');
+    page = await (await m.get('/admin/a-traiter', admin)).text();
+    assert.match(page, /Refusés \(2\)[\s\S]*pseudo_L1/);
+    await m.poster('/admin/acces/elite/L1', { decision: 'oui' }, admin);
+    assert.strictEqual((await m.get('/parcours', eleve)).status, 200, 'accès rouvert, parcours retrouvé');
+
+    // 5. Le coach retire le rôle donné à la main : le site se ferme sans message ; il le redonne : le site se rouvre sans question.
+    membres.get('M1').roles.cache.set.delete(ROLES.elite);
+    await bob.suivreCarte();
+    assert.ok(m.db.prepare("SELECT termine_le FROM abonnes_carte WHERE discord_id = 'M1'").get().termine_le);
+    assert.strictEqual(dms.filter(([id]) => id === 'M1').length, 1, 'pas de message « carte arrêtée »');
+    await donner('M1', ROLES.elite, { id: ADMIN, bot: false, username: 'coach_ovx' });
+    assert.strictEqual(m.db.prepare("SELECT termine_le FROM abonnes_carte WHERE discord_id = 'M1'").get().termine_le, null);
+    assert.strictEqual(versAdmin().length, 3);
+
+    // 6. Beaucoup d'un coup (premier passage) : un seul message, la liste sur le site.
+    for (let k = 0; k < 6; k++) ajouter(`N${k}`, [ROLES.community]);
+    await bob.suivreCarte();
+    assert.strictEqual(versAdmin().length, 4);
+    assert.match(versAdmin()[3][1], /\*\*6 personnes\*\* ont un rôle Overmaxx sans avoir payé sur le site/);
+    assert.match(urls(versAdmin()[3][2])[0], /retour=%2Fadmin%2Fa-traiter%23acces$/);
+    page = await (await m.get('/admin/a-traiter', admin)).text();
+    assert.strictEqual((page.match(/action="\/admin\/acces\/community\/N\d"/g) || []).length, 6);
   } finally { await m.fermer(); }
 });

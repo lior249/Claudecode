@@ -606,9 +606,11 @@ const STYLE_TRAITER = `<style>
   .carte-traiter .bouton { margin-top:auto; min-height:42px; }
   .carte-traiter .espace-bouton { flex:1; min-height:8px; }
   .vide-traiter { color:var(--gris); font-size:13px; margin:0; padding:14px 16px; border:1px dashed var(--bord); border-radius:14px; }
+  .choix-acces { display:flex; gap:8px; margin:0; }
+  .choix-acces .bouton { flex:1; margin:0; min-height:42px; padding-left:10px; padding-right:10px; }
 </style>`;
 
-function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], fichesSinistre = [], roles = [] }) {
+function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {} }) {
   const nom = (p) => (p && (p.nom || p.pseudo)) || '?';
   const carte = ({ qui, pseudo, quoi, quand, lien, bouton = 'Ouvrir', retard }) => `<div class="carte-traiter">
     <span class="qui">${echapper(qui)}</span>${pseudo ? `<span class="pseudo">${echapper(pseudo)}</span>` : ''}
@@ -632,6 +634,19 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   const cand = (c, quoi) => carte({ qui: c.nom, pseudo: c.pseudo, quoi, quand: `Le ${formatDate(c.maj_le)}`, lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
   const videosCand = candidatures.filter((c) => c.statut === 'video').map((c) => cand(c, 'Vidéo de présentation reçue'));
   const nouvellesCand = candidatures.filter((c) => c.statut === 'examen').map((c) => cand(c, 'Formulaire de candidature à examiner'));
+  // Rôles donnés à la main : Oui (accès au site) ou Non, comme dans le message de Bob.
+  const decision = (x, libelles) => `<form method="post" action="/admin/acces/${encodeURIComponent(x.programme)}/${encodeURIComponent(x.discord_id)}" class="choix-acces">
+      ${libelles.map(([valeur, texte, classe]) => `<button class="bouton ${classe}" type="submit" name="decision" value="${valeur}">${echapper(texte)}</button>`).join('')}</form>`;
+  const offre = (x) => nomsOffres[x.programme] || x.programme;
+  const accesCartes = acces.map((x) => `<div class="carte-traiter">
+    <span class="qui">${echapper(x.pseudo || x.discord_id)}</span><span class="pseudo">Rôle ${echapper(offre(x))}${x.donne_par ? ` · donné par ${echapper(x.donne_par)}` : ''}</span>
+    <span class="quoi">${x.ancien ? 'A déjà accès au site (avant la validation) : il le garde en attendant ta réponse.' : 'N\'a pas payé sur le site.'}</span>
+    <span class="quand">Repéré le ${echapper(formatDate(x.demande_le))}</span>
+    <span class="espace-bouton"></span>${decision(x, [['non', x.ancien ? 'Retirer' : 'Non', 'secondaire'], ['oui', x.ancien ? 'Garder' : 'Oui', 'vert']])}</div>`);
+  const refusesCartes = accesRefuses.map((x) => `<div class="carte-traiter">
+    <span class="qui">${echapper(x.pseudo || x.discord_id)}</span><span class="pseudo">Rôle ${echapper(offre(x))}</span>
+    <span class="quand">Refusé le ${echapper(formatDate(x.decide_le))}</span>
+    <span class="espace-bouton"></span>${decision(x, [['oui', 'Donner l\'accès', 'secondaire']])}</div>`);
   const retards = a.retards.map((x) => carte({ qui: nom(x.parcours), pseudo: x.parcours.pseudo, quoi: `Étape ${x.parcours.etape} : ${x.tache.titre}`,
     lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, bouton: 'Voir sa fiche', retard: true }));
   const sections = [
@@ -641,6 +656,8 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
     { id: 'etape-4', puce: 'Étape 4', titre: 'Étape 4 · Comptes rendus', aide: 'Les résultats de ses vidéos : Demander des modifications ou Valider. Les revenus validés font avancer ses objectifs.', n: etape4.length, corps: grille(etape4) },
     { id: 'roles', puce: 'Rôles', titre: 'GOAT et rôles de revenus à confirmer', aide: 'Seuil atteint d\'après ses comptes rendus validés : confirme, et Bob donne le rôle.', n: recompenses.length, corps: grille(recompenses) },
     { id: 'sinistres', puce: 'Sinistrés', titre: 'Fiches de sinistre', aide: 'Lis sa fiche : Demander des précisions ou Réhabiliter.', n: sinistres.length, corps: grille(sinistres) },
+    { id: 'acces', puce: 'Accès au site', titre: 'Rôles donnés à la main', aide: 'Ils ont le rôle sur Discord sans avoir payé sur le site. Oui : il a accès au site. Non : pas d\'accès au site, son rôle Discord reste.',
+      n: accesCartes.length, corps: grille(accesCartes) + (refusesCartes.length ? `<h3 class="sous">Refusés (${refusesCartes.length})</h3><div class="cartes-traiter">${refusesCartes.join('')}</div>` : '') },
     { id: 'demandes', puce: 'Demandes d\'intégration', titre: 'Demandes d\'intégration', aide: 'Les candidats retenus qui ont envoyé leur vidéo passent avant les nouvelles candidatures.',
       n: videosCand.length + nouvellesCand.length,
       corps: `<h3 class="sous">Vidéos de présentation (${videosCand.length})</h3>${grille(videosCand)}<h3 class="sous">Nouvelles candidatures (${nouvellesCand.length})</h3>${grille(nouvellesCand)}` },

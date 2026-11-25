@@ -71,11 +71,12 @@ Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont di
    - dans **Redirects**, ajoute exactement `https://overmaxx.online/discord/callback`, puis enregistre.
 4. Invite Bob sur ton serveur. Ouvre ce lien en remplaçant `CLIENT_ID` :
    ```
-   https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot%20applications.commands&permissions=343865822227
+   https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot%20applications.commands&permissions=343865822355
    ```
-   Ce lien donne à Bob ces droits : voir les salons, envoyer des messages, expulser des membres, gérer les rôles, gérer les salons et créer des invitations.
+   Ce lien donne à Bob ces droits : voir les salons, envoyer des messages, expulser des membres, gérer les rôles, gérer les salons,
+   créer des invitations et voir les logs du serveur.
    Si Bob est déjà invité : **Paramètres du serveur** → **Rôles** → rôle de Bob → active **Gérer les salons**,
-   **Créer des fils privés** et **Envoyer des messages dans les fils**.
+   **Créer des fils privés**, **Envoyer des messages dans les fils** et **Voir les logs du serveur**.
    Bob écrit d'abord en **message privé**. Si ça ne passe pas, il ouvre un **fil privé** (visible seulement par la personne
    et les modérateurs) avec le même message et les mêmes boutons : dans #en-attente pour les nouveaux venus,
    sinon dans le premier salon que la personne voit. Le fil est réutilisé pour les messages suivants.
@@ -300,6 +301,32 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
 - On n'y voit que son prénom (accueil) et son pseudo Discord, jamais son nom complet. La photo est celle de Discord,
   mise à jour par Bob.
 - Hors du top 100 : il voit sa place (« Tu es 134e sur 210 ») ; son profil n'est visible que de lui et du coach.
+
+## Rôles donnés à la main (validation)
+
+Quand quelqu'un reçoit le rôle **Community** ou **Elite** sans avoir payé sur le site, Bob regarde qui l'a donné
+(dans les logs du serveur) :
+- **le bot de Whop** (paiement par carte) : accès au site comme avant, sans question ;
+- **toi** (ou un modérateur) : Bob t'écrit en privé : « **X** a reçu le rôle **Overmaxx Elite** sans avoir payé sur le site
+  (rôle donné par **toi**). Lui donner accès au site quand même ? », avec deux boutons **Oui** et **Non**.
+  - **Oui** : il a accès au site (pour l'Elite, son parcours s'ouvre). Bob lui écrit que son accès est ouvert, avec le bouton
+    « Ouvrir mon espace ».
+  - **Non** : pas d'accès au site, rien ne lui est envoyé ; **son rôle Discord reste**. Bob ne redemande plus.
+- Rôle donné pendant que Bob était éteint : il le repère à son passage (toutes les 10 minutes) et te pose la même question.
+
+Pour que Bob sache qui donne les rôles, son rôle doit avoir **Voir les logs du serveur** (Paramètres du serveur → Rôles → Bob).
+Sans ce droit, Bob te prévient au démarrage, et te pose la question pour chaque rôle sans paiement sur le site
+(réponds Oui pour un paiement par carte sur Whop).
+
+**Ceux qui avaient le rôle avant la validation** (déjà repérés comme « carte ») : Bob te demande aussi pour chacun,
+mais ils **gardent l'accès en attendant ta réponse**. Boutons **Oui, il garde l'accès** / **Non, retirer l'accès**.
+Non : il perd l'accès au site ; pour l'Elite, son parcours est fermé (rien n'est effacé, il revient si tu changes d'avis).
+
+Plus de 5 questions d'un coup (le premier passage) : un seul message de Bob avec le bouton **Répondre**, qui ouvre
+**À traiter → Accès au site** : la liste avec Oui / Non pour chacun. Les refusés y restent, avec **Donner l'accès** si tu changes d'avis.
+
+Tu retires le rôle à quelqu'un à qui tu avais donné l'accès : le site se ferme, sans message. Tu le lui redonnes :
+le site se rouvre, sans nouvelle question. Dans **Membres**, ils apparaissent avec « Donné à la main ».
 
 ## L'espace de gestion
 

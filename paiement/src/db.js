@@ -484,6 +484,31 @@ function migrerV18(db) {
   db.exec('PRAGMA user_version = 18');
 }
 
+// v19 : rôles donnés à la main. Bob demande au coach s'il ouvre le site à ce membre (Oui / Non).
+// abonnes_carte.source : 'whop' (rôle donné par le bot de Whop), 'main' (accès validé par le coach), NULL (repéré avant la validation).
+// parcours.retire_le : parcours Elite fermé (accès refusé) ; il reste lisible, et revient si l'accès est rouvert.
+function migrerV19(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 19) return;
+  if (!colonnes(db, 'abonnes_carte').includes('source')) db.exec('ALTER TABLE abonnes_carte ADD COLUMN source TEXT');
+  if (!colonnes(db, 'parcours').includes('retire_le')) db.exec('ALTER TABLE parcours ADD COLUMN retire_le TEXT');
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS acces_manuels (
+    discord_id  TEXT NOT NULL,
+    programme   TEXT NOT NULL,
+    pseudo      TEXT,
+    statut      TEXT NOT NULL DEFAULT 'attente',  -- attente | accorde | refuse
+    ancien      INTEGER NOT NULL DEFAULT 0,       -- 1 : avait déjà accès au site avant la validation (il le garde en attendant)
+    donne_par   TEXT,                             -- qui a donné le rôle (journal d'audit du serveur), si connu
+    demande_le  TEXT NOT NULL,
+    prevenu_le  TEXT,                             -- question envoyée au coach par Bob
+    decide_le   TEXT,
+    PRIMARY KEY (discord_id, programme)
+  );
+  INSERT OR IGNORE INTO acces_manuels (discord_id, programme, pseudo, statut, ancien, demande_le)
+    SELECT discord_id, programme, pseudo, 'attente', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM abonnes_carte WHERE termine_le IS NULL AND perdu_le IS NULL;
+  PRAGMA user_version = 19;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -511,6 +536,7 @@ function ouvrirBase(fichier) {
   migrerV16(db);
   migrerV17(db);
   migrerV18(db);
+  migrerV19(db);
   return db;
 }
 

@@ -117,12 +117,13 @@ async function monter({ config = configTest(), saspay = fauxSaspay(), whop = fau
   // Notifications de l'application : rien ne part sur Internet, les envois sont notés dans envoisPush.
   const envoisPush = [];
   const push = pushDonne || require('../src/push').creerPush({ db, config, maintenant: horloge, envoyerPush: async (abonnement, charge) => { envoisPush.push([abonnement.endpoint, JSON.parse(charge)]); } });
-  const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours, suivi, sinistres, push });
+  const acces = require('../src/acces-manuels').creerAccesManuels({ db, parcours, coaching, maintenant: horloge });
+  const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours, suivi, sinistres, push, accesManuels: acces });
   const serveur = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
   const base = `http://127.0.0.1:${serveur.address().port}`;
   const parDefaut = connecte ? { cookie: cookieSession(VISITEUR, 'visiteur') } : {};
   return {
-    config, db, saspay, whop, oauth, commandes, coaching, candidatures, parcours, suivi, sinistres, push, envoisPush, base,
+    config, db, saspay, whop, oauth, commandes, coaching, candidatures, parcours, suivi, sinistres, push, acces, envoisPush, base,
     fermer: () => new Promise((r) => serveur.close(r)),
     poster: (chemin, champs, headers = {}) => fetch(base + chemin, {
       method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...parDefaut, ...headers }, body: new URLSearchParams(champs),

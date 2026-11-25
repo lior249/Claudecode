@@ -369,11 +369,11 @@ function pageAdminMembres(config, { membres, cartes = [], progression = {}, tota
         <td>${avecFiche(c.discord_id, `<b>${echapper(c.pseudo || c.discord_id)}</b>`)}<br><span class="doux">depuis le ${echapper(formatDate(c.depuis))}</span></td>
         <td>${echapper(c.pseudo || '—')}</td>
         <td>${echapper(offre(c.programme))}</td>
-        <td>Carte (Whop)</td>
+        <td>${c.source === 'main' ? 'Donné à la main' : 'Carte (Whop)'}</td>
         <td>${statut}</td>
-        <td><span class="doux">géré par Whop</span></td>
-        <td><span class="doux">${c.programme === 'elite' ? 'Paiement unique' : 'Carte'}</span></td>
-        <td>Oui</td>
+        <td><span class="doux">${c.source === 'main' ? 'tant qu\'il a le rôle' : 'géré par Whop'}</span></td>
+        <td><span class="doux">${c.source === 'main' ? '—' : c.programme === 'elite' ? 'Paiement unique' : 'Carte'}</span></td>
+        <td>${c.source === 'main' ? '<span class="doux">—</span>' : 'Oui'}</td>
         <td><span class="doux">—</span></td></tr>` };
     }),
   ].sort((a, b) => a.ordre - b.ordre || String(a.nom).localeCompare(String(b.nom), 'fr'));
