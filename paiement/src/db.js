@@ -358,6 +358,14 @@ function migrerV12(db) {
   PRAGMA user_version = 12;`);
 }
 
+// v13 : le total du tableau de bord TikTok (« Récompenses estimées », vue Par mois) recopié dans chaque compte rendu.
+// Le gain du jour = ce total − le total précédent du même mois.
+function migrerV13(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 13) return;
+  if (!colonnes(db, 'comptes_rendus').includes('total_mois')) db.exec('ALTER TABLE comptes_rendus ADD COLUMN total_mois REAL');
+  db.exec('PRAGMA user_version = 13');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -379,6 +387,7 @@ function ouvrirBase(fichier) {
   migrerV10(db);
   migrerV11(db);
   migrerV12(db);
+  migrerV13(db);
   return db;
 }
 

@@ -141,11 +141,20 @@ avec un bouton par vidéo : il les remplit un par un, jusqu'à ce qu'il n'en res
 
 ## 3. Objectifs, GOAT et rôles
 
-- **Objectifs de revenus** (affichés avec une barre de progression), en **totaux cumulés depuis le début** :
-  50 €, puis 500 €, puis 1 000 €, puis 1 500 € (l'accompagnement est alors rentabilisé).
-- **Rôle GOAT** : dès qu'il atteint **1 000 € sur 28 jours** (une seule fois suffit).
+- **En dollars, comme TikTok** : le membre recopie les montants tels que TikTok les affiche ($).
+- **Le gain du jour** : dans chaque compte rendu, le membre recopie le total de son tableau de bord TikTok
+  (Programme de récompenses, « Récompenses estimées », vue **Par mois**). Gain du jour = ce total − son total précédent
+  du même mois ; le premier total du mois est le gain de ce jour (le compte part de $0 à l'étape 4).
+  Les récompenses de chaque vidéo restent dans le compte rendu : c'est ce que le coach vérifie.
+- **Mon profil** : un tableau de bord présenté comme celui de TikTok (thème sombre) : Par mois, Par an, Personnalisé,
+  flèches pour changer de mois, total, gain du dernier jour, barres par jour (bleu : validé par le coach ;
+  cyan : en attente) ; toucher une barre affiche le détail. Puis les objectifs et les statistiques.
+  Rien de privé sur cette page : elle servira au futur classement (top 100 de l'accompagnement, puis la formation).
+- **Objectifs de revenus** (affichés avec une barre de progression), en **totaux cumulés depuis le début**
+  (comptes rendus validés) : $50, puis $500, puis $1,000, puis $1,500 (l'accompagnement est alors rentabilisé).
+- **Rôle GOAT** : dès qu'il atteint **$1,000 sur 28 jours** (une seule fois suffit).
   Il garde la plateforme et ses comptes rendus, mais **n'a plus de lives individuels**, seulement le live de groupe.
-- **Rôles de revenus** : **1 500 €, 5 000 € et 10 000 € au total**, en euros.
+- **Rôles de revenus** : **$1,500, $5,000 et $10,000 au total**.
 
 | Rôle | Identifiant Discord |
 |---|---|

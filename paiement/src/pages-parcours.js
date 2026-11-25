@@ -3,7 +3,7 @@
 // Parcours de l'accompagnement Elite : Mon parcours, les étapes 1 à 3, la fiche du membre,
 // et côté coach : À traiter et la validation d'un envoi. Voir docs/ACCOMPAGNEMENT-ELITE.md.
 const { ICONE, echapper, formatDate, blocVideo } = require('./pages');
-const { jourLisible } = require('./suivi');
+const { jourLisible, moisLisible } = require('./suivi');
 const { pageEspace } = require('./pages-espace');
 
 const ETAPES = [
@@ -80,6 +80,8 @@ const STYLE_PARCOURS = `<style>
   .apercus img { width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--bord); }
   details > summary { cursor:pointer; font-weight:600; }
   .message-ok { color:var(--ok); font-weight:600; }
+  .calcul-gain { margin:0; padding:10px 12px; border-radius:12px; background:var(--surface-2); color:var(--doux); font-size:14px; }
+  .calcul-gain b { color:#fff; }
   .barre-objectifs { height:10px; border-radius:10px; background:var(--surface-2); overflow:hidden; margin:14px 0 10px; }
   .barre-objectifs i { display:block; height:100%; background:var(--ok); }
   .paliers { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; font-size:12px; color:var(--gris); text-align:center; }
@@ -253,7 +255,9 @@ function formVideo(emplacement, { etape1 = false, libelle } = {}) {
 }
 
 // Statistiques et objectifs (comptes rendus validés).
-const euros = (n) => `${Number(n || 0).toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+// Les récompenses TikTok sont en dollars : même écriture que TikTok ($1,308.95).
+const dollars = (n, { centimes = true } = {}) => `${Number(n || 0) < 0 ? '-' : ''}$${Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: centimes ? 2 : 0, maximumFractionDigits: 2 })}`;
+const euros = (n) => dollars(n);
 function blocStats(s) {
   if (!s) return '';
   const regularite = s.joursDepuisEtape4 ? `${s.joursPublies} / ${s.joursDepuisEtape4} jours` : '—';
@@ -267,16 +271,45 @@ function blocStats(s) {
       <div><b>${euros(s.revenus28)}</b><span>revenus des 28 derniers jours</span></div>
     </div></div>`;
 }
-function blocObjectifs(s) {
+function blocObjectifs(s, { lien, texteLien = 'Voir mon tableau de bord' } = {}) {
   if (!s) return '';
   const max = s.objectifs[s.objectifs.length - 1].montant;
   const pct = Math.min(100, Math.round((s.revenusTotal / max) * 100));
   return `<div class="carte"><div class="envoi-tete"><h2>Objectifs de revenus</h2><span class="etat" data-etat="${s.revenusTotal >= max ? 'valide' : 'attente'}">${euros(s.revenusTotal)}</span></div>
     <div class="barre-objectifs"><i style="width:${pct}%"></i></div>
-    <div class="paliers">${s.objectifs.map((o) => `<span data-atteint="${o.atteint ? 1 : 0}">${o.atteint ? ICONE.ok : ''}${euros(o.montant)}</span>`).join('')}</div>
-    <p class="doux petit" style="margin:10px 0 0">Revenus cumulés des comptes rendus validés. GOAT : ${euros(1000)} sur 28 jours (${euros(s.revenus28)} en ce moment).</p></div>`;
+    <div class="paliers">${s.objectifs.map((o) => `<span data-atteint="${o.atteint ? 1 : 0}">${o.atteint ? ICONE.ok : ''}${dollars(o.montant, { centimes: false })}</span>`).join('')}</div>
+    <p class="doux petit" style="margin:10px 0 0">Récompenses cumulées des comptes rendus validés. GOAT : ${dollars(1000, { centimes: false })} sur 28 jours (${euros(s.revenus28)} en ce moment).</p>
+    ${lien ? `<a class="bouton secondaire" href="${echapper(lien)}">${echapper(texteLien)}</a>` : ''}</div>`;
 }
 
+// Compte rendu : le gain du jour calculé en direct pendant que le membre recopie son total.
+const SCRIPT_GAIN = `
+(function () {
+  var champ = document.getElementById('total_mois');
+  var sortie = document.querySelector('.calcul-gain');
+  if (!champ || !sortie) return;
+  function lire(v) {
+    var s = String(v || '').trim().replace(/[$\u20ac\s\u00a0\u202f]/g, '');
+    if (!s || !/^-?[\d.,]+$/.test(s)) return null;
+    var vi = s.lastIndexOf(','), pt = s.lastIndexOf('.');
+    if (vi >= 0 && pt >= 0) s = vi > pt ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+    else if (vi >= 0) s = /,\d{1,2}$/.test(s) && s.split(',').length === 2 ? s.replace(',', '.') : s.replace(/,/g, '');
+    else if (pt >= 0 && !(/\.\d{1,2}$/.test(s) && s.split('.').length === 2)) s = s.replace(/\./g, '');
+    var n = Number(s); return isFinite(n) ? n : null;
+  }
+  function argent(n) { return (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  var avant = Number(champ.getAttribute('data-precedent')) || 0, jourAvant = champ.getAttribute('data-jour-precedent');
+  var initial = sortie.innerHTML;
+  function calculer() {
+    var n = lire(champ.value);
+    if (n === null) { sortie.innerHTML = initial; return; }
+    var gain = Math.round((n - avant) * 100) / 100;
+    sortie.innerHTML = 'Gain du jour : <b>' + argent(gain) + '</b>' + (jourAvant ? ' (' + argent(n) + ' − ' + argent(avant) + ', ton total du ' + jourAvant + ')' : ' (premier compte rendu du mois)')
+      + (gain < 0 ? '. Ton total est plus bas que la dernière fois : vérifie le mois affiché.' : '.');
+  }
+  champ.addEventListener('input', calculer);
+  calculer();
+})();`;
 const page = (titre, contenu, espace, actif, maxMo, plus = '') => pageEspace(titre, `${STYLE_PARCOURS}${contenu}`, espace, actif, {
   script: `${SCRIPT_LOCAL}${maxMo ? scriptEnvoi(maxMo) : ''}${SCRIPT_IMAGES}${plus}`,
 });
@@ -298,7 +331,7 @@ function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, 
       </div>
       ${derniere ? `<div class="carte"><div class="envoi-tete"><h2>Dernière remarque du coach</h2><a class="doux petit" href="/fiche#remarques">Toutes les remarques</a></div>
         <div style="margin-top:12px">${remarque(derniere)}</div></div>` : ''}
-      ${p.etape >= 4 ? `${blocObjectifs(stats)}${blocStats(stats)}` : ''}
+      ${p.etape >= 4 ? blocObjectifs(stats, { lien: '/profil' }) : ''}
     </div>
     <div>
       <div class="carte">
@@ -483,14 +516,15 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
           <label class="doux petit" for="etape">Corriger l'étape à la main</label>
           <select id="etape" name="etape">${ETAPES.map((e) => `<option value="${e.n}"${e.n === p.etape ? ' selected' : ''}>${e.n} · ${echapper(e.titre)}</option>`).join('')}</select>
           <button class="bouton secondaire" type="submit" style="margin-top:0">Changer d'étape</button></form>` : ''}</div>
-      ${p.etape >= 4 && stats ? `${blocObjectifs(stats)}${blocStats(stats)}` : '<div class="carte"><h2>Statistiques</h2><p class="doux" style="margin:0">Elles s\'afficheront à partir de l\'étape 4, avec les comptes rendus.</p></div>'}
+      ${p.etape >= 4 && stats ? (vueCoach ? `${blocObjectifs(stats, { lien: `${base}/profil`, texteLien: 'Voir son tableau de bord' })}${blocStats(stats)}`
+        : blocObjectifs(stats, { lien: '/profil' })) : '<div class="carte"><h2>Statistiques</h2><p class="doux" style="margin:0">Elles s\'afficheront à partir de l\'étape 4, avec les comptes rendus.</p></div>'}
       ${vueCoach && !aConfirmer ? blocRecompenses(base, recompenses) : ''}
       ${sinistre ? '' : blocSinistres({ vueCoach, base, p, sinistre, historique, joursAbsence })}
     </div>
   </div>`, espace, vueCoach ? 'membres' : 'fiche');
 }
 
-const NOMS_ROLES = { goat: 'GOAT', 1500: '1 500 €', 5000: '5 000 €', 10000: '10 000 €' };
+const NOMS_ROLES = { goat: 'GOAT', 1500: '$1,500', 5000: '$5,000', 10000: '$10,000' };
 function blocRecompenses(base, recompenses) {
   if (!recompenses.length) return '';
   return `<div class="carte"><h2>Rôles</h2>${recompenses.map((r) => `<div class="ligne-envoi"><div class="qui"><b>${echapper(NOMS_ROLES[r.role] || r.role)}</b>
@@ -668,7 +702,7 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
   <div class="carte"><div class="envoi-tete"><h2>Mes heures</h2><span class="doux petit">à ton heure</span></div>
     <div class="recap" style="grid-template-columns:repeat(3,1fr)"><div><b>${echapper(p.heure_creation)}</b><span>création</span></div><div><b>${echapper(p.heure_publication)}</b><span>publication</span></div><div><b>${echapper(p.heure_compte_rendu)}</b><span>compte rendu</span></div></div>
     <details style="margin-top:12px"><summary>Modifier mes heures</summary><div style="margin-top:12px">${formHeures(p, { titre: '' })}</div></details></div>
-  ${blocObjectifs(stats)}${blocStats(stats)}`;
+  ${blocObjectifs(stats, { lien: '/profil' })}`;
   return page('Étape 4 · Publication et suivi', `
   <div class="titre-page"><div><p class="etiquette">Étape 4 sur 4${aujourdhui ? ` · ${echapper(jourLisible(aujourdhui))}` : ''}</p><h1>Publication et suivi</h1></div>${delai(tache && tache.delai)}</div>
   ${frise(Math.min(p.etape, 5))}
@@ -677,7 +711,7 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
 }
 
 // ---------- Membre : le compte rendu d'un jour ----------
-function pageCompteRendu(config, { espace, parcours: p, jour, videos, cr, questions, remarques = [], erreur }) {
+function pageCompteRendu(config, { espace, parcours: p, jour, videos, cr, questions, remarques = [], erreur, precedent }) {
   const v = (k) => (cr && cr[k] !== null && cr[k] !== undefined ? cr[k] : '');
   const stat = (id, k) => { const x = cr && (cr.videos || []).find((y) => y.publication_id === id); return x && x[k] !== null ? x[k] : ''; };
   const pays = (k, i) => (cr && cr[k] && cr[k][i]) || '';
@@ -691,6 +725,13 @@ function pageCompteRendu(config, { espace, parcours: p, jour, videos, cr, questi
   ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   ${cr && cr.etat === 'corriger' && remarques[0] ? remarque({ ...remarques[0], type: 'corriger' }) : ''}
   <form method="post" action="/parcours/compte-rendu/${echapper(jour)}" style="display:grid;gap:14px;margin-top:14px">
+    <div class="carte" style="display:grid;gap:12px;margin:0"><h2 style="margin:0">Tes récompenses TikTok</h2>
+      <div class="champ"><label for="total_mois">Récompenses estimées de ${echapper(moisLisible(jour))}</label>
+        <input id="total_mois" name="total_mois" type="text" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${echapper(v('total_mois'))}" required
+          data-precedent="${precedent ? precedent.total : 0}" data-jour-precedent="${precedent ? echapper(jourLisible(precedent.jour)) : ''}" data-mois="${echapper(moisLisible(jour))}">
+        <small>Programme de récompenses → <b>Par mois</b> → ${echapper(moisLisible(jour))} : recopie le gros montant du haut, tel quel.</small></div>
+      <p class="calcul-gain" aria-live="polite">${precedent ? `Ton dernier total de ${echapper(moisLisible(jour))} : <b>${dollars(precedent.total)}</b> (${echapper(jourLisible(precedent.jour))}). Le site calcule ton gain du jour.` : `Premier compte rendu de ${echapper(moisLisible(jour))} : ce total est ton gain du jour.`}</p>
+      ${zoneCapture('capture_revenus', cr && cr.capture_revenus ? 'Remplacer la capture des récompenses' : 'Capture de ce tableau de bord', 'La page Programme de récompenses, avec le montant que tu viens de recopier.', cr ? cr.capture_revenus : '')}</div>
     <div class="carte" style="display:grid;gap:12px;margin:0"><h2 style="margin:0">Ton compte</h2>
       <div class="grille-champs">
         ${champ('abonnes_total', 'Abonnés au total', v('abonnes_total'))}${champ('vues_total', 'Vues au total', v('vues_total'))}
@@ -705,10 +746,8 @@ function pageCompteRendu(config, { espace, parcours: p, jour, videos, cr, questi
         ${champ(`v_${x.id}_heure`, 'Heure de publication', stat(x.id, 'heure'), { type: 'time' })}
         ${champ(`v_${x.id}_visionnage_s`, 'Visionnage moyen (s)', stat(x.id, 'visionnage_s'))}
         ${champ(`v_${x.id}_retention_10s`, 'Rétention à 10 s (%)', stat(x.id, 'retention_10s'), { pas: '0.1' })}
-        ${champ(`v_${x.id}_revenus`, 'Revenus (€)', stat(x.id, 'revenus'), { pas: '0.01' })}
+        ${champ(`v_${x.id}_revenus`, 'Récompenses de la vidéo ($)', stat(x.id, 'revenus'), { pas: '0.01' })}
       </div></div>`).join('')}
-    <div class="carte" style="display:grid;gap:12px;margin:0"><h2 style="margin:0">Preuve des revenus</h2>
-      ${zoneCapture('capture_revenus', cr && cr.capture_revenus ? 'Remplacer la capture des revenus' : 'Capture de ta page des revenus TikTok', 'Une capture par compte rendu.', cr ? cr.capture_revenus : '')}</div>
     <div class="carte" style="display:grid;gap:12px;margin:0"><h2 style="margin:0">Ta question du moment</h2>
       <select name="question" id="question">
         <option value="">Pas de question</option>
@@ -717,7 +756,7 @@ function pageCompteRendu(config, { espace, parcours: p, jour, videos, cr, questi
       </select>
       <textarea name="question_autre" placeholder="Ta question, si tu as choisi « Autre ».">${question && !predefinie ? echapper(question) : ''}</textarea></div>
     <button class="bouton" type="submit" style="margin-top:0">Envoyer mon compte rendu</button>
-  </form>`, espace, 'parcours');
+  </form>`, espace, 'parcours', null, SCRIPT_GAIN);
 }
 
 // ---------- Membre : la fiche de sinistre ----------
@@ -740,7 +779,7 @@ function pageSinistre(config, { espace, parcours: p, sinistre: s, joursAbsence, 
 }
 
 // ---------- Coach : valider un compte rendu ----------
-function pageCompteRenduCoach(config, { espace, cr, parcours: p, capture, message }) {
+function pageCompteRenduCoach(config, { espace, cr, parcours: p, capture, message, precedent }) {
   const nb = (n) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('fr-FR'));
   const decision = cr.etat !== 'attente'
     ? `<div class="carte"><h2>Déjà traité</h2><p class="doux" style="margin:0">${cr.etat === 'valide' ? 'Validé' : 'Modifications demandées'} le ${echapper(formatDate(cr.decide_le))}.</p></div>`
@@ -757,12 +796,16 @@ function pageCompteRenduCoach(config, { espace, cr, parcours: p, capture, messag
   ${message ? `<p class="erreur-form">${echapper(message)}</p>` : ''}
   <div class="colonnes-2">
     <div>
+      <div class="carte"><h2>Ses récompenses TikTok</h2>${cr.total_mois === null || cr.total_mois === undefined ? '<p class="doux" style="margin:0">Pas de total recopié.</p>' : `<div class="recap">
+        <div><b>${dollars(cr.total_mois)}</b><span>total de ${echapper(moisLisible(cr.jour))} (tableau de bord)</span></div>
+        <div><b>${dollars(Math.round((cr.total_mois - (precedent ? precedent.total : 0)) * 100) / 100)}</b><span>gain du jour</span></div></div>
+        <p class="doux petit" style="margin:10px 0 0">${precedent ? `${dollars(cr.total_mois)} − ${dollars(precedent.total)} (son total du ${echapper(jourLisible(precedent.jour))}${precedent.etat === 'valide' ? '' : ', pas encore validé'}).` : `Premier compte rendu de ${echapper(moisLisible(cr.jour))} : le total est le gain du jour.`} Vérifie-le sur sa capture.</p>`}</div>
       <div class="carte"><h2>Son compte</h2><div class="recap">
         <div><b>${nb(cr.abonnes_total)}</b><span>abonnés au total</span></div><div><b>${nb(cr.vues_total)}</b><span>vues au total</span></div>
         <div><b>+${nb(cr.abonnes_jour)}</b><span>abonnés ce jour-là</span></div><div><b>${nb(cr.vues_jour)}</b><span>vues ce jour-là</span></div></div>
         <dl class="details" style="margin-top:12px"><div><dt>Pays des vues</dt><dd>${echapper(cr.pays_vues.join(', ') || '—')}</dd></div>
         <div><dt>Pays des abonnés</dt><dd>${echapper(cr.pays_abonnes.join(', ') || '—')}</dd></div></dl></div>
-      <div class="carte"><h2>Ses vidéos (${cr.videos.length}) · ${euros(revenus)}</h2><div class="defile"><table class="cr">
+      <div class="carte"><h2>Ses vidéos (${cr.videos.length}) · ${dollars(revenus)}</h2><div class="defile"><table class="cr">
         <tr><th>Vidéo</th><th>Vues</th><th>Abonnés</th><th>Publiée à</th><th>Visionnage</th><th>Rétention 10 s</th><th>Revenus</th></tr>
         ${cr.videos.map((x, i) => `<tr><td><a href="${echapper(x.lien)}" target="_blank" rel="noopener">Vidéo ${i + 1}</a></td><td>${nb(x.vues)}</td><td>${nb(x.abonnes)}</td><td>${echapper(x.heure || '—')}</td>
           <td>${nb(x.visionnage_s)} s</td><td>${nb(x.retention_10s)} %</td><td>${euros(x.revenus)}</td></tr>`).join('')}
@@ -770,7 +813,7 @@ function pageCompteRenduCoach(config, { espace, cr, parcours: p, capture, messag
       ${cr.question ? `<div class="carte"><h2>Sa question</h2><p style="margin:0">${texteRiche(cr.question)}</p></div>` : ''}
       <div class="carte"><h2>Captures</h2><div class="captures-cr">
         ${capture ? `<figure><a href="/fichiers/images/${echapper(capture.image)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(capture.image)}" alt="Capture du compte"></a><figcaption>Son compte, ${echapper(jourLisible(cr.jour))}</figcaption></figure>` : ''}
-        ${cr.capture_revenus ? `<figure><a href="/fichiers/images/${echapper(cr.capture_revenus)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(cr.capture_revenus)}" alt="Capture des revenus"></a><figcaption>Sa page des revenus</figcaption></figure>` : ''}</div></div>
+        ${cr.capture_revenus ? `<figure><a href="/fichiers/images/${echapper(cr.capture_revenus)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(cr.capture_revenus)}" alt="Capture des récompenses"></a><figcaption>Son tableau de bord des récompenses</figcaption></figure>` : ''}</div></div>
     </div>
     <div>
       ${decision}
@@ -780,4 +823,216 @@ function pageCompteRenduCoach(config, { espace, cr, parcours: p, capture, messag
   </div>`, espace, 'traiter');
 }
 
-module.exports = { ETAPES, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+
+// ---------- Tableau de bord des récompenses (même présentation que celui de TikTok, thème sombre) ----------
+// Gains jour par jour calculés à partir du total recopié dans chaque compte rendu ; bleu = validé par le coach,
+// cyan = en attente de validation. Toucher une barre affiche le détail du jour (ou du mois en vue Par an).
+const STYLE_TABLEAU = `<style>
+  .tb { padding:18px; border-radius:18px; background:#161618; border:1px solid var(--bord); margin-bottom:14px; }
+  .tb [hidden] { display:none !important; }
+  .tb-filtres { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; }
+  .tb-filtre { flex:none; border:0; border-radius:999px; padding:9px 14px; background:#2c2c2e; color:#fff; font:600 14px var(--police); cursor:pointer; }
+  .tb-filtre[aria-pressed="true"] { background:#fff; color:#000; }
+  .tb-perso { display:flex; gap:8px; align-items:center; margin-top:12px; color:var(--doux); font-size:13px; }
+  .tb-perso input { margin:0; flex:1; min-width:0; min-height:40px; padding:8px 10px; }
+  .tb-tete { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:18px; }
+  .tb-tete h2 { margin:0; font-size:16.5px; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tb-nav { display:flex; align-items:center; gap:2px; font-weight:700; font-size:15px; white-space:nowrap; }
+  .tb-nav button { background:none; border:0; color:#fff; font:600 20px var(--police); width:30px; height:30px; cursor:pointer; border-radius:8px; }
+  .tb-nav button[disabled] { color:var(--gris); cursor:default; }
+  .tb-montant { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 12px; margin-top:6px; }
+  .tb-total { font-size:40px; font-weight:800; letter-spacing:-0.02em; line-height:1.15; }
+  .tb-total small { font-size:22px; margin-right:2px; }
+  .tb-delta { color:var(--doux); font-size:15px; }
+  .tb-delta b { color:#4ea1ff; font-weight:600; }
+  .tb-delta[data-baisse="1"] b { color:var(--erreur); }
+  .tb-dates { color:var(--doux); font-size:14px; margin:2px 0 14px; }
+  .tb-legende { border:1px solid var(--bord-fort); border-radius:12px; padding:10px 14px; display:grid; gap:6px; font-size:14.5px; }
+  .tb-legende div { display:flex; align-items:center; gap:8px; }
+  .tb-legende span { margin-left:auto; color:var(--doux); }
+  i.tb-v, i.tb-a { display:inline-block; width:10px; height:10px; border-radius:2px; flex:none; }
+  .tb-v { background:#1d6cf2; } .tb-a { background:#25d0e6; }
+  .tb-graphe { position:relative; display:grid; grid-template-columns:34px 1fr; column-gap:6px; margin-top:22px; }
+  .tb-axe { position:relative; height:180px; color:var(--doux); font-size:12px; }
+  .tb-axe span { position:absolute; right:0; transform:translateY(-50%); }
+  .tb-zone { position:relative; height:180px; }
+  .tb-ligne { position:absolute; left:0; right:0; border-top:1px dotted #3a3a3c; }
+  .tb-barres { position:absolute; inset:0; display:flex; }
+  .tb-col { flex:1; min-width:0; height:100%; padding:0; border:0; background:none; cursor:pointer; display:flex; justify-content:center; border-radius:4px 4px 0 0; }
+  .tb-col[aria-pressed="true"] { background:rgba(255,255,255,.13); }
+  .tb-pile { width:58%; max-width:16px; height:100%; display:flex; flex-direction:column-reverse; }
+  .tb-pile i { display:block; width:100%; border-radius:2px 2px 0 0; }
+  .tb-x { grid-column:2; display:flex; margin-top:6px; color:var(--doux); font-size:12px; }
+  .tb-x span { flex:1; min-width:0; text-align:center; white-space:nowrap; overflow:visible; }
+  .tb-bulle { position:absolute; top:4px; z-index:2; width:min(200px, 100%); background:#1c1c1e; border:1px solid var(--bord-fort); border-radius:12px;
+    padding:10px 12px; box-shadow:0 10px 28px rgba(0,0,0,.55); font-size:13.5px; pointer-events:none; }
+  .tb-bulle-tete { display:flex; justify-content:space-between; gap:12px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--bord-fort); font-weight:700; }
+  .tb-bulle .ligne-b { display:flex; align-items:center; gap:8px; color:var(--doux); margin-top:4px; }
+  .tb-bulle .ligne-b span { margin-left:auto; color:#fff; }
+  .tb-bulle p { margin:8px 0 0; color:var(--gris); font-size:12.5px; }
+</style>`;
+const SCRIPT_TABLEAU = `
+(function () {
+  var MOIS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+  function argent(n) { return (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function date(j, o) { var x = { timeZone: 'UTC' }; for (var k in o) x[k] = o[k]; return new Date(j + 'T12:00:00Z').toLocaleDateString('fr-FR', x); }
+  function cle(a, m, d) { return a + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d; }
+  function decaler(j, n) { return new Date(Date.parse(j + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10); }
+  function graduation(v) { return v.toLocaleString('en-US', { maximumFractionDigits: v < 10 ? 1 : 0 }); }
+  document.querySelectorAll('[data-revenus]').forEach(function (racine) {
+    var d; try { d = JSON.parse(racine.getAttribute('data-revenus')); } catch (err) { return; }
+    var jours = d.jours || [];
+    var parJour = {}; jours.forEach(function (x) { parJour[x.j] = x; });
+    var auj = d.aujourdhui;
+    var dernier = jours.length ? jours[jours.length - 1].j : auj;
+    var e = { vue: 'mois', a: +dernier.slice(0, 4), m: +dernier.slice(5, 7), du: decaler(dernier, -27), au: dernier, choisi: -1 };
+    function q(s) { return racine.querySelector(s); }
+    function jour(j, n) {
+      var x = parJour[j];
+      return { libelle: String(n), titre: date(j, { day: 'numeric', month: 'short' }), j: j, aDonnees: !!x,
+        valide: x && x.e === 'valide' ? x.g : 0, attente: x && x.e !== 'valide' ? x.g : 0 };
+    }
+    function colonnes() {
+      var c = [], i;
+      if (e.vue === 'mois') {
+        var n = new Date(Date.UTC(e.a, e.m, 0)).getUTCDate();
+        for (i = 1; i <= n; i++) c.push(jour(cle(e.a, e.m, i), i));
+      } else if (e.vue === 'an') {
+        for (i = 1; i <= 12; i++) {
+          var col = { libelle: MOIS[i - 1], titre: date(cle(e.a, i, 1), { month: 'short', year: 'numeric' }), valide: 0, attente: 0, aDonnees: false, j: null };
+          for (var k = 0; k < jours.length; k++) {
+            var x = jours[k];
+            if (+x.j.slice(0, 4) === e.a && +x.j.slice(5, 7) === i) { col[x.e === 'valide' ? 'valide' : 'attente'] += x.g; col.aDonnees = true; col.j = x.j; }
+          }
+          c.push(col);
+        }
+      } else {
+        for (var j = e.du, g = 0; j <= e.au && g < 93; j = decaler(j, 1), g++) c.push(jour(j, +j.slice(8, 10)));
+      }
+      return c;
+    }
+    function rendre() {
+      racine.querySelectorAll('.tb-filtre').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-vue') === e.vue ? 'true' : 'false'); });
+      q('.tb-perso').hidden = e.vue !== 'perso';
+      q('.tb-nav').hidden = e.vue === 'perso';
+      q('.tb-periode').textContent = e.vue === 'mois' ? date(cle(e.a, e.m, 1), { month: 'short', year: 'numeric' }) : String(e.a);
+      var suivant = e.vue === 'mois' ? cle(e.a, e.m, 1) >= auj.slice(0, 8) + '01' : e.a >= +auj.slice(0, 4);
+      q('.tb-suivant').disabled = suivant;
+      var cols = colonnes();
+      var valide = 0, attente = 0, avec = [];
+      cols.forEach(function (c, i) { valide += c.valide; attente += c.attente; if (c.aDonnees) avec.push(i); });
+      var total = valide + attente;
+      q('.tb-total').innerHTML = '<small>' + (total < 0 ? '-$' : '$') + '</small>' + Math.abs(total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var der = avec.length ? cols[avec[avec.length - 1]] : null;
+      var delta = q('.tb-delta');
+      delta.hidden = !der || e.vue === 'an';
+      if (der && e.vue !== 'an') {
+        var gd = der.valide + der.attente;
+        delta.setAttribute('data-baisse', gd < 0 ? '1' : '0');
+        delta.innerHTML = '<b>' + (gd < 0 ? '▼ ' : '▲ ') + argent(Math.abs(gd)) + '</b> (' + der.titre + ')';
+      }
+      var longue = { day: 'numeric', month: 'short', year: 'numeric' };
+      var debut = e.vue === 'mois' ? cle(e.a, e.m, 1) : e.vue === 'an' ? cle(e.a, 1, 1) : e.du;
+      q('.tb-dates').textContent = e.vue === 'perso' ? date(e.du, longue) + ' - ' + date(e.au, longue)
+        : der ? date(debut, longue) + ' - ' + date(der.j, longue) : 'Aucun compte rendu sur cette période';
+      q('.tb-valide').textContent = argent(valide);
+      q('.tb-attente').textContent = argent(attente);
+      var max = 0;
+      cols.forEach(function (c) { max = Math.max(max, Math.max(0, c.valide) + Math.max(0, c.attente)); });
+      var haut = max > 0 ? max : 3;
+      q('.tb-axe').innerHTML = [haut, haut * 2 / 3, haut / 3, 0].map(function (v, i) { return '<span style="top:' + (i * 100 / 3) + '%">' + graduation(v) + '</span>'; }).join('');
+      var pas = cols.length <= 12 ? 1 : cols.length <= 31 ? 3 : Math.ceil(cols.length / 10);
+      if (e.choisi >= cols.length) e.choisi = -1;
+      q('.tb-barres').innerHTML = cols.map(function (c, i) {
+        var v = Math.max(0, c.valide), a = Math.max(0, c.attente);
+        return '<button type="button" class="tb-col" data-i="' + i + '" aria-pressed="' + (e.choisi === i) + '" aria-label="' + c.titre + ' : ' + argent(c.valide + c.attente) + '">'
+          + '<span class="tb-pile"><i class="tb-v" style="height:' + (v / haut * 100) + '%"></i><i class="tb-a" style="height:' + (a / haut * 100) + '%"></i></span></button>';
+      }).join('');
+      q('.tb-x').innerHTML = cols.map(function (c, i) { return '<span>' + (i % pas === 0 ? c.libelle : '') + '</span>'; }).join('');
+      var b = q('.tb-bulle'), c = cols[e.choisi];
+      if (!c) { b.hidden = true; return; }
+      b.hidden = false;
+      b.innerHTML = '<div class="tb-bulle-tete"><span>' + c.titre + '</span><span>' + argent(c.valide + c.attente) + '</span></div>'
+        + '<div class="ligne-b"><i class="tb-v"></i>Validé<span>' + argent(c.valide) + '</span></div>'
+        + '<div class="ligne-b"><i class="tb-a"></i>En attente<span>' + argent(c.attente) + '</span></div>'
+        + (c.aDonnees ? '' : '<p>Pas de compte rendu ' + (e.vue === 'an' ? 'ce mois-là.' : 'ce jour-là.') + '</p>');
+      var zone = q('.tb-graphe').getBoundingClientRect(), col = q('.tb-col[data-i="' + e.choisi + '"]').getBoundingClientRect();
+      var centre = col.left + col.width / 2 - zone.left;
+      b.style.left = Math.max(0, Math.min(zone.width - b.offsetWidth, centre - b.offsetWidth / 2)) + 'px';
+    }
+    function dernierChoisi() { e.choisi = -1; }
+    racine.addEventListener('click', function (ev) {
+      var t = ev.target.closest('button');
+      if (!t || !racine.contains(t)) return;
+      if (t.classList.contains('tb-col')) { var i = +t.getAttribute('data-i'); e.choisi = e.choisi === i ? -1 : i; }
+      else if (t.classList.contains('tb-filtre')) { e.vue = t.getAttribute('data-vue'); dernierChoisi(); }
+      else if (t.hasAttribute('data-pas')) {
+        var s = +t.getAttribute('data-pas');
+        if (e.vue === 'mois') { e.m += s; if (e.m < 1) { e.m = 12; e.a--; } if (e.m > 12) { e.m = 1; e.a++; } } else e.a += s;
+        dernierChoisi();
+      } else return;
+      rendre();
+    });
+    racine.querySelectorAll('.tb-perso input').forEach(function (champ) {
+      champ.value = champ.name === 'du' ? e.du : e.au;
+      champ.addEventListener('change', function () {
+        if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(champ.value)) return;
+        e[champ.name] = champ.value;
+        if (e.du > e.au) { var t = e.du; e.du = e.au; e.au = t; }
+        if (decaler(e.du, 92) < e.au) e.du = decaler(e.au, -92);
+        dernierChoisi(); rendre();
+      });
+    });
+    dernierChoisi();
+    rendre();
+    window.addEventListener('resize', function () { if (e.choisi >= 0) rendre(); });
+  });
+})();`;
+function blocTableau(tableau, { titre = 'Récompenses estimées' } = {}) {
+  const donnees = JSON.stringify({ aujourdhui: tableau.aujourdhui, jours: tableau.jours });
+  return `${STYLE_TABLEAU}<section class="tb" data-revenus="${echapper(donnees)}" aria-label="Tableau de bord des récompenses">
+    <div class="tb-filtres" role="group" aria-label="Période">
+      <button type="button" class="tb-filtre" data-vue="mois" aria-pressed="true">Par mois</button>
+      <button type="button" class="tb-filtre" data-vue="an">Par an</button>
+      <button type="button" class="tb-filtre" data-vue="perso">Personnalisé ⌄</button>
+    </div>
+    <div class="tb-perso" hidden><input type="date" name="du" aria-label="Du"><span>au</span><input type="date" name="au" aria-label="Au"></div>
+    <div class="tb-tete"><h2>${echapper(titre)}</h2>
+      <div class="tb-nav"><button type="button" data-pas="-1" aria-label="Précédent">‹</button><span class="tb-periode"></span><button type="button" class="tb-suivant" data-pas="1" aria-label="Suivant">›</button></div></div>
+    <div class="tb-montant"><span class="tb-total"><small>$</small>0.00</span><span class="tb-delta" hidden></span></div>
+    <div class="tb-dates"></div>
+    <div class="tb-legende"><div><i class="tb-v"></i>Validé par le coach<span class="tb-valide">$0.00</span></div>
+      <div><i class="tb-a"></i>En attente de validation<span class="tb-attente">$0.00</span></div></div>
+    <div class="tb-graphe"><div class="tb-axe"></div>
+      <div class="tb-zone">${[0, 1, 2, 3].map((i) => `<div class="tb-ligne" style="top:${(i * 100) / 3}%"></div>`).join('')}<div class="tb-barres"></div></div>
+      <div class="tb-x"></div><div class="tb-bulle" hidden></div></div>
+    <noscript><p class="doux petit">Active JavaScript pour voir le graphique.</p></noscript>
+  </section>`;
+}
+
+// ---------- Mon profil : le tableau de bord en haut, puis les objectifs et les statistiques ----------
+// (page prévue pour le futur classement : rien de privé dessus, pas de remarques du coach).
+function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses = [], vueCoach }) {
+  const trophees = recompenses.filter((r) => r.confirme_le);
+  const nom = p.pseudo || p.nom || 'Membre';
+  return page(vueCoach ? `Profil de ${nom}` : 'Mon profil', `<style>
+    .profil-tete { display:flex; align-items:center; gap:14px; margin:6px 0 18px; }
+    .profil-tete .avatar { width:64px; height:64px; border-radius:50%; display:grid; place-items:center; background:#2c2c2e; font-size:26px; font-weight:800; flex:none; }
+    .profil-tete h1 { margin:0; font-size:24px; overflow-wrap:anywhere; }
+    .profil-tete p { margin:2px 0 0; color:var(--doux); font-size:14px; overflow-wrap:anywhere; }
+    .badges { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .badges span { font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid var(--bord-fort); }
+    .badges .trophee { border-color:#f5c542; color:#f5c542; }
+  </style>
+  ${vueCoach ? `<p class="doux petit"><a href="/admin/membres/${encodeURIComponent(p.discord_id)}">← Sa fiche</a></p>` : ''}
+  <div class="profil-tete"><div class="avatar" aria-hidden="true">${echapper(nom.charAt(0).toUpperCase())}</div>
+    <div><h1>${echapper(nom)}</h1><p>${echapper([p.compte_tiktok, p.niche].filter(Boolean).join(' · ') || 'Overmaxx Elite')}</p>
+      <div class="badges"><span>${p.etape >= 5 ? 'GOAT' : `Étape ${p.etape}`}</span><span>Jour ${jourDe(p)} sur 90</span>
+        ${trophees.map((r) => `<span class="trophee">${echapper(NOMS_ROLES[r.role] || r.role)}</span>`).join('')}</div></div></div>
+  <div class="colonnes-2">
+    <div>${blocTableau(tableau)}</div>
+    <div>${blocObjectifs(stats)}${blocStats(stats)}</div>
+  </div>`, espace, vueCoach ? 'membres' : 'profil', null, SCRIPT_TABLEAU);
+}
+
+module.exports = { ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };

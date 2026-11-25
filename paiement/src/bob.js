@@ -892,13 +892,13 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         return;
       }
       const st = suivi ? suivi.stats(cr.discord_id) : null;
-      await notifier.membre(cr.discord_id, avecBoutons(`**Ton compte rendu du ${jourLisible(cr.jour)} est validé.**${st ? ` Revenus validés au total : **${euros(st.revenusTotal)}**.` : ''}`,
+      await notifier.membre(cr.discord_id, avecBoutons(`**Ton compte rendu du ${jourLisible(cr.jour)} est validé.**${st ? ` Récompenses validées au total : **${euros(st.revenusTotal)}**.` : ''}`,
         [{ label: 'Mon parcours', url: lienPerso(cr.discord_id, p && p.pseudo, '/parcours') }]));
     },
     // Seuil atteint (GOAT ou rôle de revenus) : le coach confirme, ici ou sur la plateforme.
     async recompensesAtteintes(p, roles) {
       for (const role of roles) {
-        const quoi = role === 'goat' ? '**GOAT** (1 000 € sur 28 jours)' : `le rôle **${euros(Number(role))}** de revenus`;
+        const quoi = role === 'goat' ? '**GOAT** ($1,000 sur 28 jours)' : `le rôle **${euros(Number(role))}** de revenus`;
         const boutons = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId(`recompense:${role}:${p.discord_id}`).setLabel(role === 'goat' ? 'Confirmer GOAT' : `Confirmer ${euros(Number(role))}`).setStyle(ButtonStyle.Success),
           new ButtonBuilder().setLabel('Voir sa fiche').setStyle(ButtonStyle.Link).setURL(lienCoach(`/admin/membres/${encodeURIComponent(p.discord_id)}`)));
@@ -909,7 +909,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       const roleId = role === 'goat' ? config.discord.roleGoat : (config.discord.rolesRevenus || {})[role];
       try { await donnerRole(p.discord_id, roleId); } catch (err) { console.warn('[bob] rôle de récompense :', err.message); }
       const texte = role === 'goat'
-        ? '**Tu es GOAT !** 1 000 € en 28 jours : tu as atteint l\'objectif de l\'accompagnement. Ton rôle GOAT est ajouté : tu rejoins le live de groupe des GOAT.'
+        ? '**Tu es GOAT !** $1,000 en 28 jours : tu as atteint l\'objectif de l\'accompagnement. Ton rôle GOAT est ajouté : tu rejoins le live de groupe des GOAT.'
         : `**${euros(Number(role))} de revenus au total : bravo !** Ton rôle est ajouté sur le serveur.`;
       await notifier.membre(p.discord_id, avecBoutons(texte, [{ label: 'Ma fiche', url: lienPerso(p.discord_id, p.pseudo, '/fiche') }]));
       log(`récompense ${role} donnée à ${p.discord_id}`);
@@ -935,7 +935,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     },
   };
   const nomDe = (p) => (p && (p.nom || p.pseudo)) || (p && p.discord_id) || '?';
-  const euros = (n) => `${(Math.round(Number(n || 0) * 100) / 100).toLocaleString('fr-FR')} €`;
+  // Récompenses TikTok en dollars, écrites comme sur TikTok ($1,500 ; $48.70).
+  const euros = (n) => { const x = Math.round(Number(n || 0) * 100) / 100; return `$${x.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(x) ? 0 : 2, maximumFractionDigits: 2 })}`; };
 
   // Sinistre : rôle Elite retiré (le rôle Sinistré ne voit que #sinistrés), créneaux de coaching libérés.
   async function appliquerSinistre(p, r, raison) {

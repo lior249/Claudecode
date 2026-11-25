@@ -211,13 +211,14 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
 | Côté membre | Côté coach |
 |---|---|
 | **Étape 4** (`/parcours/etape-4`) : ses 3 heures (création, publication, compte rendu, à son heure), la déclaration du jour (liens TikTok + capture du compte), ses comptes rendus à faire | **À traiter** : comptes rendus (étape 4), rôles à confirmer, fiches de sinistre |
-| **Compte rendu** (`/parcours/compte-rendu/<jour>`) : chiffres du compte, top 3 des pays, chiffres de chaque vidéo, capture des revenus, sa question | **Compte rendu** (`/admin/comptes-rendus/<n>`) : ses chiffres, captures, question ; Demander des modifications / Valider |
-| **Objectifs** (50, 500, 1 000, 1 500 €) et statistiques sur Mon parcours et Ma fiche | **Fiche** : objectifs, statistiques, rôles à confirmer, sinistres (Demander des précisions, Réhabiliter, Déclarer, Force majeure) |
+| **Compte rendu** (`/parcours/compte-rendu/<jour>`) : en premier, le total de son tableau de bord TikTok (Par mois) et sa capture ; puis chiffres du compte, top 3 des pays, chiffres de chaque vidéo, sa question | **Compte rendu** (`/admin/comptes-rendus/<n>`) : ses chiffres, captures, question ; Demander des modifications / Valider |
+| **Mon profil** (`/profil`) : tableau de bord des récompenses façon TikTok (Par mois, Par an, Personnalisé), objectifs ($50, $500, $1,000, $1,500) et statistiques | **Fiche** : objectifs, statistiques, son tableau de bord, rôles à confirmer, sinistres (Demander des précisions, Réhabiliter, Déclarer, Force majeure) |
 | **Sinistré** (`/sinistre`) : sa fiche de sinistre ; tout le reste du parcours lui est fermé | |
 
 - **Rappels de Bob à l'heure du membre** : création, publication (s'il n'a rien déclaré), compte rendu (avec un bouton par compte
   rendu en retard ou à corriger). Heures pas choisies : rappel toutes les 6 h.
-- **GOAT** (1 000 € validés sur 28 jours) et **rôles de revenus** (1 500, 5 000, 10 000 € validés au total) : Bob t'écrit avec un
+- **Gain du jour** = total du tableau de bord TikTok recopié ce jour-là − son total précédent du même mois (en dollars, comme TikTok).
+- **GOAT** ($1,000 validés sur 28 jours) et **rôles de revenus** ($1,500, $5,000, $10,000 validés au total) : Bob t'écrit avec un
   bouton **Confirmer** (ou depuis la fiche) ; à la confirmation, il donne le rôle et félicite le membre. GOAT = étape 5.
 - **Absences** (aucune visite de la plateforme, ni leçon terminée sur Whop) : 3 jours « Pourquoi tu n'es pas là ? »,
   6 jours « Demain, tu seras sinistré », 7 jours **sinistre** : Bob retire le rôle Elite, donne le rôle **Sinistré**,
@@ -229,7 +230,7 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
   cache tous les autres salons à ce rôle et y publie le message avec le bouton **Remplir ma fiche de sinistre**.
 - Après les 90 jours : plus de live individuel pour personne, plus de rappels quotidiens ni de sinistres.
 - **À vérifier dans Discord** : dans Paramètres du serveur > Rôles, le rôle de **Bob** doit être **au-dessus** des rôles Elite,
-  GOAT, Sinistré, 1 500 €, 5 000 € et 10 000 € (sinon Discord refuse qu'il les donne ou les retire).
+  GOAT, Sinistré, 1 500, 5 000 et 10 000 (sinon Discord refuse qu'il les donne ou les retire).
 - **Membres payés par carte** : si Whop redonne de lui-même le rôle Elite à un sinistré, le salon #sinistrés ne suffit plus
   à le restreindre ; Bob ne le compte pas comme un paiement arrêté.
 

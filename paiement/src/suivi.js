@@ -20,6 +20,31 @@ const QUESTIONS = [
 ];
 const HEURE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+// Montant recopié de TikTok : « $1,308.95 », « 1 308,95 », « 186 », « 186.5 »… → nombre (null si illisible).
+function lireMontant(v) {
+  let s = String(v ?? '').trim().replace(/[$€\s\u00a0\u202f]/g, '');
+  if (!s || !/^-?[\d.,]+$/.test(s)) return null;
+  const virgule = s.lastIndexOf(',');
+  const point = s.lastIndexOf('.');
+  if (virgule >= 0 && point >= 0) s = virgule > point ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  else if (virgule >= 0) s = /,\d{1,2}$/.test(s) && s.split(',').length === 2 ? s.replace(',', '.') : s.replace(/,/g, '');
+  else if (point >= 0 && !(/\.\d{1,2}$/.test(s) && s.split('.').length === 2)) s = s.replace(/\./g, '');
+  const n = Number(s);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+// Gains du jour à partir des totaux du tableau de bord (vue Par mois) : total − total précédent du même mois ;
+// le premier total d'un mois est le gain de ce jour (le compte part de 0 à l'étape 4).
+function gainsDepuisTotaux(lignes) {
+  let mois = null; let precedent = 0;
+  return lignes.map((l) => {
+    const m = l.jour.slice(0, 7);
+    if (m !== mois) { mois = m; precedent = 0; }
+    const gain = Math.round((l.total_mois - precedent) * 100) / 100;
+    precedent = l.total_mois;
+    return { jour: l.jour, total: l.total_mois, gain, etat: l.etat };
+  });
+}
+
 function fuseauValide(f) {
   try { new Intl.DateTimeFormat('fr-FR', { timeZone: f }).format(new Date()); return true; } catch { return false; }
 }
@@ -33,6 +58,7 @@ function heureDans(fuseau, d) {
 }
 // « lundi 24 novembre » : les dates du suivi telles que le membre et le coach les lisent.
 const jourLisible = (jour) => new Date(`${jour}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+const moisLisible = (jour) => new Date(`${jour}T12:00:00Z`).toLocaleDateString('fr-FR', { month: 'long', timeZone: 'UTC' });
 const decalerJour = (jour, n) => new Date(Date.parse(`${jour}T12:00:00Z`) + n * JOUR).toISOString().slice(0, 10);
 
 function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
@@ -47,9 +73,9 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     crJour: db.prepare('SELECT * FROM comptes_rendus WHERE discord_id = ? AND jour = ?'),
     crMembre: db.prepare('SELECT * FROM comptes_rendus WHERE discord_id = ? ORDER BY jour DESC'),
     crAttente: db.prepare("SELECT * FROM comptes_rendus WHERE etat = 'attente' ORDER BY envoye_le"),
-    crEnregistrer: db.prepare(`INSERT INTO comptes_rendus (discord_id, jour, etat, abonnes_total, vues_total, abonnes_jour, vues_jour, pays_vues, pays_abonnes, capture_revenus, question, envoye_le, cree_le)
-      VALUES (?, ?, 'attente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(discord_id, jour) DO UPDATE SET etat = 'attente', abonnes_total = excluded.abonnes_total, vues_total = excluded.vues_total,
+    crEnregistrer: db.prepare(`INSERT INTO comptes_rendus (discord_id, jour, etat, total_mois, abonnes_total, vues_total, abonnes_jour, vues_jour, pays_vues, pays_abonnes, capture_revenus, question, envoye_le, cree_le)
+      VALUES (?, ?, 'attente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(discord_id, jour) DO UPDATE SET etat = 'attente', total_mois = excluded.total_mois, abonnes_total = excluded.abonnes_total, vues_total = excluded.vues_total,
         abonnes_jour = excluded.abonnes_jour, vues_jour = excluded.vues_jour, pays_vues = excluded.pays_vues, pays_abonnes = excluded.pays_abonnes,
         capture_revenus = excluded.capture_revenus, question = excluded.question, envoye_le = excluded.envoye_le, decide_le = NULL`),
     statVideo: db.prepare(`INSERT INTO stats_videos (compte_rendu_id, publication_id, vues, abonnes, heure, visionnage_s, retention_10s, revenus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -57,8 +83,7 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
         visionnage_s = excluded.visionnage_s, retention_10s = excluded.retention_10s, revenus = excluded.revenus`),
     statsCr: db.prepare('SELECT s.*, p.lien FROM stats_videos s JOIN publications p ON p.id = s.publication_id WHERE s.compte_rendu_id = ? ORDER BY p.id'),
     decider: db.prepare('UPDATE comptes_rendus SET etat = ?, decide_le = ? WHERE id = ?'),
-    revenusValides: db.prepare(`SELECT COALESCE(SUM(s.revenus), 0) total FROM stats_videos s JOIN comptes_rendus c ON c.id = s.compte_rendu_id
-      WHERE c.discord_id = ? AND c.etat = 'valide' AND c.jour >= ?`),
+    totaux: db.prepare("SELECT jour, total_mois, etat FROM comptes_rendus WHERE discord_id = ? AND total_mois IS NOT NULL AND etat != 'corriger' ORDER BY jour"),
     dernierCr: db.prepare("SELECT * FROM comptes_rendus WHERE discord_id = ? AND etat != 'corriger' ORDER BY jour DESC LIMIT 1"),
     paysCr: db.prepare("SELECT pays_abonnes FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide'"),
     recompense: db.prepare('SELECT * FROM recompenses WHERE discord_id = ? AND role = ?'),
@@ -133,6 +158,8 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       if (!videos.length) return { erreur: 'Aucune vidéo déclarée ce jour-là.' };
       const deja = q.crJour.get(discordId, jour);
       if (deja && deja.etat === 'valide') return { erreur: 'Ce compte rendu est déjà validé.' };
+      const totalMois = lireMontant(d.total_mois);
+      if (totalMois === null || totalMois < 0) return { erreur: `Recopie le total de ${moisLisible(jour)} affiché par ton tableau de bord TikTok (Récompenses estimées, Par mois).` };
       const nombres = ['abonnes_total', 'vues_total', 'abonnes_jour', 'vues_jour'].map((k) => entier(d[k]));
       if (nombres.some((n) => n === null)) return { erreur: 'Remplis les chiffres de ton compte (abonnés et vues).' };
       const pays = (v) => [0, 1, 2].map((i) => String((v || [])[i] || '').trim().slice(0, 40)).filter(Boolean);
@@ -150,7 +177,7 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
         stats.push([v.id, ligne]);
       }
       const question = String(d.question || '').trim().slice(0, 1000) || null;
-      q.crEnregistrer.run(discordId, jour, ...nombres, JSON.stringify(paysVues), JSON.stringify(paysAbonnes),
+      q.crEnregistrer.run(discordId, jour, totalMois, ...nombres, JSON.stringify(paysVues), JSON.stringify(paysAbonnes),
         d.capture_revenus || (deja && deja.capture_revenus), question, iso(), iso());
       const cr = q.crJour.get(discordId, jour);
       for (const [pid, l] of stats) q.statVideo.run(cr.id, pid, l.vues, l.abonnes, l.heure, l.visionnage, l.retention, l.revenus);
@@ -170,6 +197,23 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     },
     enAttente() { return q.crAttente.all().map((cr) => ({ ...cr, parcours: parcours.get(cr.discord_id) })); },
 
+    // Gains jour par jour, d'après le total du tableau de bord TikTok de chaque compte rendu
+    // (validés seulement pour les objectifs ; validés et en attente pour le tableau de bord).
+    gains(discordId, { valides = false } = {}) {
+      return gainsDepuisTotaux(q.totaux.all(discordId).filter((l) => !valides || l.etat === 'valide'));
+    },
+    // Données du tableau de bord (page Mon profil) : j = jour, g = gain, t = total du mois, e = état.
+    tableau(discordId) {
+      const p = parcours.get(discordId);
+      return { aujourdhui: p && p.fuseau ? api.aujourdhui(p) : maintenant().toISOString().slice(0, 10),
+        jours: api.gains(discordId).map((g) => ({ j: g.jour, g: g.gain, t: g.total, e: g.etat })) };
+    },
+    // Dernier total connu du même mois avant ce jour (pour afficher le calcul dans le compte rendu).
+    totalPrecedent(discordId, jour) {
+      const l = q.totaux.all(discordId).filter((x) => x.jour < jour && x.jour.slice(0, 7) === jour.slice(0, 7)).pop();
+      return l ? { jour: l.jour, total: l.total_mois, etat: l.etat } : null;
+    },
+
     // Statistiques de la fiche (comptes rendus validés).
     stats(discordId) {
       const p = parcours.get(discordId);
@@ -180,15 +224,18 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       for (const r of q.paysCr.all(discordId)) { const premier = JSON.parse(r.pays_abonnes || '[]')[0]; if (premier) compte[premier] = (compte[premier] || 0) + 1; }
       const paysPrincipal = Object.entries(compte).sort((a, b) => b[1] - a[1])[0];
       const jours = q.joursPublies.all(discordId);
-      const debut = p.etape >= 4 && p.etape3_le ? p.etape3_le.slice(0, 10) : null;
+      const debut = p.etape >= 4 ? (p.etape3_le ? p.etape3_le.slice(0, 10) : (jours[0] && jours[0].jour) || null) : null;
       const joursDepuis = debut ? Math.max(1, Math.round((Date.parse(`${aujourdhui}T12:00:00Z`) - Date.parse(`${debut}T12:00:00Z`)) / JOUR) + 1) : 0;
-      const total = q.revenusValides.get(discordId, '0000-00-00').total;
+      const gains = api.gains(discordId, { valides: true });
+      const debut28 = decalerJour(aujourdhui, -(FENETRE_GOAT_JOURS - 1));
+      const arrondi = (n) => Math.round(n * 100) / 100;
+      const total = arrondi(gains.reduce((t, g) => t + g.gain, 0));
       return {
         abonnes: dernier ? dernier.abonnes_total : null,
         vues: dernier ? dernier.vues_total : null,
         paysPrincipal: paysPrincipal ? paysPrincipal[0] : null,
-        revenusTotal: Math.round(total * 100) / 100,
-        revenus28: Math.round(q.revenusValides.get(discordId, decalerJour(aujourdhui, -(FENETRE_GOAT_JOURS - 1))).total * 100) / 100,
+        revenusTotal: total,
+        revenus28: arrondi(gains.filter((g) => g.jour >= debut28).reduce((t, g) => t + g.gain, 0)),
         joursPublies: jours.length,
         videosPubliees: jours.reduce((n, j) => n + j.n, 0),
         joursDepuisEtape4: joursDepuis,
@@ -252,4 +299,4 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
   return api;
 }
 
-module.exports = { creerSuivi, jourDans, heureDans, jourLisible, QUESTIONS, OBJECTIFS, ROLES_REVENUS };
+module.exports = { creerSuivi, jourDans, heureDans, jourLisible, moisLisible, lireMontant, gainsDepuisTotaux, QUESTIONS, OBJECTIFS, ROLES_REVENUS };

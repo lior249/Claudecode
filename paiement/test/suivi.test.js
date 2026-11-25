@@ -96,8 +96,25 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     assert.match(await (await m.get('/parcours', { cookie: membre })).text(), new RegExp(`Envoie ton compte rendu du ${jourLisible(hier)}`));
     const pubs = m.suivi.publications(E1, hier);
     assert.strictEqual(pubs.length, 2);
+    const avantHier = jourIso(new Date(Date.now() - 2 * JOUR));
+    const memeMois = avantHier.slice(0, 7) === hier.slice(0, 7);
+    m.db.prepare('INSERT INTO publications (discord_id, jour, lien, cree_le) VALUES (?, ?, ?, ?)').run(E1, avantHier, 'https://www.tiktok.com/@awa/video/3', new Date().toISOString());
+    const pub3 = m.suivi.publications(E1, avantHier)[0];
+    const cr0 = m.suivi.enregistrerCompteRendu(E1, avantHier, { total_mois: '$100.00', abonnes_total: 900, vues_total: 30000, abonnes_jour: 50, vues_jour: 20000,
+      pays_vues: ['France'], pays_abonnes: ['France'], capture_revenus: img.nom, videos: { [pub3.id]: { vues: 20000, abonnes: 50, heure: '10:00', visionnage_s: 9, retention_10s: 55, revenus: 80 } } });
+    assert.ok(cr0.compteRendu, JSON.stringify(cr0));
+    m.suivi.decider(cr0.compteRendu.id, 'valider');
+    assert.strictEqual(m.suivi.stats(E1).revenusTotal, 100);
+    assert.deepStrictEqual(m.suivi.stats(E1).objectifs.map((o) => o.atteint), [true, false, false, false]);
+    const formulaire = await (await m.get(`/parcours/compte-rendu/${hier}`, { cookie: membre })).text();
+    assert.match(formulaire, /Tes récompenses TikTok/);
+    assert.match(formulaire, memeMois ? /Ton dernier total de .*\$100\.00/ : /Premier compte rendu de/);
     const compte = { abonnes_total: '1200', vues_total: '54000', abonnes_jour: '35', vues_jour: '8000', pays_vues_1: 'France', pays_abonnes_1: 'Côte d\'Ivoire',
       capture_revenus: img.nom, question: 'autre', question_autre: 'Comment garder mes viewers après 10 s ?' };
+    const sansTotal = await m.poster(`/parcours/compte-rendu/${hier}`, { ...compte, ...statsVideos(pubs, 300) }, { cookie: membre });
+    assert.strictEqual(sansTotal.status, 400);
+    assert.match(await sansTotal.text(), /Recopie le total de/);
+    compte.total_mois = '$600.00';
     const incomplet = await m.poster(`/parcours/compte-rendu/${hier}`, compte, { cookie: membre });
     assert.strictEqual(incomplet.status, 400);
     const texteIncomplet = await incomplet.text();
@@ -113,6 +130,7 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     const cr = m.suivi.compteRendu(E1, hier);
     const pageCoach = await (await m.get(`/admin/comptes-rendus/${cr.id}`, { cookie: coach })).text();
     assert.match(pageCoach, /Comment garder mes viewers/);
+    assert.match(pageCoach, memeMois ? /\$600\.00 − \$100\.00/ : /Premier compte rendu de/);
     assert.ok(pageCoach.includes(`/fichiers/images/${img.nom}`));
     assert.strictEqual((await m.get(`/admin/comptes-rendus/${cr.id}`, { cookie: membre })).status, 403);
     assert.match((await m.poster(`/admin/comptes-rendus/${cr.id}/decision`, { decision: 'corriger' }, { cookie: coach })).headers.get('location'), /erreur=/);
@@ -123,27 +141,26 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     const aCorriger = await (await m.get(`/parcours/compte-rendu/${hier}`, { cookie: membre })).text();
     assert.match(aCorriger, /La rétention de la vidéo 2 est fausse/);
     assert.match(aCorriger, /value="1200"/);
-    assert.strictEqual((await m.poster(`/parcours/compte-rendu/${hier}`, { ...compte, capture_revenus: '', ...statsVideos(pubs, 300) }, { cookie: membre })).status, 303, 'capture déjà reçue');
+    assert.strictEqual((await m.poster(`/parcours/compte-rendu/${hier}`, { ...compte, total_mois: '1 600,00', capture_revenus: '', ...statsVideos(pubs, 300) }, { cookie: membre })).status, 303, 'capture déjà reçue');
+    assert.strictEqual(m.suivi.compteRendu(E1, hier).total_mois, 1600);
     assert.strictEqual(m.suivi.compteRendu(E1, hier).etat, 'attente');
 
-    // Validé : 600 € comptent pour les objectifs (50 et 500 atteints).
     await m.poster(`/admin/comptes-rendus/${cr.id}/decision`, { decision: 'valider' }, { cookie: coach });
     await attendre();
     assert.ok(dms.some(([id, t]) => id === E1 && /compte rendu du .* est validé/.test(t)));
     const st = m.suivi.stats(E1);
-    assert.strictEqual(st.revenusTotal, 600);
-    assert.deepStrictEqual(st.objectifs.map((o) => o.atteint), [true, true, false, false]);
+    assert.strictEqual(st.revenusTotal, memeMois ? 1600 : 1700);
+    assert.deepStrictEqual(m.suivi.gains(E1, { valides: true }).map((g) => g.gain), [100, memeMois ? 1500 : 1600]);
+    assert.deepStrictEqual(st.objectifs.map((o) => o.atteint), [true, true, true, true]);
     assert.match(await (await m.get(`/parcours/compte-rendu/${hier}`, { cookie: membre })).text(), /est validé/);
     assert.strictEqual((await m.get('/fiche', { cookie: membre })).status, 200);
 
-    // Un autre jour à 1 000 € : GOAT (1 000 € sur 28 jours) et rôle 1 500 € atteints, à confirmer par le coach.
-    const avantHier = jourIso(new Date(Date.now() - 2 * JOUR));
-    m.db.prepare('INSERT INTO publications (discord_id, jour, lien, cree_le) VALUES (?, ?, ?, ?)').run(E1, avantHier, 'https://www.tiktok.com/@awa/video/3', new Date().toISOString());
-    const pub3 = m.suivi.publications(E1, avantHier)[0];
-    const cr2 = m.suivi.enregistrerCompteRendu(E1, avantHier, { abonnes_total: 900, vues_total: 30000, abonnes_jour: 50, vues_jour: 20000, pays_vues: ['France'], pays_abonnes: ['France'],
-      capture_revenus: img.nom, videos: { [pub3.id]: { vues: 20000, abonnes: 50, heure: '10:00', visionnage_s: 9, retention_10s: 55, revenus: 1000 } } }).compteRendu;
-    await m.poster(`/admin/comptes-rendus/${cr2.id}/decision`, { decision: 'valider' }, { cookie: coach });
-    await attendre();
+    // Mon profil : le tableau de bord (données jour par jour), visible par le membre et par le coach.
+    const profil = await (await m.get('/profil', { cookie: membre })).text();
+    assert.match(profil, /Récompenses estimées/);
+    assert.ok(profil.includes(`&quot;j&quot;:&quot;${hier}&quot;`), 'données du tableau de bord');
+    assert.strictEqual((await m.get(`/admin/membres/${E1}/profil`, { cookie: coach })).status, 200);
+    assert.strictEqual((await m.get(`/admin/membres/${E1}/profil`, { cookie: membre })).status, 403);
     const alertes = dms.filter(([id, , c]) => id === ADMIN && idsBoutons(c).length);
     assert.deepStrictEqual(alertes.flatMap(([, , c]) => idsBoutons(c)).sort(), [`recompense:1500:${E1}`, `recompense:goat:${E1}`]);
     assert.match(await (await m.get('/admin/a-traiter', { cookie: coach })).text(), /Rôle GOAT à confirmer/);

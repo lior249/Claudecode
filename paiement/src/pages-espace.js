@@ -75,6 +75,7 @@ function navEspace(espace = {}) {
     nav.push({ section: espace.parcours ? 'Mon accompagnement' : 'Mon espace' });
     if (espace.parcours) {
       nav.push({ cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' },
+        { cle: 'profil', libelle: 'Mon profil', lien: '/profil', icone: 'profil' },
         { cle: 'fiche', libelle: 'Ma fiche', lien: '/fiche', icone: 'fiche' });
     }
     nav.push({ cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });

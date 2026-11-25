@@ -716,13 +716,15 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.get('/parcours/compte-rendu/:jour', (req, res) => {
     const x = compteRenduMembre(req, res);
     if (!x) return;
-    res.send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, videos: x.videos, cr: x.cr, questions: QUESTIONS, remarques: x.remarques }));
+    res.send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, videos: x.videos, cr: x.cr, questions: QUESTIONS, remarques: x.remarques,
+      precedent: suivi.totalPrecedent(x.session.id, x.jour) }));
   });
   app.post('/parcours/compte-rendu/:jour', formulaire, (req, res) => {
     const x = compteRenduMembre(req, res);
     if (!x) return;
     const b = req.body;
     const d = {
+      total_mois: b.total_mois,
       abonnes_total: b.abonnes_total, vues_total: b.vues_total, abonnes_jour: b.abonnes_jour, vues_jour: b.vues_jour,
       pays_vues: [b.pays_vues_1, b.pays_vues_2, b.pays_vues_3], pays_abonnes: [b.pays_abonnes_1, b.pays_abonnes_2, b.pays_abonnes_3],
       capture_revenus: imageDe(b.capture_revenus, x.session.id),
@@ -738,7 +740,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       const saisi = { ...d, etat: x.cr ? x.cr.etat : null, capture_revenus: d.capture_revenus || (x.cr && x.cr.capture_revenus) || null,
         pays_vues: d.pays_vues.map((v) => String(v || '')), pays_abonnes: d.pays_abonnes.map((v) => String(v || '')),
         videos: Object.entries(d.videos).map(([id, v]) => ({ publication_id: Number(id), ...v })) };
-      res.status(400).send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, videos: x.videos, cr: saisi, questions: QUESTIONS, remarques: x.remarques, erreur: r.erreur }));
+      res.status(400).send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, videos: x.videos, cr: saisi, questions: QUESTIONS, remarques: x.remarques,
+        erreur: r.erreur, precedent: suivi.totalPrecedent(x.session.id, x.jour) }));
       return;
     }
     prevenir('compteRenduRecu', r.compteRendu, x.p);
@@ -778,6 +781,14 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (r.erreur) { res.status(400).send(pageSinistreDe(x, r.erreur)); return; }
     prevenir('ficheSinistre', x.p, r.sinistre);
     res.redirect(303, '/sinistre');
+  });
+
+  // Mon profil : tableau de bord des récompenses, objectifs, statistiques.
+  const donneesProfil = (p) => ({ parcours: p, tableau: suivi.tableau(p.discord_id), stats: suivi.stats(p.discord_id), recompenses: suivi.recompenses(p.discord_id) });
+  app.get('/profil', (req, res) => {
+    const x = membreParcours(req, res, '/profil', { sinistreOk: true });
+    if (!x) return;
+    res.send(V.pageProfil(config, { espace: x.espace, ...donneesProfil(x.p) }));
   });
 
   // Données de la fiche (membre et coach).
@@ -821,7 +832,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const cr = compteRenduDe(req, res);
     if (!cr) return;
     res.send(V.pageCompteRenduCoach(config, { espace: espaceDe(lireSession(req, config.secretApp)), cr, parcours: parcours.get(cr.discord_id),
-      capture: suivi.captureDuJour(cr.discord_id, cr.jour), message: req.query.erreur || null }));
+      capture: suivi.captureDuJour(cr.discord_id, cr.jour), message: req.query.erreur || null, precedent: suivi.totalPrecedent(cr.discord_id, cr.jour) }));
   });
   app.post('/admin/comptes-rendus/:id/decision', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/a-traiter')) return;
@@ -911,6 +922,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     }
     parcours.majCompte(p.discord_id, champs);
     res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=compte`);
+  });
+  app.get('/admin/membres/:id/profil', (req, res) => {
+    if (!estAdmin(req, res, `/admin/membres/${encodeURIComponent(req.params.id)}/profil`)) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    res.send(V.pageProfil(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, ...donneesProfil(p) }));
   });
   app.post('/admin/membres/:id/recompense', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/membres')) return;
