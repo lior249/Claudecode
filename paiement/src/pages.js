@@ -194,8 +194,8 @@ function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="/manifest.webmanifest${jetonApp ? `?u=${encodeURIComponent(jetonApp)}` : ''}">
-<link rel="icon" type="image/png" sizes="192x192" href="/static/icones/icone-192.png">
-<link rel="apple-touch-icon" href="/static/icones/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icones/globe-192.png">
+<link rel="apple-touch-icon" href="/static/icones/globe-apple-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">

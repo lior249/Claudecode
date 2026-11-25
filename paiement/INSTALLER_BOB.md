@@ -284,7 +284,8 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
   ses tâches, la plus importante en premier ; « Bravo, étape N ouverte ! » au changement d'étape.
 - **Élèves Elite** : le bouton **Compléter** (orange s'il manque quelque chose) renseigne en une fois son compte TikTok,
   sa niche, son pays, son niveau et sa date d'entrée.
-- **Icône de l'application** : le globe Overmaxx (`public/icones`).
+- **Icône de l'application** : le globe Overmaxx (`public/icones/globe-*.png`). Android met l'icône à jour tout seul
+  (en quelques jours au plus) ; sur iPhone, il faut supprimer l'application de l'écran d'accueil et l'ajouter à nouveau.
 
 ## Classement (top 100)
 

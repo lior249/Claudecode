@@ -73,7 +73,7 @@ test('application installable : manifeste, service worker, ouverture déjà conn
     const sw = await m.get('/sw.js');
     assert.match(sw.headers.get('content-type'), /javascript/);
     assert.match(await sw.text(), /addEventListener\('push'/);
-    assert.strictEqual((await m.get('/static/icones/icone-512.png')).status, 200);
+    assert.strictEqual((await m.get('/static/icones/globe-512.png')).status, 200);
 
     // Connecté : le manifeste de la page porte son jeton ; l'application installée s'ouvre déjà connectée.
     const page = await (await m.get('/parcours', { cookie: membre })).text();

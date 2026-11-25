@@ -11,8 +11,8 @@ self.addEventListener('push', (e) => {
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { corps: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.titre || 'Overmaxx', {
     body: d.corps || '',
-    icon: '/static/icones/icone-192.png',
-    badge: '/static/icones/badge-96.png',
+    icon: '/static/icones/globe-192.png',
+    badge: '/static/icones/globe-badge-96.png',
     tag: d.tag || undefined,
     renotify: Boolean(d.tag),
     data: { url: d.url || '/app' },
