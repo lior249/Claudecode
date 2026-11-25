@@ -305,14 +305,30 @@ function blocVideo(wistiaId, titre) {
 }
 
 // overmaxx.online : la seule page ouverte à tous. Son seul but : faire entrer sur le Discord (étape En Attente).
-function pageBienvenue(config) {
+// Page d'accueil : se connecter d'abord (avec son compte Discord, via Bob) ; rejoindre le Discord pour les nouveaux.
+// Déjà connecté : un bouton vers son espace (ou, s'il n'a pas encore de programme, les deux programmes).
+function pageBienvenue(config, { pseudo, espace } = {}) {
+  const changer = '<p class="doux petit" style="margin:16px 0 0"><a href="/deconnexion">Ce n\'est pas toi ? Changer de compte</a></p>';
+  const actions = !pseudo ? `
+    <h1>Se connecter à Overmaxx</h1>
+    <p class="doux">Avec ton compte Discord : indique ton pseudo, Bob t'envoie un bouton, et ton espace s'ouvre. Aucun mot de passe.</p>
+    <a class="bouton" href="/connexion?retour=%2Fapp">Se connecter</a>
+    ${config.lienDiscord ? `<p class="doux petit" style="margin:22px 0 0">Pas encore membre du serveur Overmaxx ?</p>
+    <a class="bouton secondaire" href="${echapper(config.lienDiscord)}" style="margin-top:8px">Rejoindre le Discord</a>` : ''}`
+    : espace ? `
+    <h1>Bon retour, ${echapper(pseudo)}</h1>
+    <p class="doux">Ton espace Overmaxx t'attend.</p>
+    <a class="bouton" href="${echapper(espace)}">Ouvrir mon espace</a>${changer}`
+      : `
+    <h1>Bienvenue, ${echapper(pseudo)}</h1>
+    <p class="doux">Choisis ton programme pour commencer.</p>
+    <a class="bouton" href="${echapper(config.offres.community.base)}">Rejoindre la Community</a>
+    <a class="bouton secondaire" href="${echapper(config.offres.elite.base)}">Postuler à l'Elite</a>${changer}`;
   return gabarit(config.nomFormation || 'Overmaxx', `
   <div class="bienvenue">
     <div class="hero"><div class="globe"></div>${logo('anime')}</div>
-    ${blocVideo(config.wistiaAccueil, 'Présentation Overmaxx')}
-    <h1>Tout commence sur le Discord.</h1>
-    <p class="doux">Rejoins le serveur Overmaxx : Bob, notre bot, t'accueille et te montre la suite.</p>
-    ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">Rejoindre le Discord</a>` : ''}
+    ${actions}
+    <div style="margin-top:34px">${blocVideo(config.wistiaAccueil, 'Présentation Overmaxx')}</div>
   </div>`, { entete: false });
 }
 

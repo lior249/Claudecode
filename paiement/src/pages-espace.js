@@ -98,9 +98,11 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
 // Bob lui envoie sur Discord un bouton « C'est bien moi, continuer », qui ouvre le site connecté.
 const TUTO_PSEUDO = (FORMULAIRES.candidature.questions.find((x) => x.id === 'discord') || {}).images || [];
 function pageConnexionRequise(config, { retour = '/', message, erreur, pseudo, introuvable } = {}) {
+  // Depuis la page d'accueil (ou l'application) : « Se connecter à Overmaxx », puis son espace s'ouvre.
+  const accueil = retour === '/app';
   return gabarit('Connexion', `
   <p class="etiquette">${echapper(message || 'Overmaxx')}</p>
-  <h1>Connecte ton compte Discord</h1>
+  <h1>${accueil ? 'Se connecter à Overmaxx' : 'Connecte ton compte Discord'}</h1>
   <p class="doux">Indique ton pseudo Discord. Bob, notre bot, t'envoie un bouton sur Discord : un clic, et tu continues ici, connecté. Aucun mot de passe.</p>
   <form class="carte" method="post" action="/connexion/pseudo" novalidate>
     <label for="pseudo"><b>Ton pseudo Discord</b></label>

@@ -86,6 +86,14 @@ test('application installable : manifeste, service worker, ouverture déjà conn
     assert.strictEqual((await m.get('/app?t=faux', { cookie: '' })).headers.get('location'), '/');
     assert.strictEqual((await m.get('/app', { cookie: cookieSession(ADMIN, 'coach') })).headers.get('location'), '/admin/a-traiter');
 
+    // Page d'accueil connecté : « Ouvrir mon espace ». Bouton de Bob après « Se connecter » : son espace s'ouvre.
+    assert.match(await (await m.get('/', { cookie: membre })).text(), /Bon retour, awa_27[\s\S]*href="\/parcours">Ouvrir mon espace/);
+    const { lienMagique } = require('../src/liens');
+    const bouton = await m.get(new URL(lienMagique(m.config, { id: E1, pseudo: 'awa_27' }, '/app')).pathname + new URL(lienMagique(m.config, { id: E1, pseudo: 'awa_27' }, '/app')).search, { cookie: '' });
+    assert.strictEqual(bouton.headers.get('location'), '/app');
+    const cookieBob = bouton.headers.get('set-cookie').split(';')[0];
+    assert.strictEqual((await m.get('/app', { cookie: cookieBob })).headers.get('location'), '/parcours');
+
     // Page Notifications et ses appels.
     const notif = await (await m.get('/notifications', { cookie: membre })).text();
     assert.match(notif, /Où recevoir mes notifications/);

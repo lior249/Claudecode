@@ -29,8 +29,17 @@ test('Community : accueil → connexion Discord → formulaire → SasPay → st
   const paiements = [];
   const m = await monter({ surPaiement: async (membre, cmd) => paiements.push([membre, cmd]) });
   try {
-    const accueil = await (await m.get('/')).text();
+    const accueil = await (await m.get('/', { cookie: '' })).text();
+    assert.match(accueil, /Se connecter à Overmaxx/);
+    assert.ok(accueil.includes('href="/connexion?retour=%2Fapp"'), 'Se connecter, puis son espace');
+    assert.ok(accueil.indexOf('Se connecter') < accueil.indexOf('Rejoindre le Discord'), 'Rejoindre le Discord en dessous');
     assert.match(accueil, /Rejoindre le Discord/);
+    assert.match(await (await m.get('/connexion?retour=%2Fapp', { cookie: '' })).text(), /<h1>Se connecter à Overmaxx<\/h1>/);
+    assert.strictEqual((await m.get('/connexion?retour=%2Fapp')).headers.get('location'), '/app', 'déjà connecté');
+    const sansProgramme = await (await m.get('/')).text();
+    assert.match(sansProgramme, /Bienvenue, visiteur/);
+    assert.match(sansProgramme, /Rejoindre la Community[\s\S]*Postuler à l'Elite/);
+    assert.strictEqual((await m.get('/app')).headers.get('location'), '/', 'pas encore de programme : la page d\'accueil');
     assert.ok(accueil.includes('href="https://discord.gg/test"'));
     assert.match(accueil, /video-vide/, 'emplacement vidéo réservé tant que WISTIA_ACCUEIL est vide');
     // Toutes les pages sauf l'accueil demandent le compte Discord.

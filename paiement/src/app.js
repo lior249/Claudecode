@@ -97,13 +97,22 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const j = verifier(String(req.query.t || ''), config.secretApp);
     let session = lireSession(req, config.secretApp);
     if (j && j.but === 'app' && j.id) { ouvrirSession(res, { id: j.id, pseudo: j.pseudo }, config); session = { id: j.id, pseudo: j.pseudo }; }
-    if (!session) return res.redirect(302, '/');
-    if (session.id === config.discord.adminId) return res.redirect(302, '/admin/a-traiter');
-    const p = parcours.get(session.id);
-    if (p) return res.redirect(302, p.sinistre_depuis ? '/sinistre' : '/parcours');
-    if (coaching.aUnPlanning(session.id)) return res.redirect(302, '/coaching');
-    return res.redirect(302, '/notifications');
+    return res.redirect(302, (session && accueilDe(session)) || '/');
   });
+  // L'espace qui s'ouvre après la connexion (ou depuis l'application), selon le compte.
+  // Pas encore de programme : null (la page d'accueil propose la Community et l'Elite).
+  function accueilDe(session) {
+    if (session.id === config.discord.adminId) return '/admin/a-traiter';
+    const p = parcoursDe(session);
+    if (p) return p.sinistre_depuis ? '/sinistre' : '/parcours';
+    const membres = commandes.membresParDiscord(session.id);
+    if (coaching.aUnPlanning(session.id) || membres.some((x) => x.programme === 'elite' && x.statut === 'actif')) return '/coaching';
+    const c = candidatures && candidatures.parDiscord(session.id);
+    if (c && c.statut !== 'refuse') return `${elite.base}/candidature`;
+    if (membres.some((x) => x.programme === 'community' && x.statut === 'actif')) return `${community.base}/renouveler`;
+    if (commandes.db.prepare('SELECT 1 FROM abonnes_carte WHERE discord_id = ? AND termine_le IS NULL').get(session.id)) return '/notifications';
+    return null;
+  }
 
   // ================= Notifications : Bob ou l'application =================
   app.get('/notifications', (req, res) => {
@@ -195,7 +204,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // ---- Community ----
   const community = config.offres.community;
   // Accueil : la seule page ouverte à tous. Son but : faire entrer sur le Discord.
-  app.get('/', (req, res) => res.send(P.pageBienvenue(config)));
+  app.get('/', (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    res.send(P.pageBienvenue(config, session ? { pseudo: session.pseudo || 'toi', espace: accueilDe(session) } : {}));
+  });
   app.get('/community', (req, res) => {
     if (connecte(req, res, '/community', community.nom)) res.send(P.pageAccueil(config, community));
   });
@@ -365,7 +377,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     return res.redirect(302, oauth.urlAutorisation({ but: 'candidat' }, { rejoindre: true }));
   });
 
-  app.get('/connexion', (req, res) => res.send(E.pageConnexionRequise(config, { retour: retourSur(req.query.retour, '/') })));
+  app.get('/connexion', (req, res) => {
+    const retour = retourSur(req.query.retour, '/app');
+    // Déjà connecté : directement son espace.
+    if (retour === '/app' && lireSession(req, config.secretApp)) return res.redirect(302, '/app');
+    return res.send(E.pageConnexionRequise(config, { retour }));
+  });
 
   // Anti-abus : 8 demandes par quart d'heure et par adresse IP, 3 boutons par demi-heure pour un même compte Discord.
   const demandesConnexion = { ip: new Map(), compte: new Map() };
