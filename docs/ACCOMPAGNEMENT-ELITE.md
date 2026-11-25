@@ -319,6 +319,18 @@ Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **san
 - **Exception : les rappels de paiement** passent par les deux. D'abord Bob, puis l'application 10 minutes plus tard,
   seulement s'il n'a pas encore payé.
 
+### Ce qui a été construit (livraison 4)
+
+- Page **Notifications** (`/notifications`, dans le menu de chacun, coach compris) : installer l'application
+  (bouton sur Android, étapes sur iPhone), choisir **Bob** ou **l'application**, notification de test, appareils.
+- L'application installée **s'ouvre déjà connectée**, même sur iPhone (où elle ne partage pas la connexion de Safari) :
+  le manifeste de la page porte un jeton du membre, valable un an.
+- Choix « application » : si aucun de ses appareils ne répond (application désinstallée, notifications coupées),
+  **Bob prend le relais** pour que rien ne se perde. Plus aucun appareil : le choix revient à Bob.
+- Les messages avec un bouton d'action (Confirmer GOAT…) restent sur Discord, seul endroit où ces boutons existent.
+- La connexion au site (« C'est bien moi, continuer ») reste sur Discord : c'est la preuve que le compte est le sien.
+- Les clés des notifications sont créées toutes seules au premier démarrage : rien à régler.
+
 ## 8. Livraisons proposées
 
 | Livraison | Contenu |
@@ -327,4 +339,4 @@ Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **san
 | **1** (faite) | La fiche, Mon parcours, À traiter, les étapes 1 à 3 (envois, niveau L1 / L2, Demander des modifications / Valider, remarques avec liens et images), le coaching d'entrée, l'accès au coaching selon l'étape (3 à 5 par semaine) |
 | **2** (faite) | L'étape 4 : heures choisies et rappels de Bob, compte rendu du jour, statistiques, objectifs, GOAT et rôles de revenus, les sinistrés |
 | **3** (faite) | Le coaching : fuseaux horaires, disponibilités du coach, imprévu (séances en rouge), annuler ou reporter, coachings en réserve, réservation semaine par semaine |
-| **4** | L'application installable et ses notifications, avec le choix Bob ou application |
+| **4** (faite) | L'application installable et ses notifications, avec le choix Bob ou application |

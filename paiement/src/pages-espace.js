@@ -80,6 +80,7 @@ function navEspace(espace = {}) {
     }
     nav.push({ cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
   }
+  nav.push({ cle: 'notifications', libelle: 'Notifications', lien: '/notifications', icone: 'notifications' });
   nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/', icone: 'site', externe: true });
   return nav;
 }
@@ -87,7 +88,7 @@ function navEspace(espace = {}) {
 function pageEspace(titre, contenu, espace, actif, options = {}) {
   const session = espace && espace.session;
   return gabaritEspace(titre, `${STYLE_GRILLE}${STYLE_BUREAU}${contenu}`, {
-    ...options, nav: navEspace(espace), actif,
+    ...options, nav: navEspace(espace), actif, jetonApp: espace && espace.jetonApp,
     compte: session ? { pseudo: session.pseudo || 'Membre', role: espace.estAdmin ? 'Coach' : 'Membre Elite' } : null,
   });
 }

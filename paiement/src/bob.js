@@ -25,7 +25,7 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'nu
 // - Elite : alerte à l'admin 10 jours avant la fin (insatisfait / inconstant) ;
 // - coaching : rappel personnalisé, rappel 1 h avant, récap admin 2 h avant la première séance du jour ;
 // - commandes admin : /lien-elite, /prolonger, /membre ; candidatures Tally.
-function creerBob({ config, db, commandes, coaching, candidatures, parcours, suivi, sinistres, maintenant = () => new Date(), client: clientInjecte, serveur: serveurInjecte } = {}) {
+function creerBob({ config, db, commandes, coaching, candidatures, parcours, suivi, sinistres, push, maintenant = () => new Date(), client: clientInjecte, serveur: serveurInjecte } = {}) {
   const actif = config.discordActif || Boolean(clientInjecte);
   const client = clientInjecte || (actif ? new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -54,6 +54,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     cartePerdue: db.prepare('UPDATE abonnes_carte SET perdu_le = ? WHERE discord_id = ? AND programme = ?'),
     carteTerminee: db.prepare('UPDATE abonnes_carte SET termine_le = ? WHERE discord_id = ? AND programme = ?'),
     sansAccesWhop: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND whop_membership_id IS NULL AND acces_jusqu_au > ?"),
+    membreParId: db.prepare('SELECT * FROM membres WHERE id = ?'),
     dernierPaiement: db.prepare("SELECT ref, type, payee_le FROM commandes WHERE programme = ? AND email = ? AND statut = 'PAYEE' ORDER BY payee_le DESC LIMIT 1"),
   };
   const dejaEnvoye = (cle) => Boolean(q.deja.get(cle));
@@ -151,11 +152,48 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     }
   }
 
+  // ---------- Application Overmaxx : le même message en notification ----------
+  // Titre : la première partie en gras ; texte : le reste, sans mise en forme Discord ; lien : le premier bouton.
+  function versPush(contenu) {
+    const texte = typeof contenu === 'string' ? contenu : String((contenu && contenu.content) || '');
+    const liens = ((contenu && contenu.components) || []).flatMap((r) => (r.components || []).map((b) => b.data && b.data.url)).filter(Boolean);
+    const propre = (t) => t.replace(/<@!?\d+>/g, '').replace(/<#\d+>/g, '#salon').replace(/\*\*|__|`|\*/g, '').replace(/\s+/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
+    const gras = texte.match(/\*\*([^*]+?)\*\*/);
+    const enTete = gras && texte.trim().startsWith(gras[0]);
+    const titre = enTete ? propre(gras[1]).replace(/[\s.:!]+$/, '') : 'Overmaxx';
+    const corps = propre(enTete ? texte.replace(gras[0], '') : texte).replace(/^[\s:.,-]+/, '') || titre;
+    return { titre: titre.slice(0, 90), corps: corps.slice(0, 240), url: liens[0] || `${config.baseUrl}/app` };
+  }
+  // Boutons d'action (Valider, Confirmer…) : ils n'existent que dans Discord, ces messages restent sur Bob.
+  const aDesBoutonsAction = (contenu) => Boolean(contenu && contenu.components
+    && contenu.components.some((r) => (r.components || []).some((b) => b.data && b.data.custom_id)));
+  async function parApplication(discordId, contenu) {
+    if (!push || !discordId || aDesBoutonsAction(contenu) || push.canal(discordId) !== 'app') return false;
+    try { return (await push.envoyer(discordId, versPush(contenu))) > 0; } catch (err) { console.warn('[push]', err.message); return false; }
+  }
   const notifier = {
-    admin: (contenu) => (config.discord.adminId ? messagePrive(config.discord.adminId, contenu) : Promise.resolve(false)),
+    // Selon son choix : l'application, ou Bob. Si aucun appareil ne répond, Bob prend le relais.
+    admin: async (contenu) => (config.discord.adminId ? ((await parApplication(config.discord.adminId, contenu)) || messagePrive(config.discord.adminId, contenu)) : false),
     // Message privé, sinon fil privé avec les mêmes boutons. Si rien ne passe, l'admin le sait (une fois par jour et par membre).
-    membre: async (discordId, contenu) => (await envoyer(discordId, contenu)).ok,
+    membre: async (discordId, contenu) => (await parApplication(discordId, contenu)) || (await envoyer(discordId, contenu)).ok,
+    // Rappels de paiement : toujours par Bob, puis par l'application 10 minutes plus tard, s'il n'a toujours pas payé.
+    paiement: async (discordId, contenu, { membreId, accesAvant } = {}) => {
+      const ok = (await envoyer(discordId, contenu)).ok;
+      if (!push || !push.abonnements(discordId).length) return ok;
+      push.differer(discordId, versPush(contenu), { minutes: 10, membreId, accesAvant });
+      return true;
+    },
   };
+  // Notifications différées (rappels de paiement) : envoyées dans l'application si l'accès n'a pas été prolongé entre-temps.
+  async function notificationsDifferees() {
+    if (!push) return;
+    for (const d of push.dues()) {
+      const m = d.membre_id ? q.membreParId.get(d.membre_id) : null;
+      if (d.membre_id && (!m || m.acces_jusqu_au !== d.acces_avant)) { push.marquerDifferee(d.id, 'payé entre-temps'); continue; }
+      const n = await push.envoyer(d.discord_id, { titre: d.titre, corps: d.corps, url: d.url, tag: `paiement-${d.membre_id || d.id}` });
+      push.marquerDifferee(d.id, n ? `envoyé (${n})` : 'aucun appareil');
+    }
+  }
   async function envoyer(discordId, contenu) {
     const r = (await messagePrive(discordId, contenu)) || (await filPrive(discordId, contenu));
     if (r) return { ok: true, url: r.url };
@@ -214,7 +252,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
             : `Sans renouvellement, ton accès sera coupé et tu seras retiré du Discord. Pour revenir, il faudra repayer le prix d'entrée (**${formatPrix(o.prixEntree, config.devise)}**).`)
         : `Ton accès à **${o.nom}** se termine dans **${palier} jours** (le ${formatDate(m.acces_jusqu_au)}).\n`
           + `Renouvelle-le quand tu veux d'ici là pour **${prix}**.`;
-      if (await notifier.membre(m.discord_id, avecBoutons(texte, [{ label: 'Renouveler mon accès', url: lien }]))) {
+      if (await notifier.paiement(m.discord_id, avecBoutons(texte, [{ label: 'Renouveler mon accès', url: lien }]), { membreId: m.id, accesAvant: m.acces_jusqu_au })) {
         for (const p of PALIERS_JOURS) if (p >= palier) marquer(cle(p));
         log(`rappel ${palier} j envoyé au membre ${m.id}`);
       }
@@ -249,17 +287,17 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         await retirerRole(m.discord_id, o.roleDiscord);
         await donnerRole(m.discord_id, config.discord.roleAttente);
       } catch (err) { console.error(`[bob] mise en attente du membre ${m.id} :`, err.message); }
-      await notifier.membre(m.discord_id, avecBoutons(`Ton accès à **${o.nom}** est terminé : tu es maintenant **en attente**. `
+      await notifier.paiement(m.discord_id, avecBoutons(`Ton accès à **${o.nom}** est terminé : tu es maintenant **en attente**. `
         + `Tu n'as plus accès à la formation ni aux salons.\n`
         + `Tu as jusqu'au **${formatDate(new Date(finAttente).toISOString())}** pour renouveler au même prix (**${prix}**).\n`
-        + `Après cette date, tu seras retiré du Discord et il faudra repayer le prix d'entrée.`, [{ label: 'Renouveler mon accès', url: lien }]));
+        + `Après cette date, tu seras retiré du Discord et il faudra repayer le prix d'entrée.`, [{ label: 'Renouveler mon accès', url: lien }]), { membreId: m.id, accesAvant: m.acces_jusqu_au });
       await notifier.admin(`**${m.nom}** (<@${m.discord_id}>) passe **en attente** (${o.nom}) jusqu'au ${formatDate(new Date(finAttente).toISOString())}.`);
       return;
     }
     // Dernier rappel 3 jours avant le retrait.
     const cleRappel = `attente-rappel:${m.id}:${m.acces_jusqu_au}`;
     if (m.discord_id && finAttente - maintenant().getTime() <= 3 * JOUR_MS && !dejaEnvoye(cleRappel)) {
-      if (await notifier.membre(m.discord_id, avecBoutons(`Plus que **3 jours** pour renouveler ton accès à **${o.nom}** (${prix}) avant d'être retiré du Discord.`, [{ label: 'Renouveler mon accès', url: lien }]))) {
+      if (await notifier.paiement(m.discord_id, avecBoutons(`Plus que **3 jours** pour renouveler ton accès à **${o.nom}** (${prix}) avant d'être retiré du Discord.`, [{ label: 'Renouveler mon accès', url: lien }]), { membreId: m.id, accesAvant: m.acces_jusqu_au })) {
         marquer(cleRappel);
       }
     }
@@ -1246,6 +1284,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await rappelsCoaching();
       if (tour % 2 === 0) await synchroRoles();
       await rappelsQuotidiens();
+      await notificationsDifferees();
       if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); await surveillerAbsences(); await demanderDisponibilites(); }
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
@@ -1275,6 +1314,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     rappelsQuotidiens,
     surveillerAbsences,
     demanderDisponibilites,
+    notificationsDifferees,
+    versPush,
     configurerSinistres,
     parcours: prevenirParcours,
 

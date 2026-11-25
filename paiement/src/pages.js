@@ -174,7 +174,7 @@ function logo(classe = '') {
   return `<span class="logo ${classe}" aria-label="Overmaxx">OVERMAXX<i></i><i></i><i></i></span>`;
 }
 
-function gabarit(titre, contenu, { script, entete = true, brut = false } = {}) {
+function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp } = {}) {
   return `<!doctype html>
 <html lang="fr">
 <head>
@@ -182,13 +182,20 @@ function gabarit(titre, contenu, { script, entete = true, brut = false } = {}) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#000000">
+<link rel="manifest" href="/manifest.webmanifest${jetonApp ? `?u=${encodeURIComponent(jetonApp)}` : ''}">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icones/icone-192.png">
+<link rel="apple-touch-icon" href="/static/icones/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Overmaxx">
 <title>${echapper(titre)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>${STYLE}</style>
 </head>
-<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}</body>
+<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script></body>
 </html>`;
 }
 
@@ -204,6 +211,7 @@ const ICONES_NAV = {
   traiter: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13.5l2.4-7.2A2 2 0 0 1 8.3 5h7.4a2 2 0 0 1 1.9 1.3L20 13.5V18a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18z"/><path d="M4 13.5h4.5l1.2 2h4.6l1.2-2H20"/></svg>',
   pages: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M3.5 8.5h17M7 12.5h6M7 16h9"/></svg>',
   site: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.7 3.5 5.6 3.5 8.5s-1 5.8-3.5 8.5c-2.5-2.7-3.5-5.6-3.5-8.5s1-5.8 3.5-8.5z"/></svg>',
+  notifications: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg>',
   sortie: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/></svg>',
   menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
 };
@@ -245,7 +253,7 @@ const STYLE_ESPACE = `
 `;
 
 // nav : [{ cle, libelle, lien, icone, badge }] ; actif : cle de la page ; compte : { pseudo, role }.
-function gabaritEspace(titre, contenu, { script, nav = [], actif, compte } = {}) {
+function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp } = {}) {
   const liens = nav.map((n) => (n.section
     ? `<p class="sb-section">${echapper(n.section)}</p>`
     : `<a class="sb-lien${n.cle === actif ? ' actif' : ''}" href="${echapper(n.lien)}"${n.externe ? ' target="_blank" rel="noopener"' : ''}>${ICONES_NAV[n.icone] || ''}<span>${echapper(n.libelle)}</span>${n.badge ? `<span class="sb-badge">${echapper(n.badge)}</span>` : ''}</a>`)).join('');
@@ -266,7 +274,7 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte } = {})
     <header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label>${logo()}</header>
     <main class="espace-contenu">${contenu}</main>
   </div>
-</div>`, { script, entete: false, brut: true });
+</div>`, { script, entete: false, brut: true, jetonApp });
 }
 
 function formatPrix(prix, devise) {

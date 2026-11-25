@@ -9,6 +9,7 @@ const P = require('./pages');
 const E = require('./pages-espace');
 const V = require('./pages-parcours');
 const C = require('./pages-coaching');
+const N = require('./pages-notifications');
 const { creerParcours } = require('./parcours');
 const { creerSuivi, QUESTIONS, jourLisible } = require('./suivi');
 const { creerSinistres } = require('./sinistres');
@@ -31,11 +32,15 @@ const retourSur = (r, defaut = '/coaching') => (typeof r === 'string' && /^\/(?!
 // Le bouton pointe DIRECTEMENT vers discord.com : sur téléphone, c'est ce qui ouvre l'application Discord
 // (une redirection depuis notre site ouvrirait la page web de Discord, qui redemande l'identifiant et le mot de passe).
 
-function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours: parcoursDonne, suivi: suiviDonne, sinistres: sinistresDonnes }) {
+function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours: parcoursDonne, suivi: suiviDonne, sinistres: sinistresDonnes, push: pushDonne }) {
   const parcours = parcoursDonne || creerParcours({ db: commandes.db, config });
   const suivi = suiviDonne || creerSuivi({ db: commandes.db, parcours });
   const sinistres = sinistresDonnes || creerSinistres({ db: commandes.db, parcours });
   if (!parcours.suivi) parcours.suivi = suivi;
+  const push = pushDonne || require('./push').creerPush({ db: commandes.db, config });
+  // Jeton de l'application installée (dans son manifeste) : elle s'ouvre déjà connectée, même sur iPhone.
+  // Le même toute la journée, valable un an.
+  const jetonApp = (session) => signer({ but: 'app', id: session.id, pseudo: session.pseudo, exp: (Math.floor(Date.now() / 864e5) + 365) * 864e5 }, config.secretApp);
   const prevenir = (nom, ...args) => { if (bob && bob.parcours && bob.parcours[nom]) bob.parcours[nom](...args).catch((e) => console.error(`[bob] parcours ${nom} :`, e.message)); };
   const lienDiscord = (state, options) => (config.oauthActif && oauth ? oauth.urlAutorisation(state, options) : null);
   // Barre latérale : qui est connecté, et combien de candidatures attendent une décision.
@@ -44,7 +49,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
     const aTraiterParcours = estAdmin
       ? parcours.aTraiter().total + suivi.enAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + aTraiter : 0;
-    return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(!estAdmin && session && parcours.get(session.id)) };
+    return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(!estAdmin && session && parcours.get(session.id)), jetonApp: session ? jetonApp(session) : null };
   };
   const app = express();
   app.disable('x-powered-by');
@@ -63,6 +68,72 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     res.set('Cache-Control', 'no-store');
     next();
   });
+
+  // ================= Application installable (PWA) =================
+  const SERVICE_WORKER = require('fs').readFileSync(require('path').join(__dirname, 'service-worker.js'), 'utf8');
+  app.get('/manifest.webmanifest', (req, res) => {
+    const j = verifier(String(req.query.u || ''), config.secretApp);
+    res.set('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.set('Cache-Control', 'no-cache');
+    res.send(JSON.stringify({
+      id: '/app', name: 'Overmaxx', short_name: 'Overmaxx', lang: 'fr', dir: 'ltr',
+      description: 'Ton parcours Overmaxx, tes coachings et tes notifications.',
+      start_url: j && j.but === 'app' ? `/app?t=${encodeURIComponent(String(req.query.u))}` : '/app',
+      scope: '/', display: 'standalone', orientation: 'portrait', background_color: '#000000', theme_color: '#000000',
+      icons: [
+        { src: '/static/icones/icone-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/static/icones/icone-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/static/icones/icone-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    }));
+  });
+  app.get('/sw.js', (req, res) => {
+    res.set('Content-Type', 'text/javascript; charset=utf-8');
+    res.set('Cache-Control', 'no-cache');
+    res.send(SERVICE_WORKER);
+  });
+  // Ouverture de l'application : connectée par le jeton de son manifeste, puis la bonne page selon le compte.
+  app.get('/app', (req, res) => {
+    const j = verifier(String(req.query.t || ''), config.secretApp);
+    let session = lireSession(req, config.secretApp);
+    if (j && j.but === 'app' && j.id) { ouvrirSession(res, { id: j.id, pseudo: j.pseudo }, config); session = { id: j.id, pseudo: j.pseudo }; }
+    if (!session) return res.redirect(302, '/');
+    if (session.id === config.discord.adminId) return res.redirect(302, '/admin/a-traiter');
+    const p = parcours.get(session.id);
+    if (p) return res.redirect(302, p.sinistre_depuis ? '/sinistre' : '/parcours');
+    if (coaching.aUnPlanning(session.id)) return res.redirect(302, '/coaching');
+    return res.redirect(302, '/notifications');
+  });
+
+  // ================= Notifications : Bob ou l'application =================
+  app.get('/notifications', (req, res) => {
+    const session = connecte(req, res, '/notifications', 'Notifications');
+    if (!session) return;
+    res.send(N.pageNotifications(config, { espace: espaceDe(session), clePublique: push.clePublique(), canal: push.canal(session.id),
+      appareils: push.abonnements(session.id) }));
+  });
+  const apiNotif = (chemin, action) => app.post(chemin, json, async (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    if (!session) return res.status(401).json({ erreur: 'Ta connexion a expiré. Recharge la page.' });
+    try {
+      const r = await action(session, req.body || {});
+      if (r && r.erreur) return res.status(400).json(r);
+      return res.json({ ok: true, ...(r || {}) });
+    } catch (err) {
+      console.error('[notifications]', err.message);
+      return res.status(500).json({ erreur: 'Erreur, réessaie.' });
+    }
+  });
+  apiNotif('/api/notifications/abonnement', async (session, b) => push.abonner(session.id, b.abonnement, b.appareil));
+  apiNotif('/api/notifications/desabonnement', async (session, b) => {
+    push.desabonner(session.id, b.endpoint);
+    if (!push.abonnements(session.id).length) push.choisirCanal(session.id, 'bob'); // plus d'appareil : Bob reprend
+    return {};
+  });
+  apiNotif('/api/notifications/canal', async (session, b) => push.choisirCanal(session.id, String(b.canal || '')));
+  apiNotif('/api/notifications/test', async (session) => ({
+    appareils: await push.envoyer(session.id, { titre: 'Notifications activées', corps: 'Tu recevras ici les messages d\'Overmaxx.', url: '/notifications', tag: 'test' }),
+  }));
 
   // ================= Paiements (Community et Elite) =================
 

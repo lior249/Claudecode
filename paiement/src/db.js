@@ -414,6 +414,48 @@ function migrerV14(db) {
   PRAGMA user_version = 14;`);
 }
 
+// v15 : l'application Overmaxx (notifications web) : réglages (clés VAPID), appareils abonnés,
+// choix Bob ou application, rappels de paiement envoyés dans l'application 10 minutes après Bob.
+function migrerV15(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 15) return;
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS reglages (
+    cle    TEXT PRIMARY KEY,
+    valeur TEXT NOT NULL,
+    maj_le TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS abonnements_push (
+    endpoint   TEXT PRIMARY KEY,
+    discord_id TEXT NOT NULL,
+    p256dh     TEXT NOT NULL,
+    auth       TEXT NOT NULL,
+    appareil   TEXT,
+    erreurs    INTEGER NOT NULL DEFAULT 0,
+    cree_le    TEXT NOT NULL,
+    vu_le      TEXT
+  );
+  CREATE INDEX IF NOT EXISTS abonnements_push_membre ON abonnements_push(discord_id);
+  CREATE TABLE IF NOT EXISTS preferences_notif (
+    discord_id TEXT PRIMARY KEY,
+    canal      TEXT NOT NULL DEFAULT 'bob',   -- bob | app
+    maj_le     TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS notifications_differees (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id    TEXT NOT NULL,
+    titre         TEXT NOT NULL,
+    corps         TEXT NOT NULL,
+    url           TEXT,
+    membre_id     INTEGER,                    -- rappel de paiement : annulé si son accès a été prolongé entre-temps
+    acces_avant   TEXT,
+    envoyer_apres TEXT NOT NULL,
+    envoye_le     TEXT,
+    resultat      TEXT,
+    cree_le       TEXT NOT NULL
+  );
+  PRAGMA user_version = 15;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -437,6 +479,7 @@ function ouvrirBase(fichier) {
   migrerV12(db);
   migrerV13(db);
   migrerV14(db);
+  migrerV15(db);
   return db;
 }
 

@@ -14,6 +14,7 @@ const { creerCandidatures } = require('./candidatures');
 const { creerParcours } = require('./parcours');
 const { creerSuivi } = require('./suivi');
 const { creerSinistres } = require('./sinistres');
+const { creerPush } = require('./push');
 const { creerApp } = require('./app');
 
 const config = chargerConfig();
@@ -31,10 +32,11 @@ const parcours = creerParcours({ db, config });
 const suivi = creerSuivi({ db, parcours });
 parcours.suivi = suivi;
 const sinistres = creerSinistres({ db, parcours });
-const bob = creerBob({ config, db, commandes, coaching, candidatures, parcours, suivi, sinistres });
+const push = creerPush({ db, config });
+const bob = creerBob({ config, db, commandes, coaching, candidatures, parcours, suivi, sinistres, push });
 const synchro = creerSynchroWhop({ db, whop, config, notifier: bob.notifier });
 
-const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours, suivi, sinistres });
+const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures, parcours, suivi, sinistres, push });
 
 const serveurHttp = app.listen(config.port, () => {
   console.log(`Serveur Overmaxx prêt sur le port ${config.port}`);

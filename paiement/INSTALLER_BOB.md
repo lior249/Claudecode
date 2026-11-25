@@ -250,6 +250,16 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
   et **1 coaching en réserve** ; la séance ne compte pas dans son minimum et n'a pas de rappel.
 - Bob te prévient quand un membre reporte une séance ou utilise une réserve.
 
+## L'application Overmaxx et ses notifications (livraison 4)
+
+- Le site s'installe comme une application (icône Overmaxx sur l'écran d'accueil, sans store). Page **Notifications**
+  (`/notifications`, dans le menu) : bouton **Installer l'application** sur Android, étapes **Partager → Sur l'écran d'accueil**
+  sur iPhone (iOS 16.4 ou plus récent ; sur iPhone, les notifications ne marchent que dans l'application installée).
+- Chacun choisit **Bob (Discord)** ou **l'application**, toi compris. Si aucun appareil ne répond, Bob prend le relais.
+- **Rappels de paiement** (Community) : Bob tout de suite, puis l'application 10 minutes plus tard s'il n'a toujours pas payé.
+- L'application installée s'ouvre déjà connectée. Rien à configurer : les clés des notifications sont créées au premier démarrage.
+- Il faut que le site soit en **HTTPS** (c'est le cas avec Caddy sur overmaxx.online).
+
 ## L'espace de gestion
 
 Sur **overmaxx.online/admin** (connexion avec `/connexion` dans Discord) : barre latérale à gauche sur ordinateur,

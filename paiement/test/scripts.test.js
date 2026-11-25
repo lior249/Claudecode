@@ -25,7 +25,7 @@ test('le JavaScript de toutes les pages est valide', async () => {
       ['/community', null], ['/coaching/elite', null], [`/confirmation/${ref}`, null],
       ['/coaching', cookieSession('E1', 'e1')], ['/admin', cookieSession(ADMIN, 'a')], ['/admin/candidatures', cookieSession(ADMIN, 'a')],
       ['/coaching/elite/candidature', cookieSession('C1', 'c1')],
-      ['/coaching?mode=semaine', cookieSession('E1', 'e1')], ['/admin/disponibilites', cookieSession(ADMIN, 'a')], ['/admin/imprevu', cookieSession(ADMIN, 'a')],
+      ['/coaching?mode=semaine', cookieSession('E1', 'e1')], ['/admin/disponibilites', cookieSession(ADMIN, 'a')], ['/admin/imprevu', cookieSession(ADMIN, 'a')], ['/notifications', cookieSession('E1', 'e1')],
     ];
     let total = 0;
     for (const [chemin, cookie] of pages) {
