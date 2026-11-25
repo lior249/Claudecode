@@ -11,8 +11,8 @@
 - **3 mois d'accompagnement.**
 - Plus de renouvellement à 60 €, plus de caution, plus de classement Insatisfait / Inconstant.
 - **Personne n'est retiré du serveur** à la fin des 3 mois.
-- **Après les 3 mois**, tant qu'il n'est pas GOAT, le membre **garde ses lives individuels**
-  (sauf les règles des sinistrés, partie 6).
+- **Après les 3 mois, plus aucun live individuel**, pour tout le monde (GOAT ou pas, sinistré ou pas) :
+  seulement le live de groupe. Le membre garde le serveur et la plateforme.
 - **PC obligatoire** pour rejoindre l'accompagnement : les vidéos se font sur PC, pas sur téléphone.
 - Les membres qui paient **par carte** suivent exactement le même parcours : dès que Whop leur donne le rôle Elite,
   Bob leur crée leur fiche.
@@ -62,7 +62,7 @@ L'étape 1 fonctionne sans lui en attendant.
 ### Étape 3 : validation du contenu, avant de publier
 
 1. À partir de l'étape 3, le membre réserve ses **coachings réguliers** : voir la partie 5.
-2. Il a **3 emplacements** pour 3 vidéos (150 Mo maximum chacune). **[à confirmer]** Les 3 sont ouverts en même temps.
+2. Il a **3 emplacements** pour 3 vidéos (150 Mo maximum chacune), **ouverts en même temps**.
 3. Sur chaque vidéo, le coach écrit son **retour complet** et choisit **Demander des modifications** ou **Valider**.
    Le coach peut aussi lui dire de venir en parler au prochain coaching.
 4. Quand les **3 vidéos sont validées**, le membre passe à l'étape 4 : « Tu es maintenant autorisé à publier ».
@@ -210,10 +210,9 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
 Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **sans raison donnée**.
 
 ### Avant le sinistre
-- **[à confirmer]** Ce qui compte comme absence :
-  - étape 4 : 7 jours sans compte rendu ;
-  - étapes 1 à 3 : 7 jours sans aucune action (envoi, connexion au site, coaching) : Bob prévient le coach, qui décide ;
-  - le coach peut aussi déclarer un sinistre lui-même, à tout moment.
+- **Une absence, c'est l'absence d'interaction sur la plateforme.** Chaque étape a ses tâches quotidiennes et ses délais :
+  **[à compléter]** les délais de chaque étape, donnés par le coach.
+- Le coach peut aussi déclarer un sinistre lui-même, à tout moment.
 - Bob prévient avant : relance **après 2 jours** d'absence, puis **avertissement après 5 jours**
   (« dans 2 jours, tu seras sinistré »), et le coach est prévenu après 3 jours.
 - **[à confirmer]** Un bouton **Prévenir d'une absence** : le membre qui donne sa raison à l'avance (maladie, voyage…)
@@ -230,10 +229,10 @@ Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **san
 
 ### Le compteur
 - Les sinistres sont **comptés** et visibles sur sa fiche (1 / 3, 2 / 3, 3 / 3).
-- **Au 3e sinistre** (21 jours d'absence au total, pas forcément de suite) : il est **sinistré total**.
-  Il n'a **plus jamais droit aux lives individuels**, même pendant ses 3 mois.
-- **[à confirmer]** Après les 3 mois : un seul sinistre suffit pour perdre les lives individuels ;
-  avant les 3 mois, il les retrouve à la réhabilitation (tant qu'il n'a pas 3 sinistres).
+- Pendant les 3 mois, à la réhabilitation, il **retrouve ses lives individuels**, tant qu'il n'a pas 3 sinistres.
+- **Au 3e sinistre** (21 jours d'absence au total) : il est **sinistré total**. Une fois réhabilité, il retrouve le serveur
+  et la plateforme, mais **plus jamais de live individuel**, seulement le live de groupe.
+- Après les 3 mois, la question ne se pose plus : plus personne n'a de live individuel.
 
 ## 7. Les notifications : l'application Overmaxx
 
