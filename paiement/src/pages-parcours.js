@@ -1040,10 +1040,10 @@ function blocTableau(tableau, { titre = 'Récompenses estimées' } = {}) {
 
 // ---------- Mon profil : le tableau de bord en haut, puis les objectifs et les statistiques ----------
 // (page prévue pour le futur classement : rien de privé dessus, pas de remarques du coach).
-function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses = [], vueCoach }) {
+function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses = [], vueCoach, vuePublique, avatar }) {
   const trophees = recompenses.filter((r) => r.confirme_le);
   const nom = p.pseudo || p.nom || 'Membre';
-  return page(vueCoach ? `Profil de ${nom}` : 'Mon profil', `<style>
+  return page(vueCoach || vuePublique ? `Profil de ${nom}` : 'Mon profil', `<style>
     .profil-tete { display:flex; align-items:center; gap:14px; margin:6px 0 18px; }
     .profil-tete .avatar { width:64px; height:64px; border-radius:50%; display:grid; place-items:center; background:#2c2c2e; font-size:26px; font-weight:800; flex:none; }
     .profil-tete h1 { margin:0; font-size:24px; overflow-wrap:anywhere; }
@@ -1053,14 +1053,15 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
     .badges .trophee { border-color:#f5c542; color:#f5c542; }
   </style>
   ${vueCoach ? `<p class="doux petit"><a href="/admin/membres/${encodeURIComponent(p.discord_id)}">← Sa fiche</a></p>` : ''}
-  <div class="profil-tete"><div class="avatar" aria-hidden="true">${echapper(nom.charAt(0).toUpperCase())}</div>
+  ${vuePublique ? '<p class="doux petit"><a href="/classement">← Classement</a></p>' : ''}
+  <div class="profil-tete"><div class="avatar" aria-hidden="true">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : echapper(nom.charAt(0).toUpperCase())}</div>
     <div><h1>${echapper(nom)}</h1><p>${echapper([p.compte_tiktok, p.niche].filter(Boolean).join(' · ') || 'Overmaxx Elite')}</p>
       <div class="badges"><span>${p.etape >= 5 ? 'GOAT' : `Étape ${p.etape}`}</span><span>Jour ${jourDe(p)} sur 90</span>
         ${trophees.map((r) => `<span class="trophee">${echapper(NOMS_ROLES[r.role] || r.role)}</span>`).join('')}</div></div></div>
   <div class="colonnes-2">
     <div>${blocTableau(tableau)}</div>
     <div>${blocObjectifs(stats)}${blocStats(stats)}</div>
-  </div>`, espace, vueCoach ? 'membres' : 'profil', null, SCRIPT_TABLEAU);
+  </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
 module.exports = { ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };

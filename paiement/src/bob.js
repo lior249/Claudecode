@@ -1056,6 +1056,20 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     [{ label: 'Sélectionner mes disponibilités', url: lienCoach(`/admin/disponibilites?semaine=${lundi}`) }]))) marquer(cle);
   }
 
+  // ---------- Photos de profil Discord (classement) ----------
+  const qAvatar = db.prepare(`INSERT INTO profils_membres (discord_id, avatar, maj_le) VALUES (?, ?, ?)
+    ON CONFLICT(discord_id) DO UPDATE SET avatar = excluded.avatar`);
+  async function majAvatars() {
+    if (!parcours || !client || !client.users) return;
+    for (const p of parcours.tous()) {
+      try {
+        const u = await client.users.fetch(p.discord_id);
+        const url = u && typeof u.displayAvatarURL === 'function' ? u.displayAvatarURL({ extension: 'png', size: 128 }) : null;
+        if (url) qAvatar.run(p.discord_id, url, maintenant().toISOString());
+      } catch { /* membre introuvable : on garde l'initiale */ }
+    }
+  }
+
   // ---------- Étape 4 : rappels quotidiens, à l'heure du membre ----------
   async function rappelsQuotidiens() {
     if (!parcours || !suivi) return;
@@ -1285,7 +1299,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       if (tour % 2 === 0) await synchroRoles();
       await rappelsQuotidiens();
       await notificationsDifferees();
-      if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); await surveillerAbsences(); await demanderDisponibilites(); }
+      if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); await surveillerAbsences(); await demanderDisponibilites(); await majAvatars(); }
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
       console.error('[bob] cycle :', err);
@@ -1315,6 +1329,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     surveillerAbsences,
     demanderDisponibilites,
     notificationsDifferees,
+    majAvatars,
     versPush,
     configurerSinistres,
     parcours: prevenirParcours,

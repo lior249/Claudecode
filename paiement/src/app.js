@@ -12,6 +12,7 @@ const C = require('./pages-coaching');
 const N = require('./pages-notifications');
 const K = require('./pages-eleves');
 const A = require('./pages-accueil');
+const T = require('./pages-classement');
 const { creerParcours } = require('./parcours');
 const { creerSuivi, QUESTIONS, jourLisible } = require('./suivi');
 const { creerSinistres } = require('./sinistres');
@@ -129,6 +130,48 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (commandes.db.prepare('SELECT 1 FROM abonnes_carte WHERE discord_id = ? AND termine_le IS NULL').get(session.id)) return '/notifications';
     return null;
   }
+
+  // ================= Classement (top 100) =================
+  // Les élèves de l'accompagnement, classés par récompenses validées (puis par vues). Le nom affiché : son prénom
+  // (accueil) ou son pseudo Discord ; jamais son nom complet.
+  function classement() {
+    const maintenant = Date.now();
+    const liste = parcours.tous().map((p) => {
+      const st = suivi.stats(p.discord_id) || {};
+      const profil = qProfils.get.get(p.discord_id) || {};
+      return {
+        id: p.discord_id, nom: profil.prenom || p.pseudo || 'Membre', pseudo: p.pseudo, avatar: profil.avatar || null, elite: true,
+        revenus: st.revenusTotal || 0, vues: st.vues || 0, jours: Math.max(1, Math.floor((maintenant - new Date(p.entree_le)) / 864e5) + 1),
+        recompenses: suivi.recompenses(p.discord_id),
+      };
+    }).sort((a, b) => b.revenus - a.revenus || b.vues - a.vues || a.nom.localeCompare(b.nom, 'fr'));
+    liste.forEach((m, i) => { m.rang = i + 1; });
+    return liste;
+  }
+  app.get('/classement', (req, res) => {
+    const session = connecte(req, res, '/classement', 'Classement');
+    if (!session) return;
+    const liste = classement();
+    const moi = liste.find((m) => m.id === session.id);
+    const membres = new Set(liste.map((m) => m.id));
+    for (const m of commandes.db.prepare("SELECT DISTINCT discord_id FROM membres WHERE statut = 'actif' AND discord_id IS NOT NULL").all()) membres.add(m.discord_id);
+    res.send(T.pageClassement(config, { espace: espaceDe(session), top: liste.slice(0, 100), total: liste.length, monRang: moi ? moi.rang : null,
+      totalRevenus: liste.reduce((t, m) => t + m.revenus, 0), totalMembres: membres.size }));
+  });
+  // Profil d'un membre du top 100 (le sien, ou n'importe lequel pour le coach).
+  app.get('/classement/:id', (req, res) => {
+    const session = connecte(req, res, `/classement/${encodeURIComponent(req.params.id)}`, 'Classement');
+    if (!session) return;
+    const liste = classement();
+    const m = liste.find((x) => x.id === req.params.id);
+    if (!m || (m.rang > 100 && session.id !== m.id && session.id !== config.discord.adminId)) {
+      res.status(404).send(P.pageMessage(config, 'Profil privé', 'Seuls les profils du top 100 sont visibles.', { lien: '/classement', texteLien: 'Classement' }));
+      return;
+    }
+    const p = parcours.get(m.id);
+    res.send(V.pageProfil(config, { espace: espaceDe(session), parcours: p, tableau: suivi.tableau(m.id), stats: suivi.stats(m.id),
+      recompenses: suivi.recompenses(m.id), vuePublique: true, avatar: m.avatar }));
+  });
 
   // ================= Notifications : Bob ou l'application =================
   app.get('/notifications', (req, res) => {

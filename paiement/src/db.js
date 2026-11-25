@@ -477,6 +477,13 @@ function migrerV17(db) {
   PRAGMA user_version = 17;`);
 }
 
+// v18 : photo de profil Discord du membre (classement).
+function migrerV18(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 18) return;
+  if (!colonnes(db, 'profils_membres').includes('avatar')) db.exec('ALTER TABLE profils_membres ADD COLUMN avatar TEXT');
+  db.exec('PRAGMA user_version = 18');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -503,6 +510,7 @@ function ouvrirBase(fichier) {
   migrerV15(db);
   migrerV16(db);
   migrerV17(db);
+  migrerV18(db);
   return db;
 }
 

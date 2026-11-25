@@ -81,7 +81,8 @@ function navEspace(espace = {}) {
     }
     nav.push({ cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
   }
-  nav.push({ cle: 'notifications', libelle: 'Notifications', lien: '/notifications', icone: 'notifications' });
+  nav.push({ cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' },
+    { cle: 'notifications', libelle: 'Notifications', lien: '/notifications', icone: 'notifications' });
   nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/', icone: 'site', externe: true });
   return nav;
 }

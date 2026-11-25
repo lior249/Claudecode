@@ -286,6 +286,19 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
   sa niche, son pays, son niveau et sa date d'entrée.
 - **Icône de l'application** : le globe Overmaxx (`public/icones`).
 
+## Classement (top 100)
+
+**Classement** (`/classement`, dans le menu de chacun) :
+- En haut : les revenus générés sur Overmaxx (récompenses validées de tous les élèves), le nombre de membres,
+  et les événements (aucun pour le moment).
+- Le podium : cartes or, argent et bronze, avec un reflet qui passe sur la bordure ; la médaille pour le premier seulement.
+  Chaque carte : revenus générés (en grand), vues (999, puis 1.2K, 1.2M, 1.2Md) et jours depuis son entrée,
+  puis son rôle le plus élevé (GOAT, $1,500, $5,000, $10,000) et son programme (Elite ; Membre pour la formation, plus tard).
+- Puis le classement général jusqu'à la 100e place. Sur téléphone, tout s'affiche en lignes.
+- On n'y voit que son prénom (accueil) et son pseudo Discord, jamais son nom complet. La photo est celle de Discord,
+  mise à jour par Bob.
+- Hors du top 100 : il voit sa place (« Tu es 134e sur 210 ») ; son profil n'est visible que de lui et du coach.
+
 ## L'espace de gestion
 
 Sur **overmaxx.online/admin** (connexion avec `/connexion` dans Discord) : barre latérale à gauche sur ordinateur,
