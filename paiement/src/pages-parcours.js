@@ -503,7 +503,7 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
   const dates = [['Prise en main', p.etape1_le], ['Coaching d\'entrée', p.etape2_le], ['Validation du contenu', p.etape3_le]]
     .map(([t, le], i) => [t, le ? formatDate(le) : p.etape === i + 1 ? 'en cours' : '—']);
   return page(vueCoach ? `Fiche de ${p.pseudo || p.discord_id}` : 'Ma fiche', `
-  ${vueCoach ? '<p class="doux petit"><a href="/admin/membres">← Tous les membres</a></p>' : ''}
+  ${vueCoach ? '<a class="retour" href="/admin/membres"><span aria-hidden="true">‹</span> Tous les membres</a>' : ''}
   <div class="titre-page"><div><p class="etiquette">${vueCoach ? 'Fiche Elite' : 'Overmaxx Elite'}</p><h1>${echapper(vueCoach ? p.nom || p.pseudo || p.discord_id : 'Ma fiche')}</h1></div></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}
   ${frise(p.etape)}
@@ -689,7 +689,7 @@ function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, m
     : '<div class="deux-boutons"><button class="bouton secondaire" type="submit" name="decision" value="corriger">Demander des modifications</button><button class="bouton vert" type="submit" name="decision" value="valider">Valider</button></div><p class="doux petit" style="margin:0">Modifications : il a 24 h pour renvoyer, Bob le prévient. Validé : plus rien ne se modifie.</p>'}
       </form>`;
   return page(`${titre} de ${p.pseudo || ''}`, `
-  <p class="doux petit"><a href="/admin/a-traiter">← À traiter</a></p>
+  <a class="retour" href="/admin/a-traiter"><span aria-hidden="true">‹</span> À traiter</a>
   <div class="titre-page"><div><p class="etiquette">${echapper(p.nom || p.pseudo || '')} · étape ${s.etape}</p><h1>${echapper(titre)}</h1></div>${etatPuce(s.etat)}</div>
   ${message ? `<p class="erreur-form">${echapper(message)}</p>` : ''}
   <div class="colonnes-2">
@@ -766,7 +766,7 @@ function pageCompteRendu(config, { espace, parcours: p, jour, videos, cr, questi
   const question = cr && cr.question;
   const predefinie = questions.includes(question);
   return page(`Compte rendu du ${jourLisible(jour)}`, `
-  <p class="doux petit"><a href="/parcours/etape-4">← Étape 4</a></p>
+  <a class="retour" href="/parcours/etape-4"><span aria-hidden="true">‹</span> Étape 4</a>
   <div class="titre-page"><div><p class="etiquette">Compte rendu</p><h1>Résultats du ${echapper(jourLisible(jour))}</h1></div>${cr && cr.etat ? etatPuce(cr.etat) : ''}</div>
   ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   ${cr && cr.etat === 'corriger' && remarques[0] ? remarque({ ...remarques[0], type: 'corriger' }) : ''}
@@ -837,7 +837,7 @@ function pageCompteRenduCoach(config, { espace, cr, parcours: p, capture, messag
         <p class="doux petit" style="margin:0">Validé : ses revenus comptent pour ses objectifs, GOAT et ses rôles.</p></form>`;
   const revenus = cr.videos.reduce((t, x) => t + (x.revenus || 0), 0);
   return page(`Compte rendu de ${p.pseudo || ''}`, `
-  <p class="doux petit"><a href="/admin/a-traiter#etape-4">← À traiter</a></p>
+  <a class="retour" href="/admin/a-traiter#etape-4"><span aria-hidden="true">‹</span> À traiter</a>
   <div class="titre-page"><div><p class="etiquette">${echapper(p.nom || p.pseudo || '')} · étape 4</p><h1>Compte rendu du ${echapper(jourLisible(cr.jour))}</h1></div>${etatPuce(cr.etat)}</div>
   ${message ? `<p class="erreur-form">${echapper(message)}</p>` : ''}
   <div class="colonnes-2">
@@ -1070,8 +1070,8 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
     .badges span { font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid var(--bord-fort); }
     .badges .trophee { border-color:#f5c542; color:#f5c542; }
   </style>${STYLE_ROLES}
-  ${vueCoach ? `<p class="doux petit"><a href="/admin/membres/${encodeURIComponent(p.discord_id)}">← Sa fiche</a></p>` : ''}
-  ${vuePublique ? '<p class="doux petit"><a href="/classement">← Classement</a></p>' : ''}
+  ${vueCoach ? `<a class="retour" href="/admin/membres/${encodeURIComponent(p.discord_id)}"><span aria-hidden="true">‹</span> Sa fiche</a>` : ''}
+  ${vuePublique ? '<a class="retour" href="/classement"><span aria-hidden="true">‹</span> Classement</a>' : ''}
   <div class="profil-tete"><div class="avatar" aria-hidden="true">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : echapper(nom.charAt(0).toUpperCase())}</div>
     <div><h1>${echapper(nom)}</h1><p>${echapper([p.compte_tiktok, p.niche].filter(Boolean).join(' · ') || 'Overmaxx Elite')}</p>
       <div class="badges"><span>${p.etape >= 5 ? 'GOAT' : `Étape ${p.etape}`}</span><span>Jour ${jourDe(p)} sur 90</span>

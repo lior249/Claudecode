@@ -40,6 +40,9 @@ const STYLE = `
     --police:"Inter",-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;
   }
   * { box-sizing:border-box; }
+  .retour { display:inline-flex; align-items:center; gap:6px; margin:0 0 14px; padding:8px 14px 8px 10px; border-radius:999px; background:var(--surface-2,#151515); border:1px solid var(--bord-fort,#3a3a3a); color:var(--texte,#fff); font-size:13.5px; font-weight:600; text-decoration:none; }
+  .retour span { font-size:20px; line-height:1; margin-top:-2px; }
+  .retour:active { transform:scale(.97); }
   html { -webkit-text-size-adjust:100%; }
   body { margin:0; background:var(--fond); color:var(--texte); font:15px/1.55 var(--police); }
   main { max-width:460px; margin:0 auto; padding:24px 24px 56px; }

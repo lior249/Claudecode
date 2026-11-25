@@ -363,7 +363,7 @@ function pageAdminCandidature(config, { candidature, espace, message }) {
   const etapes = [['Formulaire', ['examen', 'retenu', 'video', 'valide', 'refuse']], ['Retenu', ['retenu', 'video', 'valide']], ['Vidéo', ['video', 'valide']], ['Validé', ['valide']]];
   const frise = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px">${etapes.map(([n, ok]) => `<span class="petit-bouton" style="${ok.includes(c.statut) ? 'background:#fff;color:#000;border-color:#fff' : ''}">${n}</span>`).join('')}${c.statut === 'refuse' ? '<span class="petit-bouton" style="border-color:var(--erreur);color:var(--erreur)">Refusé</span>' : ''}</div>`;
   return pageEspace(`Candidature ${c.pseudo || ''}`, `
-  <p class="doux petit"><a href="/admin/candidatures">← Toutes les candidatures</a></p>
+  <a class="retour" href="/admin/candidatures"><span aria-hidden="true">‹</span> Toutes les candidatures</a>
   <div class="titre-page"><div><p class="etiquette">Candidature Elite</p><h1>${echapper(c.pseudo || c.discord_id)}</h1></div></div>
   ${message ? `<p class="ok">${echapper(message)}</p>` : ''}
   ${frise}

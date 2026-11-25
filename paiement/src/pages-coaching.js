@@ -468,7 +468,7 @@ function pageDisponibilites(config, { espace, coaching, lundi, absences, seances
     .dispo input:focus-visible + span { outline:2px solid #fff; outline-offset:2px; }
     @media (min-width: 960px) { .dispos { grid-template-columns:60px repeat(7, 1fr); gap:6px; } .dispo { height:42px; } .dispo span { font-size:11.5px; } }
   </style>
-  <p class="doux petit"><a href="/admin?semaine=${echapper(lundi)}">← Calendrier</a></p>
+  <a class="retour" href="/admin?semaine=${echapper(lundi)}"><span aria-hidden="true">‹</span> Calendrier</a>
   <div class="titre-page"><div><p class="etiquette">Coaching</p><h1>Mes disponibilités</h1></div>
     <span class="doux petit">Semaine du ${echapper(lundi.slice(8, 10))}/${echapper(lundi.slice(5, 7))}${envoye ? ' · envoyées' : ''}</span></div>
   <div class="carte"><p style="margin:0">Tout est coché (en vert) par défaut. <b>Décoche tes absences</b> : un créneau, ou un jour entier en touchant son nom.
@@ -489,7 +489,7 @@ function pageDisponibilites(config, { espace, coaching, lundi, absences, seances
 function pageImprevu(config, { espace, date, seances, nomDe = (id) => id, erreur }) {
   const aVenir = seances.filter((s) => !s.touchee);
   return pageEspace('Imprévu', `${STYLE_COACHING}
-  <p class="doux petit"><a href="/admin">← Calendrier</a></p>
+  <a class="retour" href="/admin"><span aria-hidden="true">‹</span> Calendrier</a>
   <div class="titre-page"><div><p class="etiquette">Coaching · ${echapper(date)}</p><h1>J'ai un imprévu</h1></div></div>
   ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   ${aVenir.length ? `<form class="carte" method="post" action="/admin/imprevu" style="display:grid;gap:12px">
