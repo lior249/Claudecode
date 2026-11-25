@@ -544,8 +544,10 @@ function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDis
   <div class="carte">
     <h2>Déjà fait</h2>
     <ul class="liste">
-      <li>${ICONE.ok}<span>Paiement confirmé : accès jusqu'au <b style="color:#fff">${echapper(formatDate(membre.acces_jusqu_au))}</b>.
-        Bob te rappellera de renouveler (${formatPrix(membre.prix_renouvellement || offre.prixRenouvellement, config.devise).texte} ${periode}).</span></li>
+      <li>${ICONE.ok}<span>${offre.id === 'elite'
+        ? `Paiement confirmé : ton accompagnement de 90 jours court jusqu'au <b style="color:#fff">${echapper(formatDate(membre.acces_jusqu_au))}</b>.`
+        : `Paiement confirmé : accès jusqu'au <b style="color:#fff">${echapper(formatDate(membre.acces_jusqu_au))}</b>.
+        Bob te rappellera de renouveler (${formatPrix(membre.prix_renouvellement || offre.prixRenouvellement, config.devise).texte} ${periode}).`}</span></li>
       ${discordLie ? `<li>${ICONE.ok}<span>Discord connecté${membre.discord_pseudo ? ` (${echapper(membre.discord_pseudo)})` : ''} : ton rôle est ajouté sur le serveur.</span></li>` : ''}
       ${whopFait ? `<li>${ICONE.ok}<span>Accès Whop validé.</span></li>` : ''}
     </ul>

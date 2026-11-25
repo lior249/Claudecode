@@ -197,6 +197,37 @@ function migrerV9(db) {
   db.exec('PRAGMA user_version = 9');
 }
 
+// v10 : membres payés par carte (repérés par le rôle que Whop leur donne) et progression dans les cours Whop.
+function migrerV10(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 10) return;
+  if (!colonnes(db, 'membres').includes('whop_user_id')) db.exec('ALTER TABLE membres ADD COLUMN whop_user_id TEXT');
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS abonnes_carte (
+    discord_id  TEXT NOT NULL,
+    programme   TEXT NOT NULL,
+    pseudo      TEXT,
+    depuis      TEXT NOT NULL,
+    perdu_le    TEXT,            -- rôle retiré par Whop (paiement par carte arrêté)
+    termine_le  TEXT,            -- fin de l'attente (Community) ou départ du serveur
+    PRIMARY KEY (discord_id, programme)
+  );
+  CREATE TABLE IF NOT EXISTS cours_whop (
+    id      TEXT PRIMARY KEY,
+    titre   TEXT,
+    lecons  INTEGER NOT NULL DEFAULT 0,
+    maj_le  TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS progression_whop (
+    whop_user_id TEXT NOT NULL,
+    cours_id     TEXT NOT NULL,
+    lecon_id     TEXT NOT NULL,
+    termine      INTEGER NOT NULL DEFAULT 0,
+    maj_le       TEXT NOT NULL,
+    PRIMARY KEY (whop_user_id, lecon_id)
+  );
+  PRAGMA user_version = 10;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -215,6 +246,7 @@ function ouvrirBase(fichier) {
   migrerV7(db);
   migrerV8(db);
   migrerV9(db);
+  migrerV10(db);
   return db;
 }
 

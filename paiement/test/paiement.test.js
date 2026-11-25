@@ -34,7 +34,8 @@ test('Community : accueil → connexion Discord → formulaire → SasPay → st
     assert.ok(accueil.includes('href="https://discord.gg/test"'));
     assert.match(accueil, /video-vide/, 'emplacement vidéo réservé tant que WISTIA_ACCUEIL est vide');
     // Toutes les pages sauf l'accueil demandent le compte Discord.
-    for (const chemin of ['/community', '/community/paiement', '/community/renouveler', '/coaching/elite', '/coaching/elite/renouveler']) {
+    assert.match(await (await m.get('/coaching/elite/renouveler')).text(), /paiement unique/, 'Elite : rien à renouveler');
+    for (const chemin of ['/community', '/community/paiement', '/community/renouveler', '/coaching/elite']) {
       assert.match(await (await m.get(chemin, { cookie: '' })).text(), /Connecte ton compte Discord/, chemin);
     }
     assert.match(await (await m.poster('/community/paiement', { nom: 'X', email: 'x@example.com' }, { cookie: '' })).text(), /Connecte ton compte Discord/);

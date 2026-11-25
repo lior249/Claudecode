@@ -21,7 +21,7 @@ Fuseau horaire de référence : **GMT** (heure du Togo). Les pages affichent aus
 | Offre | Entrée (site, mobile money) | Renouvellement (site) | Accès |
 |---|---|---|---|
 | Community | 29 € ≈ 19 025 FCFA, 30 jours | 5 € ≈ 3 280 FCFA, +30 jours | Whop + Discord |
-| Elite | 500 € ≈ 327 980 FCFA, 90 jours | 60 € ≈ 39 360 FCFA, +90 jours (GOAT et « inconstants », voir § 5) | Whop + Discord + coaching |
+| Elite | 500 € ≈ 327 980 FCFA, **paiement unique**, 90 jours d'accompagnement | aucun | Whop + Discord + coaching |
 
 - **Prix garantis** : chaque membre garde à vie le prix de renouvellement en vigueur à son inscription.
 - Le renouvellement n'est possible **qu'avant la fin de l'accès**. Après, il faut repayer l'entrée.
@@ -52,14 +52,19 @@ Autorisations de la clé Whop : `plan:waitlist:read`, `plan:waitlist:manage`, le
   Renouvellement encore possible au prix garanti, avec un rappel 3 jours avant la fin de l'attente.
   Ensuite : **retiré du serveur**, et il faut repayer l'entrée. (Elite : pas d'attente, retrait immédiat.)
 
-## 5. Elite : fin des 3 mois
+## 5. Elite : paiement unique
 
-- **10 jours avant** la fin, Bob prévient le porteur de projet en privé et lui demande de classer le membre :
-  - **Insatisfait** (il n'a pas encore eu les résultats promis) : prolongé gratuitement de 90 jours, l'accompagnement continue ;
-  - **Inconstant** (il n'a pas travaillé) : Bob lui annonce que l'accompagnement s'arrête à la fin de la période.
-    Pour continuer, il doit payer une caution de 60 € tous les 3 mois. S'il refuse, c'est terminé.
-- Les **GOAT** renouvellent à 60 € tous les 3 mois.
-- Sans action à la date de fin : retiré du Discord, et l'accès Whop expire.
+- 500 €, une seule fois, pour 90 jours d'accompagnement. **Aucun renouvellement**, aucun rappel de paiement.
+- À la fin des 90 jours, **personne n'est retiré** : le membre garde le serveur et son accès Whop (le site ne le coupe pas).
+- Le parcours de l'accompagnement (étapes, fiche, GOAT, sinistrés) est décrit dans `docs/ACCOMPAGNEMENT-ELITE.md`.
+
+## 5 ter. Membres payés par carte (Whop)
+
+- Whop donne le rôle de l'offre à ceux qui paient par carte. Bob les repère (rôle sans paiement mobile money)
+  et les liste dans **Membres**, partie « Carte (Whop) ». Pas de rappel avant la fin : la carte se renouvelle seule.
+- Quand Whop retire le rôle (carte refusée, abonnement arrêté) :
+  - **Community** : Bob prévient la personne, lui donne En Attente, et la retire du serveur au bout de 15 jours si l'abonnement ne reprend pas ;
+  - **Elite** : l'admin est prévenu.
 
 ## 5 bis. Candidature Elite
 

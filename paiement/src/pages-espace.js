@@ -298,20 +298,47 @@ function pageAdminCandidature(config, { candidature, espace, message }) {
 }
 
 // /admin/membres : tous les membres mobile money.
-function pageAdminMembres(config, { membres, espace }) {
+// /admin/membres : tous les membres, mobile money et carte, avec leur progression dans les cours Whop.
+function pageAdminMembres(config, { membres, cartes = [], progression = {}, totalLecons = 0, espace }) {
+  const maintenant = new Date();
+  const formation = (m) => {
+    const p = m.whop_user_id && progression[m.whop_user_id];
+    if (!totalLecons) return '<span class="doux">—</span>';
+    if (!p) return `<span class="doux">0 / ${totalLecons}</span>`;
+    return `${p.terminees} / ${totalLecons}<br><span class="doux">${echapper(formatDate(p.derniere))}</span>`;
+  };
+  const statut = (m) => {
+    if (m.statut !== 'actif') return '<span class="erreur-form">Expiré</span>';
+    if (new Date(m.acces_jusqu_au) > maintenant) return '<span class="ok">Actif</span>';
+    return m.programme === 'elite' ? '<span class="doux">90 jours terminés</span>' : '<span style="color:#f1d38a">En attente</span>';
+  };
   const lignes = membres.map((m) => `<tr>
     <td><b>${echapper(m.nom)}</b><br><span class="doux">${echapper(m.email)}</span></td>
     <td>${echapper(m.discord_pseudo || '—')}</td>
-    <td>${echapper(config.offres[m.programme].nom.replace('Overmaxx ', ''))}${m.categorie_elite ? `<br><span class="doux">${echapper(m.categorie_elite)}</span>` : ''}</td>
-    <td>${m.statut === 'actif' ? (new Date(m.acces_jusqu_au) > new Date() ? '<span class="ok">Actif</span>' : '<span style="color:#f1d38a">En attente</span>') : '<span class="erreur-form">Expiré</span>'}</td>
+    <td>${echapper(config.offres[m.programme].nom.replace('Overmaxx ', ''))}</td>
+    <td>${statut(m)}</td>
     <td>${echapper(formatDate(m.acces_jusqu_au))}</td>
-    <td>${m.prix_renouvellement ? echapper(formatPrix(m.prix_renouvellement, m.devise || config.devise).texte) : '—'}</td>
-    <td>${m.whop_membership_id ? 'Oui' : '<span class="doux">Non</span>'}</td></tr>`).join('');
+    <td>${m.programme === 'elite' ? '<span class="doux">Paiement unique</span>' : m.prix_renouvellement ? echapper(formatPrix(m.prix_renouvellement, m.devise || config.devise).texte) : '—'}</td>
+    <td>${m.whop_membership_id ? 'Oui' : '<span class="doux">Non</span>'}</td>
+    <td>${formation(m)}</td></tr>`).join('');
+  const statutCarte = (c) => (c.termine_le ? '<span class="erreur-form">Terminé</span>'
+    : c.perdu_le ? `<span style="color:#f1d38a">Carte arrêtée le ${echapper(formatDate(c.perdu_le))}</span>` : '<span class="ok">Actif</span>');
+  const lignesCarte = cartes.map((c) => `<tr>
+    <td><b>${echapper(c.pseudo || c.discord_id)}</b></td>
+    <td>${echapper(config.offres[c.programme] ? config.offres[c.programme].nom.replace('Overmaxx ', '') : c.programme)}</td>
+    <td>${statutCarte(c)}</td>
+    <td>${echapper(formatDate(c.depuis))}</td></tr>`).join('');
   return pageEspace('Membres', `
-  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Membres mobile money</h1></div><span class="doux petit">${membres.length} membre(s)</span></div>
-  <div class="carte"><div class="defile"><table class="membres">
-    <tr><th>Membre</th><th>Discord</th><th>Offre</th><th>Statut</th><th>Fin d'accès</th><th>Renouvellement</th><th>Whop</th></tr>
-    ${lignes || '<tr><td colspan="7" class="doux">Aucun membre pour l\'instant.</td></tr>'}
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Membres</h1></div><span class="doux petit">${membres.length + cartes.length} membre(s)</span></div>
+  <div class="carte"><h2>Mobile money</h2><div class="defile"><table class="membres">
+    <tr><th>Membre</th><th>Discord</th><th>Offre</th><th>Statut</th><th>Fin d'accès</th><th>Renouvellement</th><th>Whop</th><th>Formation</th></tr>
+    ${lignes || '<tr><td colspan="8" class="doux">Aucun membre pour l\'instant.</td></tr>'}
+  </table></div></div>
+  <div class="carte"><h2>Carte (Whop)</h2>
+    <p class="doux petit">Repérés par le rôle que Whop leur donne sur Discord. Pas de rappel avant la fin : la carte se renouvelle toute seule.</p>
+    <div class="defile"><table class="membres">
+    <tr><th>Discord</th><th>Offre</th><th>Statut</th><th>Depuis</th></tr>
+    ${lignesCarte || '<tr><td colspan="4" class="doux">Aucun membre payé par carte repéré pour l\'instant.</td></tr>'}
   </table></div></div>`, espace, 'membres');
 }
 

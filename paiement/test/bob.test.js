@@ -263,36 +263,27 @@ test('Bob : un membre arrivé à 4 jours de la fin ne reçoit que le rappel util
   } finally { await m.fermer(); }
 });
 
-test('Bob : Elite 10 jours avant la fin → alerte admin avec boutons ; GOAT → rappels de paiement', async () => {
+test('Elite en paiement unique : aucun rappel, aucune alerte, personne retiré à la fin des 90 jours, accès Whop jamais coupé', async () => {
   const m = await monter();
   try {
     const e = await inscrire(m, 'elite@example.com', { programme: 'elite', discordId: 'E1' });
     const g = await inscrire(m, 'goat@example.com', { programme: 'elite', discordId: 'G1' });
+    m.db.prepare("UPDATE membres SET whop_membership_id = 'mem_e' WHERE id = ?").run(e.id);
     const fin = new Date(e.acces_jusqu_au).getTime();
     const b = await monterBob(m, new Date(fin - 9 * JOUR));
     b.d.ajouter('E1', [ROLES.elite]);
     b.d.ajouter('G1', [ROLES.elite, ROLES.goat]);
-    m.db.prepare('UPDATE membres SET acces_jusqu_au = ? WHERE id = ?').run(e.acces_jusqu_au, g.id);
-    await b.bob.renouvellements(); await b.bob.renouvellements();
-    const versAdmin = b.d.dms.filter(([id]) => id === ADMIN);
-    assert.strictEqual(versAdmin.length, 1);
-    assert.match(versAdmin[0][1], /sort de l'\*\*Elite\*\*/);
-    assert.strictEqual(versAdmin[0][2][0].components.length, 2);
-    const versGoat = b.d.dms.filter(([id]) => id === 'G1');
-    assert.match(urls(versGoat[0][2])[0], /retour=%2Fcoaching%2Felite%2Frenouveler$/);
-    assert.match(versGoat[0][1], /39\s?360 FCFA/);
-    assert.strictEqual(b.d.dms.filter(([id]) => id === 'E1').length, 0, 'Elite non classé : pas de demande de paiement');
-
-    // L'admin clique « Insatisfait » : +90 jours gratuits.
-    const reponses = [];
-    await b.bob.surInteraction({
-      user: { id: ADMIN }, isButton: () => true, customId: `elite:insatisfait:${e.id}`, message: { content: 'x' },
-      update: async (o) => reponses.push(o), reply: async (o) => reponses.push(o),
-    });
-    const apres = m.db.prepare('SELECT * FROM membres WHERE id = ?').get(e.id);
-    assert.strictEqual(apres.categorie_elite, 'insatisfait');
-    assert.strictEqual(new Date(apres.acces_jusqu_au) - new Date(e.acces_jusqu_au), 90 * JOUR);
-    assert.match(reponses[0].content, /Insatisfait/);
+    await b.bob.renouvellements();
+    b.aller(fin - 12 * 3600 * 1000); await b.bob.renouvellements();
+    assert.strictEqual(b.d.dms.length, 0, 'ni rappel de paiement, ni alerte de classement');
+    b.aller(fin + 30 * JOUR); await b.bob.expirations();
+    assert.strictEqual(b.d.kicks.length, 0, 'personne retiré à la fin des 90 jours');
+    assert.ok(b.d.membres.get('E1').roles.cache.set.has(ROLES.elite), 'rôle Elite gardé');
+    assert.strictEqual(m.db.prepare('SELECT statut FROM membres WHERE id = ?').get(e.id).statut, 'actif');
+    const synchro = creerSynchroWhop({ db: m.db, whop: m.whop, config: m.config, maintenant: () => new Date(fin + 30 * JOUR) });
+    await synchro.executer();
+    assert.ok(!m.whop.appels.some((a) => a[0] === 'annuler'), 'accès Whop Elite jamais coupé');
+    assert.ok(g);
   } finally { await m.fermer(); }
 });
 
@@ -456,7 +447,8 @@ test('espace de gestion : barre latérale (admin), page Membres réservée à l\
     await inscrire(m, 'awa@example.com');
     const admin = cookieSession(ADMIN, 'Floh');
     const page = await (await m.get('/admin/membres', { cookie: admin })).text();
-    assert.match(page, /Membres mobile money/);
+    assert.match(page, /Mobile money/);
+    assert.match(page, /Carte \(Whop\)/);
     assert.match(page, /awa@example\.com/);
     assert.match(page, /class="sidebar"/);
     assert.match(page, /href="\/admin\/candidatures"/);
@@ -589,5 +581,82 @@ test('accès Whop : page après paiement en une étape (email + Copier) ; correc
     b.aller(payeLe + 49 * 3600 * 1000); await b.bob.relancerWhop();
     assert.ok(b.d.dms.some(([qui, t]) => qui === ADMIN && /plus de 48 h/.test(t)));
     assert.strictEqual(b.d.dms.filter(([qui]) => qui === 'W1').length, 2, 'pas de 3e relance au membre');
+  } finally { await m.fermer(); }
+});
+
+test('membres payés par carte : repérés par le rôle Whop, prévenus quand Whop le retire, Community 15 jours En Attente puis retrait', async () => {
+  const m = await monter();
+  try {
+    await inscrire(m, 'mobile@example.com', { discordId: 'U1' });
+    let now = new Date('2026-12-01T10:00:00Z');
+    const dms = [];
+    const kicks = [];
+    const membres = new Map();
+    const ajouter = (id, roles) => {
+      const set = new Set(roles);
+      membres.set(id, { id, user: { bot: false, username: `pseudo_${id}` },
+        roles: { cache: { has: (r) => set.has(r), set }, add: async (r) => set.add(r), remove: async (r) => set.delete(r) },
+        kick: async () => { kicks.push(id); membres.delete(id); } });
+    };
+    ajouter('C1', [ROLES.community]); ajouter('C2', [ROLES.community]); ajouter('E9', [ROLES.elite]); ajouter('U1', [ROLES.community]);
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, maintenant: () => now,
+      client: { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content, c.components]) }) } },
+      serveur: { members: { fetch: async (id) => (id === undefined ? membres : membres.get(id) || null) } } });
+
+    await bob.suivreCarte();
+    const cartes = () => m.db.prepare('SELECT * FROM abonnes_carte ORDER BY discord_id').all();
+    assert.deepStrictEqual(cartes().map((c) => `${c.discord_id}:${c.programme}`), ['C1:community', 'C2:community', 'E9:elite'], 'U1 paie en mobile money : pas compté');
+    assert.strictEqual(dms.length, 0, 'aucun message quand tout va bien (pas de rappel avant la fin)');
+
+    // Whop retire les rôles (carte refusée).
+    membres.get('C1').roles.cache.set.delete(ROLES.community);
+    membres.get('C2').roles.cache.set.delete(ROLES.community);
+    membres.get('E9').roles.cache.set.delete(ROLES.elite);
+    await bob.suivreCarte(); await bob.suivreCarte();
+    assert.ok(membres.get('C1').roles.cache.set.has(ROLES.attente), 'Community : En Attente');
+    const versC1 = dms.filter(([id]) => id === 'C1');
+    assert.strictEqual(versC1.length, 1);
+    assert.match(versC1[0][1], /par carte s'est arrêté[\s\S]*15 jours/);
+    assert.ok(dms.some(([id, t]) => id === ADMIN && /E9/.test(t) && /Elite/.test(t)), 'Elite : l\'admin est prévenu');
+    assert.ok(!dms.some(([id]) => id === 'E9'));
+
+    // C2 reprend son abonnement : le rôle revient.
+    membres.get('C2').roles.cache.set.add(ROLES.community);
+    await bob.suivreCarte();
+    assert.strictEqual(cartes().find((c) => c.discord_id === 'C2').perdu_le, null);
+
+    // 16 jours plus tard : C1 retiré du serveur.
+    now = new Date('2026-12-17T10:00:00Z');
+    await bob.suivreCarte();
+    assert.deepStrictEqual(kicks, ['C1']);
+    assert.ok(cartes().find((c) => c.discord_id === 'C1').termine_le);
+
+    const page = await (await m.get('/admin/membres', { cookie: cookieSession(ADMIN, 'admin') })).text();
+    assert.match(page, /pseudo_C2/);
+    assert.match(page, /Carte arrêtée le/);
+  } finally { await m.fermer(); }
+});
+
+test('progression Whop : compte Whop gardé à l\'acceptation, leçons terminées lues dans les cours et affichées dans Membres', async () => {
+  const m = await monter();
+  try {
+    await inscrire(m, 'awa@example.com', { discordId: 'U1' });
+    m.whop.ajouterDemande('e1', 'awa@example.com');
+    m.whop.demandes.get('e1').user.id = 'user_9';
+    const activites = [
+      { user: { id: 'user_9' }, lesson: { id: 'l1' }, completed: true, updated_at: '2026-11-25T10:00:00Z' },
+      { user_id: 'user_9', lesson_id: 'l2', completed_at: '2026-11-25T11:00:00Z' },
+      { user: { id: 'user_9' }, lesson: { id: 'l3' }, completed: false },
+    ];
+    m.whop.cours = async () => [{ id: 'cours_1', title: 'TikTok OVM - Formation', total_lessons_count: 20 }];
+    m.whop.activiteLecons = async (id) => (id === 'cours_1' ? activites : []);
+    const synchro = creerSynchroWhop({ db: m.db, whop: m.whop, config: m.config });
+    await synchro.executer();
+    assert.strictEqual(m.db.prepare('SELECT whop_user_id FROM membres').get().whop_user_id, 'user_9');
+    assert.strictEqual(m.db.prepare('SELECT SUM(termine) n FROM progression_whop WHERE whop_user_id = ?').get('user_9').n, 2);
+    const page = await (await m.get('/admin/membres', { cookie: cookieSession(ADMIN, 'admin') })).text();
+    assert.match(page, /2 \/ 20/);
+    await synchro.executer();
+    assert.strictEqual(m.db.prepare('SELECT COUNT(*) n FROM progression_whop').get().n, 3, 'pas de doublon');
   } finally { await m.fermer(); }
 });

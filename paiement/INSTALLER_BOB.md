@@ -53,6 +53,9 @@ Sur **whop.com/dashboard/developer**, modifie ta clé (ou crée-en une nouvelle)
 - **Waitlist** (liste d'attente) : lire et gérer, c'est-à-dire accepter ou refuser (`plan:waitlist:read`, `plan:waitlist:manage`) ;
 - **Membership** : **Cancel memberships**. À la fin d'un accès non renouvelé, le site coupe lui-même l'accès Whop.
 - *(Facultatif)* **Members** : Manage members. Seulement si tes offres ont une durée d'expiration réglée sur Whop.
+- **Courses** : lecture des cours et des leçons. Le site lit, toutes les 10 minutes, les leçons terminées par chaque membre
+  (colonne « Formation » de la page Membres).
+- **Members** et **Memberships** : lecture (à venir, pour relier directement les membres payés par carte).
 
 Les autorisations **Promo codes** ne sont plus nécessaires. Si les noms sont différents, envoie une capture.
 

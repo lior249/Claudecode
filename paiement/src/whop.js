@@ -52,6 +52,34 @@ function creerClientWhop({ apiUrl, cleApi, versionApi, idEntreprise }, fetchImpl
       return toutes;
     },
 
+    // Tous les cours du produit, puis l'activité de leurs leçons (qui a terminé quoi), page par page.
+    async cours() {
+      const tous = [];
+      let apres = null;
+      for (let i = 0; i < 10; i++) {
+        const params = new URLSearchParams({ company_id: idEntreprise, first: '50' });
+        if (apres) params.set('after', apres);
+        const res = await appel('GET', `/courses?${params}`);
+        tous.push(...(res.data || []));
+        if (!res.page_info || !res.page_info.has_next_page) break;
+        apres = res.page_info.end_cursor;
+      }
+      return tous;
+    },
+    async activiteLecons(coursId) {
+      const toutes = [];
+      let apres = null;
+      for (let i = 0; i < 50; i++) {
+        const params = new URLSearchParams({ course_id: coursId, first: '100' });
+        if (apres) params.set('after', apres);
+        const res = await appel('GET', `/course_lesson_interactions?${params}`);
+        toutes.push(...(res.data || []));
+        if (!res.page_info || !res.page_info.has_next_page) break;
+        apres = res.page_info.end_cursor;
+      }
+      return toutes;
+    },
+
     demande(id) {
       return appel('GET', `/waitlist_entries/${encodeURIComponent(id)}`);
     },

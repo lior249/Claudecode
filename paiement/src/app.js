@@ -176,15 +176,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
       page: (o) => P.pageFormulaire(config, { offre: elite, type: 'inscription', action: `${elite.base}/paiement/${req.params.token}`, lienCarte: elite.lienCarte, ...o }),
     });
   });
-  app.get('/coaching/elite/renouveler', formulaireRenouvellement(elite));
-  app.post('/coaching/elite/renouveler', formulaire, (req, res) => {
-    const session = connecte(req, res, `${elite.base}/renouveler`, `Renouveler ${elite.nom}`);
-    if (!session) return undefined;
-    return lancerPaiement(req, res, {
-      offre: elite, type: 'renouvellement', session,
-      page: (o) => P.pageFormulaire(config, { offre: elite, type: 'renouvellement', ...o }),
-    });
-  });
+  // Elite : paiement unique de 500 €, il n'y a rien à renouveler.
+  app.all('/coaching/elite/renouveler', (req, res) => res.send(P.pageMessage(config, 'Rien à renouveler',
+    'L\'accompagnement Elite est un paiement unique : il n\'y a pas d\'abonnement à renouveler.', { lien: '/coaching', texteLien: 'Mes coachings' })));
 
   // ---- Suivi du paiement ----
   app.get('/confirmation/:ref', async (req, res) => {
@@ -566,8 +560,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   app.get('/admin/membres', (req, res) => {
     if (!estAdmin(req, res, '/admin/membres')) return;
-    const membres = commandes.db.prepare("SELECT * FROM membres ORDER BY statut, acces_jusqu_au").all();
-    res.send(E.pageAdminMembres(config, { membres, espace: espaceDe(lireSession(req, config.secretApp)) }));
+    const db = commandes.db;
+    const membres = db.prepare('SELECT * FROM membres ORDER BY statut, acces_jusqu_au').all();
+    const cartes = db.prepare('SELECT * FROM abonnes_carte ORDER BY termine_le IS NOT NULL, perdu_le IS NOT NULL, depuis DESC').all();
+    const progression = Object.fromEntries(db.prepare(`SELECT whop_user_id, SUM(termine) terminees, MAX(maj_le) derniere
+      FROM progression_whop GROUP BY whop_user_id`).all().map((p) => [p.whop_user_id, p]));
+    const totalLecons = db.prepare('SELECT COALESCE(SUM(lecons), 0) n FROM cours_whop').get().n;
+    res.send(E.pageAdminMembres(config, { membres, cartes, progression, totalLecons, espace: espaceDe(lireSession(req, config.secretApp)) }));
   });
 
   // Tous les liens du site, et des aperçus des pages qu'on ne voit qu'après un paiement ou une décision.

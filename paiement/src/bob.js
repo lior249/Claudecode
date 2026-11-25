@@ -35,16 +35,23 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     deja: db.prepare('SELECT 1 FROM envois WHERE cle = ?'),
     marquer: db.prepare('INSERT OR IGNORE INTO envois (cle, envoye_le) VALUES (?, ?)'),
     actifsAvecDiscord: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND discord_id IS NOT NULL"),
-    finis: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND acces_jusqu_au <= ?"),
+    // Elite : paiement unique, personne n'est retiré à la fin des 90 jours.
+    finis: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND programme != 'elite' AND acces_jusqu_au <= ?"),
     actifsEnCours: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND discord_id IS NOT NULL AND acces_jusqu_au > ?"),
     expirer: db.prepare("UPDATE membres SET statut = 'expire', maj_le = ? WHERE id = ? AND statut = 'actif'"),
     autresActifs: db.prepare("SELECT * FROM membres WHERE discord_id = ? AND statut = 'actif' AND id != ?"),
-    categoriser: db.prepare('UPDATE membres SET categorie_elite = ?, maj_le = ? WHERE id = ?'),
     membresParDiscord: db.prepare('SELECT * FROM membres WHERE discord_id = ?'),
     enPeriodeAttente: db.prepare("SELECT 1 FROM membres WHERE discord_id = ? AND statut = 'actif' AND acces_jusqu_au <= ?"),
     attenteDepuis: db.prepare('SELECT envoye_le FROM envois WHERE cle = ?'),
     noterAttente: db.prepare('INSERT INTO envois (cle, envoye_le) VALUES (?, ?) ON CONFLICT(cle) DO UPDATE SET envoye_le = excluded.envoye_le'),
     payeeParCarte: db.prepare('UPDATE invitations_elite SET utilisee_le = ?, ref_commande = ? WHERE token = ? AND utilisee_le IS NULL'),
+    carte: db.prepare('SELECT * FROM abonnes_carte WHERE discord_id = ? AND programme = ?'),
+    carteNouveau: db.prepare('INSERT INTO abonnes_carte (discord_id, programme, pseudo, depuis) VALUES (?, ?, ?, ?)'),
+    carteRetour: db.prepare('UPDATE abonnes_carte SET perdu_le = NULL, termine_le = NULL, pseudo = COALESCE(?, pseudo) WHERE discord_id = ? AND programme = ?'),
+    cartesActives: db.prepare('SELECT * FROM abonnes_carte WHERE programme = ? AND perdu_le IS NULL AND termine_le IS NULL'),
+    cartesPerdues: db.prepare('SELECT * FROM abonnes_carte WHERE programme = ? AND perdu_le IS NOT NULL AND termine_le IS NULL'),
+    cartePerdue: db.prepare('UPDATE abonnes_carte SET perdu_le = ? WHERE discord_id = ? AND programme = ?'),
+    carteTerminee: db.prepare('UPDATE abonnes_carte SET termine_le = ? WHERE discord_id = ? AND programme = ?'),
     sansAccesWhop: db.prepare("SELECT * FROM membres WHERE statut = 'actif' AND whop_membership_id IS NULL AND acces_jusqu_au > ?"),
     dernierPaiement: db.prepare("SELECT ref, type, payee_le FROM commandes WHERE programme = ? AND email = ? AND statut = 'PAYEE' ORDER BY payee_le DESC LIMIT 1"),
   };
@@ -182,11 +189,6 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     if (m && m.roles.cache.has(roleId)) await m.roles.remove(roleId, 'Overmaxx');
   }
 
-  async function estGoat(discordId) {
-    const m = config.discord.roleGoat && await membreDuServeur(discordId);
-    return Boolean(m && m.roles.cache.has(config.discord.roleGoat));
-  }
-
   // ---------- Renouvellements ----------
   async function renouvellements() {
     const now = maintenant();
@@ -195,10 +197,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       if (restant <= 0) continue;
       const o = config.offres[m.programme];
 
-      if (m.programme === 'elite' && !m.categorie_elite && !(await estGoat(m.discord_id))) {
-        if (restant <= 10 * JOUR_MS) await alerteElite(m);
-        continue; // un Elite non classé ne reçoit pas de rappel de paiement
-      }
+      if (m.programme === 'elite') continue; // Elite : paiement unique, rien à renouveler
 
       const palier = [...PALIERS_JOURS].reverse().find((p) => restant <= p * JOUR_MS);
       if (!palier) continue;
@@ -214,30 +213,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
             : `Sans renouvellement, ton accès sera coupé et tu seras retiré du Discord. Pour revenir, il faudra repayer le prix d'entrée (**${formatPrix(o.prixEntree, config.devise)}**).`)
         : `Ton accès à **${o.nom}** se termine dans **${palier} jours** (le ${formatDate(m.acces_jusqu_au)}).\n`
           + `Renouvelle-le quand tu veux d'ici là pour **${prix}**.`;
-      if (m.programme === 'elite' && m.categorie_elite === 'inconstant') {
-        texte += '\n\nRappel : pour continuer l\'accompagnement, la caution de 60 € tous les 3 mois est obligatoire.';
-      }
       if (await notifier.membre(m.discord_id, avecBoutons(texte, [{ label: 'Renouveler mon accès', url: lien }]))) {
         for (const p of PALIERS_JOURS) if (p >= palier) marquer(cle(p));
         log(`rappel ${palier} j envoyé au membre ${m.id}`);
       }
     }
-  }
-
-  async function alerteElite(m) {
-    const cle = `elite-alerte:${m.id}:${m.acces_jusqu_au}`;
-    if (dejaEnvoye(cle)) return;
-    const boutons = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`elite:insatisfait:${m.id}`).setLabel('Insatisfait : prolonger 3 mois').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`elite:inconstant:${m.id}`).setLabel('Inconstant : caution 60 €').setStyle(ButtonStyle.Danger),
-    );
-    const ok = await notifier.admin({
-      content: `**${m.nom}** (<@${m.discord_id}>, ${m.email}) sort de l'**Elite** le **${formatDate(m.acces_jusqu_au)}**.\n`
-        + 'Classe son profil :\n- **Insatisfait** : il n\'a pas encore eu ses résultats, il continue 3 mois gratuitement ;\n'
-        + '- **Inconstant** : il n\'a pas travaillé, je lui annonce la fin et la caution de 60 € pour continuer.',
-      components: [boutons],
-    });
-    if (ok) marquer(cle);
   }
 
   // ---------- Expirations ----------
@@ -501,24 +481,6 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
 
   async function surInteraction(i) {
     const estAdmin = i.user.id === config.discord.adminId;
-    if (i.isButton() && i.customId.startsWith('elite:')) {
-      if (!estAdmin) return i.reply({ content: 'Réservé à l\'admin.', flags: MessageFlags.Ephemeral });
-      const [, choix, id] = i.customId.split(':');
-      const m = commandes.membreParId(Number(id));
-      if (!m) return i.reply({ content: 'Membre introuvable.', flags: MessageFlags.Ephemeral });
-      q.categoriser.run(choix, maintenant().toISOString(), m.id);
-      if (choix === 'insatisfait') {
-        const maj = commandes.prolongerGratuitement(m.id, config.offres.elite.dureeJours);
-        await notifier.membre(m.discord_id, `Bonne nouvelle : ton accompagnement **Elite** continue gratuitement jusqu'au **${formatDate(maj.acces_jusqu_au)}**. On va chercher tes résultats ensemble.`);
-        return i.update({ content: `${i.message.content}\n\n**Insatisfait** : prolongé jusqu'au ${formatDate(maj.acces_jusqu_au)}.`, components: [] });
-      }
-      await notifier.membre(m.discord_id, avecBoutons(
-        `Ton accompagnement **Elite** s'arrête le **${formatDate(m.acces_jusqu_au)}**, car les engagements n'ont pas été respectés.\n`
-        + `Pour continuer, une caution de **${formatPrix(m.prix_renouvellement || config.offres.elite.prixRenouvellement, config.devise)}** est demandée tous les 3 mois.\n`
-        + 'Sans paiement avant cette date, l\'accompagnement s\'arrête ici.', [{ label: 'Payer la caution', url: lienRenouvellementPerso(m) }]));
-      return i.update({ content: `${i.message.content}\n\n**Inconstant** : prévenu, lien de caution envoyé.`, components: [] });
-    }
-
     if (i.isButton() && i.customId.startsWith('cand:')) {
       if (!estAdmin) return i.reply({ content: 'Réservé à l\'admin.', flags: MessageFlags.Ephemeral });
       const [, decision, id] = i.customId.split(':');
@@ -749,6 +711,60 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     }
   }
 
+  // ---------- Membres payés par carte (Whop) ----------
+  // Whop donne le rôle de l'offre à ceux qui paient par carte : Bob les repère (rôle sans paiement mobile money).
+  // Pas de rappel avant la fin : la carte se renouvelle seule. Quand Whop retire le rôle (carte refusée, abonnement arrêté),
+  // Bob prévient. Community : 15 jours En Attente, puis retrait du serveur (comme le mobile money). Elite : l'admin est prévenu.
+  async function suivreCarte() {
+    if (!serveur) return;
+    let tous;
+    try { tous = await serveur.members.fetch(); } catch (err) { console.warn('[bob] membres carte :', err.message); return; }
+    const now = maintenant();
+    const iso = now.toISOString();
+    for (const o of Object.values(config.offres)) {
+      if (!o.roleDiscord) continue;
+      const payeMobile = (id) => q.membresParDiscord.all(id).some((x) => x.programme === o.id && x.statut === 'actif');
+      // 1. Rôle présent sans paiement mobile money : abonné par carte (nouveau, ou de retour).
+      for (const m of tous.values()) {
+        if (m.user?.bot || m.id === config.discord.adminId || !m.roles.cache.has(o.roleDiscord) || payeMobile(m.id)) continue;
+        const r = q.carte.get(m.id, o.id);
+        if (!r) { q.carteNouveau.run(m.id, o.id, m.user?.username || null, iso); log(`membre ${o.id} payé par carte repéré : ${m.id}`); }
+        else if (r.perdu_le || r.termine_le) { q.carteRetour.run(m.user?.username || null, m.id, o.id); log(`abonnement ${o.id} par carte repris : ${m.id}`); }
+      }
+      // 2. Rôle retiré par Whop.
+      for (const r of q.cartesActives.all(o.id)) {
+        const m = tous.get(r.discord_id);
+        if (m && m.roles.cache.has(o.roleDiscord)) continue;
+        if (payeMobile(r.discord_id)) { q.carteTerminee.run(iso, r.discord_id, o.id); continue; } // passé au mobile money
+        q.cartePerdue.run(iso, r.discord_id, o.id);
+        log(`abonnement ${o.id} par carte arrêté : ${r.discord_id}`);
+        if (!m) { q.carteTerminee.run(iso, r.discord_id, o.id); continue; } // parti du serveur
+        if (o.id === 'elite') {
+          await notifier.admin(`**${r.pseudo || r.discord_id}** (<@${r.discord_id}>) a perdu son rôle **${o.nom}**, donné par Whop (paiement par carte). Vérifie sur Whop.`);
+          continue;
+        }
+        try { if (config.discord.roleAttente) await donnerRole(r.discord_id, config.discord.roleAttente); } catch (err) { console.warn('[bob] attente carte :', err.message); }
+        await notifier.membre(r.discord_id, avecBoutons(`**Ton abonnement ${o.nom} par carte s'est arrêté** : le paiement n'est pas passé, ou l'abonnement a été annulé sur Whop.\n`
+          + `Tu es maintenant **en attente** (plus d'accès aux salons). Tu as **${o.graceJours} jours** pour mettre à jour ta carte sur Whop, sinon tu seras retiré du serveur.`,
+        [{ label: 'Ouvrir Whop', url: 'https://whop.com' }]));
+        await notifier.admin(`**${r.pseudo || r.discord_id}** (<@${r.discord_id}>) : abonnement **${o.nom}** par carte arrêté, en attente ${o.graceJours} jours.`);
+      }
+      // 3. Fin de l'attente sans reprise : retrait du serveur (s'il n'a rien d'autre).
+      if (!o.graceJours) continue;
+      for (const r of q.cartesPerdues.all(o.id)) {
+        if (now - new Date(r.perdu_le) < o.graceJours * JOUR_MS) continue;
+        q.carteTerminee.run(iso, r.discord_id, o.id);
+        const m = tous.get(r.discord_id);
+        if (!m) continue;
+        const autreAcces = Object.values(config.offres).some((x) => x.roleDiscord && m.roles.cache.has(x.roleDiscord))
+          || q.membresParDiscord.all(r.discord_id).some((x) => x.statut === 'actif');
+        if (autreAcces) { try { await retirerRole(r.discord_id, config.discord.roleAttente); } catch { /* rien */ } continue; }
+        try { await m.kick(`Overmaxx : abonnement ${o.nom} par carte non repris`); } catch (err) { console.warn('[bob] retrait carte :', err.message); }
+        await notifier.admin(`**${r.pseudo || r.discord_id}** (<@${r.discord_id}>) retiré du serveur : abonnement **${o.nom}** par carte non repris après ${o.graceJours} jours.`);
+      }
+    }
+  }
+
   // ---------- Paiement Elite par carte (Whop) ----------
   // Whop donne le rôle Elite au candidat validé qui paie par carte : sa candidature passe « intégration confirmée »
   // et son lien mobile money est désactivé (pas de double paiement).
@@ -842,7 +858,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       await renouvellements();
       await rappelsCoaching();
       if (tour % 2 === 0) await synchroRoles();
-      if (tour % 10 === 0) { await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); }
+      if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); }
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
       console.error('[bob] cycle :', err);
@@ -866,6 +882,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     accueillir,
     paiementCarteDetecte,
     relancerWhop,
+    suivreCarte,
 
     async demarrer() {
       if (!actif) { log('désactivé : DISCORD_BOT_TOKEN ou DISCORD_GUILD_ID manquant.'); return; }
