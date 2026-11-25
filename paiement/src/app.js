@@ -11,6 +11,7 @@ const V = require('./pages-parcours');
 const C = require('./pages-coaching');
 const N = require('./pages-notifications');
 const K = require('./pages-eleves');
+const A = require('./pages-accueil');
 const { creerParcours } = require('./parcours');
 const { creerSuivi, QUESTIONS, jourLisible } = require('./suivi');
 const { creerSinistres } = require('./sinistres');
@@ -100,10 +101,24 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (j && j.but === 'app' && j.id) { ouvrirSession(res, { id: j.id, pseudo: j.pseudo }, config); session = { id: j.id, pseudo: j.pseudo }; }
     return res.redirect(302, (session && accueilDe(session)) || '/');
   });
-  // L'espace qui s'ouvre après la connexion (ou depuis l'application), selon le compte.
+  // Profil du membre (prénom, pays, fuseau) et accueil des nouveaux.
+  const qProfils = {
+    get: commandes.db.prepare('SELECT * FROM profils_membres WHERE discord_id = ?'),
+    infos: commandes.db.prepare(`INSERT INTO profils_membres (discord_id, prenom, pays, fuseau, maj_le) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(discord_id) DO UPDATE SET prenom = excluded.prenom, pays = excluded.pays, fuseau = COALESCE(excluded.fuseau, fuseau), maj_le = excluded.maj_le`),
+    fini: commandes.db.prepare(`INSERT INTO profils_membres (discord_id, accueil_fini_le, maj_le) VALUES (?, ?, ?)
+      ON CONFLICT(discord_id) DO UPDATE SET accueil_fini_le = COALESCE(accueil_fini_le, excluded.accueil_fini_le), maj_le = excluded.maj_le`),
+  };
+  const accueilFini = (id) => Boolean((qProfils.get.get(id) || {}).accueil_fini_le);
+  // L'espace qui s'ouvre après la connexion (ou depuis l'application), selon le compte ; d'abord l'accueil des nouveaux.
   // Pas encore de programme : null (la page d'accueil propose la Community et l'Elite).
-  function accueilDe(session) {
+  function accueilDe(session, { avecAccueil = true } = {}) {
     if (session.id === config.discord.adminId) return '/admin/a-traiter';
+    const espaceMembre = espaceDe_(session);
+    const membre = espaceMembre && !espaceMembre.endsWith('/candidature');
+    return membre && avecAccueil && !accueilFini(session.id) ? '/bienvenue' : espaceMembre;
+  }
+  function espaceDe_(session) {
     const p = parcoursDe(session);
     if (p) return p.sinistre_depuis ? '/sinistre' : '/parcours';
     const membres = commandes.membresParDiscord(session.id);
@@ -144,6 +159,26 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   apiNotif('/api/notifications/test', async (session) => ({
     appareils: await push.envoyer(session.id, { titre: 'Notifications activées', corps: 'Tu recevras ici les messages d\'Overmaxx.', url: '/notifications', tag: 'test' }),
   }));
+
+  // ================= Accueil des nouveaux membres =================
+  app.get('/bienvenue', (req, res) => {
+    const session = connecte(req, res, '/bienvenue', 'Bienvenue');
+    if (!session) return;
+    if (session.id === config.discord.adminId) { res.redirect(302, '/admin/a-traiter'); return; }
+    res.send(A.pageAccueilMembre(config, { espace: espaceDe(session), session, profil: qProfils.get.get(session.id), clePublique: push.clePublique(),
+      canal: push.canal(session.id), suite: accueilDe(session, { avecAccueil: false }) || '/' }));
+  });
+  apiNotif('/api/bienvenue/infos', async (session, b) => {
+    const prenom = String(b.prenom || '').trim().slice(0, 40);
+    const pays = String(b.pays || '').trim().slice(0, 60);
+    if (prenom.length < 2) return { erreur: 'Écris ton prénom.' };
+    if (pays.length < 2) return { erreur: 'Écris ton pays.' };
+    const fuseau = require('./coaching').fuseauValide(b.fuseau) ? String(b.fuseau) : null;
+    qProfils.infos.run(session.id, prenom, pays, fuseau, new Date().toISOString());
+    if (fuseau) coaching.majFuseau(session.id, fuseau, session.pseudo);
+    return {};
+  });
+  apiNotif('/api/bienvenue/fini', async (session) => { qProfils.fini.run(session.id, new Date().toISOString(), new Date().toISOString()); return {}; });
 
   // ================= Paiements (Community et Elite) =================
 
@@ -750,7 +785,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const x = membreParcours(req, res, '/parcours');
     if (!x) return;
     const prochaine = coaching.prochainesSeances(x.session.id, 14)[0];
-    res.send(V.pageParcours(config, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id),
+    res.send(V.pageParcours(config, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id), rappel: aFaireDe(x.p),
       prochain: prochaine ? prochaine.debut : null, derniere: parcours.remarques(x.session.id)[0] || null, formation: formationDe(x.session.id),
       stats: x.p.etape >= 4 ? suivi.stats(x.session.id) : null }));
   });
@@ -813,6 +848,22 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     prevenir('entreeReservee', x.p, r.seance);
     res.redirect(303, '/parcours/etape-2?ok=1');
   });
+
+  // Ce qu'il reste à faire au membre (fenêtre à chaque ouverture de Mon parcours).
+  function aFaireDe(p) {
+    const id = p.discord_id;
+    const items = [];
+    const ajouter = (texte, lien) => { if (!items.some((x) => x.texte === texte)) items.push({ texte, lien }); };
+    if (!accueilFini(id)) ajouter('Termine ton accueil : l\'application et tes notifications', '/bienvenue');
+    const t = parcours.tache(id);
+    if (t && !['attente1', 'attente3', 'entree-reservee', 'ok', 'goat'].includes(t.cle)) ajouter(t.titre, t.lien);
+    if (p.etape === 4 && p.heure_creation) {
+      for (const x of suivi.comptesRendusAFaire(id)) ajouter(`${x.cr && x.cr.etat === 'corriger' ? 'Corrige' : 'Envoie'} ton compte rendu du ${jourLisible(x.jour)}`, `/parcours/compte-rendu/${x.jour}`);
+      if (!suivi.publications(id, suivi.aujourdhui(p)).length) ajouter('Publie ta vidéo du jour', '/parcours/etape-4');
+    }
+    if ([3, 4].includes(p.etape) && !coaching.aUnPlanning(id)) ajouter('Réserve tes coachings de la semaine', '/coaching');
+    return { etape: Math.min(p.etape, 5), items };
+  }
 
   // ---- Étape 4 : publication et suivi ----
   const MESSAGES_ETAPE4 = {
@@ -1137,12 +1188,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       compte: p.compte_tiktok, niche: p.niche, pays: p.pays, niveau: p.niveau,
       sinistre: Boolean(p.sinistre_depuis), sinistres: p.sinistres || 0, retard: retards.has(p.discord_id), aTraiter: compte[p.discord_id] || 0,
       forcees: JSON.parse(p.etapes_forcees || '[]'), tache: p.etape <= 4 ? (parcours.tache(p.discord_id) || {}).titre : null,
-      manquants: parcours.manquants(p.discord_id),
+      manquants: parcours.manquants(p.discord_id), entree: (p.entree_le || '').slice(0, 10),
     })).sort((x, y) => x.nom.localeCompare(y.nom, 'fr'));
   }
   app.get('/admin/eleves', (req, res) => {
     if (!estAdmin(req, res, '/admin/eleves')) return;
-    const fait = req.query.fait === 'ajoute' ? 'Élève ajouté à l\'étape 1 : glisse-le à son étape.'
+    const fait = req.query.fait === 'ajoute' ? 'Élève ajouté à l\'étape 1 : glisse-le à son étape.' : req.query.fait === 'infos' ? 'Infos enregistrées.'
       : /^[1-4]$/.test(String(req.query.fait || '')) ? `Élève placé à l'étape ${req.query.fait}. Bob l'a prévenu.` : null;
     res.send(K.pageEleves(config, { espace: espaceDe(lireSession(req, config.secretApp)), eleves: donneesEleves(),
       sansDiscord: db.prepare("SELECT nom, email FROM membres WHERE programme = 'elite' AND statut = 'actif' AND discord_id IS NULL ORDER BY nom").all(),
@@ -1157,6 +1208,14 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (r.erreur) { res.status(400).json(r); return; }
     if (r.parcours.etape > avant.etape) prevenir('etapeOuverte', r.parcours, r.parcours.etape);
     res.json({ ok: true, etape: r.parcours.etape, forcees: r.forcees });
+  });
+  app.post('/admin/eleves/:id/infos', json, (req, res) => {
+    if (!estAdmin(req, res, '/admin/eleves')) return;
+    if (!parcours.get(req.params.id)) { res.status(404).json({ erreur: 'Élève introuvable.' }); return; }
+    const b = req.body || {};
+    const r = parcours.majInfos(req.params.id, { compte: b.compte, niche: b.niche, pays: b.pays, niveau: b.niveau, entree: b.entree });
+    if (r.erreur) { res.status(400).json(r); return; }
+    res.json({ ok: true });
   });
   app.post('/admin/eleves/ajouter', formulaire, async (req, res) => {
     if (!estAdmin(req, res, '/admin/eleves')) return;

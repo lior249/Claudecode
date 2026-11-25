@@ -286,6 +286,16 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       if (forcees.length) q.forcees.run(JSON.stringify([...new Set([...JSON.parse(p.etapes_forcees || '[]'), ...forcees])].sort()), iso(), discordId);
       return { parcours: q.get.get(discordId), forcees };
     },
+    // Le coach complète les informations d'un élève (tableau des élèves) : compte TikTok, niche, pays, niveau, date d'entrée.
+    majInfos(discordId, { compte, niche, pays, niveau, entree } = {}) {
+      if (!q.get.get(discordId)) return { erreur: 'Élève introuvable.' };
+      const champs = {};
+      for (const [k, v] of Object.entries({ compte, niche, pays })) if (typeof v === 'string' && v.trim()) champs[k] = v;
+      if (Object.keys(champs).length) api.majCompte(discordId, champs);
+      if (['L1', 'L2'].includes(niveau)) q.niveau.run(niveau, iso(), discordId);
+      if (entree && /^\d{4}-\d{2}-\d{2}$/.test(String(entree))) api.majEntree(discordId, `${entree}T12:00:00.000Z`);
+      return { parcours: q.get.get(discordId) };
+    },
     // Date d'entrée d'un élève déjà accompagné avant la plateforme (ses 90 jours partent de là).
     majEntree(discordId, entree) {
       const d = new Date(entree);

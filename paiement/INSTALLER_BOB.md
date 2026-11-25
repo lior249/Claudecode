@@ -273,6 +273,19 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
 - Les membres Elite payés (mobile money ou carte) y apparaissent tout seuls. Pour quelqu'un que tu accompagnes déjà
   sans paiement sur le site : **Ajouter un élève** avec son pseudo Discord et sa date d'entrée (ses 90 jours partent de là).
 
+## Accueil des nouveaux, fenêtres d'aide et réglage Discord
+
+- **Rejoindre le Discord** (page d'accueil, connexion, candidature) ouvre d'abord la fenêtre **« Avant de rejoindre le Discord »** :
+  4 captures annotées pour activer *Messages privés et demandes d'ami* (Paramètres → Contenu et social), le réglage
+  qui permet à Bob d'écrire. Aussi sur la page Notifications (« Bob ne t'écrit pas ? »).
+- **Accueil des nouveaux** (`/bienvenue`), à la première ouverture de son espace : ses infos (prénom, pays, fuseau),
+  installer l'application, choisir ses notifications (l'application, recommandée, ou Bob). Chaque écran se passe.
+- **Mon parcours** : à chaque ouverture, une fenêtre **« Ce qu'il te reste à faire »** (croix en haut à droite) liste
+  ses tâches, la plus importante en premier ; « Bravo, étape N ouverte ! » au changement d'étape.
+- **Élèves Elite** : le bouton **Compléter** (orange s'il manque quelque chose) renseigne en une fois son compte TikTok,
+  sa niche, son pays, son niveau et sa date d'entrée.
+- **Icône de l'application** : le globe Overmaxx (`public/icones`).
+
 ## L'espace de gestion
 
 Sur **overmaxx.online/admin** (connexion avec `/connexion` dans Discord) : barre latérale à gauche sur ordinateur,

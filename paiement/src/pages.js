@@ -158,6 +158,17 @@ const STYLE = `
   .video-vide span { font-weight:600; font-size:14px; }
   .video-vide small { color:var(--doux); font-size:12px; }
   /* Page d'accueil (même mise en forme que l'ancienne page Creato) : logo, vidéo, titre, bouton. */
+  dialog.fenetre { background:#0d0d0d; color:#fff; border:1px solid var(--bord-fort); border-radius:22px; padding:22px 20px 20px;
+    width:min(460px, calc(100% - 28px)); max-height:calc(100% - 40px); overflow:auto; text-align:left; }
+  dialog.fenetre::backdrop { background:rgba(0,0,0,.78); }
+  dialog.fenetre .fermer { position:absolute; top:12px; right:12px; width:38px; height:38px; border-radius:50%; border:1px solid var(--bord-fort);
+    background:#161616; color:#fff; font:400 22px/1 var(--police); cursor:pointer; display:grid; place-items:center; padding:0; }
+  dialog.fenetre h2 { margin:0 44px 8px 0; font-size:20px; letter-spacing:-0.02em; }
+  dialog.fenetre .bouton { margin-top:14px; }
+  .tuto-bob ol { list-style:none; padding:0; margin:14px 0 0; display:grid; gap:20px; }
+  .tuto-bob li { display:grid; gap:8px; }
+  .tuto-bob li p { margin:0; }
+  .tuto-bob img { width:100%; max-width:340px; justify-self:center; border-radius:14px; border:1px solid var(--bord); }
   .bienvenue { max-width:560px; margin:0 auto; text-align:center; }
   .bienvenue .hero { height:150px; margin:0 0 6px; }
   .bienvenue .video { margin:0 0 26px; border-radius:20px; box-shadow:0 30px 80px -30px rgba(255,255,255,.22); }
@@ -306,6 +317,33 @@ function blocVideo(wistiaId, titre) {
 }
 
 // overmaxx.online : la seule page ouverte à tous. Son seul but : faire entrer sur le Discord (étape En Attente).
+// Fenêtre « Autorise Bob à t'écrire » : le réglage Discord qui permet à Bob d'envoyer ses messages privés,
+// en 4 captures annotées. Ouverte par tout bouton portant data-tuto-bob (ex. « Rejoindre le Discord »).
+const ETAPES_TUTO_BOB = [
+  ['bob-1.jpg', 'Ouvre Discord et touche <b>ton nom</b>, en bas de l\'écran.'],
+  ['bob-2.jpg', 'Sur ton profil, touche <b>Paramètres</b> (Settings), en bas.'],
+  ['bob-3.jpg', 'Touche <b>Contenu et social</b> (Content &amp; Social).'],
+  ['bob-4.jpg', 'Active <b>Messages privés et demandes d\'ami</b> (Direct Messages and Friend Requests). C\'est ce réglage qui permet à Bob de t\'écrire.'],
+];
+function fenetreTutoBob(config, { rejoindre = true } = {}) {
+  return `<dialog class="fenetre tuto-bob" id="tuto-bob" aria-labelledby="tuto-bob-titre">
+    <button class="fermer" type="button" aria-label="Fermer" data-fermer>×</button>
+    <h2 id="tuto-bob-titre">${rejoindre ? 'Avant de rejoindre le Discord' : 'Autorise Bob à t\'écrire'}</h2>
+    <p class="doux" style="margin:0">Bob, notre bot, t'écrit en message privé : connexion au site, rappels, coachings.
+      Vérifie ce réglage dans ton application Discord${rejoindre ? ', puis rejoins le serveur' : ''} : sinon, ses messages ne t'arrivent pas.</p>
+    <ol>${ETAPES_TUTO_BOB.map(([img, t], i) => `<li><p><b>${i + 1}.</b> ${t}</p><img src="/static/aide/${img}" alt="Étape ${i + 1} dans Discord" loading="lazy"></li>`).join('')}</ol>
+    <p class="doux petit" style="margin:16px 0 0">Les réglages des demandes d'ami ne changent rien pour Bob.</p>
+    ${rejoindre && config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">C'est fait, rejoindre le Discord</a>`
+    : '<button class="bouton" type="button" data-fermer>C\'est fait</button>'}
+  </dialog>
+  <script>(function () {
+    var d = document.getElementById('tuto-bob'); if (!d || !d.showModal) return;
+    document.querySelectorAll('[data-tuto-bob]').forEach(function (b) { b.addEventListener('click', function (e) { e.preventDefault(); d.showModal(); }); });
+    d.querySelectorAll('[data-fermer]').forEach(function (b) { b.addEventListener('click', function () { d.close(); }); });
+    d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+  })();</script>`;
+}
+
 // Page d'accueil : se connecter d'abord (avec son compte Discord, via Bob) ; rejoindre le Discord pour les nouveaux.
 // Déjà connecté : un bouton vers son espace (ou, s'il n'a pas encore de programme, les deux programmes).
 function pageBienvenue(config, { pseudo, espace } = {}) {
@@ -315,7 +353,8 @@ function pageBienvenue(config, { pseudo, espace } = {}) {
     <p class="doux">Avec ton compte Discord : indique ton pseudo, Bob t'envoie un bouton, et ton espace s'ouvre. Aucun mot de passe.</p>
     <a class="bouton" href="/connexion?retour=%2Fapp">Se connecter</a>
     ${config.lienDiscord ? `<p class="doux petit" style="margin:22px 0 0">Pas encore membre du serveur Overmaxx ?</p>
-    <a class="bouton secondaire" href="${echapper(config.lienDiscord)}" style="margin-top:8px">Rejoindre le Discord</a>` : ''}`
+    <a class="bouton secondaire" href="${echapper(config.lienDiscord)}" style="margin-top:8px" data-tuto-bob>Rejoindre le Discord</a>
+    ${fenetreTutoBob(config)}` : ''}`
     : espace ? `
     <h1>Bon retour, ${echapper(pseudo)}</h1>
     <p class="doux">Ton espace Overmaxx t'attend.</p>
@@ -643,5 +682,5 @@ function pageMessage(config, titre, message, { lien = '/', texteLien = 'Retour' 
 
 module.exports = {
   CONTENU, ICONE, echapper, gabarit, gabaritEspace, logo, formatPrix, formatDate, blocSupport, blocVideo,
-  pageBienvenue, pageAccueil, pageEmailWhop, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
+  pageBienvenue, pageAccueil, fenetreTutoBob, pageEmailWhop, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
 };

@@ -77,6 +77,13 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
     m.db.prepare('UPDATE parcours SET etape = 5 WHERE discord_id = ?').run(E1);
     assert.match((await (await deplacer({ etape: 3 })).json()).erreur, /GOAT/);
 
+    // Compléter ses informations en une fois.
+    const infos = await fetch(`${m.base}/admin/eleves/${E1}/infos`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: coach },
+      body: JSON.stringify({ compte: 'awa.voyage', niche: 'Voyages pas chers', pays: 'France', niveau: 'L1', entree: '2026-10-01' }) });
+    assert.strictEqual(infos.status, 200);
+    p = m.parcours.get(E1);
+    assert.deepStrictEqual([p.compte_tiktok, p.niche, p.pays, p.niveau, p.entree_le.slice(0, 10)], ['@awa.voyage', 'Voyages pas chers', 'France', 'L1', '2026-10-01']);
+
     // Ajouter un élève déjà accompagné, avec sa date d'entrée.
     const inconnu = await m.poster('/admin/eleves/ajouter', { pseudo: 'personne' }, { cookie: coach });
     assert.match(decodeURIComponent(inconnu.headers.get('location')), /n'est pas sur le serveur/);

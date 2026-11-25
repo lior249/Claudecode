@@ -81,18 +81,39 @@ test('application installable : manifeste, service worker, ouverture déjà conn
     const perso = await (await m.get(`/manifest.webmanifest?u=${encodeURIComponent(u)}`, { cookie: '' })).json();
     assert.ok(perso.start_url.startsWith('/app?t='));
     const ouverture = await m.get(perso.start_url, { cookie: '' });
-    assert.strictEqual(ouverture.headers.get('location'), '/parcours');
+    assert.strictEqual(ouverture.headers.get('location'), '/bienvenue', 'premier passage : l\'accueil des nouveaux');
     assert.match(ouverture.headers.get('set-cookie') || '', /ovx_session=/);
     assert.strictEqual((await m.get('/app?t=faux', { cookie: '' })).headers.get('location'), '/');
     assert.strictEqual((await m.get('/app', { cookie: cookieSession(ADMIN, 'coach') })).headers.get('location'), '/admin/a-traiter');
 
     // Page d'accueil connecté : « Ouvrir mon espace ». Bouton de Bob après « Se connecter » : son espace s'ouvre.
-    assert.match(await (await m.get('/', { cookie: membre })).text(), /Bon retour, awa_27[\s\S]*href="\/parcours">Ouvrir mon espace/);
+    assert.match(await (await m.get('/', { cookie: membre })).text(), /Bon retour, awa_27[\s\S]*href="\/bienvenue">Ouvrir mon espace/);
     const { lienMagique } = require('../src/liens');
     const bouton = await m.get(new URL(lienMagique(m.config, { id: E1, pseudo: 'awa_27' }, '/app')).pathname + new URL(lienMagique(m.config, { id: E1, pseudo: 'awa_27' }, '/app')).search, { cookie: '' });
     assert.strictEqual(bouton.headers.get('location'), '/app');
     const cookieBob = bouton.headers.get('set-cookie').split(';')[0];
-    assert.strictEqual((await m.get('/app', { cookie: cookieBob })).headers.get('location'), '/parcours');
+    assert.strictEqual((await m.get('/app', { cookie: cookieBob })).headers.get('location'), '/bienvenue');
+
+    // Accueil des nouveaux : infos, application, notifications ; ensuite, son espace directement.
+    const pageBienvenue = await (await m.get('/bienvenue', { cookie: membre })).text();
+    assert.match(pageBienvenue, /Bienvenue, awa_27/);
+    assert.match(pageBienvenue, /Tes informations[\s\S]*L'application Overmaxx[\s\S]*Tes notifications[\s\S]*Tout est prêt/);
+    const poste = (chemin, corps) => fetch(`${m.base}${chemin}`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: membre }, body: JSON.stringify(corps) });
+    assert.strictEqual((await poste('/api/bienvenue/infos', { prenom: 'A', pays: 'Togo' })).status, 400);
+    assert.strictEqual((await poste('/api/bienvenue/infos', { prenom: 'Awa', pays: 'Togo', fuseau: 'Africa/Lome' })).status, 200);
+    assert.strictEqual(m.coaching.profil(E1).fuseau, 'Africa/Lome');
+    // Mon parcours : la fenêtre « Ce qu'il te reste à faire », avec l'accueil à terminer.
+    const parcoursPage = await (await m.get('/parcours', { cookie: membre })).text();
+    assert.match(parcoursPage, /<dialog class="fenetre" id="a-faire"/);
+    assert.match(parcoursPage, /Termine ton accueil[\s\S]*Envoie tes exercices L1 et L2/);
+    assert.strictEqual((await poste('/api/bienvenue/fini', {})).status, 200);
+    assert.strictEqual((await m.get('/app', { cookie: membre })).headers.get('location'), '/parcours');
+    assert.doesNotMatch(await (await m.get('/parcours', { cookie: membre })).text(), /Termine ton accueil/);
+    // Le réglage Discord pour que Bob puisse écrire : sur la page d'accueil, avec les 4 captures.
+    const visiteur = await (await m.get('/', { cookie: '' })).text();
+    assert.match(visiteur, /data-tuto-bob>Rejoindre le Discord/);
+    assert.match(visiteur, /Avant de rejoindre le Discord[\s\S]*Contenu et social[\s\S]*Messages privés et demandes d'ami/);
+    for (let i = 1; i <= 4; i++) assert.strictEqual((await m.get(`/static/aide/bob-${i}.jpg`)).status, 200);
 
     // Page Notifications et ses appels.
     const notif = await (await m.get('/notifications', { cookie: membre })).text();

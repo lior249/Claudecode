@@ -37,7 +37,8 @@ const STYLE_KANBAN = `<style>
   .eleve .pastilles span { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; border:1px solid var(--bord-fort); color:var(--doux); }
   .eleve .pastilles .rouge { border-color:#ff3b3b; color:#ff8080; } .eleve .pastilles .orange { border-color:#ff8a00; color:#ffb35c; }
   .eleve .pastilles .or { border-color:#f5c542; color:#f5c542; }
-  .eleve .deplacer { justify-self:start; margin-top:2px; }
+  .eleve .deplacer, .eleve .infos { margin-top:2px; }
+  .eleve .a-completer { border-color:#ff8a00; color:#ffb35c; }
   .ajout { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:end; }
   .ajout .champ { margin:0; } .ajout input { margin:0; }
   @media (max-width: 720px) { .ajout { grid-template-columns:1fr; } }
@@ -54,6 +55,8 @@ const STYLE_KANBAN = `<style>
   .champs-compte { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; } .champs-compte .large { grid-column:1 / -1; } .champs-compte .champ { margin:0; } .champs-compte input, .champs-compte select { margin:0; }
 </style>`;
 
+// Infos à renseigner : le niveau après l'étape 1 ; le compte TikTok, la niche et le pays à partir de l'étape 3.
+const manqueInfos = (e) => (e.etape >= 2 && !e.niveau) || (e.etape >= 3 && (!e.compte || !e.niche || !e.pays));
 function carte(e) {
   const goat = e.etape >= 5;
   return `<article class="eleve" data-id="${echapper(e.id)}" draggable="${goat ? 'false' : 'true'}">
@@ -64,14 +67,15 @@ function carte(e) {
     <div class="pastilles">${e.sinistre ? `<span class="rouge">Sinistré ${e.sinistres}/3</span>` : ''}${e.retard ? '<span class="rouge">En retard</span>' : ''}
       ${e.aTraiter ? `<span class="orange">${e.aTraiter} à traiter</span>` : ''}${e.forcees.length ? `<span>Passé par toi : ${e.forcees.join(', ')}</span>` : ''}
       ${e.niveau ? `<span>${echapper(e.niveau)}</span>` : ''}${goat ? '<span class="or">GOAT</span>' : ''}</div>
-    ${goat ? '' : '<button class="petit-bouton deplacer" type="button">Déplacer</button>'}
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${goat ? '' : '<button class="petit-bouton deplacer" type="button">Déplacer</button>'}
+      <button class="petit-bouton infos${manqueInfos(e) ? ' a-completer' : ''}" type="button">${manqueInfos(e) ? 'Compléter' : 'Infos'}</button></div>
   </article>`;
 }
 
 function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur }) {
   const parColonne = (n) => eleves.filter((e) => (n === 5 ? e.etape >= 5 : e.etape === n));
   const donnees = {};
-  for (const e of eleves) donnees[e.id] = { nom: e.nom, etape: e.etape, compte: e.compte || '', niche: e.niche || '', pays: e.pays || '', niveau: e.niveau || '', manquants: e.manquants };
+  for (const e of eleves) donnees[e.id] = { nom: e.nom, etape: e.etape, compte: e.compte || '', niche: e.niche || '', pays: e.pays || '', niveau: e.niveau || '', entree: e.entree || '', manquants: e.manquants };
   const script = `
 (function () {
   var D = ${JSON.stringify({ eleves: donnees, colonnes: COLONNES }).replace(/</g, '\\u003c')};
@@ -140,6 +144,29 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur 
       if (id && D.eleves[id] && D.eleves[id].etape !== n) ouvrir(id, n);
     });
   });
+  // Compléter ses informations (compte TikTok, niche, pays, niveau, date d'entrée), en une fois.
+  var di = document.getElementById('dlg-infos'), infosDe = null;
+  document.querySelectorAll('.eleve .infos').forEach(function (b) {
+    b.onclick = function () {
+      infosDe = b.closest('.eleve').getAttribute('data-id');
+      var e = D.eleves[infosDe]; if (!e) return;
+      di.querySelector('#i-nom').textContent = e.nom;
+      ['compte', 'niche', 'pays', 'niveau', 'entree'].forEach(function (k) { di.querySelector('[name=' + k + ']').value = e[k] || ''; });
+      di.querySelector('#i-erreur').textContent = '';
+      di.showModal();
+    };
+  });
+  di.querySelector('#i-annuler').onclick = function () { di.close(); };
+  di.querySelector('#i-enregistrer').onclick = function () {
+    var b = this, corps = {};
+    ['compte', 'niche', 'pays', 'niveau', 'entree'].forEach(function (k) { corps[k] = di.querySelector('[name=' + k + ']').value; });
+    b.disabled = true;
+    fetch('/admin/eleves/' + encodeURIComponent(infosDe) + '/infos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d.erreur) { di.querySelector('#i-erreur').textContent = d.erreur; b.disabled = false; return; } location.href = '/admin/eleves?fait=infos'; })
+      .catch(function () { di.querySelector('#i-erreur').textContent = 'Connexion impossible. Réessaie.'; b.disabled = false; });
+  };
+
   // Arrivée depuis une fiche : « Changer d'étape ».
   var depuis = new URLSearchParams(location.search).get('eleve');
   if (depuis && D.eleves[depuis]) ouvrir(depuis, 0);
@@ -165,6 +192,21 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur 
   </form>
   ${sansDiscord.length ? `<div class="carte"><h2>Elite sans compte Discord relié</h2><p class="doux petit" style="margin:0 0 8px">Ils doivent se connecter au site avec leur compte Discord pour apparaître ici.</p>
     ${sansDiscord.map((m) => `<div class="seance"><div><b>${echapper(m.nom)}</b> · <span class="doux petit">${echapper(m.email)}</span></div></div>`).join('')}</div>` : ''}
+  <dialog id="dlg-infos" class="fenetre">
+    <h2 style="margin:0 0 10px">Infos de <span id="i-nom"></span></h2>
+    <div class="champs-compte">
+      <div class="champ large"><label for="i-compte">Compte TikTok</label><input id="i-compte" name="compte" placeholder="@compte"></div>
+      <div class="champ"><label for="i-niche">Niche</label><input id="i-niche" name="niche"></div>
+      <div class="champ"><label for="i-pays">Pays cible</label><input id="i-pays" name="pays"></div>
+      <div class="champ"><label for="i-niveau">Niveau</label><select id="i-niveau" name="niveau"><option value="">—</option><option value="L1">L1</option><option value="L2">L2</option></select></div>
+      <div class="champ"><label for="i-entree">Entrée</label><input id="i-entree" name="entree" type="date"></div>
+    </div>
+    <p class="doux petit" style="margin:0">La date d'entrée fait partir ses 90 jours.</p>
+    <p id="i-erreur" class="erreur-form" style="margin:8px 0 0"></p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+      <button id="i-annuler" class="bouton secondaire" type="button" style="margin:0">Annuler</button>
+      <button id="i-enregistrer" class="bouton" type="button" style="margin:0">Enregistrer</button></div>
+  </dialog>
   <dialog id="dlg-etape">
     <h2 style="margin:0 0 4px">Déplacer <span id="dlg-nom"></span></h2>
     <div class="cibles">${COLONNES.filter((c) => c.n <= 4).map((c) => `<label><input type="radio" name="cible" value="${c.n}"><b>${c.n}</b>${echapper(c.titre)}</label>`).join('')}</div>

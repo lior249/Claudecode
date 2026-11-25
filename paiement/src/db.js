@@ -463,6 +463,20 @@ function migrerV16(db) {
   db.exec('PRAGMA user_version = 16');
 }
 
+// v17 : accueil des nouveaux membres (prénom, pays, fuseau, accueil terminé).
+function migrerV17(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 17) return;
+  db.exec(`CREATE TABLE IF NOT EXISTS profils_membres (
+    discord_id      TEXT PRIMARY KEY,
+    prenom          TEXT,
+    pays            TEXT,
+    fuseau          TEXT,
+    accueil_fini_le TEXT,
+    maj_le          TEXT NOT NULL
+  );
+  PRAGMA user_version = 17;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -488,6 +502,7 @@ function ouvrirBase(fichier) {
   migrerV14(db);
   migrerV15(db);
   migrerV16(db);
+  migrerV17(db);
   return db;
 }
 

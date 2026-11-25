@@ -317,10 +317,40 @@ const enTete = (n, titre, d) => `<div class="titre-page"><div><p class="etiquett
 const jourDe = (p) => Math.min(90, Math.max(1, Math.floor((Date.now() - new Date(p.entree_le)) / 86400000) + 1));
 
 // ---------- Membre : Mon parcours ----------
-function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, formation, stats }) {
+// Fenêtre de Mon parcours : ce qu'il reste à faire (à chaque ouverture) ; « Bravo » quand une nouvelle étape s'ouvre.
+function fenetreAFaire(r) {
+  if (!r || !r.items.length) return '';
+  const etape = ETAPES.find((e) => e.n === r.etape) || { titre: '' };
+  return `<style>
+    .a-faire-liste { list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px; }
+    .a-faire-liste a { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-radius:14px;
+      border:1px solid var(--bord-fort); background:#141414; color:#fff; text-decoration:none; font-weight:600; font-size:14.5px; }
+    .a-faire-liste a::after { content:'›'; font-size:22px; color:var(--doux); line-height:1; }
+    .a-faire-liste li:first-child a { border-color:#fff; }
+  </style>
+  <dialog class="fenetre" id="a-faire" data-etape="${r.etape}" aria-labelledby="a-faire-titre">
+    <button class="fermer" type="button" aria-label="Fermer" data-fermer>×</button>
+    <p class="etiquette" style="margin:0 0 6px">${r.etape >= 5 ? 'GOAT' : `Étape ${r.etape} sur 4 · ${echapper(etape.titre)}`}</p>
+    <h2 id="a-faire-titre" data-titre-normal>Ce qu'il te reste à faire</h2>
+    <h2 data-titre-nouveau hidden>Bravo, étape ${r.etape} ouverte !</h2>
+    <p class="doux" style="margin:0">${r.items.length > 1 ? `${r.items.length} choses à faire, la plus importante en premier.` : 'Une chose à faire maintenant.'}</p>
+    <ul class="a-faire-liste">${r.items.map((i) => `<li><a href="${echapper(i.lien)}">${echapper(i.texte)}</a></li>`).join('')}</ul>
+  </dialog>
+  <script>(function () {
+    var d = document.getElementById('a-faire'); if (!d || !d.showModal) return;
+    var e = d.getAttribute('data-etape'), avant = null;
+    try { avant = localStorage.getItem('ovx-etape-vue'); localStorage.setItem('ovx-etape-vue', e); } catch (x) {}
+    if (avant && avant !== e) { d.querySelector('[data-titre-normal]').hidden = true; d.querySelector('[data-titre-nouveau]').hidden = false; }
+    d.querySelectorAll('[data-fermer]').forEach(function (b) { b.onclick = function () { d.close(); }; });
+    d.addEventListener('click', function (ev) { if (ev.target === d) d.close(); });
+    d.showModal();
+  })();</script>`;
+}
+function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, formation, stats, rappel }) {
   return page('Mon parcours', `
   <div class="titre-page"><div><p class="etiquette">Overmaxx Elite · jour ${jourDe(p)} sur 90</p><h1>Mon parcours</h1></div></div>
   ${frise(p.etape)}
+  ${fenetreAFaire(rappel)}
   <div class="colonnes-2">
     <div>
       <div class="carte a-faire">

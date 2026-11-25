@@ -1,7 +1,7 @@
 'use strict';
 
 // Pages Elite (candidature), Coaching privé (réservation) et Admin (calendrier).
-const { ICONE, echapper, gabarit, gabaritEspace, formatDate, formatPrix, blocSupport, blocVideo } = require('./pages');
+const { ICONE, echapper, gabarit, gabaritEspace, formatDate, formatPrix, blocSupport, blocVideo, fenetreTutoBob } = require('./pages');
 const { FORMULAIRES } = require('./formulaires');
 const { pageFormulaire } = require('./pages-formulaire');
 
@@ -117,7 +117,8 @@ function pageConnexionRequise(config, { retour = '/', message, erreur, pseudo, i
       <img src="${echapper(im.src)}" alt="" loading="lazy" style="width:100%;max-width:360px;border-radius:14px;border:1px solid var(--bord)">
       <figcaption class="doux petit" style="margin-top:6px">${echapper(im.legende)}</figcaption></figure>`).join('')}</div></details>` : ''}
   ${config.lienDiscord ? `<p class="doux petit centre" style="margin:${introuvable ? '4px' : '18px'} 0 0">Pas encore sur le serveur Overmaxx ?</p>
-  <a class="bouton ${introuvable ? '' : 'secondaire'}" href="${echapper(config.lienDiscord)}" style="margin-top:8px">Rejoindre le Discord</a>` : ''}`);
+  <a class="bouton ${introuvable ? '' : 'secondaire'}" href="${echapper(config.lienDiscord)}" style="margin-top:8px" data-tuto-bob>Rejoindre le Discord</a>
+  ${fenetreTutoBob(config)}` : ''}`);
 }
 
 function pageConnexionEnvoyee(config, { url, retour = '/' }) {
@@ -131,7 +132,7 @@ function pageConnexionEnvoyee(config, { url, retour = '/' }) {
 }
 
 const boutonDiscord = (config) => (config.lienDiscord
-  ? `<a class="bouton" href="${echapper(config.lienDiscord)}" style="max-width:340px">Rejoindre le Discord</a>` : '');
+  ? `<a class="bouton" href="${echapper(config.lienDiscord)}" style="max-width:340px" data-tuto-bob>Rejoindre le Discord</a>${fenetreTutoBob(config)}` : '');
 
 // /coaching/elite : formulaire 1 (candidature), façon Tally, sans connexion. Aucun prix affiché.
 function pageEliteCandidature(config, { session } = {}) {
@@ -191,7 +192,7 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
     <div class="carte"><p class="doux" style="margin:0">Toutes les réponses arrivent sur Discord, par message privé de <b style="color:#fff">Bob</b>, notre bot.
       Quand ton profil est retenu, il t'envoie le lien de la suite du formulaire.</p></div>
     <a class="bouton" href="${o.base}">Remplir le formulaire de candidature</a>
-    ${config.lienDiscord ? `<a class="bouton secondaire" href="${echapper(config.lienDiscord)}">Rejoindre le Discord</a>` : ''}`);
+    ${config.lienDiscord ? `<a class="bouton secondaire" href="${echapper(config.lienDiscord)}" data-tuto-bob>Rejoindre le Discord</a>${fenetreTutoBob(config)}` : ''}`);
   }
   const c = candidature;
   let corps = '';
@@ -205,7 +206,7 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
       break;
     case 'examen':
       corps = `${titre('Candidature en cours de traitement')}${attente('Ton formulaire est bien reçu. Nous l\'examinons : <b>réponse sous 24 heures</b>, par message de Bob sur Discord. <b>Cette page se met à jour toute seule</b> : garde-la ouverte ou reviens plus tard.')}
-      ${config.lienDiscord ? `<a class="bouton secondaire" href="${echapper(config.lienDiscord)}">Rejoindre le Discord</a>` : ''}`;
+      ${config.lienDiscord ? `<a class="bouton secondaire" href="${echapper(config.lienDiscord)}" data-tuto-bob>Rejoindre le Discord</a>${fenetreTutoBob(config)}` : ''}`;
       break;
     case 'retenu':
       script = `${suivi}
@@ -388,7 +389,7 @@ function pageAdminPages(config, { espace }) {
   const video = (id, nom) => (id ? '<span class="ok">vidéo réglée</span>' : `<span style="color:#f1d38a">vidéo à ajouter</span> <code>${nom}</code>`);
   const groupes = [
     ['Pages publiques', [
-      ['/', 'Accueil', 'La seule page ouverte à tous : logo, vidéo, bouton Rejoindre le Discord.', video(config.wistiaAccueil, 'WISTIA_ACCUEIL')],
+      ['/', 'Accueil', 'La seule page ouverte à tous : Se connecter à Overmaxx, puis Rejoindre le Discord (avec le réglage qui permet à Bob d\'écrire).', video(config.wistiaAccueil, 'WISTIA_ACCUEIL')],
       ['/community', 'Community', 'Présentation et prix de la Community.'],
       ['/community/paiement', 'Paiement Community', 'Nom, email, puis paiement mobile money.'],
       ['/community/renouveler', 'Renouvellement Community', 'Sans lien personnel : l\'email est demandé.'],
