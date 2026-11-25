@@ -447,8 +447,7 @@ test('espace de gestion : barre latérale (admin), page Membres réservée à l\
     await inscrire(m, 'awa@example.com');
     const admin = cookieSession(ADMIN, 'Floh');
     const page = await (await m.get('/admin/membres', { cookie: admin })).text();
-    assert.match(page, /Mobile money/);
-    assert.match(page, /Carte \(Whop\)/);
+    assert.match(page, /<th>Paiement<\/th>/, 'une seule liste, le moyen de paiement en colonne');
     assert.match(page, /awa@example\.com/);
     assert.match(page, /class="sidebar"/);
     assert.match(page, /href="\/admin\/candidatures"/);

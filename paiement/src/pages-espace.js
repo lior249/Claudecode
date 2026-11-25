@@ -273,12 +273,30 @@ function carteCandidature(c, { fiche = false } = {}) {
     </div>`;
 }
 
+// Liste compacte : une ligne par candidat, et « Inspecter » ouvre ses réponses et les décisions.
+const nomCandidat = (c) => {
+  const r = (c.reponses || []).find((x) => /nom/i.test(x.label) && !/discord|pseudo/i.test(x.label)) || (c.reponses || [])[0];
+  return (r && r.valeur) || c.pseudo || c.discord_id;
+};
+const COULEUR_STATUT = { examen: 'attente', video: 'attente', retenu: 'neutre', valide: 'valide', refuse: 'corriger', formulaire: 'neutre' };
 function pageAdminCandidatures(config, { liste, espace }) {
-  const cartes = liste.length ? liste.map((c) => carteCandidature(c)).join('')
-    : '<div class="carte"><p class="doux" style="margin:0">Aucune candidature pour l\'instant.</p></div>';
+  const lignes = liste.map((c) => `<tr>
+    <td>Candidature Elite</td>
+    <td><b>${echapper(nomCandidat(c))}</b><br><span class="doux">${echapper(c.pseudo || c.discord_id)}</span></td>
+    <td><span class="statut-cand" data-etat="${COULEUR_STATUT[c.statut] || 'neutre'}">${echapper(LIBELLES_CANDIDATURE[c.statut] || c.statut)}</span></td>
+    <td>${echapper(new Date(c.maj_le).toLocaleDateString('fr-FR'))}</td>
+    <td style="text-align:right"><a class="bouton secondaire" style="width:auto;min-height:36px;margin:0;padding:7px 16px;display:inline-flex" href="/admin/candidatures/${c.id}">Inspecter</a></td></tr>`).join('');
   return pageEspace('Candidatures', `
-  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Candidatures Elite</h1></div></div>
-  <div class="grille-cartes">${cartes}</div>`, espace, 'candidatures');
+  <style>.statut-cand { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; background:var(--surface-2); color:var(--doux); white-space:nowrap; }
+    .statut-cand[data-etat="attente"] { background:rgba(241,211,138,.12); color:#f1d38a; }
+    .statut-cand[data-etat="valide"] { background:rgba(61,220,132,.14); color:var(--ok); }
+    .statut-cand[data-etat="corriger"] { background:rgba(255,77,77,.12); color:var(--erreur); }
+    table.candidatures td { vertical-align:middle; }</style>
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Candidatures Elite</h1></div><span class="doux petit">${liste.length} candidature(s)</span></div>
+  <div class="carte"><div class="defile"><table class="membres candidatures">
+    <tr><th>Formulaire</th><th>Nom</th><th>Statut</th><th>Mise à jour</th><th></th></tr>
+    ${lignes || '<tr><td colspan="5" class="doux">Aucune candidature pour l\'instant.</td></tr>'}
+  </table></div></div>`, espace, 'candidatures');
 }
 
 // /admin/candidatures/:id : la fiche d'un candidat (lien envoyé par Bob).
@@ -298,48 +316,56 @@ function pageAdminCandidature(config, { candidature, espace, message }) {
   </div>`, espace, 'candidatures');
 }
 
-// /admin/membres : tous les membres mobile money.
-// /admin/membres : tous les membres, mobile money et carte, avec leur progression dans les cours Whop.
+// /admin/membres : tous les membres dans une seule liste ; le moyen de paiement est une colonne parmi d'autres.
 function pageAdminMembres(config, { membres, cartes = [], progression = {}, totalLecons = 0, espace }) {
   const maintenant = new Date();
+  const offre = (prog) => (config.offres[prog] ? config.offres[prog].nom.replace('Overmaxx ', '') : prog);
   const formation = (m) => {
     const p = m.whop_user_id && progression[m.whop_user_id];
-    if (!totalLecons) return '<span class="doux">—</span>';
+    if (!m.whop_user_id || !totalLecons) return '<span class="doux">—</span>';
     if (!p) return '<span class="doux">Pas commencé</span>';
     return `${p.terminees} / ${p.total || totalLecons}<br><span class="doux">${echapper(formatDate(p.derniere))}</span>`;
   };
-  const statut = (m) => {
-    if (m.statut !== 'actif') return '<span class="erreur-form">Expiré</span>';
-    if (new Date(m.acces_jusqu_au) > maintenant) return '<span class="ok">Actif</span>';
-    return m.programme === 'elite' ? '<span class="doux">90 jours terminés</span>' : '<span style="color:#f1d38a">En attente</span>';
+  const statutMobile = (m) => {
+    if (m.statut !== 'actif') return [3, '<span class="erreur-form">Expiré</span>'];
+    if (new Date(m.acces_jusqu_au) > maintenant) return [0, '<span class="ok">Actif</span>'];
+    return m.programme === 'elite' ? [1, '<span class="doux">90 jours terminés</span>'] : [2, '<span style="color:#f1d38a">En attente</span>'];
   };
-  const lignes = membres.map((m) => `<tr>
-    <td><b>${echapper(m.nom)}</b><br><span class="doux">${echapper(m.email)}</span></td>
-    <td>${echapper(m.discord_pseudo || '—')}</td>
-    <td>${echapper(config.offres[m.programme].nom.replace('Overmaxx ', ''))}</td>
-    <td>${statut(m)}</td>
-    <td>${echapper(formatDate(m.acces_jusqu_au))}</td>
-    <td>${m.programme === 'elite' ? '<span class="doux">Paiement unique</span>' : m.prix_renouvellement ? echapper(formatPrix(m.prix_renouvellement, m.devise || config.devise).texte) : '—'}</td>
-    <td>${m.whop_membership_id ? 'Oui' : '<span class="doux">Non</span>'}</td>
-    <td>${formation(m)}</td></tr>`).join('');
-  const statutCarte = (c) => (c.termine_le ? '<span class="erreur-form">Terminé</span>'
-    : c.perdu_le ? `<span style="color:#f1d38a">Carte arrêtée le ${echapper(formatDate(c.perdu_le))}</span>` : '<span class="ok">Actif</span>');
-  const lignesCarte = cartes.map((c) => `<tr>
-    <td><b>${echapper(c.pseudo || c.discord_id)}</b></td>
-    <td>${echapper(config.offres[c.programme] ? config.offres[c.programme].nom.replace('Overmaxx ', '') : c.programme)}</td>
-    <td>${statutCarte(c)}</td>
-    <td>${echapper(formatDate(c.depuis))}</td></tr>`).join('');
+  const statutCarte = (c) => (c.termine_le ? [3, '<span class="erreur-form">Terminé</span>']
+    : c.perdu_le ? [2, `<span style="color:#f1d38a">Carte arrêtée le ${echapper(formatDate(c.perdu_le))}</span>`] : [0, '<span class="ok">Actif</span>']);
+  const lignes = [
+    ...membres.map((m) => {
+      const [ordre, statut] = statutMobile(m);
+      return { ordre, nom: m.nom, html: `<tr>
+        <td><b>${echapper(m.nom)}</b><br><span class="doux">${echapper(m.email)}</span></td>
+        <td>${echapper(m.discord_pseudo || '—')}</td>
+        <td>${echapper(offre(m.programme))}</td>
+        <td>Mobile money</td>
+        <td>${statut}</td>
+        <td>${echapper(formatDate(m.acces_jusqu_au))}</td>
+        <td>${m.programme === 'elite' ? '<span class="doux">Paiement unique</span>' : m.prix_renouvellement ? echapper(formatPrix(m.prix_renouvellement, m.devise || config.devise).texte) : '—'}</td>
+        <td>${m.whop_membership_id ? 'Oui' : '<span class="doux">Non</span>'}</td>
+        <td>${formation(m)}</td></tr>` };
+    }),
+    ...cartes.map((c) => {
+      const [ordre, statut] = statutCarte(c);
+      return { ordre, nom: c.pseudo || c.discord_id, html: `<tr>
+        <td><b>${echapper(c.pseudo || c.discord_id)}</b><br><span class="doux">depuis le ${echapper(formatDate(c.depuis))}</span></td>
+        <td>${echapper(c.pseudo || '—')}</td>
+        <td>${echapper(offre(c.programme))}</td>
+        <td>Carte (Whop)</td>
+        <td>${statut}</td>
+        <td><span class="doux">géré par Whop</span></td>
+        <td><span class="doux">${c.programme === 'elite' ? 'Paiement unique' : 'Carte'}</span></td>
+        <td>Oui</td>
+        <td><span class="doux">—</span></td></tr>` };
+    }),
+  ].sort((a, b) => a.ordre - b.ordre || String(a.nom).localeCompare(String(b.nom), 'fr'));
   return pageEspace('Membres', `
-  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Membres</h1></div><span class="doux petit">${membres.length + cartes.length} membre(s)</span></div>
-  <div class="carte"><h2>Mobile money</h2><div class="defile"><table class="membres">
-    <tr><th>Membre</th><th>Discord</th><th>Offre</th><th>Statut</th><th>Fin d'accès</th><th>Renouvellement</th><th>Whop</th><th>Formation</th></tr>
-    ${lignes || '<tr><td colspan="8" class="doux">Aucun membre pour l\'instant.</td></tr>'}
-  </table></div></div>
-  <div class="carte"><h2>Carte (Whop)</h2>
-    <p class="doux petit">Repérés par le rôle que Whop leur donne sur Discord. Pas de rappel avant la fin : la carte se renouvelle toute seule.</p>
-    <div class="defile"><table class="membres">
-    <tr><th>Discord</th><th>Offre</th><th>Statut</th><th>Depuis</th></tr>
-    ${lignesCarte || '<tr><td colspan="4" class="doux">Aucun membre payé par carte repéré pour l\'instant.</td></tr>'}
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Membres</h1></div><span class="doux petit">${lignes.length} membre(s)</span></div>
+  <div class="carte"><div class="defile"><table class="membres">
+    <tr><th>Membre</th><th>Discord</th><th>Offre</th><th>Paiement</th><th>Statut</th><th>Fin d'accès</th><th>Renouvellement</th><th>Whop</th><th>Formation</th></tr>
+    ${lignes.map((l) => l.html).join('') || '<tr><td colspan="9" class="doux">Aucun membre pour l\'instant.</td></tr>'}
   </table></div></div>`, espace, 'membres');
 }
 
