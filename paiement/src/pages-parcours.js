@@ -221,7 +221,7 @@ function delai(d, maintenant = new Date()) {
   return `<span class="delai" data-niveau="${niveau}">${reste < 0 ? `En retard de ${texte}` : `Il te reste ${texte}`}</span>`;
 }
 
-const ETATS = { vide: 'À envoyer', brouillon: 'À envoyer', attente: 'En attente de validation', corriger: 'À corriger', valide: 'Validé' };
+const ETATS = { vide: 'À envoyer', brouillon: 'À envoyer', attente: 'En attente de validation', corriger: 'À corriger', valide: 'Validé', force: 'Passé par le coach' };
 const etatPuce = (cle) => `<span class="etat" data-etat="${cle === 'brouillon' ? 'vide' : cle}">${cle === 'valide' ? ICONE.ok : ''}${ETATS[cle] || cle}</span>`;
 
 // Texte d'une remarque : liens cliquables, retours à la ligne gardés.
@@ -512,10 +512,8 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
         <div><dt>Niche</dt><dd>${echapper(p.niche || '—')}</dd></div>
         <div><dt>Pays cible</dt><dd>${echapper(p.pays || '—')}</dd></div></dl></div>`}
       <div class="carte"><h2>Parcours</h2><dl class="details">${dates.map(([t, le]) => `<div><dt>${echapper(t)}</dt><dd>${echapper(le)}</dd></div>`).join('')}</dl>
-        ${vueCoach ? `<form method="post" action="${base}/etape" style="display:grid;gap:8px;margin-top:12px">
-          <label class="doux petit" for="etape">Corriger l'étape à la main</label>
-          <select id="etape" name="etape">${ETAPES.map((e) => `<option value="${e.n}"${e.n === p.etape ? ' selected' : ''}>${e.n} · ${echapper(e.titre)}</option>`).join('')}</select>
-          <button class="bouton secondaire" type="submit" style="margin-top:0">Changer d'étape</button></form>` : ''}</div>
+        ${p.etapes_forcees ? `<p class="doux petit" style="margin:10px 0 0">Passée(s) par ${vueCoach ? 'toi' : 'ton coach'} : étape(s) ${echapper(JSON.parse(p.etapes_forcees).join(', '))}.</p>` : ''}
+        ${vueCoach && p.etape < 5 ? `<a class="bouton secondaire" href="/admin/eleves?eleve=${encodeURIComponent(p.discord_id)}">Changer d'étape</a>` : ''}</div>
       ${p.etape >= 4 && stats ? (vueCoach ? `${blocObjectifs(stats, { lien: `${base}/profil`, texteLien: 'Voir son tableau de bord' })}${blocStats(stats)}`
         : blocObjectifs(stats, { lien: '/profil' })) : '<div class="carte"><h2>Statistiques</h2><p class="doux" style="margin:0">Elles s\'afficheront à partir de l\'étape 4, avec les comptes rendus.</p></div>'}
       ${vueCoach && !aConfirmer ? blocRecompenses(base, recompenses) : ''}

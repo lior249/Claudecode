@@ -56,6 +56,8 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
     creer: db.prepare(`INSERT OR IGNORE INTO parcours (discord_id, pseudo, nom, etape, etape_depuis, entree_le, fin_le, cree_le, maj_le)
                        VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`),
     etape: db.prepare('UPDATE parcours SET etape = ?, etape_depuis = ?, maj_le = ? WHERE discord_id = ?'),
+    forcees: db.prepare('UPDATE parcours SET etapes_forcees = ?, maj_le = ? WHERE discord_id = ?'),
+    dates: db.prepare('UPDATE parcours SET entree_le = ?, fin_le = ?, maj_le = ? WHERE discord_id = ?'),
     valideEtape: (n) => db.prepare(`UPDATE parcours SET etape${n}_le = ?, maj_le = ? WHERE discord_id = ?`),
     niveau: db.prepare('UPDATE parcours SET niveau = ?, maj_le = ? WHERE discord_id = ?'),
     compte: db.prepare('UPDATE parcours SET compte_tiktok = ?, niche = ?, pays = ?, maj_le = ? WHERE discord_id = ?'),
@@ -238,6 +240,60 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       q.compte.run(c, net(niche, p.niche), net(pays, p.pays), iso(), discordId);
       return q.get.get(discordId);
     },
+    // Ce qui n'a pas été validé sur la plateforme, étape par étape (tableau des élèves).
+    manquants(discordId) {
+      const p = q.get.get(discordId);
+      if (!p) return null;
+      const etat = (e) => (q.soumissionDe.get(discordId, e) || {}).etat;
+      const entree = q.entree.get(discordId);
+      const entreeFaite = Boolean(entree && new Date(`${entree.date}T${entree.heure}:00.000Z`) < maintenant());
+      const r = {
+        1: [...['L1', 'L2'].filter((e) => etat(e) !== 'valide').map((e) => `Exercice ${e} pas validé`), ...(p.niveau ? [] : ['Niveau (L1 ou L2) pas choisi'])],
+        2: [...(entreeFaite ? [] : ['Coaching d\'entrée pas fait']), ...(p.compte_tiktok ? [] : ['Compte TikTok pas renseigné'])],
+        3: ['V1', 'V2', 'V3'].filter((e) => etat(e) !== 'valide').map((e) => `Vidéo ${e.slice(1)} pas validée`),
+      };
+      for (const k of [1, 2, 3]) if (p.etape > k) r[k] = []; // étapes déjà franchies
+      return r;
+    },
+    // Le coach déplace un élève (tableau des élèves) : vers l'avant, les étapes sautées sont marquées « passées par le coach »
+    // (leurs envois non validés sont laissés de côté). Le compte TikTok est obligatoire à partir de l'étape 3.
+    // GOAT ne se donne jamais à la main : il se gagne avec des résultats suivis sur la plateforme.
+    forcerEtape(discordId, cible, { compte, niche, pays, niveau } = {}) {
+      const p = q.get.get(discordId);
+      if (!p) return { erreur: 'Élève introuvable.' };
+      const n = Number(cible);
+      if (n >= 5) return { erreur: 'Le rôle GOAT se gagne avec des résultats suivis sur la plateforme : il ne se donne pas à la main.' };
+      if (![1, 2, 3, 4].includes(n)) return { erreur: 'Étape invalide.' };
+      if (p.etape >= 5) return { erreur: 'Il est GOAT : son étape ne se change plus à la main.' };
+      const champs = {};
+      for (const [k, v] of Object.entries({ compte, niche, pays })) if (typeof v === 'string' && v.trim()) champs[k] = v;
+      if (Object.keys(champs).length) api.majCompte(discordId, champs);
+      const apres = q.get.get(discordId);
+      if (n >= 3 && !apres.compte_tiktok) return { erreur: 'Renseigne son compte TikTok : il le faut à partir de l\'étape 3.' };
+      if (['L1', 'L2'].includes(niveau) && !apres.niveau) q.niveau.run(niveau, iso(), discordId);
+      if (n === p.etape) return { parcours: q.get.get(discordId), forcees: [] };
+      const forcees = [];
+      for (let k = p.etape; k < n; k++) {
+        forcees.push(k);
+        if (k <= 3 && !apres[`etape${k}_le`]) q.valideEtape(k).run(iso(), iso(), discordId);
+        for (const s of q.soumissionsEtape.all(discordId, k)) {
+          if (s.etat === 'valide') continue;
+          supprimerFichier(s);
+          q.decision.run('force', iso(), null, s.id);
+        }
+      }
+      q.etape.run(n, iso(), iso(), discordId);
+      if (forcees.length) q.forcees.run(JSON.stringify([...new Set([...JSON.parse(p.etapes_forcees || '[]'), ...forcees])].sort()), iso(), discordId);
+      return { parcours: q.get.get(discordId), forcees };
+    },
+    // Date d'entrée d'un élève déjà accompagné avant la plateforme (ses 90 jours partent de là).
+    majEntree(discordId, entree) {
+      const d = new Date(entree);
+      if (Number.isNaN(d.getTime())) return { erreur: 'Date invalide.' };
+      q.dates.run(d.toISOString(), new Date(d.getTime() + 90 * 24 * H).toISOString(), iso(), discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+
     // Correction manuelle de l'étape par le coach.
     changerEtape(discordId, etape) {
       const n = Number(etape);

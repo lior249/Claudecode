@@ -67,6 +67,7 @@ function navEspace(espace = {}) {
       { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
       { cle: 'traiter', libelle: 'À traiter', lien: '/admin/a-traiter', icone: 'traiter', badge: espace.aTraiterParcours || null },
       { cle: 'candidatures', libelle: 'Candidatures', lien: '/admin/candidatures', icone: 'candidatures', badge: espace.aTraiter || null },
+      { cle: 'eleves', libelle: 'Élèves Elite', lien: '/admin/eleves', icone: 'eleves' },
       { cle: 'membres', libelle: 'Membres', lien: '/admin/membres', icone: 'membres' },
       { cle: 'pages', libelle: 'Pages du site', lien: '/admin/pages', icone: 'pages' });
   }

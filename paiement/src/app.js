@@ -10,6 +10,7 @@ const E = require('./pages-espace');
 const V = require('./pages-parcours');
 const C = require('./pages-coaching');
 const N = require('./pages-notifications');
+const K = require('./pages-eleves');
 const { creerParcours } = require('./parcours');
 const { creerSuivi, QUESTIONS, jourLisible } = require('./suivi');
 const { creerSinistres } = require('./sinistres');
@@ -1111,9 +1112,69 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, '/admin/membres')) return;
     const p = ficheDe(req, res);
     if (!p) return;
-    const r = parcours.changerEtape(p.discord_id, req.body.etape);
-    if (!r.erreur && r.parcours.etape !== p.etape) prevenir('etapeOuverte', r.parcours, r.parcours.etape);
-    res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=etape`);
+    const r = parcours.forcerEtape(p.discord_id, req.body.etape, { compte: req.body.compte, niche: req.body.niche, pays: req.body.pays });
+    if (!r.erreur && r.parcours.etape > p.etape) prevenir('etapeOuverte', r.parcours, r.parcours.etape);
+    res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?${r.erreur ? `erreur=${encodeURIComponent(r.erreur)}` : 'fait=etape'}`);
+  });
+
+  // ---- Tableau des élèves Elite (Kanban) ----
+  function donneesEleves() {
+    // Les membres Elite payés (mobile money ou carte) ont tous leur parcours, même s'ils ne sont pas encore venus.
+    for (const m of db.prepare("SELECT * FROM membres WHERE programme = 'elite' AND statut = 'actif' AND discord_id IS NOT NULL").all()) {
+      if (!parcours.get(m.discord_id)) parcours.assurer(m.discord_id, { pseudo: m.discord_pseudo, nom: m.nom, entree: m.cree_le, fin: m.acces_jusqu_au });
+    }
+    for (const c of db.prepare("SELECT * FROM abonnes_carte WHERE programme = 'elite' AND termine_le IS NULL").all()) {
+      if (!parcours.get(c.discord_id)) parcours.assurer(c.discord_id, { pseudo: c.pseudo, entree: c.depuis });
+    }
+    const a = parcours.aTraiter();
+    const retards = new Set(a.retards.map((x) => x.parcours.discord_id));
+    const compte = {};
+    for (const x of [...a.envois, ...suivi.enAttente(), ...sinistres.fichesATraiter()]) compte[x.discord_id] = (compte[x.discord_id] || 0) + 1;
+    const maintenant = Date.now();
+    return parcours.tous().map((p) => ({
+      id: p.discord_id, nom: p.nom || p.pseudo || p.discord_id, pseudo: p.pseudo, etape: p.etape,
+      jour: Math.min(90, Math.max(1, Math.floor((maintenant - new Date(p.entree_le)) / 864e5) + 1)),
+      compte: p.compte_tiktok, niche: p.niche, pays: p.pays, niveau: p.niveau,
+      sinistre: Boolean(p.sinistre_depuis), sinistres: p.sinistres || 0, retard: retards.has(p.discord_id), aTraiter: compte[p.discord_id] || 0,
+      forcees: JSON.parse(p.etapes_forcees || '[]'), tache: p.etape <= 4 ? (parcours.tache(p.discord_id) || {}).titre : null,
+      manquants: parcours.manquants(p.discord_id),
+    })).sort((x, y) => x.nom.localeCompare(y.nom, 'fr'));
+  }
+  app.get('/admin/eleves', (req, res) => {
+    if (!estAdmin(req, res, '/admin/eleves')) return;
+    const fait = req.query.fait === 'ajoute' ? 'Élève ajouté à l\'étape 1 : glisse-le à son étape.'
+      : /^[1-4]$/.test(String(req.query.fait || '')) ? `Élève placé à l'étape ${req.query.fait}. Bob l'a prévenu.` : null;
+    res.send(K.pageEleves(config, { espace: espaceDe(lireSession(req, config.secretApp)), eleves: donneesEleves(),
+      sansDiscord: db.prepare("SELECT nom, email FROM membres WHERE programme = 'elite' AND statut = 'actif' AND discord_id IS NULL ORDER BY nom").all(),
+      message: fait, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.post('/admin/eleves/:id/etape', json, (req, res) => {
+    if (!estAdmin(req, res, '/admin/eleves')) return;
+    const avant = parcours.get(req.params.id);
+    if (!avant) { res.status(404).json({ erreur: 'Élève introuvable.' }); return; }
+    const b = req.body || {};
+    const r = parcours.forcerEtape(avant.discord_id, b.etape, { compte: b.compte, niche: b.niche, pays: b.pays, niveau: b.niveau });
+    if (r.erreur) { res.status(400).json(r); return; }
+    if (r.parcours.etape > avant.etape) prevenir('etapeOuverte', r.parcours, r.parcours.etape);
+    res.json({ ok: true, etape: r.parcours.etape, forcees: r.forcees });
+  });
+  app.post('/admin/eleves/ajouter', formulaire, async (req, res) => {
+    if (!estAdmin(req, res, '/admin/eleves')) return;
+    const retour = (erreur) => res.redirect(303, `/admin/eleves?erreur=${encodeURIComponent(erreur)}`);
+    const pseudo = String(req.body.pseudo || '').trim().replace(/^@/, '').slice(0, 40);
+    if (pseudo.length < 2) { retour('Écris son pseudo Discord.'); return; }
+    if (!bob || !bob.idDepuisPseudo) { retour('Bob est indisponible : réessaie dans un instant.'); return; }
+    try {
+      const id = await bob.idDepuisPseudo(pseudo);
+      if (!id) { retour(`« ${pseudo} » n'est pas sur le serveur Overmaxx.`); return; }
+      const deja = parcours.get(id);
+      parcours.assurer(id, { pseudo });
+      if (req.body.entree && /^\d{4}-\d{2}-\d{2}$/.test(req.body.entree)) parcours.majEntree(id, `${req.body.entree}T12:00:00.000Z`);
+      res.redirect(303, deja ? `/admin/eleves?eleve=${encodeURIComponent(id)}` : '/admin/eleves?fait=ajoute');
+    } catch (err) {
+      console.error('[élèves]', err.message);
+      retour('Impossible de retrouver ce pseudo pour le moment.');
+    }
   });
 
   // ================= Admin =================

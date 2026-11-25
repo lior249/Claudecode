@@ -262,6 +262,17 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
 - L'application installée s'ouvre déjà connectée. Rien à configurer : les clés des notifications sont créées au premier démarrage.
 - Il faut que le site soit en **HTTPS** (c'est le cas avec Caddy sur overmaxx.online).
 
+## Le tableau des élèves Elite
+
+**Élèves Elite** (`/admin/eleves`, dans le menu) : une colonne par étape (1 à 4), et GOAT.
+- Glisse un élève vers une autre étape (ou touche **Déplacer** sur téléphone). Vers l'avant, la fenêtre liste tout ce qui
+  n'a pas été validé sur la plateforme, étape par étape, et te demande de confirmer. Son compte TikTok est obligatoire
+  à partir de l'étape 3 (la fenêtre te le demande s'il manque). Bob le prévient : « Étape N ouverte ».
+- Les étapes sautées sont marquées « passées par toi » sur sa fiche ; ses envois en attente sont laissés de côté.
+- **GOAT ne se donne pas à la main** : il se gagne avec les résultats suivis sur la plateforme.
+- Les membres Elite payés (mobile money ou carte) y apparaissent tout seuls. Pour quelqu'un que tu accompagnes déjà
+  sans paiement sur le site : **Ajouter un élève** avec son pseudo Discord et sa date d'entrée (ses 90 jours partent de là).
+
 ## L'espace de gestion
 
 Sur **overmaxx.online/admin** (connexion avec `/connexion` dans Discord) : barre latérale à gauche sur ordinateur,

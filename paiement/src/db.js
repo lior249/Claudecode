@@ -456,6 +456,13 @@ function migrerV15(db) {
   PRAGMA user_version = 15;`);
 }
 
+// v16 : tableau des élèves : étapes passées à la main par le coach (sans validation sur la plateforme).
+function migrerV16(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 16) return;
+  if (!colonnes(db, 'parcours').includes('etapes_forcees')) db.exec('ALTER TABLE parcours ADD COLUMN etapes_forcees TEXT');
+  db.exec('PRAGMA user_version = 16');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -480,6 +487,7 @@ function ouvrirBase(fichier) {
   migrerV13(db);
   migrerV14(db);
   migrerV15(db);
+  migrerV16(db);
   return db;
 }
 
