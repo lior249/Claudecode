@@ -30,6 +30,7 @@ const ICONE = {
   ok: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   echec: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>',
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  lecture: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5v11l9-5.5z"/></svg>',
 };
 
 const STYLE = `
@@ -142,6 +143,19 @@ const STYLE = `
   /* Guide */
   .video { position:relative; aspect-ratio:16/9; border-radius:18px; overflow:hidden; background:var(--surface-2); border:1px solid var(--bord); margin:4px 0 16px; }
   .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  /* Emplacement réservé tant que la vidéo n'est pas réglée. */
+  .video-vide { display:grid; place-items:center; border-style:dashed; border-color:var(--bord-fort); }
+  .video-vide > div { display:grid; justify-items:center; gap:4px; padding:16px; text-align:center; }
+  .video-vide svg { width:46px; height:46px; padding:12px 11px 12px 13px; border-radius:50%; background:#fff; margin-bottom:6px; }
+  .video-vide svg path { fill:#000; stroke:none; }
+  .video-vide span { font-weight:600; font-size:14px; }
+  .video-vide small { color:var(--doux); font-size:12px; }
+  /* Page d'accueil (même mise en forme que l'ancienne page Creato) : logo, vidéo, titre, bouton. */
+  .bienvenue { max-width:560px; margin:0 auto; text-align:center; }
+  .bienvenue .hero { height:150px; margin:0 0 6px; }
+  .bienvenue .video { margin:0 0 26px; border-radius:20px; box-shadow:0 30px 80px -30px rgba(255,255,255,.22); }
+  .bienvenue h1 { font-size:clamp(26px,7.5vw,38px); line-height:1.08; letter-spacing:-0.04em; margin:0 0 10px; text-wrap:balance; }
+  .bienvenue .bouton { min-height:56px; font-size:16px; border-radius:16px; }
   .code { font:800 19px/1.2 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:2px; text-align:center; padding:14px; border-radius:14px;
     background:#000; border:1px dashed #fff; user-select:all; word-break:break-all; }
 
@@ -177,6 +191,7 @@ const ICONES_NAV = {
   candidatures: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l4 4v12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M15 4v5h5M10 13h7M10 17h5"/></svg>',
   membres: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg>',
   coaching: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  pages: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M3.5 8.5h17M7 12.5h6M7 16h9"/></svg>',
   site: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.7 3.5 5.6 3.5 8.5s-1 5.8-3.5 8.5c-2.5-2.7-3.5-5.6-3.5-8.5s1-5.8 3.5-8.5z"/></svg>',
   sortie: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/></svg>',
   menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
@@ -260,6 +275,28 @@ function blocSupport(config) {
 }
 
 // Étape 1 — page d'accueil
+// Vidéo Wistia, ou un emplacement réservé (même taille) tant que l'identifiant n'est pas réglé.
+function blocVideo(wistiaId, titre) {
+  if (wistiaId) {
+    return `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(wistiaId)}?videoFoam=true&playerColor=000000"
+      title="${echapper(titre)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>`;
+  }
+  return `<div class="video video-vide" role="img" aria-label="${echapper(titre)} : vidéo bientôt disponible"><div>${ICONE.lecture}
+    <span>${echapper(titre)}</span><small>Vidéo bientôt disponible</small></div></div>`;
+}
+
+// overmaxx.online : la seule page ouverte à tous. Son seul but : faire entrer sur le Discord (étape En Attente).
+function pageBienvenue(config) {
+  return gabarit(config.nomFormation || 'Overmaxx', `
+  <div class="bienvenue">
+    <div class="hero"><div class="globe"></div>${logo('anime')}</div>
+    ${blocVideo(config.wistiaAccueil, 'Présentation Overmaxx')}
+    <h1>Tout commence sur le Discord.</h1>
+    <p class="doux">Rejoins le serveur Overmaxx : Bob, notre bot, t'accueille et te montre la suite.</p>
+    ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">Rejoindre le Discord</a>` : ''}
+  </div>`, { entete: false });
+}
+
 function pageAccueil(config, offre = config.offres.community) {
   const inscription = formatPrix(offre.prixEntree, config.devise);
   const renouv = formatPrix(offre.prixRenouvellement, config.devise);
@@ -447,11 +484,7 @@ function pageConfirmation(config, { ref, type, details }) {
 
 // Étape 4 — guide d'accès (inscription) : vidéo Wistia + étapes écrites
 function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDiscord, lienDiscord, codeLiaison }) {
-  const wistia = offre.wistiaGuide;
-  const video = wistia
-    ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(wistia)}?videoFoam=true&playerColor=000000"
-        title="Comment accéder à ${echapper(offre.nom)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>`
-    : '';
+  const video = blocVideo(offre.wistiaGuide, `Comment accéder à ${offre.nom}`);
   const periode = offre.dureeJours === 30 ? 'par mois' : `tous les ${offre.dureeJours} jours`;
   const etapeDiscord = discordLie
     ? `<p class="ok" style="margin:0">Discord connecté${membre.discord_pseudo ? ` (${echapper(membre.discord_pseudo)})` : ''}. Tu es sur le serveur.</p>`
@@ -514,6 +547,6 @@ function pageMessage(config, titre, message, { lien = '/', texteLien = 'Retour' 
 }
 
 module.exports = {
-  CONTENU, ICONE, echapper, gabarit, gabaritEspace, logo, formatPrix, formatDate, blocSupport,
-  pageAccueil, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
+  CONTENU, ICONE, echapper, gabarit, gabaritEspace, logo, formatPrix, formatDate, blocSupport, blocVideo,
+  pageBienvenue, pageAccueil, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
 };

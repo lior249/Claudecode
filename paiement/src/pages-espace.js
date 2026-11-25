@@ -1,7 +1,7 @@
 'use strict';
 
 // Pages Elite (candidature), Coaching privé (réservation) et Admin (calendrier).
-const { ICONE, echapper, gabarit, gabaritEspace, formatDate, formatPrix, blocSupport } = require('./pages');
+const { ICONE, echapper, gabarit, gabaritEspace, formatDate, formatPrix, blocSupport, blocVideo } = require('./pages');
 const { FORMULAIRES } = require('./formulaires');
 const { pageFormulaire } = require('./pages-formulaire');
 
@@ -66,10 +66,11 @@ function navEspace(espace = {}) {
     nav.push({ section: 'Gestion' },
       { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
       { cle: 'candidatures', libelle: 'Candidatures', lien: '/admin/candidatures', icone: 'candidatures', badge: espace.aTraiter || null },
-      { cle: 'membres', libelle: 'Membres', lien: '/admin/membres', icone: 'membres' });
+      { cle: 'membres', libelle: 'Membres', lien: '/admin/membres', icone: 'membres' },
+      { cle: 'pages', libelle: 'Pages du site', lien: '/admin/pages', icone: 'pages' });
   }
   nav.push({ section: 'Mon espace' }, { cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
-  nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/community', icone: 'site', externe: true });
+  nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/', icone: 'site', externe: true });
   return nav;
 }
 
@@ -104,9 +105,7 @@ function pageEliteCandidature(config, { session } = {}) {
   const f = FORMULAIRES.candidature;
   // Le pseudo Discord est toujours demandé (et vérifié sur le serveur à l'envoi).
   const { questions } = f;
-  const vsl = o.wistiaVsl
-    ? `<div class="video"><iframe src="https://fast.wistia.net/embed/iframe/${echapper(o.wistiaVsl)}?videoFoam=true&playerColor=000000"
-        title="Présentation ${echapper(o.nom)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe></div>` : '';
+  const vsl = blocVideo(o.wistiaVsl, `Présentation ${o.nom}`);
   const intro = `
     <p class="tf-num">Accompagnement privé · sur sélection</p>
     <h1 class="tf-q">${echapper(o.nom)}</h1>
@@ -138,7 +137,7 @@ function pageConfirmation(config, { session }) {
 }
 
 // /coaching/elite/candidature : une seule page qui suit la candidature de bout en bout.
-function pageCandidature(config, { session, candidature, lienPaiement, paye, message, lienDiscord }) {
+function pageCandidature(config, { session, candidature, lienPaiement, paye, message, lienDiscord, apercu }) {
   const o = config.offres.elite;
   const titre = (t) => `<p class="etiquette">Candidature ${echapper(o.nom)}</p><h1>${t}</h1>`;
   const attente = (texte) => `
@@ -228,7 +227,7 @@ function pageCandidature(config, { session, candidature, lienPaiement, paye, mes
       corps = titre('Candidature');
   }
   return gabarit('Candidature', `${message ? `<p class="erreur-form">${echapper(message)}</p>` : ''}${corps}
-  <a class="bouton secondaire" href="/deconnexion">Se déconnecter</a>`, script ? { script } : {});
+  <a class="bouton secondaire" href="/deconnexion">Se déconnecter</a>`, script && !apercu ? { script } : {});
 }
 
 // /admin/candidatures : réponses, vidéos et décisions.
@@ -461,4 +460,42 @@ function pageAdmin(config, { lundi, jours, cases, annulations, coaching, espace 
   <dialog id="dlg"><h2>Réservation</h2><dl class="details" id="dlg-corps"></dl><button id="dlg-fermer" class="bouton secondaire" type="button">Fermer</button></dialog>`, espace, 'calendrier', { script });
 }
 
-module.exports = { pageConnexionRequise, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminCandidature, pageAdminMembres, pageCoaching, pageAdmin };
+// /admin/pages : tous les liens du site, un par un. Les aperçus utilisent des données d'exemple (rien n'est enregistré).
+function pageAdminPages(config, { espace }) {
+  const video = (id, nom) => (id ? '<span class="ok">vidéo réglée</span>' : `<span style="color:#f1d38a">vidéo à ajouter</span> <code>${nom}</code>`);
+  const groupes = [
+    ['Pages publiques', [
+      ['/', 'Accueil', 'La seule page ouverte à tous : logo, vidéo, bouton Rejoindre le Discord.', video(config.wistiaAccueil, 'WISTIA_ACCUEIL')],
+      ['/community', 'Community', 'Présentation et prix de la Community.'],
+      ['/community/paiement', 'Paiement Community', 'Nom, email, puis paiement mobile money.'],
+      ['/community/renouveler', 'Renouvellement Community', 'Sans lien personnel : l\'email est demandé.'],
+      ['/coaching/elite', 'Candidature Elite', 'Vidéo de présentation puis formulaire 1.', video(config.offres.elite.wistiaVsl, 'WISTIA_VSL_ELITE')],
+    ]],
+    ['Aperçus (exemples, rien n\'est enregistré)', [
+      ['/admin/apercu/guide-community', 'Après paiement Community', 'Guide d\'accès : vidéo, Discord, Whop.', video(config.offres.community.wistiaGuide, 'WISTIA_GUIDE_COMMUNITY')],
+      ['/admin/apercu/guide-elite', 'Après paiement Elite', 'Guide d\'accès Elite.', video(config.offres.elite.wistiaGuide, 'WISTIA_GUIDE_ELITE')],
+      ['/admin/apercu/candidature-examen', 'Candidature en examen', 'Ce que voit le candidat après le formulaire 1.'],
+      ['/admin/apercu/candidature-retenu', 'Candidat retenu', 'Formulaire 2 (vidéo).'],
+      ['/admin/apercu/candidature-video', 'Vidéo reçue', 'En attente de la réponse finale.'],
+      ['/admin/apercu/candidature-valide', 'Candidature validée', 'Choix mobile money ou carte.'],
+      ['/admin/apercu/candidature-refuse', 'Candidature refusée', ''],
+      ['/admin/apercu/paiement-elite', 'Paiement Elite (mobile money)', 'Page du lien personnel, avec « Payer plutôt par carte ».'],
+    ]],
+    ['Membres et gestion', [
+      ['/coaching', 'Mes coachings', 'Grille de réservation (Elite).'],
+      ['/admin', 'Calendrier', ''],
+      ['/admin/candidatures', 'Candidatures', ''],
+      ['/admin/membres', 'Membres', ''],
+    ]],
+  ];
+  const lignes = (liste) => liste.map(([lien, titre, desc, extra]) => `
+    <li><div style="flex:1;min-width:0"><b>${echapper(titre)}</b>
+      <div class="doux petit">${echapper(config.baseUrl.replace(/^https?:\/\//, ''))}${echapper(lien)}</div>
+      ${desc ? `<div class="doux petit">${echapper(desc)}</div>` : ''}${extra ? `<div class="petit">${extra}</div>` : ''}</div>
+      <a class="bouton secondaire" style="width:auto;min-height:38px;margin:0;padding:8px 16px;flex:none" href="${echapper(lien)}" target="_blank" rel="noopener">Ouvrir</a></li>`).join('');
+  return pageEspace('Pages du site', `
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Pages du site</h1></div></div>
+  ${groupes.map(([titre, liste]) => `<div class="carte"><h2>${echapper(titre)}</h2><ul class="liste">${lignes(liste)}</ul></div>`).join('')}`, espace, 'pages');
+}
+
+module.exports = { pageAdminPages, pageConnexionRequise, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminCandidature, pageAdminMembres, pageCoaching, pageAdmin };

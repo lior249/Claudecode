@@ -20,6 +20,7 @@ function chargerConfig({ strict = true } = {}) {
     devise: lire('DEVISE', 'XOF'),
     pays: lire('PAYS'),
     lienDiscord: lire('LIEN_DISCORD', ''),
+    wistiaAccueil: lire('WISTIA_ACCUEIL', ''), // vidéo de présentation de la page d'accueil
     contactSupport: lire('CONTACT_SUPPORT', ''),
     secretApp: lire('APP_SECRET'),
 

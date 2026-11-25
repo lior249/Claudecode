@@ -28,7 +28,10 @@ test('jeton de renouvellement infalsifiable', () => {
 test('Community : accueil → formulaire → SasPay → statut → guide Whop + Discord', async () => {
   const m = await monter();
   try {
-    assert.strictEqual((await m.get('/')).headers.get('location'), '/community');
+    const accueil = await (await m.get('/')).text();
+    assert.match(accueil, /Rejoindre le Discord/);
+    assert.ok(accueil.includes('href="https://discord.gg/test"'));
+    assert.match(accueil, /video-vide/, 'emplacement vidéo réservé tant que WISTIA_ACCUEIL est vide');
     assert.match(await (await m.get('/community')).text(), /Payer par mobile money/);
     assert.strictEqual((await m.get('/paiement')).headers.get('location'), '/community/paiement');
 

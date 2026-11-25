@@ -92,7 +92,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   // ---- Community ----
   const community = config.offres.community;
-  app.get('/', (req, res) => res.redirect(302, '/community'));
+  // Accueil : la seule page ouverte à tous. Son but : faire entrer sur le Discord.
+  app.get('/', (req, res) => res.send(P.pageBienvenue(config)));
   app.get('/community', (req, res) => res.send(P.pageAccueil(config, community)));
   app.get('/community/paiement', (req, res) => res.send(P.pageFormulaire(config, { offre: community, type: 'inscription', retour: '/community' })));
   app.post('/community/paiement', formulaire, (req, res) => lancerPaiement(req, res, {
@@ -474,6 +475,30 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     if (!estAdmin(req, res, '/admin/membres')) return;
     const membres = commandes.db.prepare("SELECT * FROM membres ORDER BY statut, acces_jusqu_au").all();
     res.send(E.pageAdminMembres(config, { membres, espace: espaceDe(lireSession(req, config.secretApp)) }));
+  });
+
+  // Tous les liens du site, et des aperçus des pages qu'on ne voit qu'après un paiement ou une décision.
+  app.get('/admin/pages', (req, res) => {
+    if (!estAdmin(req, res, '/admin/pages')) return;
+    res.send(E.pageAdminPages(config, { espace: espaceDe(lireSession(req, config.secretApp)) }));
+  });
+  const APERCUS = {
+    'guide-community': () => P.pageGuide(config, { offre: community, ref: 'APERCU', membre: { email: 'exemple@gmail.com' }, lienWhop: 'https://whop.com', codeLiaison: 'AB12CD', lienDiscord: '#' }),
+    'guide-elite': () => P.pageGuide(config, { offre: elite, ref: 'APERCU', membre: { email: 'exemple@gmail.com' }, lienWhop: 'https://whop.com', codeLiaison: 'AB12CD', lienDiscord: '#' }),
+    'candidature-retenu': () => E.pageConfirmation(config, { session: { id: 'apercu', pseudo: 'exemple' } }),
+    'paiement-elite': () => P.pageFormulaire(config, { offre: elite, type: 'inscription', action: '#', lienCarte: elite.lienCarte }),
+  };
+  for (const statut of ['examen', 'video', 'valide', 'refuse']) {
+    APERCUS[`candidature-${statut}`] = () => E.pageCandidature(config, {
+      session: { id: 'apercu', pseudo: 'exemple' }, candidature: { statut }, apercu: true,
+      lienPaiement: `${config.baseUrl}${elite.base}/paiement/exemple`, paye: false,
+    });
+  }
+  app.get('/admin/apercu/:page', (req, res) => {
+    if (!estAdmin(req, res, `/admin/apercu/${encodeURIComponent(req.params.page)}`)) return;
+    const page = Object.hasOwn(APERCUS, req.params.page) ? APERCUS[req.params.page] : null;
+    if (!page) { res.status(404).send(P.pageMessage(config, 'Aperçu introuvable', 'Cette page n\'existe pas.', { lien: '/admin/pages', texteLien: 'Pages du site' })); return; }
+    res.send(page());
   });
 
   app.get('/admin/videos/:id', (req, res) => {

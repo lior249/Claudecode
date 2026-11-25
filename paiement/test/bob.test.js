@@ -513,3 +513,22 @@ test('arrivée sur le serveur : message privé de bienvenue au nouveau venu En A
     assert.ok(!dms.some(([id]) => id === ADMIN), 'l\'admin ne reçoit rien');
   } finally { await m.fermer(); }
 });
+
+test('pages du site : liste des liens et aperçus réservés à l\'admin ; vidéo Wistia quand elle est réglée', async () => {
+  const m = await monter({ avecCandidatures: true, config: configTest({ WISTIA_ACCUEIL: 'abc123xyz' }) });
+  try {
+    const admin = cookieSession(ADMIN, 'admin');
+    assert.match(await (await m.get('/')).text(), /fast\.wistia\.net\/embed\/iframe\/abc123xyz/);
+    const liste = await (await m.get('/admin/pages', { cookie: admin })).text();
+    assert.match(liste, /Pages du site/);
+    assert.match(liste, /WISTIA_GUIDE_COMMUNITY/, 'indique quelle vidéo manque');
+    for (const page of ['guide-community', 'guide-elite', 'candidature-examen', 'candidature-retenu', 'candidature-video', 'candidature-valide', 'candidature-refuse', 'paiement-elite']) {
+      const r = await m.get(`/admin/apercu/${page}`, { cookie: admin });
+      assert.strictEqual(r.status, 200, page);
+    }
+    assert.match(await (await m.get('/admin/apercu/guide-community', { cookie: admin })).text(), /video-vide/);
+    assert.strictEqual((await m.get('/admin/apercu/inconnu', { cookie: admin })).status, 404);
+    assert.strictEqual((await m.get('/admin/apercu/guide-elite', { cookie: cookieSession('123456789012345678', 'x') })).status, 403);
+    assert.doesNotMatch(await (await m.get('/admin/pages')).text(), /Pages du site<\/h1>/, 'non connecté : connexion demandée');
+  } finally { await m.fermer(); }
+});
