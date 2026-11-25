@@ -21,6 +21,16 @@ Les modules de formation (sur Whop) sont libres : le membre peut tout regarder q
 Mais **c'est le coach qui valide chaque étape**. Les étapes avancent **indépendamment des coachings** :
 le coach peut répondre, valider et mettre à jour la fiche en coaching ou en dehors.
 
+### La règle pour chaque envoi du membre
+
+Chaque envoi (exercice, vidéo, compte rendu) a deux boutons côté coach :
+
+- **Demander des modifications** : le coach écrit ses remarques. Le membre est prévenu, ouvre l'envoi, lit les remarques
+  et renvoie. **La nouvelle version remplace l'ancienne**, qui est supprimée.
+- **Valider** (coche verte) : l'envoi est accepté et **ne peut plus être modifié**.
+
+Une étape passe quand **tous ses envois sont validés**.
+
 ### Étape 1 : prise en main
 
 1. Le membre regarde la **première partie** des modules (outils, CapCut Pro, préparation).
@@ -31,7 +41,8 @@ le coach peut répondre, valider et mettre à jour la fiche en coaching ou en de
    - le **retour de l'IA**, copié-collé.
 4. Le site propose son niveau : **L2 si les deux notes sont d'au moins 80**, sinon **L1**.
    Le coach vérifie les réponses de l'IA et confirme ou change le niveau.
-5. Le coach valide : **les vidéos sont supprimées du serveur** (le membre les garde chez lui),
+5. Le coach valide les deux exercices (ou demande des modifications) : une fois tout validé,
+   **les vidéos sont supprimées du serveur** (le membre les garde chez lui),
    et Bob écrit : « Ton étape 1 est validée, tu peux passer à l'étape 2. »
 
 Le questionnaire « Vérifier ton niveau » (expérience du montage, de TikTok, de CapCut…) sera fourni plus tard par le coach.
@@ -49,14 +60,11 @@ L'étape 1 fonctionne sans lui en attendant.
 ### Étape 3 : validation du contenu, avant de publier
 
 1. À partir de l'étape 3, le membre réserve ses **coachings réguliers** : voir la partie 5.
-2. Il envoie **3 vidéos, une par une** (150 Mo maximum chacune) :
-   - vidéo 1, puis **retour écrit** du coach sur le site ;
-   - la vidéo 2 ne peut être envoyée qu'après le retour sur la vidéo 1, et la vidéo 3 qu'après le retour sur la vidéo 2.
-3. Après la 3e vidéo, le coach choisit :
-   - **Valider** : le membre passe à l'étape 4 (« Tu es maintenant autorisé à publier ») ;
-   - **Refaire l'étape 3** : 3 nouvelles vidéos, s'il n'a pas bien réalisé l'exercice.
-     Le coach peut aussi lui dire de venir en parler au prochain coaching.
-4. Les vidéos sont supprimées une fois l'étape validée.
+2. Il a **3 emplacements** pour 3 vidéos (150 Mo maximum chacune). **[à confirmer]** Les 3 sont ouverts en même temps.
+3. Sur chaque vidéo, le coach écrit son **retour complet** et choisit **Demander des modifications** ou **Valider**.
+   Le coach peut aussi lui dire de venir en parler au prochain coaching.
+4. Quand les **3 vidéos sont validées**, le membre passe à l'étape 4 : « Tu es maintenant autorisé à publier ».
+5. Les vidéos sont supprimées une fois l'étape validée.
 
 ### Étape 4 : publication et suivi quotidien
 
@@ -83,10 +91,11 @@ L'étape 1 fonctionne sans lui en attendant.
   - abonnés gagnés et vues du jour ;
   - top 3 des pays parmi ses vues, et top 3 parmi ses abonnés.
 - **Pour chaque vidéo de la veille**, à remplir à la main :
+  - le **lien de la vidéo TikTok**, pour que le coach puisse aller la voir ;
   - vues, abonnés gagnés, heure de publication ;
   - temps de visionnage moyen, rétention après 10 secondes ;
   - **revenus générés (€)**.
-- **La preuve des revenus** : **[à confirmer]** une capture de la page des revenus TikTok par compte rendu.
+- **La preuve des revenus** : une capture de la page des revenus TikTok par compte rendu.
 - **Sa question du moment**, à choisir dans une liste ou à écrire lui-même (« Autre ») :
   - « Mes vidéos ne font pas autant de vues que je l'espérais. » ;
   - « Mon compte bloque entre 0 et 200 vues. » ;
@@ -95,14 +104,14 @@ L'étape 1 fonctionne sans lui en attendant.
 
 ## 3. Objectifs, GOAT et rôles
 
-- **Objectifs de revenus** (affichés avec une barre de progression) : 50 €, puis 500 €, puis 1 000 €, puis 1 500 €
-  (l'accompagnement est alors rentabilisé). **[à confirmer]** totaux cumulés depuis le début.
-- **Rôle GOAT** : dès qu'il atteint **1 000 € sur les 30 derniers jours**.
+- **Objectifs de revenus** (affichés avec une barre de progression), en **totaux cumulés depuis le début** :
+  50 €, puis 500 €, puis 1 000 €, puis 1 500 € (l'accompagnement est alors rentabilisé).
+- **Rôle GOAT** : dès qu'il atteint **1 000 € sur 28 jours** (une seule fois suffit).
   Il garde la plateforme et ses comptes rendus, mais **n'a plus de lives individuels**, seulement le live de groupe.
 - **Rôles de revenus** : **1 500 €, 5 000 € et 10 000 € au total**, en euros.
   Les identifiants des rôles seront fournis plus tard.
 - Les revenus sont **déclarés par le membre**, avec une preuve.
-  **[à confirmer]** Quand un seuil est atteint, le coach reçoit un message avec un bouton **Confirmer** : Bob donne le rôle
+  Quand un seuil est atteint, le coach reçoit un message avec un bouton **Confirmer** : Bob donne le rôle
   seulement après ce clic, pour éviter les fausses déclarations.
 
 ## 4. La fiche du membre
@@ -117,7 +126,8 @@ Une seule fiche par membre Elite, visible par le coach, et en partie par le memb
 | Remarques du coach | la plus récente en haut, bouton **Tout afficher** (de la plus récente à la plus ancienne) ; avec des **liens** cliquables et des **images** | oui |
 | Statistiques | total de vues et d'abonnés, pays principal des abonnés, revenus totaux et des 30 derniers jours, progression vers les objectifs, régularité (jours publiés) | oui |
 | Coaching | créneaux réservés, séances suivies, annulations, coachings en réserve | oui |
-| Notes privées | **[à confirmer]** notes que le membre ne voit pas | non |
+
+Pas de notes privées : tout ce que le coach écrit sur la fiche, le membre le voit.
 
 Chaque étape débloquée a **sa page**, avec en haut un **tuto vidéo** (emplacement réservé tant que la vidéo n'est pas prête),
 puis ce qu'il faut faire et ce qu'il faut envoyer.
@@ -155,11 +165,13 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
 
 ### Les annulations
 
-- **Le membre** annule jusqu'à 30 minutes avant, avec une justification.
+- **Le membre**, jusqu'à 30 minutes avant : il touche la séance, indique pourquoi (justification obligatoire),
+  puis choisit **Annuler** ou **Reporter** sur un autre créneau libre.
 - **Le coach n'annule pas à la main** : il signale un **imprévu**.
   Quand Bob lui envoie le récapitulatif, 2 h avant la première séance du jour, un bouton **J'ai un imprévu**
-  permet d'écrire un message. Bob l'envoie en privé à chaque membre concerné, avec deux boutons :
-  **Reprogrammer** ou **Attendre le prochain coaching**.
+  permet d'écrire un message. Bob l'envoie en privé à chaque membre concerné.
+- Dans la grille du membre, les séances touchées par un imprévu ou une absence du coach s'affichent **en rouge**
+  (bord rouge vif, intérieur rouge sombre). Il les touche et choisit **Reprogrammer** ou **Garder en réserve**.
 
 ### Les coachings en réserve
 
@@ -167,6 +179,8 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
   **5 au maximum**.
 - Il l'utilise quand il veut, une autre semaine, **en plus** de ses coachings habituels (au-delà du maximum de 5 par semaine).
 - Dans sa grille, les créneaux libres où il peut utiliser une réserve s'affichent **en vert**.
+- Couleurs de la grille : orange = ses séances, gris foncé = pris, gris clair = libre, vert = libre pour une réserve,
+  rouge = séance touchée par une absence du coach.
 
 ### Les rappels de coaching (inchangés)
 
@@ -174,11 +188,22 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
 - Rappel automatique 1 h avant.
 - Pour le coach : un récapitulatif 2 h avant la première séance du jour.
 
-## 6. Livraisons proposées
+## 6. Les notifications : l'application Overmaxx
+
+- Overmaxx devient une **application web installable** (« PWA ») : le membre l'ajoute à l'écran d'accueil de son téléphone,
+  avec l'icône Overmaxx, et elle s'ouvre comme une vraie application. Pas besoin de passer par un store.
+- Elle peut envoyer des **notifications** sur le téléphone. Sur Android, ça marche partout.
+  Sur iPhone, seulement si l'application a été ajoutée à l'écran d'accueil (iOS 16.4 ou plus récent).
+- Le membre choisit où il reçoit ses notifications : **Bob (Discord)** ou **l'application**.
+- **Exception : les rappels de paiement** passent par les deux. D'abord Bob, puis l'application 10 minutes plus tard,
+  seulement s'il n'a pas encore payé.
+
+## 7. Livraisons proposées
 
 | Livraison | Contenu |
 |---|---|
 | **0** | L'Elite en paiement unique (fin des renouvellements, du classement et du retrait), le suivi des membres payés par carte |
 | **1** | La fiche, les étapes 1 à 3 (envois, niveau L1 / L2, retours écrits, remarques avec liens et images), le coaching d'entrée, l'accès au coaching selon l'étape (3 à 5 par semaine) |
 | **2** | L'étape 4 : heures choisies et rappels de Bob, compte rendu du jour, statistiques, objectifs, GOAT et rôles de revenus |
-| **3** | Le coaching : fuseaux horaires, disponibilités du coach, imprévu, coachings en réserve, réservation semaine par semaine |
+| **3** | Le coaching : fuseaux horaires, disponibilités du coach, imprévu (séances en rouge), annuler ou reporter, coachings en réserve, réservation semaine par semaine |
+| **4** | L'application installable et ses notifications, avec le choix Bob ou application |
