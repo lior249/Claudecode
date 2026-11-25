@@ -36,7 +36,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const espaceDe = (session) => {
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
-    const aTraiterParcours = estAdmin ? parcours.aTraiter().total : 0;
+    const aTraiterParcours = estAdmin ? parcours.aTraiter().total + aTraiter : 0;
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(!estAdmin && session && parcours.get(session.id)) };
   };
   const app = express();
@@ -659,7 +659,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // ---- Côté coach ----
   app.get('/admin/a-traiter', (req, res) => {
     if (!estAdmin(req, res, '/admin/a-traiter')) return;
-    res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter() }));
+    // Demandes d'intégration : candidats retenus qui ont envoyé leur vidéo, puis nouvelles candidatures.
+    const demandes = candidatures ? candidatures.liste().filter((c) => c.statut === 'video' || c.statut === 'examen').map((c) => {
+      const r = (c.reponses || []).find((x) => /nom/i.test(x.label) && !/discord|pseudo/i.test(x.label)) || (c.reponses || [])[0];
+      return { id: c.id, nom: (r && r.valeur) || c.pseudo || c.discord_id, pseudo: c.pseudo, statut: c.statut, maj_le: c.maj_le };
+    }) : [];
+    res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter(), candidatures: demandes }));
   });
   function envoiDe(req, res) {
     const s = parcours.soumission(req.params.id);

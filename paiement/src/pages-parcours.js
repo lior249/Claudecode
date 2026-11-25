@@ -432,18 +432,66 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
 }
 
 // ---------- Coach : À traiter ----------
-function pageATraiter(config, { espace, a }) {
-  const ligne = (b, quoi, depuis, lien, retard) => `<div class="ligne-envoi"><div class="qui"><b>${echapper(b)}</b><span>${echapper(quoi)}${depuis ? ` · ${echapper(depuis)}` : ''}</span></div>
-    ${retard ? '<span class="etat" data-etat="corriger">En retard</span>' : ''}<a class="bouton secondaire" href="${echapper(lien)}">Ouvrir</a></div>`;
+// Une section par catégorie, dans l'ordre où le coach les traite : les membres de l'étape 1 à l'étape 4,
+// puis les demandes d'intégration (vidéos des candidats retenus, puis nouvelles candidatures), puis les retards.
+const STYLE_TRAITER = `<style>
+  .puces-traiter { display:flex; gap:8px; overflow-x:auto; padding:2px 0 14px; margin-bottom:6px; border-bottom:1px solid var(--bord); scrollbar-width:none; }
+  .puces-traiter a { flex:none; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border:1px solid var(--bord-fort); border-radius:999px; color:#fff; text-decoration:none; font-size:13px; font-weight:600; }
+  .puces-traiter a[data-vide] { color:var(--gris); border-color:var(--bord); }
+  .puces-traiter b { display:inline-grid; place-items:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:#ff8a00; color:#000; font-size:11px; }
+  .puces-traiter a[data-vide] b { background:var(--surface-2); color:var(--gris); }
+  .section-traiter { padding-top:26px; scroll-margin-top:16px; }
+  .section-traiter > .tete { display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:4px; }
+  .section-traiter h2 { font-size:18px; margin:0; letter-spacing:-0.02em; }
+  .section-traiter > p { color:var(--doux); font-size:13px; margin:0 0 14px; }
+  .section-traiter h3.sous { font-size:13px; color:var(--doux); text-transform:uppercase; letter-spacing:.12em; margin:18px 0 10px; }
+  .cartes-traiter { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap:14px; }
+  .carte-traiter { display:flex; flex-direction:column; gap:6px; padding:16px; border-radius:18px; background:var(--surface); border:1px solid var(--bord); min-width:0; }
+  .carte-traiter .qui { font-size:16px; font-weight:700; overflow-wrap:anywhere; }
+  .carte-traiter .pseudo { color:var(--doux); font-size:13px; }
+  .carte-traiter .quoi { font-size:14px; margin-top:4px; }
+  .carte-traiter .quand { color:var(--doux); font-size:12.5px; }
+  .carte-traiter .bouton { margin-top:auto; min-height:42px; }
+  .carte-traiter .espace-bouton { flex:1; min-height:8px; }
+  .vide-traiter { color:var(--gris); font-size:13px; margin:0; padding:14px 16px; border:1px dashed var(--bord); border-radius:14px; }
+</style>`;
+
+function pageATraiter(config, { espace, a, candidatures = [] }) {
   const nom = (p) => (p && (p.nom || p.pseudo)) || '?';
-  const groupe = (titre, lignes) => `<div class="carte"><h2>${echapper(titre)}</h2>${lignes.join('') || '<p class="doux" style="margin:0">Rien à traiter.</p>'}</div>`;
-  const envoi = (s) => ligne(nom(s.parcours), s.etape === 1 ? `Exercice ${s.emplacement}` : `Vidéo ${s.emplacement.slice(1)}`, `envoyé le ${formatDate(s.envoye_le)}`, `/admin/envois/${s.id}`);
-  return page('À traiter', `
-  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>À traiter</h1></div><span class="doux petit">${a.total} en attente de ta décision</span></div>
-  ${groupe('Exercices de l\'étape 1', a.envois.filter((s) => s.etape === 1).map(envoi))}
-  ${groupe('Vidéos de l\'étape 3', a.envois.filter((s) => s.etape === 3).map(envoi))}
-  ${groupe('Après le coaching d\'entrée : ouvrir l\'étape 3', a.etape2.map((x) => ligne(nom(x.parcours), `coaching d'entrée du ${x.entree.date} à ${x.entree.heure} GMT`, '', `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`)))}
-  ${a.retards.length ? groupe('En retard', a.retards.map((x) => ligne(nom(x.parcours), `étape ${x.parcours.etape} : ${x.tache.titre}`, '', `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, true))) : ''}`, espace, 'traiter');
+  const carte = ({ qui, pseudo, quoi, quand, lien, bouton = 'Ouvrir', retard }) => `<div class="carte-traiter">
+    <span class="qui">${echapper(qui)}</span>${pseudo ? `<span class="pseudo">${echapper(pseudo)}</span>` : ''}
+    <span class="quoi">${echapper(quoi)}</span>${quand ? `<span class="quand">${echapper(quand)}</span>` : ''}
+    ${retard ? '<span><span class="etat" data-etat="corriger">En retard</span></span>' : ''}
+    <span class="espace-bouton"></span><a class="bouton${bouton === 'Ouvrir' ? '' : ' secondaire'}" href="${echapper(lien)}">${echapper(bouton)}</a></div>`;
+  const grille = (cartes) => (cartes.length ? `<div class="cartes-traiter">${cartes.join('')}</div>` : '<p class="vide-traiter">Rien à traiter.</p>');
+  const envoi = (s) => carte({ qui: nom(s.parcours), pseudo: s.parcours && s.parcours.pseudo,
+    quoi: s.etape === 1 ? `Exercice ${s.emplacement} · note de l'IA ${s.note} / 100` : `Vidéo ${s.emplacement.slice(1)}`,
+    quand: `Envoyé le ${formatDate(s.envoye_le)}`, lien: `/admin/envois/${s.id}` });
+  const etape1 = a.envois.filter((s) => s.etape === 1).map(envoi);
+  const etape2 = a.etape2.map((x) => carte({ qui: nom(x.parcours), pseudo: x.parcours.pseudo, quoi: 'Coaching d\'entrée fait : ouvre son étape 3',
+    quand: `Coaching du ${x.entree.date} à ${x.entree.heure} GMT`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}` }));
+  const etape3 = a.envois.filter((s) => s.etape === 3).map(envoi);
+  const cand = (c, quoi) => carte({ qui: c.nom, pseudo: c.pseudo, quoi, quand: `Le ${formatDate(c.maj_le)}`, lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
+  const videosCand = candidatures.filter((c) => c.statut === 'video').map((c) => cand(c, 'Vidéo de présentation reçue'));
+  const nouvellesCand = candidatures.filter((c) => c.statut === 'examen').map((c) => cand(c, 'Formulaire de candidature à examiner'));
+  const retards = a.retards.map((x) => carte({ qui: nom(x.parcours), pseudo: x.parcours.pseudo, quoi: `Étape ${x.parcours.etape} : ${x.tache.titre}`,
+    lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, bouton: 'Voir sa fiche', retard: true }));
+  const sections = [
+    { id: 'etape-1', puce: 'Étape 1', titre: 'Étape 1 · Exercices à valider', aide: 'Exercices L1 et L2 : tes remarques, puis Valider.', n: etape1.length, corps: grille(etape1) },
+    { id: 'etape-2', puce: 'Étape 2', titre: 'Étape 2 · Étape 3 à ouvrir', aide: 'Coaching d\'entrée fait : note son compte, sa niche et son pays, puis ouvre son étape 3.', n: etape2.length, corps: grille(etape2) },
+    { id: 'etape-3', puce: 'Étape 3', titre: 'Étape 3 · Vidéos à valider', aide: 'Ses 3 vidéos avant publication : Demander des modifications ou Valider.', n: etape3.length, corps: grille(etape3) },
+    { id: 'etape-4', puce: 'Étape 4', titre: 'Étape 4 · Comptes rendus', aide: 'Les comptes rendus de publication arrivent avec la prochaine livraison.', n: 0, corps: '<p class="vide-traiter">Bientôt disponible.</p>' },
+    { id: 'demandes', puce: 'Demandes d\'intégration', titre: 'Demandes d\'intégration', aide: 'Les candidats retenus qui ont envoyé leur vidéo passent avant les nouvelles candidatures.',
+      n: videosCand.length + nouvellesCand.length,
+      corps: `<h3 class="sous">Vidéos de présentation (${videosCand.length})</h3>${grille(videosCand)}<h3 class="sous">Nouvelles candidatures (${nouvellesCand.length})</h3>${grille(nouvellesCand)}` },
+  ];
+  if (retards.length) sections.push({ id: 'retards', puce: 'En retard', titre: 'En retard', aide: 'Pour information : Bob les relance déjà toutes les 12 heures.', n: retards.length, corps: grille(retards) });
+  const total = sections.filter((x) => x.id !== 'retards').reduce((t, x) => t + x.n, 0);
+  return page('À traiter', `${STYLE_TRAITER}
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>À traiter</h1></div><span class="doux petit">${total} en attente de ta décision</span></div>
+  <nav class="puces-traiter" aria-label="Catégories">${sections.map((x) => `<a href="#${x.id}"${x.n ? '' : ' data-vide'}>${echapper(x.puce)}<b>${x.n}</b></a>`).join('')}</nav>
+  ${sections.map((x) => `<section class="section-traiter" id="${x.id}"><div class="tete"><h2>${echapper(x.titre)}</h2><span class="doux petit">${x.n} à traiter</span></div>
+    <p>${echapper(x.aide)}</p>${x.corps}</section>`).join('')}`, espace, 'traiter');
 }
 
 // ---------- Coach : valider un envoi ----------

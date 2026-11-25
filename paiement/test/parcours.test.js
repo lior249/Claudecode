@@ -66,9 +66,16 @@ test('parcours Elite : étape 1 (exercices), étape 2 (coaching d\'entrée), ét
     assert.ok(fs.existsSync(fichierL1));
 
     // Coach : À traiter, puis validation (pas de « refaire » à l'étape 1), niveau proposé L2.
+    m.candidatures.demarrer('C1', 'nouveau'); m.candidatures.recevoirFormulaire('C1', [{ label: 'Quel est ton nom ?', valeur: 'Esi Amegah' }]);
+    m.candidatures.demarrer('C2', 'retenu'); m.candidatures.recevoirFormulaire('C2', [{ label: 'Quel est ton nom ?', valeur: 'Kodjo Agbeko' }]);
+    m.db.prepare("UPDATE candidatures SET statut = 'video' WHERE discord_id = 'C2'").run();
     const aTraiter = await (await m.get('/admin/a-traiter', { cookie: coach })).text();
     assert.match(aTraiter, /Exercice L1/);
     assert.match(aTraiter, /Exercice L2/);
+    // Catégories dans l'ordre : les membres (étapes 1 à 4), puis les demandes d'intégration (vidéos avant nouvelles candidatures).
+    const ordre = ['id="etape-1"', 'id="etape-2"', 'id="etape-3"', 'id="etape-4"', 'id="demandes"', 'Vidéos de présentation', 'Kodjo Agbeko', 'Nouvelles candidatures', 'Esi Amegah'].map((x) => aTraiter.indexOf(x));
+    assert.ok(ordre.every((i, k) => i > 0 && (k === 0 || i > ordre[k - 1])), `ordre des catégories : ${ordre}`);
+    assert.match(aTraiter, /href="\/admin\/candidatures\/\d+">Inspecter/);
     assert.match(await (await m.get(`/admin/envois/${l2.id}`, { cookie: coach })).text(), /Proposé : L2/);
     assert.strictEqual((await m.get(`/admin/envois/${l1.id}`, { cookie: membre })).status, 403);
     const refus = await m.poster(`/admin/envois/${l1.id}/decision`, { decision: 'corriger', texte: 'Refais.' }, { cookie: coach });
