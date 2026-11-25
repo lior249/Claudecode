@@ -181,6 +181,15 @@ function migrerV7(db) {
   db.exec('PRAGMA user_version = 7');
 }
 
+// v8 : chaque commande garde le compte Discord connecté au moment du paiement (rôle donné tout seul ensuite).
+function migrerV8(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 8) return;
+  const c = colonnes(db, 'commandes');
+  if (!c.includes('discord_id')) db.exec('ALTER TABLE commandes ADD COLUMN discord_id TEXT');
+  if (!c.includes('discord_pseudo')) db.exec('ALTER TABLE commandes ADD COLUMN discord_pseudo TEXT');
+  db.exec('PRAGMA user_version = 8');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -197,6 +206,7 @@ function ouvrirBase(fichier) {
   migrerV5(db);
   migrerV6(db);
   migrerV7(db);
+  migrerV8(db);
   return db;
 }
 

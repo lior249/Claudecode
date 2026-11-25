@@ -8,10 +8,10 @@ const JOUR_MS = 24 * 3600 * 1000;
 // Logique métier : commandes (inscription / renouvellement) des offres Community et Elite,
 // vérification des paiements SasPay, création et prolongation des accès.
 // Idempotente : le webhook ET la page de statut peuvent l'appeler autant de fois que nécessaire.
-function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = () => new Date() }) {
+function creerCommandes({ db, saspay, whop, config, envoyerEmail, surPaiement, maintenant = () => new Date() }) {
   const q = {
-    insererCommande: db.prepare(`INSERT INTO commandes (ref, programme, type, email, nom, telephone, montant, devise, invitation_token, cree_le)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    insererCommande: db.prepare(`INSERT INTO commandes (ref, programme, type, email, nom, telephone, montant, devise, invitation_token, cree_le,
+                                 discord_id, discord_pseudo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
     lierSession: db.prepare('UPDATE commandes SET saspay_session_id = ? WHERE ref = ?'),
     commande: db.prepare('SELECT * FROM commandes WHERE ref = ?'),
     commandeParSession: db.prepare('SELECT * FROM commandes WHERE saspay_session_id = ?'),
@@ -79,6 +79,12 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
         q.prolongerMembre.run(finDans(o.dureeJours, membre.acces_jusqu_au), membre.whop_membership_id ? o.dureeJours : 0, iso, membre.id);
         q.rouvrirWhop.run(iso, membre.id);
       }
+      // Payé en étant connecté avec Discord : le membre est relié à ce compte (plus besoin de /lier).
+      // Un renouvellement ne change pas le compte déjà relié (quelqu'un peut renouveler pour un autre).
+      const paye = q.membre.get(cmd.programme, cmd.email);
+      if (paye && cmd.discord_id && (cmd.type === 'inscription' || !paye.discord_id)) {
+        q.lierDiscord.run(cmd.discord_id, cmd.discord_pseudo || null, iso, paye.id);
+      }
       return true;
     });
   }
@@ -129,12 +135,12 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
     },
 
     // Crée la commande en base puis la session de paiement SasPay. Renvoie l'URL de paiement.
-    async demarrer({ programme = 'community', type, email, nom, telephone, invitationToken }) {
+    async demarrer({ programme = 'community', type, email, nom, telephone, invitationToken, discordId, discordPseudo }) {
       const o = offre(programme);
       const ref = crypto.randomBytes(16).toString('base64url');
       const montant = this.montantPour(programme, type, email);
       q.insererCommande.run(ref, programme, type, email, nom, telephone || null, montant, config.devise,
-        invitationToken || null, maintenant().toISOString());
+        invitationToken || null, maintenant().toISOString(), discordId || null, discordPseudo || null);
 
       const corps = {
         amount: montant,
@@ -165,7 +171,11 @@ function creerCommandes({ db, saspay, whop, config, envoyerEmail, maintenant = (
         if (s.status === 'PAID' && s.transaction_status === 'SUCCESS' && s.transaction_id) {
           const verif = await paiementConforme(saspay, s.transaction_id, cmd);
           if (verif.ok) {
-            finaliser(cmd, s.transaction_id);
+            if (finaliser(cmd, s.transaction_id) && surPaiement) {
+              // Rôle Discord donné tout de suite (Bob), sans attendre le prochain tour.
+              const m = q.membre.get(cmd.programme, cmd.email);
+              Promise.resolve().then(() => surPaiement(m, q.commande.get(ref))).catch((err) => console.error('[paiement] après paiement :', err.message));
+            }
           } else {
             console.warn(`[commande ${ref}] paiement non conforme : ${verif.raison}`);
             q.marquerEchec.run(ref);

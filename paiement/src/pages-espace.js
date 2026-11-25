@@ -84,16 +84,37 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
 
 const LEGENDE = `<div class="legende"><span><i style="background:#ff8a00"></i>Mes créneaux</span><span><i style="background:#1b1b1b;border:1px solid #333"></i>Pris</span><span><i style="background:#4a4a4a"></i>Libre</span></div>`;
 
-function pageConnexionRequise(config, { retour, message, lienDiscord }) {
+// Toutes les pages (sauf l'accueil) demandent le compte Discord. Pas de mot de passe : la personne donne son pseudo,
+// Bob lui envoie sur Discord un bouton « C'est bien moi, continuer », qui ouvre le site connecté.
+const TUTO_PSEUDO = (FORMULAIRES.candidature.questions.find((x) => x.id === 'discord') || {}).images || [];
+function pageConnexionRequise(config, { retour = '/', message, erreur, pseudo, introuvable } = {}) {
   return gabarit('Connexion', `
-  <h1>${echapper(message || 'Connecte-toi avec Discord')}</h1>
-  <div class="carte"><p class="doux" style="margin:0">On utilise ton compte Discord pour savoir qui tu es et quel est ton rôle sur le serveur.</p></div>
-  <div class="carte">
-    <h2>Le plus simple : depuis l'application Discord</h2>
-    <p class="doux" style="margin:0">Sur le serveur Overmaxx, tape <b style="color:#fff">/connexion</b>. Bob t'envoie ton lien personnel : un clic et tu es connecté, sans mot de passe.</p>
-  </div>
-  <a class="bouton secondaire" href="${echapper(lienDiscord || `/connexion?retour=${encodeURIComponent(retour)}`)}">Ou se connecter sur le web</a>
-  ${blocSupport(config)}`);
+  <p class="etiquette">${echapper(message || 'Overmaxx')}</p>
+  <h1>Connecte ton compte Discord</h1>
+  <p class="doux">Indique ton pseudo Discord. Bob, notre bot, t'envoie un bouton sur Discord : un clic, et tu continues ici, connecté. Aucun mot de passe.</p>
+  <form class="carte" method="post" action="/connexion/pseudo" novalidate>
+    <label for="pseudo"><b>Ton pseudo Discord</b></label>
+    <input id="pseudo" name="pseudo" value="${echapper(pseudo || '')}" placeholder="ex. awa_27" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" required style="margin-top:8px">
+    <input type="hidden" name="retour" value="${echapper(retour)}">
+    ${erreur ? `<p class="erreur-form" style="margin:10px 0 0">${echapper(erreur)}</p>` : ''}
+    <button class="bouton" type="submit">Recevoir mon bouton de connexion</button>
+  </form>
+  ${TUTO_PSEUDO.length ? `<details class="carte"><summary style="cursor:pointer;font-weight:600">Où trouver mon pseudo ?</summary>
+    <div style="display:flex;flex-direction:column;gap:16px;margin-top:14px">${TUTO_PSEUDO.map((im) => `<figure style="margin:0">
+      <img src="${echapper(im.src)}" alt="" loading="lazy" style="width:100%;max-width:360px;border-radius:14px;border:1px solid var(--bord)">
+      <figcaption class="doux petit" style="margin-top:6px">${echapper(im.legende)}</figcaption></figure>`).join('')}</div></details>` : ''}
+  ${config.lienDiscord ? `<p class="doux petit centre" style="margin:${introuvable ? '4px' : '18px'} 0 0">Pas encore sur le serveur Overmaxx ?</p>
+  <a class="bouton ${introuvable ? '' : 'secondaire'}" href="${echapper(config.lienDiscord)}" style="margin-top:8px">Rejoindre le Discord</a>` : ''}`);
+}
+
+function pageConnexionEnvoyee(config, { url, retour = '/' }) {
+  return gabarit('Regarde sur Discord', `
+  <div class="icone-ronde">${ICONE.ok}</div>
+  <h1 class="centre">Regarde sur Discord</h1>
+  <div class="carte"><p style="margin:0">Bob vient de t'envoyer un bouton, en message privé ou dans ton fil <b>Bob</b> du serveur.
+    Appuie sur <b>C'est bien moi, continuer</b> : le site s'ouvre et tu es connecté.</p></div>
+  ${url ? `<a class="bouton" href="${echapper(url)}">Ouvrir Discord</a>` : ''}
+  <a class="bouton secondaire" href="/connexion?retour=${encodeURIComponent(retour)}">Je n'ai rien reçu</a>`);
 }
 
 const boutonDiscord = (config) => (config.lienDiscord
@@ -103,8 +124,8 @@ const boutonDiscord = (config) => (config.lienDiscord
 function pageEliteCandidature(config, { session } = {}) {
   const o = config.offres.elite;
   const f = FORMULAIRES.candidature;
-  // Le pseudo Discord est toujours demandé (et vérifié sur le serveur à l'envoi).
-  const { questions } = f;
+  // Connecté avec Discord (bouton de Bob) : on sait déjà qui il est, la question du pseudo est sautée.
+  const questions = session ? f.questions.filter((x) => x.id !== 'discord') : f.questions;
   const vsl = blocVideo(o.wistiaVsl, `Présentation ${o.nom}`);
   const intro = `
     <p class="tf-num">Accompagnement privé · sur sélection</p>
@@ -498,4 +519,4 @@ function pageAdminPages(config, { espace }) {
   ${groupes.map(([titre, liste]) => `<div class="carte"><h2>${echapper(titre)}</h2><ul class="liste">${lignes(liste)}</ul></div>`).join('')}`, espace, 'pages');
 }
 
-module.exports = { pageAdminPages, pageConnexionRequise, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminCandidature, pageAdminMembres, pageCoaching, pageAdmin };
+module.exports = { pageAdminPages, pageConnexionRequise, pageConnexionEnvoyee, pageEliteCandidature, pageConfirmation, pageCandidature, pageAdminCandidatures, pageAdminCandidature, pageAdminMembres, pageCoaching, pageAdmin };

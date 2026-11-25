@@ -6,7 +6,7 @@ const {
 } = require('discord.js');
 
 const STATUTS_CANDIDATURE_PROTEGES = ['examen', 'retenu', 'video', 'valide'];
-const { lienRenouvellement, lienInscription, lienMagique } = require('./liens');
+const { lienRenouvellement, lienMagique } = require('./liens');
 const { JOURS, dateISO, ajouterJours } = require('./coaching');
 
 const JOUR_MS = 24 * 3600 * 1000;
@@ -68,7 +68,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   // Après validation : les deux moyens de paiement, au même prix.
   function boutonsPaiementElite(c) {
     return [
-      { label: 'Payer par mobile money', url: candidatures.lienPaiement(c) },
+      { label: 'Payer par mobile money', url: lienPerso(c.discord_id, c.pseudo, new URL(candidatures.lienPaiement(c)).pathname) },
       { label: 'Payer par carte bancaire', url: config.offres.elite.lienCarte },
     ];
   }
@@ -78,8 +78,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     if (!client || !client.isReady()) return false;
     try {
       const u = await client.users.fetch(discordId);
-      await u.send(typeof contenu === 'string' ? { content: contenu } : contenu);
-      return true;
+      const msg = await u.send(typeof contenu === 'string' ? { content: contenu } : contenu);
+      return { url: msg && msg.channelId ? `https://discord.com/channels/@me/${msg.channelId}` : 'https://discord.com/channels/@me' };
     } catch (err) {
       dernieresErreurs.set(discordId, err.message);
       console.warn(`[bob] message privé impossible à ${discordId} : ${err.message}`);
@@ -133,7 +133,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       message.content = `<@${discordId}> ${message.content || ''}`.slice(0, 2000);
       await fil.send(message);
       log(`message envoyé dans le fil privé de ${discordId} (#${salon.name || salon.id})`);
-      return true;
+      return { url: `https://discord.com/channels/${serveur.id}/${fil.id}` };
     } catch (err) {
       dernieresErreurs.set(discordId, err.message);
       console.warn(`[bob] fil privé impossible pour ${discordId} : ${err.message}`);
@@ -144,21 +144,27 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
   const notifier = {
     admin: (contenu) => (config.discord.adminId ? messagePrive(config.discord.adminId, contenu) : Promise.resolve(false)),
     // Message privé, sinon fil privé avec les mêmes boutons. Si rien ne passe, l'admin le sait (une fois par jour et par membre).
-    membre: async (discordId, contenu) => {
-      if (await messagePrive(discordId, contenu)) return true;
-      if (await filPrive(discordId, contenu)) return true;
-      const cle = `mp-ferme:${discordId}:${maintenant().toISOString().slice(0, 10)}`;
-      if (!dejaEnvoye(cle) && config.discord.adminId && discordId !== config.discord.adminId) {
-        marquer(cle);
-        const horsServeur = horsDuServeur.has(discordId) || /mutual guild/i.test(dernieresErreurs.get(discordId) || '');
-        await messagePrive(config.discord.adminId, horsServeur
-          ? `Je n'arrive pas à écrire à <@${discordId}> : **il n'est pas (ou plus) sur le serveur**. Il doit le rejoindre pour recevoir mes messages.`
-          : `Je n'arrive pas à écrire à <@${discordId}> : ses messages privés sont fermés et je n'ai pas pu ouvrir de fil privé.\n`
-            + `Raison : ${dernieresErreurs.get(discordId) || 'inconnue'}`);
-      }
-      return false;
-    },
+    membre: async (discordId, contenu) => (await envoyer(discordId, contenu)).ok,
   };
+  async function envoyer(discordId, contenu) {
+    const r = (await messagePrive(discordId, contenu)) || (await filPrive(discordId, contenu));
+    if (r) return { ok: true, url: r.url };
+    const cle = `mp-ferme:${discordId}:${maintenant().toISOString().slice(0, 10)}`;
+    if (!dejaEnvoye(cle) && config.discord.adminId && discordId !== config.discord.adminId) {
+      marquer(cle);
+      const horsServeur = horsDuServeur.has(discordId) || /mutual guild/i.test(dernieresErreurs.get(discordId) || '');
+      await messagePrive(config.discord.adminId, horsServeur
+        ? `Je n'arrive pas à écrire à <@${discordId}> : **il n'est pas (ou plus) sur le serveur**. Il doit le rejoindre pour recevoir mes messages.`
+        : `Je n'arrive pas à écrire à <@${discordId}> : ses messages privés sont fermés et je n'ai pas pu ouvrir de fil privé.\n`
+          + `Raison : ${dernieresErreurs.get(discordId) || 'inconnue'}`);
+    }
+    return { ok: false };
+  }
+  // Bouton personnel : ouvre le site déjà connecté avec ce compte Discord.
+  const lienPerso = (id, pseudo, retour) => lienMagique(config, { id, pseudo }, retour);
+  const lienRenouvellementPerso = (m) => (m.discord_id
+    ? lienPerso(m.discord_id, m.discord_pseudo, `${config.offres[m.programme].base}/renouveler`)
+    : lienRenouvellement(config, m.programme, m.email));
 
   async function membreDuServeur(discordId) {
     if (!serveur) return null;
@@ -197,7 +203,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       const cle = (p) => `renouv:${m.id}:${m.acces_jusqu_au}:${p}`;
       if (dejaEnvoye(cle(palier))) continue;
       const prix = formatPrix(m.prix_renouvellement || o.prixRenouvellement, m.devise || config.devise);
-      const lien = lienRenouvellement(config, m.programme, m.email);
+      const lien = lienRenouvellementPerso(m);
       let texte = palier === 1
         ? `**Dernières 24 heures** pour renouveler ton accès à **${o.nom}** (fin le ${formatDate(m.acces_jusqu_au)}).\n`
           + `Renouvelle maintenant pour **${prix}**.\n\n`
@@ -247,7 +253,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
 
   async function mettreEnAttente(m, o, finAttente) {
     const cle = `attente:${m.id}:${m.acces_jusqu_au}`;
-    const lien = lienRenouvellement(config, m.programme, m.email);
+    const lien = lienRenouvellementPerso(m);
     const prix = formatPrix(m.prix_renouvellement || o.prixRenouvellement, m.devise || config.devise);
     if (!dejaEnvoye(cle)) {
       marquer(cle);
@@ -287,7 +293,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     }
     const retour = m.programme === 'community' ? 'Pour revenir, il faudra repayer l\'entrée.' : 'Pour revenir dans l\'accompagnement, contacte-nous.';
     await notifier.membre(m.discord_id, avecBoutons(`Ton accès à **${o.nom}** est terminé, car il n'a pas été renouvelé. ${retour}`,
-      m.programme === 'community' ? [{ label: 'Revenir dans la Community', url: lienInscription(config, 'community') }] : []));
+      m.programme === 'community' ? [{ label: 'Revenir dans la Community', url: lienPerso(m.discord_id, m.discord_pseudo, '/community') }] : []));
     const autres = q.autresActifs.all(m.discord_id, m.id);
     const membreDiscord = await membreDuServeur(m.discord_id);
     try {
@@ -408,6 +414,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
             + 'Pour accéder au reste du serveur, rejoins l\'un des deux programmes : **Overmaxx Community** ou **Overmaxx Elite**.\n'
             + (config.discord.attenteNouveauxHeures
               ? `Sans action de ta part, ce rôle te sera retiré d'ici **${config.discord.attenteNouveauxHeures} heures** et tu quitteras le serveur.\n\n` : '\n')
+            + 'Le plus simple : utilise les boutons du **message de bienvenue de Bob** (en privé ou dans ton fil **Bob**) : tu arrives sur le site déjà connecté.\n\n'
             + '*Membre Community dont l\'accès vient de se terminer ?* Tu as reçu ton lien de renouvellement en message privé : '
             + `tu as ${config.offres.community.graceJours} jours pour renouveler au même prix.`,
           components: [new ActionRowBuilder().addComponents(
@@ -474,7 +481,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       } catch (err) { bilan.echecs.push(c.name || c.id); }
     }
     // Le message n'est publié qu'une fois par salon.
-    const cleMessage = `config:message-attente:v3:${salon.id}`;
+    const cleMessage = `config:message-attente:v4:${salon.id}`;
     if (!dejaEnvoye(cleMessage)) {
       // Supprime l'ancienne version du message (bouton « Postuler » qui envoyait un lien) avant de republier.
       try {
@@ -506,7 +513,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       await notifier.membre(m.discord_id, avecBoutons(
         `Ton accompagnement **Elite** s'arrête le **${formatDate(m.acces_jusqu_au)}**, car les engagements n'ont pas été respectés.\n`
         + `Pour continuer, une caution de **${formatPrix(m.prix_renouvellement || config.offres.elite.prixRenouvellement, config.devise)}** est demandée tous les 3 mois.\n`
-        + 'Sans paiement avant cette date, l\'accompagnement s\'arrête ici.', [{ label: 'Payer la caution', url: lienRenouvellement(config, 'elite', m.email) }]));
+        + 'Sans paiement avant cette date, l\'accompagnement s\'arrête ici.', [{ label: 'Payer la caution', url: lienRenouvellementPerso(m) }]));
       return i.update({ content: `${i.message.content}\n\n**Inconstant** : prévenu, lien de caution envoyé.`, components: [] });
     }
 
@@ -746,8 +753,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
       : avecBoutons('**Bienvenue sur le serveur Overmaxx !**\nJe suis Bob, l\'assistant d\'Overmaxx. '
         + 'Pour l\'instant, tu ne vois que le salon d\'attente.\n'
         + 'Pour accéder au reste du serveur, rejoins l\'un des deux programmes :',
-        [{ label: 'Rejoindre la Community', url: `${config.baseUrl}/community` },
-          { label: 'Postuler à l\'Elite', url: `${config.baseUrl}${config.offres.elite.base}` }]);
+        [{ label: 'Rejoindre la Community', url: lienPerso(m.id, m.user?.username, '/community') },
+          { label: 'Postuler à l\'Elite', url: lienPerso(m.id, m.user?.username, config.offres.elite.base) }]);
     const ok = await notifier.membre(m.id, contenu);
     log(ok ? `message de bienvenue envoyé à ${m.id}` : `message de bienvenue impossible pour ${m.id} (voir l'erreur ci-dessus)`);
     return ok;
@@ -871,6 +878,34 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
         setInterval(cycle, 60 * 1000).unref();
       });
       await client.login(config.discord.jetonBot);
+    },
+
+    // Paiement confirmé alors que la personne était connectée avec Discord : rôle tout de suite, En Attente retiré.
+    async apresPaiement(membre, cmd) {
+      if (!membre || !membre.discord_id || membre.statut !== 'actif') return;
+      const o = config.offres[membre.programme];
+      try {
+        await donnerRole(membre.discord_id, o.roleDiscord);
+        await retirerRole(membre.discord_id, config.discord.roleAttente);
+      } catch (err) { console.warn('[bob] rôle après paiement :', err.message); }
+      log(`paiement ${cmd && cmd.type} confirmé pour ${membre.discord_id} (${membre.programme}) : rôle donné`);
+      if (cmd && cmd.type === 'renouvellement') {
+        await notifier.membre(membre.discord_id, `**Renouvellement confirmé.** Ton accès à **${o.nom}** est valable jusqu'au **${formatDate(membre.acces_jusqu_au)}**.`);
+      } else {
+        await notifier.membre(membre.discord_id, avecBoutons(`**Paiement confirmé : bienvenue dans ${o.nom} !** Ton rôle est ajouté sur le serveur.\n`
+          + `Ton accès est valable jusqu'au **${formatDate(membre.acces_jusqu_au)}**. Il te reste à rejoindre la formation sur Whop.`,
+          cmd ? [{ label: 'Accéder à la formation', url: `${config.baseUrl}/acces/${cmd.ref}` }] : []));
+      }
+    },
+
+    // Connexion depuis le site : la personne donne son pseudo, Bob lui envoie un bouton pour confirmer que c'est bien elle.
+    // La connexion s'ouvre seulement dans le navigateur qui clique sur ce bouton.
+    async envoyerConnexion(id, retour, saisie = '') {
+      const m = await membreDuServeur(id);
+      const pseudo = (m && m.user && m.user.username) || String(saisie).trim().replace(/^@/, '');
+      const r = await envoyer(id, avecBoutons('**Connexion à overmaxx.online**\nTu viens de demander à te connecter au site. Clique sur le bouton pour continuer.\n'
+        + '*Ce n\'est pas toi ? Ignore simplement ce message.*', [{ label: 'C\'est bien moi, continuer', url: lienPerso(id, pseudo, retour) }]));
+      return { id, ok: r.ok, url: r.url };
     },
 
     // Après la connexion Discord d'un membre payé.

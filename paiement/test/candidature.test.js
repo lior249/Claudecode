@@ -24,7 +24,7 @@ function fauxBobDiscord(m) {
   return { bob, dms, kicks };
 }
 
-test('candidature Elite : formulaire 1 (nom + pseudo Discord) → examen → retenu → formulaire 2 (vidéo) → validé → paiement', async () => {
+test('candidature Elite : connexion Discord → formulaire 1 (nom) → examen → retenu → formulaire 2 (vidéo) → validé → paiement', async () => {
   const CID = '500000000000000001';
   const holder = {};
   const m = await monter({ avecCandidatures: true, bob: {
@@ -39,23 +39,24 @@ test('candidature Elite : formulaire 1 (nom + pseudo Discord) → examen → ret
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(corps),
     });
 
-    // Formulaire 1, sans connexion.
-    const page = await (await m.get('/coaching/elite')).text();
+    // Sans connexion : la page demande d'abord le compte Discord, et l'envoi est refusé.
+    assert.match(await (await m.get('/coaching/elite', { cookie: '' })).text(), /Connecte ton compte Discord/);
+    assert.strictEqual((await envoyer({ reponses: { nom: 'Koffi Mensah' } })).status, 401);
+    // Connecté (bouton de Bob) : le pseudo n'est plus demandé.
+    const cookieC = cookieSession(CID, 'koffi_99');
+    const page = await (await m.get('/coaching/elite', { cookie: cookieC })).text();
     assert.match(page, /Quel est ton nom \?/);
+    assert.doesNotMatch(page, /Quel est ton pseudo Discord \?/);
     assert.match(page, /Ton formulaire est en cours de traitement/);
-    let r = await envoyer({ reponses: { nom: '' } });
+    let r = await envoyer({ reponses: { nom: '' } }, cookieC);
     assert.deepStrictEqual(await r.json(), { champ: 'nom', erreur: 'Cette question est obligatoire.' });
-    r = await envoyer({ reponses: { nom: 'Koffi Mensah', discord: 'inconnu' } });
-    const e = await r.json();
-    assert.strictEqual(e.champ, 'discord');
-    assert.match(e.erreur, /introuvable/);
-    r = await envoyer({ reponses: { nom: 'Koffi Mensah', discord: '@Koffi_99' } });
+    r = await envoyer({ reponses: { nom: 'Koffi Mensah' } }, cookieC);
     assert.strictEqual(r.status, 200);
     assert.strictEqual(m.candidatures.parDiscord(CID).statut, 'examen');
     assert.ok(d.dms.some(([id, t]) => id === CID && /bien reçu/.test(t)));
     const alerte = d.dms.find(([id, t]) => id === ADMIN && /Nouvelle candidature/.test(t));
     assert.match(alerte[1], /Koffi Mensah/);
-    assert.strictEqual((await envoyer({ reponses: { nom: 'X', discord: 'koffi_99' } })).status, 409, 'une seule candidature');
+    assert.strictEqual((await envoyer({ reponses: { nom: 'X' } }, cookieC)).status, 409, 'une seule candidature');
 
     // L'admin retient : Bob envoie le lien personnel de la suite.
     await d.bob.surInteraction({ user: { id: ADMIN }, isButton: () => true, customId: 'cand:retenir:1', message: { content: 'x' }, update: async () => {}, reply: async () => {} });
@@ -87,11 +88,14 @@ test('candidature Elite : formulaire 1 (nom + pseudo Discord) → examen → ret
     assert.strictEqual((await m.poster('/admin/candidatures/1/valider', {}, { cookie: admin })).status, 303);
     assert.ok(!fs.existsSync(chemin), 'vidéo supprimée après la décision');
     const lienPaiement = m.candidatures.lienPaiement(m.candidatures.parId(1));
-    assert.ok(d.dms.some(([id, , c]) => id === CID && urls(c).includes(lienPaiement)), 'lien de paiement dans un bouton');
+    const cheminPaiement = new URL(lienPaiement).pathname;
+    assert.ok(d.dms.some(([id, , c]) => id === CID && urls(c).some((u) => u.endsWith(`retour=${encodeURIComponent(cheminPaiement)}`))),
+      'bouton personnel : connecte puis ouvre le paiement');
     const suivi = await (await m.get('/coaching/elite/candidature', { cookie })).text();
     assert.match(suivi, /Payer par mobile money/);
     assert.ok(suivi.includes('href="https://whop.com/overmaxx/legroupe-secret-accompagnement-prive/"'), 'carte : offre Whop cachée par défaut');
-    assert.match(await (await m.get(new URL(lienPaiement).pathname)).text(), /327/);
+    assert.match(await (await m.get(cheminPaiement, { cookie })).text(), /327/);
+    assert.strictEqual((await m.get(cheminPaiement, { cookie: cookieSession('AUTRE', 'autre') })).status, 403, 'lien réservé au compte du candidat');
     // Revenir sur /coaching/elite renvoie vers le suivi.
     assert.strictEqual((await m.get('/coaching/elite', { cookie })).headers.get('location'), '/coaching/elite/candidature');
   } finally { await m.fermer(); }
@@ -146,6 +150,7 @@ test('connexion par Bob : /connexion, lien à usage unique, bouton Postuler (rô
     await m.poster('/community/paiement', { nom: 'Yao', email: 'yao@example.com' });
     m.saspay.payer(m.saspay.derniere().id);
     const e = await m.etat(m.saspay.derniere().metadata.ref);
+    m.db.prepare("UPDATE membres SET discord_id = NULL WHERE email = 'yao@example.com'").run(); // paiement d'avant la connexion obligatoire
     const code = (await (await m.get(e.redirection)).text()).match(/\/lier ([A-Z2-9]{6})/)[1];
     reponses.length = 0;
     await d.bob.surInteraction(inter({ commandName: 'lier', options: { getString: () => 'zzzzzz' } }));
@@ -177,13 +182,15 @@ test('formulaire rempli sans connexion : Bob retrouve le candidat grâce à son 
   } finally { await m.fermer(); }
 });
 
-test('question Discord : tutoriel en 3 images, servies avec cache', async () => {
+test('page de connexion : pseudo Discord, tutoriel en 3 images (servies avec cache), bouton Rejoindre le Discord', async () => {
   const m = await monter({ avecCandidatures: true });
   try {
-    const page = await (await m.get('/coaching/elite')).text();
+    const page = await (await m.get('/coaching/elite', { cookie: '' })).text();
+    assert.match(page, /Connecte ton compte Discord/);
+    assert.match(page, /name="retour" value="\/coaching\/elite"/);
     assert.match(page, /Où trouver mon pseudo \?/);
-    assert.match(page, /Rejoindre le serveur Discord/);
-    assert.match(page, /"lienDiscord":"https:\/\/discord\.gg\/test"/);
+    assert.match(page, /Rejoindre le Discord/);
+    assert.ok(page.includes('href="https://discord.gg/test"'));
     assert.match(page, /\/static\/aide\/pseudo-3\.jpg/);
     for (const n of [1, 2, 3]) {
       const r = await m.get(`/static/aide/pseudo-${n}.jpg`);
@@ -226,8 +233,8 @@ test('message de Bob à l\'admin : lien vers la fiche du candidat, décision pri
 test('suivi sans connexion : après le formulaire, la page suit la candidature et permet de continuer (cookie limité)', async () => {
   const m = await monter({ avecCandidatures: true, bob: { idDepuisPseudo: async () => '900000000000000001', candidatureRecue: async () => {}, videoRecue: async () => {} } });
   try {
-    const r = await fetch(`${m.base}/api/candidature/formulaire`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reponses: { nom: 'Ama', discord: 'ama_d' } }) });
+    const r = await fetch(`${m.base}/api/candidature/formulaire`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: cookieSession('900000000000000001', 'ama_d') },
+      body: JSON.stringify({ reponses: { nom: 'Ama' } }) });
     assert.strictEqual(r.status, 200);
     const cookie = r.headers.get('set-cookie').split(';')[0];
     assert.match(cookie, /^ovx_cand=/);
@@ -345,8 +352,8 @@ test('relances des candidats retenus sans suite : 24 h puis 72 h, sans doublon',
 test('suppression d\'une candidature par l\'admin : la personne peut recommencer ; anti-spam 5 envois par heure', async () => {
   const m = await monter({ avecCandidatures: true, bob: { idDepuisPseudo: async () => '910000000000000001', candidatureRecue: async () => {} } });
   try {
-    const envoyer = () => fetch(`${m.base}/api/candidature/formulaire`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reponses: { nom: 'Test', discord: 'noflow' } }) });
+    const envoyer = () => fetch(`${m.base}/api/candidature/formulaire`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: cookieSession('910000000000000001', 'noflow') },
+      body: JSON.stringify({ reponses: { nom: 'Test' } }) });
     assert.strictEqual((await envoyer()).status, 200);
     assert.strictEqual((await envoyer()).status, 409, 'une candidature en cours bloque un nouvel envoi');
     const admin = cookieSession(ADMIN, 'admin');
@@ -383,13 +390,15 @@ test('candidature validée : paiement par mobile money OU par carte (offre Whop 
     assert.ok((await d.bob.appliquerDecision(c.id, 'valider')).ok);
     const lienMobile = m.candidatures.lienPaiement(m.candidatures.parId(c.id));
     const dm = d.dms.find(([id, t]) => id === CID && /validée/.test(t));
-    assert.deepStrictEqual(urls(dm[2]), [lienMobile, CARTE], 'deux boutons : mobile money et carte');
+    const [boutonMobile, boutonCarte] = urls(dm[2]);
+    assert.ok(boutonMobile.endsWith(`retour=${encodeURIComponent(new URL(lienMobile).pathname)}`), 'mobile money : bouton personnel');
+    assert.strictEqual(boutonCarte, CARTE);
 
     const cookie = cookieSession(CID, 'awa');
     const suivi = await (await m.get('/coaching/elite/candidature', { cookie })).text();
     assert.match(suivi, /Payer par mobile money/);
     assert.ok(suivi.includes(`href="${CARTE}"`));
-    assert.match(await (await m.get(new URL(lienMobile).pathname)).text(), /Payer plutôt par carte bancaire/);
+    assert.match(await (await m.get(new URL(lienMobile).pathname, { cookie })).text(), /Payer plutôt par carte bancaire/);
 
     // Paiement par carte sur Whop : Whop donne le rôle Elite.
     const membre = { id: CID, roles: { cache: { has: (r) => r === ROLES.elite || r === ROLES.attente } } };
@@ -398,6 +407,70 @@ test('candidature validée : paiement par mobile money OU par carte (offre Whop 
     assert.ok(d.dms.some(([id, t]) => id === CID && /Paiement reçu/.test(t)));
     assert.ok(d.dms.some(([id, t]) => id === ADMIN && /par carte/.test(t)));
     assert.match(await (await m.get('/coaching/elite/candidature', { cookie })).text(), /intégration est confirmée/);
-    assert.strictEqual((await m.get(new URL(lienMobile).pathname)).status, 410, 'le lien mobile money ne peut plus servir');
+    assert.strictEqual((await m.get(new URL(lienMobile).pathname, { cookie })).status, 410, 'le lien mobile money ne peut plus servir');
+  } finally { await m.fermer(); }
+});
+
+test('connexion par pseudo : Bob envoie « C\'est bien moi, continuer » ; le clic connecte et ramène à la page demandée', async () => {
+  const PID = '600000000000000001';
+  const holder = {};
+  const m = await monter({ avecCandidatures: true, connecte: false, bob: {
+    idDepuisPseudo: async (p) => (p.toLowerCase() === 'awa_27' ? PID : null),
+    envoyerConnexion: (...a) => holder.bob.envoyerConnexion(...a),
+  } });
+  try {
+    const d = fauxBobDiscord(m);
+    holder.bob = d.bob;
+    const demander = (pseudo, retour = '/community') => m.poster('/connexion/pseudo', { pseudo, retour });
+
+    // Pseudo inconnu : on propose de rejoindre le serveur.
+    const inconnu = await demander('personne');
+    assert.strictEqual(inconnu.status, 404);
+    assert.match(await inconnu.text(), /pas sur le serveur Overmaxx[\s\S]*Rejoindre le Discord/);
+
+    // Pseudo trouvé : Bob envoie le bouton, la page dit de regarder sur Discord.
+    const envoye = await demander('@Awa_27');
+    assert.strictEqual(envoye.status, 200);
+    const page = await envoye.text();
+    assert.match(page, /Regarde sur Discord/);
+    assert.match(page, /href="https:\/\/discord\.com\/channels\/@me"/, 'bouton Ouvrir Discord');
+    const [, texte, composants] = d.dms.find(([id]) => id === PID);
+    assert.match(texte, /Ce n'est pas toi \? Ignore/);
+    const bouton = composants[0].components[0].data;
+    assert.strictEqual(bouton.label, 'C\'est bien moi, continuer');
+    assert.match(bouton.url, /\/connexion\/bob\?t=.*retour=%2Fcommunity$/);
+
+    // Le clic connecte (dans le navigateur qui clique) et ouvre la page demandée.
+    const clic = await m.get(bouton.url.replace('http://localhost', ''));
+    assert.strictEqual(clic.headers.get('location'), '/community');
+    const cookie = clic.headers.get('set-cookie').split(';')[0];
+    assert.match(clic.headers.get('set-cookie'), /Max-Age=2592000/, 'connexion gardée 30 jours');
+    assert.match(await (await m.get('/community', { cookie })).text(), /Payer par mobile money/);
+
+    // Anti-abus : 3 boutons par demi-heure pour un même compte ; retour vers un autre site refusé.
+    await demander('awa_27'); await demander('awa_27');
+    assert.strictEqual((await demander('awa_27')).status, 429);
+    assert.match(await (await m.poster('/connexion/pseudo', { pseudo: 'x', retour: '/\\evil.com' })).text(), /name="retour" value="\/"/);
+    assert.strictEqual((await m.get('/connexion/bob?t=faux&retour=//evil.com')).status, 400);
+  } finally { await m.fermer(); }
+});
+
+test('paiement confirmé en étant connecté : Bob donne le rôle tout de suite et retire En Attente', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const roles = new Set([ROLES.attente]);
+    const dms = [];
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures,
+      client: { isReady: () => true, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content, c.components]) }) } },
+      serveur: { id: 'guild', members: { fetch: async () => ({ roles: { cache: { has: (r) => roles.has(r) }, add: async (r) => roles.add(r), remove: async (r) => roles.delete(r) } }) } } });
+    const membre = { discord_id: 'P1', programme: 'community', statut: 'actif', acces_jusqu_au: new Date(Date.now() + 30 * 86400000).toISOString() };
+    await bob.apresPaiement(membre, { type: 'inscription', ref: 'REF123' });
+    assert.ok(roles.has(ROLES.community) && !roles.has(ROLES.attente));
+    assert.match(dms[0][1], /bienvenue dans Overmaxx Community/);
+    assert.deepStrictEqual(urls(dms[0][2]), ['http://localhost/acces/REF123']);
+    await bob.apresPaiement(membre, { type: 'renouvellement', ref: 'REF124' });
+    assert.match(dms[1][1], /Renouvellement confirmé/);
+    await bob.apresPaiement({ ...membre, discord_id: null }, { type: 'inscription' });
+    assert.strictEqual(dms.length, 2, 'sans compte Discord : rien');
   } finally { await m.fermer(); }
 });

@@ -21,7 +21,7 @@ function lireFormulaire(body) {
   };
 }
 
-const retourSur = (r) => (typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/coaching');
+const retourSur = (r, defaut = '/coaching') => (typeof r === 'string' && /^\/(?![/\\])/.test(r) && !/[\u0000-\u001f]/.test(r) ? r.slice(0, 300) : defaut);
 
 // Le bouton pointe DIRECTEMENT vers discord.com : sur téléphone, c'est ce qui ouvre l'application Discord
 // (une redirection depuis notre site ouvrirait la page web de Discord, qui redemande l'identifiant et le mot de passe).
@@ -54,14 +54,29 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   // ================= Paiements (Community et Elite) =================
 
-  async function lancerPaiement(req, res, { offre, type, page, invitationToken }) {
+  // Toutes les pages sauf l'accueil : connexion avec le compte Discord obligatoire.
+  function connecte(req, res, retour, message) {
+    const session = lireSession(req, config.secretApp);
+    if (session) return session;
+    res.send(E.pageConnexionRequise(config, { retour: retourSur(retour || req.originalUrl, '/'), message }));
+    return null;
+  }
+  // Abonnement de cette offre déjà relié au compte Discord connecté.
+  const abonnementDe = (session, offre) => (session ? commandes.membresParDiscord(session.id).find((x) => x.programme === offre.id) || null : null);
+
+  async function lancerPaiement(req, res, { offre, type, page, invitationToken, session }) {
     const valeurs = lireFormulaire(req.body);
-    const jetonEmail = type === 'renouvellement' ? lireJetonMembre(valeurs.m, config.secretApp) : null;
-    if (jetonEmail) valeurs.email = jetonEmail;
-    const refus = (erreur, statut = 400) => res.status(statut).send(page({ erreur, valeurs, emailVerrouille: Boolean(jetonEmail) }));
+    const parDiscord = abonnementDe(session, offre);
+    // Renouvellement : l'abonnement est retrouvé par le lien personnel (ancien) ou par le compte Discord connecté.
+    const emailConnu = type === 'renouvellement' ? (lireJetonMembre(valeurs.m, config.secretApp) || (parDiscord && parDiscord.email) || null) : null;
+    if (emailConnu) valeurs.email = emailConnu;
+    const refus = (erreur, statut = 400) => res.status(statut).send(page({ erreur, valeurs, emailVerrouille: Boolean(emailConnu) }));
     if (valeurs.nom.length < 2) return refus('Entre ton nom.');
     if (!EMAIL_REGEX.test(valeurs.email)) return refus("L'email n'est pas valide.");
     const membre = commandes.membre(offre.id, valeurs.email);
+    if (type === 'inscription' && parDiscord && commandes.peutRenouveler(offre.id, parDiscord.email)) {
+      return refus(`Ton compte Discord a déjà un accès actif. <a href="${offre.base}/renouveler">Renouvelle ton abonnement ici</a>.`, 409);
+    }
     if (type === 'inscription' && membre && commandes.peutRenouveler(offre.id, valeurs.email)) {
       return refus(`Cet email a déjà un accès actif. <a href="${P.echapper(lienRenouvellement(config, offre.id, valeurs.email))}">Renouvelle ton abonnement ici</a>.`, 409);
     }
@@ -72,7 +87,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
         : `Aucun abonnement actif pour cet email. Utilise l'email de ton inscription.`, 404);
     }
     try {
-      const { urlPaiement } = await commandes.demarrer({ programme: offre.id, type, ...valeurs, invitationToken });
+      const { urlPaiement } = await commandes.demarrer({
+        programme: offre.id, type, ...valeurs, invitationToken, discordId: session && session.id, discordPseudo: session && session.pseudo,
+      });
       return res.redirect(303, urlPaiement);
     } catch (err) {
       console.error('[paiement]', err.message);
@@ -82,8 +99,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   function formulaireRenouvellement(offre) {
     return (req, res) => {
+      const session = connecte(req, res, undefined, `Renouveler ${offre.nom}`);
+      if (!session) return;
       const email = lireJetonMembre(req.query.m, config.secretApp);
-      const m = email ? commandes.membre(offre.id, email) : null;
+      const m = email ? commandes.membre(offre.id, email) : abonnementDe(session, offre);
       const valeurs = m ? { nom: m.nom, email: m.email, telephone: m.telephone, m: req.query.m } : {};
       const montant = m ? commandes.montantPour(offre.id, 'renouvellement', m.email) : undefined;
       res.send(P.pageFormulaire(config, { offre, type: 'renouvellement', valeurs, emailVerrouille: Boolean(m), montant }));
@@ -94,17 +113,29 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   const community = config.offres.community;
   // Accueil : la seule page ouverte à tous. Son but : faire entrer sur le Discord.
   app.get('/', (req, res) => res.send(P.pageBienvenue(config)));
-  app.get('/community', (req, res) => res.send(P.pageAccueil(config, community)));
-  app.get('/community/paiement', (req, res) => res.send(P.pageFormulaire(config, { offre: community, type: 'inscription', retour: '/community' })));
-  app.post('/community/paiement', formulaire, (req, res) => lancerPaiement(req, res, {
-    offre: community, type: 'inscription',
-    page: (o) => P.pageFormulaire(config, { offre: community, type: 'inscription', retour: '/community', ...o }),
-  }));
+  app.get('/community', (req, res) => {
+    if (connecte(req, res, '/community', community.nom)) res.send(P.pageAccueil(config, community));
+  });
+  app.get('/community/paiement', (req, res) => {
+    if (connecte(req, res, '/community/paiement', community.nom)) res.send(P.pageFormulaire(config, { offre: community, type: 'inscription', retour: '/community' }));
+  });
+  app.post('/community/paiement', formulaire, (req, res) => {
+    const session = connecte(req, res, '/community/paiement', community.nom);
+    if (!session) return undefined;
+    return lancerPaiement(req, res, {
+      offre: community, type: 'inscription', session,
+      page: (o) => P.pageFormulaire(config, { offre: community, type: 'inscription', retour: '/community', ...o }),
+    });
+  });
   app.get('/community/renouveler', formulaireRenouvellement(community));
-  app.post('/community/renouveler', formulaire, (req, res) => lancerPaiement(req, res, {
-    offre: community, type: 'renouvellement',
-    page: (o) => P.pageFormulaire(config, { offre: community, type: 'renouvellement', ...o }),
-  }));
+  app.post('/community/renouveler', formulaire, (req, res) => {
+    const session = connecte(req, res, '/community/renouveler', `Renouveler ${community.nom}`);
+    if (!session) return undefined;
+    return lancerPaiement(req, res, {
+      offre: community, type: 'renouvellement', session,
+      page: (o) => P.pageFormulaire(config, { offre: community, type: 'renouvellement', ...o }),
+    });
+  });
   // Anciennes adresses
   app.get('/paiement', (req, res) => res.redirect(301, '/community/paiement'));
   app.get('/renouveler', (req, res) => res.redirect(301, `/community/renouveler${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`));
@@ -112,34 +143,48 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   // ---- Elite ----
   const elite = config.offres.elite;
   app.get('/coaching/elite', (req, res) => {
-    const session = lireSession(req, config.secretApp);
-    // Déjà candidat (formulaire envoyé) : on montre où il en est.
+    // Déjà candidat (formulaire envoyé, même suivi par le seul cookie de candidature) : on montre où il en est.
     const { c } = candidatureDe(req);
     if (c && c.statut !== 'formulaire') return res.redirect(302, `${config.offres.elite.base}/candidature`);
+    const session = connecte(req, res, elite.base, 'Candidature Elite');
+    if (!session) return undefined;
     return res.send(E.pageEliteCandidature(config, { session }));
   });
-  function invitationValide(req, res) {
+  function invitationValide(req, res, session) {
     const inv = commandes.invitation(req.params.token);
     if (!inv) { res.status(404).send(P.pageMessage(config, 'Lien invalide', 'Ce lien de paiement n\'existe pas.', { lien: elite.base, texteLien: 'Découvrir l\'Elite' })); return null; }
     if (inv.utilisee_le) { res.status(410).send(P.pageMessage(config, 'Lien déjà utilisé', 'Ce lien personnel a déjà servi à un paiement.', { lien: elite.base, texteLien: 'Retour' })); return null; }
+    // Lien né d'une candidature : réservé au compte Discord du candidat.
+    const c = candidatures ? commandes.db.prepare('SELECT discord_id, pseudo FROM candidatures WHERE invitation_token = ?').get(inv.token) : null;
+    if (c && session && c.discord_id !== session.id) {
+      res.status(403).send(P.pageMessage(config, 'Lien réservé', `Ce lien de paiement est réservé au compte Discord de ${c.pseudo || 'son candidat'}. Connecte-toi avec ce compte.`,
+        { lien: '/deconnexion', texteLien: 'Changer de compte' }));
+      return null;
+    }
     return inv;
   }
   app.get('/coaching/elite/paiement/:token', (req, res) => {
-    if (!invitationValide(req, res)) return;
+    const session = connecte(req, res, undefined, elite.nom);
+    if (!session || !invitationValide(req, res, session)) return;
     res.send(P.pageFormulaire(config, { offre: elite, type: 'inscription', action: `${elite.base}/paiement/${req.params.token}`, lienCarte: elite.lienCarte }));
   });
   app.post('/coaching/elite/paiement/:token', formulaire, (req, res) => {
-    if (!invitationValide(req, res)) return undefined;
+    const session = connecte(req, res, `${elite.base}/paiement/${req.params.token}`, elite.nom);
+    if (!session || !invitationValide(req, res, session)) return undefined;
     return lancerPaiement(req, res, {
-      offre: elite, type: 'inscription', invitationToken: req.params.token,
+      offre: elite, type: 'inscription', invitationToken: req.params.token, session,
       page: (o) => P.pageFormulaire(config, { offre: elite, type: 'inscription', action: `${elite.base}/paiement/${req.params.token}`, lienCarte: elite.lienCarte, ...o }),
     });
   });
   app.get('/coaching/elite/renouveler', formulaireRenouvellement(elite));
-  app.post('/coaching/elite/renouveler', formulaire, (req, res) => lancerPaiement(req, res, {
-    offre: elite, type: 'renouvellement',
-    page: (o) => P.pageFormulaire(config, { offre: elite, type: 'renouvellement', ...o }),
-  }));
+  app.post('/coaching/elite/renouveler', formulaire, (req, res) => {
+    const session = connecte(req, res, `${elite.base}/renouveler`, `Renouveler ${elite.nom}`);
+    if (!session) return undefined;
+    return lancerPaiement(req, res, {
+      offre: elite, type: 'renouvellement', session,
+      page: (o) => P.pageFormulaire(config, { offre: elite, type: 'renouvellement', ...o }),
+    });
+  });
 
   // ---- Suivi du paiement ----
   app.get('/confirmation/:ref', async (req, res) => {
@@ -217,9 +262,39 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     return res.redirect(302, oauth.urlAutorisation({ but: 'candidat' }, { rejoindre: true }));
   });
 
-  app.get('/connexion', (req, res) => {
-    if (!config.oauthActif) return res.status(503).send(P.pageMessage(config, 'Bientôt disponible', 'La connexion Discord n\'est pas encore configurée.'));
-    return res.redirect(302, oauth.urlAutorisation({ but: 'connexion', retour: retourSur(req.query.retour) }));
+  app.get('/connexion', (req, res) => res.send(E.pageConnexionRequise(config, { retour: retourSur(req.query.retour, '/') })));
+
+  // Anti-abus : 8 demandes par quart d'heure et par adresse IP, 3 boutons par demi-heure pour un même compte Discord.
+  const demandesConnexion = { ip: new Map(), compte: new Map() };
+  function depasse(table, cle, max, fenetreMs) {
+    const t = Date.now();
+    const liste = (table.get(cle) || []).filter((x) => t - x < fenetreMs);
+    if (liste.length >= max) return true;
+    liste.push(t);
+    table.set(cle, liste);
+    if (table.size > 5000) table.clear();
+    return false;
+  }
+  app.post('/connexion/pseudo', formulaire, async (req, res) => {
+    const retour = retourSur(String(req.body.retour || ''), '/');
+    const pseudo = String(req.body.pseudo || '').trim().replace(/^@/, '').slice(0, 40);
+    const page = (o, statut = 400) => res.status(statut).send(E.pageConnexionRequise(config, { retour, pseudo, ...o }));
+    if (pseudo.length < 2) return page({ erreur: 'Écris ton pseudo Discord.' });
+    if (depasse(demandesConnexion.ip, req.ip || 'inconnue', 8, 15 * 60 * 1000)) return page({ erreur: 'Trop d\'essais. Réessaie dans un quart d\'heure.' }, 429);
+    if (!bob || !bob.envoyerConnexion) return page({ erreur: 'La connexion est indisponible pour le moment. Réessaie dans un instant.' }, 503);
+    try {
+      const id = await bob.idDepuisPseudo(pseudo);
+      if (!id) {
+        return page({ introuvable: true, erreur: 'Ce pseudo n\'est pas sur le serveur Overmaxx. Vérifie l\'orthographe (le petit nom sous ton nom, dans ton profil Discord), ou rejoins d\'abord le serveur.' }, 404);
+      }
+      if (depasse(demandesConnexion.compte, id, 3, 30 * 60 * 1000)) return page({ erreur: 'Bob t\'a déjà envoyé plusieurs boutons : regarde sur Discord, ou réessaie dans une demi-heure.' }, 429);
+      const r = await bob.envoyerConnexion(id, retour, pseudo);
+      if (!r.ok) return page({ erreur: 'Bob n\'arrive pas à t\'écrire sur Discord. Vérifie que tu es bien sur le serveur Overmaxx, puis réessaie.' }, 502);
+      return res.send(E.pageConnexionEnvoyee(config, { url: r.url, retour }));
+    } catch (err) {
+      console.error('[connexion]', err.message);
+      return page({ erreur: 'La connexion est indisponible pour le moment. Réessaie dans un instant.' }, 502);
+    }
   });
 
   // Lien envoyé par Bob dans Discord : connexion sans mot de passe (valable 30 jours, réutilisable).
@@ -234,7 +309,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     return res.redirect(302, retour);
   });
 
-  app.get('/deconnexion', (req, res) => { fermerSession(res); res.redirect(302, '/community'); });
+  app.get('/deconnexion', (req, res) => { fermerSession(res); res.redirect(302, '/'); });
 
   app.get('/discord/callback', async (req, res) => {
     const st = oauth && oauth.lireState(String(req.query.state || ''));
@@ -384,20 +459,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   app.post('/api/candidature/formulaire', json, async (req, res) => {
     if (!candidatures) return res.status(503).json({ erreur: 'Les candidatures ne sont pas encore ouvertes.' });
     if (tropDEnvois(req)) return res.status(429).json({ erreur: 'Trop d\'essais. Réessaie dans une heure.' });
+    // Connexion obligatoire (bouton de Bob) : le candidat est le compte Discord connecté.
     const session = lireSession(req, config.secretApp);
-    // Le pseudo est toujours demandé et vérifié sur le serveur : une connexion existante peut être celle d'un autre compte.
-    const v = verifierReponses('candidature', req.body && req.body.reponses);
+    if (!session) return res.status(401).json({ erreur: 'Ta connexion a expiré. Recharge la page pour te reconnecter avec Discord.' });
+    const v = verifierReponses('candidature', req.body && req.body.reponses, { sauter: ['discord'] });
     if (v.erreur) return res.status(400).json(v);
-    let discordId = null;
-    let pseudo = null;
-    const champDiscord = v.reponses.find((r) => r.id === 'discord');
-    if (champDiscord) {
-      pseudo = champDiscord.valeur.replace(/^@/, '');
-      discordId = bob && bob.idDepuisPseudo ? await bob.idDepuisPseudo(pseudo) : null;
-      if (!discordId) {
-        return res.status(400).json({ champ: 'discord', erreur: 'Pseudo introuvable sur le serveur Overmaxx. Rejoins d\'abord le Discord, puis vérifie l\'orthographe (sans espace).' });
-      }
-    }
+    const discordId = session.id;
+    const pseudo = session.pseudo || null;
     const existante = candidatures.parDiscord(discordId);
     if (existante && existante.statut !== 'formulaire') {
       return res.status(409).json({ erreur: existante.statut === 'refuse'

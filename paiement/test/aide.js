@@ -100,25 +100,28 @@ function cookieSession(id, pseudo = 'membre') {
   return `ovx_session=${encodeURIComponent(signer({ id, pseudo, exp: Date.now() + 3600000 }, 'x'.repeat(40)))}`;
 }
 
-async function monter({ config = configTest(), saspay = fauxSaspay(), whop = fauxWhop(), oauth = fauxOAuth(), maintenant, bob = null, avecCandidatures = false } = {}) {
+// Les pages (sauf l'accueil) demandent une connexion Discord : par défaut, les tests naviguent connectés avec ce compte.
+const VISITEUR = '400000000000000099';
+async function monter({ config = configTest(), saspay = fauxSaspay(), whop = fauxWhop(), oauth = fauxOAuth(), maintenant, bob = null, avecCandidatures = false, surPaiement, connecte = true } = {}) {
   const db = ouvrirBase(':memory:');
   completerPrixGarantis(db, config);
   const horloge = maintenant || (() => new Date());
-  const commandes = creerCommandes({ db, saspay, whop, config, maintenant: horloge });
+  const commandes = creerCommandes({ db, saspay, whop, config, maintenant: horloge, surPaiement });
   const coaching = creerCoaching({ db, config, maintenant: horloge });
   const candidatures = avecCandidatures ? require('../src/candidatures').creerCandidatures({ db, config, commandes, maintenant: horloge }) : null;
   const app = creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures });
   const serveur = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
   const base = `http://127.0.0.1:${serveur.address().port}`;
+  const parDefaut = connecte ? { cookie: cookieSession(VISITEUR, 'visiteur') } : {};
   return {
     config, db, saspay, whop, oauth, commandes, coaching, candidatures, base,
     fermer: () => new Promise((r) => serveur.close(r)),
     poster: (chemin, champs, headers = {}) => fetch(base + chemin, {
-      method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers }, body: new URLSearchParams(champs),
+      method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...parDefaut, ...headers }, body: new URLSearchParams(champs),
     }),
-    get: (chemin, headers = {}) => fetch(base + chemin, { redirect: 'manual', headers }),
+    get: (chemin, headers = {}) => fetch(base + chemin, { redirect: 'manual', headers: { ...parDefaut, ...headers } }),
     etat: async (ref) => (await fetch(`${base}/api/commandes/${ref}`)).json(),
   };
 }
 
-module.exports = { configTest, signerWebhook, fauxSaspay, fauxWhop, fauxOAuth, cookieSession, monter, ADMIN, ROLES, SECRET_WEBHOOK };
+module.exports = { configTest, signerWebhook, fauxSaspay, fauxWhop, fauxOAuth, cookieSession, monter, ADMIN, ROLES, SECRET_WEBHOOK, VISITEUR };

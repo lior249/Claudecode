@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const crypto = require('crypto');
-const { monter, configTest, signerWebhook, SECRET_WEBHOOK } = require('./aide');
+const { monter, configTest, signerWebhook, SECRET_WEBHOOK, cookieSession, VISITEUR } = require('./aide');
 const { signatureValide, creerClientSaspay } = require('../src/saspay');
 const { jetonMembre, lireJetonMembre } = require('../src/liens');
 
@@ -25,13 +25,20 @@ test('jeton de renouvellement infalsifiable', () => {
   assert.strictEqual(lireJetonMembre(faux, 'x'.repeat(40)), null);
 });
 
-test('Community : accueil → formulaire → SasPay → statut → guide Whop + Discord', async () => {
-  const m = await monter();
+test('Community : accueil → connexion Discord → formulaire → SasPay → statut → rôle donné tout seul → guide Whop', async () => {
+  const paiements = [];
+  const m = await monter({ surPaiement: async (membre, cmd) => paiements.push([membre, cmd]) });
   try {
     const accueil = await (await m.get('/')).text();
     assert.match(accueil, /Rejoindre le Discord/);
     assert.ok(accueil.includes('href="https://discord.gg/test"'));
     assert.match(accueil, /video-vide/, 'emplacement vidéo réservé tant que WISTIA_ACCUEIL est vide');
+    // Toutes les pages sauf l'accueil demandent le compte Discord.
+    for (const chemin of ['/community', '/community/paiement', '/community/renouveler', '/coaching/elite', '/coaching/elite/renouveler']) {
+      assert.match(await (await m.get(chemin, { cookie: '' })).text(), /Connecte ton compte Discord/, chemin);
+    }
+    assert.match(await (await m.poster('/community/paiement', { nom: 'X', email: 'x@example.com' }, { cookie: '' })).text(), /Connecte ton compte Discord/);
+    assert.strictEqual(m.saspay.derniere(), undefined, 'aucun paiement sans connexion');
     assert.match(await (await m.get('/community')).text(), /Payer par mobile money/);
     assert.strictEqual((await m.get('/paiement')).headers.get('location'), '/community/paiement');
 
@@ -50,10 +57,17 @@ test('Community : accueil → formulaire → SasPay → statut → guide Whop + 
     const guide = await (await m.get(e.redirection)).text();
     assert.match(guide, /awa@example\.com/);
     assert.match(guide, /whop\.com\/checkout\/plan_com/);
-    assert.match(guide, /Rejoindre le serveur Discord/);
-    assert.match(guide, /\/lier [A-Z2-9]{6}/);
+    assert.match(guide, /Discord connecté/, 'payé en étant connecté : plus besoin de /lier');
+    assert.doesNotMatch(guide, /\/lier [A-Z2-9]{6}/);
 
     const membre = m.db.prepare('SELECT * FROM membres').get();
+    assert.strictEqual(membre.discord_id, VISITEUR, 'membre relié au compte Discord qui a payé');
+    await new Promise((r) => setImmediate(r));
+    assert.strictEqual(paiements.length, 1, 'Bob prévenu une seule fois (rôle donné tout de suite)');
+    assert.strictEqual(paiements[0][0].discord_id, VISITEUR);
+    assert.strictEqual(paiements[0][1].type, 'inscription');
+    await m.etat(ref(s));
+    assert.strictEqual(paiements.length, 1);
     assert.strictEqual(membre.programme, 'community');
     assert.strictEqual(membre.prix_renouvellement, '3280.00');
     const jours = (new Date(membre.acces_jusqu_au) - Date.now()) / 86400000;
@@ -62,7 +76,12 @@ test('Community : accueil → formulaire → SasPay → statut → guide Whop + 
     // Réinscription tant que l'accès est actif : refusée, renvoi vers le renouvellement.
     const re = await m.poster('/community/paiement', { nom: 'Awa', email: 'awa@example.com' });
     assert.strictEqual(re.status, 409);
-    assert.match(await re.text(), /community\/renouveler\?m=/);
+    assert.match(await re.text(), /déjà un accès actif.*href="\/community\/renouveler"/);
+    // Renouvellement : l'abonnement est retrouvé grâce au compte Discord connecté (email verrouillé).
+    const renouv = await (await m.get('/community/renouveler')).text();
+    assert.match(renouv, /value="awa@example\.com"[^>]*readonly|readonly[^>]*value="awa@example\.com"/);
+    assert.strictEqual((await m.poster('/community/renouveler', { nom: 'Awa', email: 'autre@example.com' })).status, 303);
+    assert.strictEqual(m.saspay.derniere().customer_email, 'awa@example.com');
   } finally { await m.fermer(); }
 });
 
@@ -88,7 +107,7 @@ test('prix garanti : un membre inscrit à 5 € renouvelle à 5 € même si le 
     assert.strictEqual(apres - avant, 30 * 86400000);
 
     // Un nouveau membre paie le nouveau tarif garanti.
-    await m.poster('/community/paiement', { nom: 'Koffi', email: 'koffi@example.com' });
+    await m.poster('/community/paiement', { nom: 'Koffi', email: 'koffi@example.com' }, { cookie: cookieSession('K1', 'koffi') });
     m.saspay.payer(m.saspay.derniere().id);
     await m.etat(ref(m.saspay.derniere()));
     assert.strictEqual(m.db.prepare("SELECT prix_renouvellement p FROM membres WHERE email = 'koffi@example.com'").get().p, '4590.00');
@@ -122,7 +141,7 @@ test('Elite : page de candidature sans prix, paiement uniquement par lien person
   try {
     const cand = await (await m.get('/coaching/elite')).text();
     assert.match(cand, /Quel est ton nom \?/, 'formulaire maison directement sur la page');
-    assert.match(cand, /Quel est ton pseudo Discord \?/);
+    assert.doesNotMatch(cand, /Quel est ton pseudo Discord \?/, 'connecté : le pseudo est déjà connu');
     assert.match(cand, /vsl1234567/);
     assert.doesNotMatch(cand, /327|FCFA/);
     assert.strictEqual((await m.get('/coaching/elite/paiement/inventeAAAAAAAAAAAAAAAAAA')).status, 404);

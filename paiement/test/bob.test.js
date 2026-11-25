@@ -12,13 +12,16 @@ const JOUR = 86400000;
 const urls = (composants) => (composants || []).flatMap((r) => r.components.map((b) => b.data.url));
 const ref = (s) => s.metadata.ref;
 
+// Paiement en étant connecté avec un compte Discord à part ; sans discordId, le membre reste sans compte relié.
+let compteur = 0;
 async function inscrire(m, email, { programme = 'community', discordId } = {}) {
-  if (programme === 'community') await m.poster('/community/paiement', { nom: `Nom ${email}`, email });
-  else await m.poster(new URL(m.commandes.creerInvitation().lien).pathname, { nom: `Nom ${email}`, email });
+  const cookie = cookieSession(`P${++compteur}`, 'payeur');
+  if (programme === 'community') await m.poster('/community/paiement', { nom: `Nom ${email}`, email }, { cookie });
+  else await m.poster(new URL(m.commandes.creerInvitation().lien).pathname, { nom: `Nom ${email}`, email }, { cookie });
   m.saspay.payer(m.saspay.derniere().id);
   await m.etat(ref(m.saspay.derniere()));
   const mb = m.db.prepare('SELECT * FROM membres WHERE email = ? AND programme = ?').get(email, programme);
-  if (discordId) m.db.prepare('UPDATE membres SET discord_id = ? WHERE id = ?').run(discordId, mb.id);
+  m.db.prepare('UPDATE membres SET discord_id = ? WHERE id = ?').run(discordId || null, mb.id);
   return m.db.prepare('SELECT * FROM membres WHERE id = ?').get(mb.id);
 }
 
@@ -140,7 +143,7 @@ test('pages coaching et admin : connexion, Elite seulement, GOAT exclu, admin', 
   const recaps = [];
   const m = await monter({ oauth, bob: { recapCoaching: async (...a) => recaps.push(a), annulation: async () => {} } });
   try {
-    assert.match(await (await m.get('/coaching')).text(), /\/connexion/);
+    assert.match(await (await m.get('/coaching', { cookie: '' })).text(), /Connecte ton compte Discord/);
     assert.match(await (await m.get('/coaching', { cookie: cookieSession('G1') })).text(), /GOAT/);
     assert.match(await (await m.get('/coaching', { cookie: cookieSession('C1') })).text(), /réservé aux membres Elite/);
     assert.match(await (await m.get('/coaching', { cookie: cookieSession('E1') })).text(), /Mes créneaux de coaching/);
@@ -151,7 +154,9 @@ test('pages coaching et admin : connexion, Elite seulement, GOAT exclu, admin', 
     assert.strictEqual(ok.status, 200);
     assert.strictEqual(recaps[0][0], 'E1');
 
-    assert.match(await (await m.get('/admin')).text(), /Espace admin/);
+    const connexionAdmin = await (await m.get('/admin', { cookie: '' })).text();
+    assert.match(connexionAdmin, /Espace admin/);
+    assert.match(connexionAdmin, /Connecte ton compte Discord/);
     assert.strictEqual((await m.get('/admin', { cookie: cookieSession('E1') })).status, 403);
     const admin = await (await m.get('/admin', { cookie: cookieSession(ADMIN) })).text();
     assert.match(admin, /Calendrier des coachings/);
@@ -210,7 +215,7 @@ test('Bob : rappels à 10, 5, 3 jours et 24 h, sans doublon, puis retrait du ser
     await b.bob.renouvellements(); await b.bob.renouvellements();
     assert.strictEqual(b.d.dms.length, 1);
     assert.match(b.d.dms[0][1], /10 jours/);
-    assert.match(urls(b.d.dms[0][2])[0], /community\/renouveler\?m=/, 'lien dans un bouton');
+    assert.match(urls(b.d.dms[0][2])[0], /\/connexion\/bob\?t=.*retour=%2Fcommunity%2Frenouveler$/, 'bouton personnel : connecte puis renouvelle');
     assert.doesNotMatch(b.d.dms[0][1], /https?:/, 'aucun lien brut dans le texte');
     assert.match(b.d.dms[0][1], /3\s?280 FCFA/);
     b.aller(fin - 5 * JOUR + 1000); await b.bob.renouvellements();
@@ -274,7 +279,7 @@ test('Bob : Elite 10 jours avant la fin → alerte admin avec boutons ; GOAT →
     assert.match(versAdmin[0][1], /sort de l'\*\*Elite\*\*/);
     assert.strictEqual(versAdmin[0][2][0].components.length, 2);
     const versGoat = b.d.dms.filter(([id]) => id === 'G1');
-    assert.match(urls(versGoat[0][2])[0], /coaching\/elite\/renouveler\?m=/);
+    assert.match(urls(versGoat[0][2])[0], /retour=%2Fcoaching%2Felite%2Frenouveler$/);
     assert.match(versGoat[0][1], /39\s?360 FCFA/);
     assert.strictEqual(b.d.dms.filter(([id]) => id === 'E1').length, 0, 'Elite non classé : pas de demande de paiement');
 
@@ -492,7 +497,9 @@ test('arrivée sur le serveur : message privé de bienvenue au nouveau venu En A
     assert.strictEqual(await bob.accueillir(venu('N1', [ROLES.attente])), true);
     assert.strictEqual(dms[0][0], 'N1', 'le message part au nouveau venu, pas à l\'admin');
     assert.match(dms[0][1], /Bienvenue sur le serveur Overmaxx/);
-    assert.deepStrictEqual(urls(dms[0][2]), ['http://localhost/community', 'http://localhost/coaching/elite']);
+    const [community, elite] = urls(dms[0][2]);
+    assert.match(community, /^http:\/\/localhost\/connexion\/bob\?t=.*retour=%2Fcommunity$/, 'boutons personnels : déjà connecté');
+    assert.match(elite, /retour=%2Fcoaching%2Felite$/);
     assert.strictEqual(await bob.accueillir(venu('N1', [ROLES.attente])), false, 'pas de doublon (arrivée + rôle donné)');
     assert.strictEqual(await bob.accueillir(venu('N1', [ROLES.attente], 2000)), true, 'il revient : nouveau message');
 

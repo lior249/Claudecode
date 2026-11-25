@@ -162,6 +162,22 @@ Si l'application s'arrête, le message indique le réglage à corriger.
 Sur téléphone, personne n'a besoin de son mot de passe Discord : Bob envoie des **boutons** qui ouvrent le site déjà connecté
 (liens personnels, valables 30 jours, réutilisables).
 
+## Connexion au site (compte Discord obligatoire)
+
+Seule la page d'accueil (**overmaxx.online**) est ouverte à tous : logo, vidéo, bouton **Rejoindre le Discord**.
+Toutes les autres pages (Community, paiements, renouvellements, candidature Elite, coaching, admin) demandent le compte Discord :
+
+- **Boutons personnels de Bob** (bienvenue, rappels de renouvellement, candidature, paiement Elite) : ils ouvrent le site
+  **déjà connecté**. Rien à taper.
+- **Sinon**, la page demande le **pseudo Discord**. Bob envoie sur Discord un bouton **C'est bien moi, continuer** :
+  le clic ouvre le site connecté (dans le navigateur qui clique seulement). Limites : 8 demandes par quart d'heure
+  et par appareil, 3 boutons par demi-heure pour un même compte.
+- La connexion est gardée **30 jours** sur l'appareil.
+
+Chaque paiement est relié au compte Discord connecté : **le rôle est donné tout de suite** après le paiement
+(En Attente retiré), sans `/lier`. La page **Membres** affiche le Discord de chacun. `/lier CODE` reste possible
+pour les paiements faits avant ce changement.
+
 ## L'espace de gestion
 
 Sur **overmaxx.online/admin** (connexion avec `/connexion` dans Discord) : barre latérale à gauche sur ordinateur,

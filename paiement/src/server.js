@@ -19,7 +19,8 @@ completerPrixGarantis(db, config);
 
 const saspay = creerClientSaspay(config.saspay);
 const whop = creerClientWhop(config.whop);
-const commandes = creerCommandes({ db, saspay, whop, config, envoyerEmail: creerEnvoyeurEmail(config.email) });
+// Paiement confirmé : Bob donne le rôle tout de suite (bob est créé juste après, d'où la fonction).
+const commandes = creerCommandes({ db, saspay, whop, config, envoyerEmail: creerEnvoyeurEmail(config.email), surPaiement: (m, cmd) => bob.apresPaiement(m, cmd) });
 const coaching = creerCoaching({ db, config });
 const oauth = config.oauthActif ? creerDiscordOAuth(config) : null;
 const candidatures = creerCandidatures({ db, config, commandes });

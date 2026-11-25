@@ -110,9 +110,11 @@ function lireSession(req, secret) {
 }
 
 function ouvrirSession(res, utilisateur, config) {
-  const jeton = signer({ id: utilisateur.id, pseudo: utilisateur.pseudo, exp: Date.now() + 7 * 24 * 3600 * 1000 }, config.secretApp);
+  // Connexion gardée 30 jours sur l'appareil.
+  const duree = 30 * 24 * 3600 * 1000;
+  const jeton = signer({ id: utilisateur.id, pseudo: utilisateur.pseudo, exp: Date.now() + duree }, config.secretApp);
   res.cookie(COOKIE, jeton, {
-    httpOnly: true, sameSite: 'lax', secure: config.baseUrl.startsWith('https://'), maxAge: 7 * 24 * 3600 * 1000, path: '/',
+    httpOnly: true, sameSite: 'lax', secure: config.baseUrl.startsWith('https://'), maxAge: duree, path: '/',
   });
 }
 
