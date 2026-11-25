@@ -8,7 +8,7 @@
 
 - **Paiement unique de 500 €** (327 980 FCFA en mobile money, ou par carte sur Whop).
   L'offre carte sur Whop doit passer en **paiement unique**.
-- **3 mois d'accompagnement.**
+- **90 jours d'accompagnement** (« 3 mois »).
 - Plus de renouvellement à 60 €, plus de caution, plus de classement Insatisfait / Inconstant.
 - **Personne n'est retiré du serveur** à la fin des 3 mois.
 - **Après les 3 mois, plus aucun live individuel**, pour tout le monde (GOAT ou pas, sinistré ou pas) :
@@ -31,7 +31,27 @@ Chaque envoi (exercice, vidéo, compte rendu) a deux boutons côté coach :
   et renvoie. **La nouvelle version remplace l'ancienne**, qui est supprimée.
 - **Valider** (coche verte) : l'envoi est accepté et **ne peut plus être modifié**.
 
-Une étape passe quand **tous ses envois sont validés**.
+Une étape passe quand **tous ses envois sont validés**. Exception : les exercices de l'étape 1 ne se refont pas
+(le coach peut écrire des remarques, puis il valide).
+
+### Les délais et leurs rappels
+
+Pour chaque délai, Bob relance le membre tant que la tâche n'est pas faite :
+- à la **moitié du délai** ;
+- **1 h avant la fin** ;
+- puis, une fois le délai dépassé, **toutes les 12 h**.
+
+Le but : que chaque étape soit faite vite.
+
+| Tâche | Délai |
+|---|---|
+| Étape 1 entière : regarder les modules (environ 2 jours) **et** envoyer les exercices L1 et L2 | **3 jours** depuis l'ouverture de l'étape |
+| Étape 2 : réserver le coaching d'entrée | **12 h** après la fin de l'étape 1 |
+| Étape 3 : réserver ses coachings réguliers (normalement fait ensemble pendant le coaching d'entrée) | pas de délai : rappel **toutes les 12 h** tant qu'il n'a pas de planning |
+| Étape 3 : envoyer les 3 vidéos (une par jour conseillée) | **72 h** |
+| Étape 3 : renvoyer une vidéo après « Demander des modifications » | **24 h** |
+| Étape 4 : choisir ses 3 heures | **12 h**, avec un rappel **toutes les 6 h** tant que ce n'est pas fait |
+| Étape 4 : comptes rendus en retard, ou à corriger | retard toléré, mais rappelé chaque jour à son heure de compte rendu |
 
 ### Étape 1 : prise en main
 
@@ -43,7 +63,7 @@ Une étape passe quand **tous ses envois sont validés**.
    - le **retour de l'IA**, copié-collé.
 4. Le site propose son niveau : **L2 si les deux notes sont d'au moins 80**, sinon **L1**.
    Le coach vérifie les réponses de l'IA et confirme ou change le niveau.
-5. Le coach valide les deux exercices (ou demande des modifications) : une fois tout validé,
+5. Le coach valide les deux exercices, avec ses remarques s'il en a (**pas de « refaire »** à cette étape) : une fois tout validé,
    **les vidéos sont supprimées du serveur** (le membre les garde chez lui),
    et Bob écrit : « Ton étape 1 est validée, tu peux passer à l'étape 2. »
 
@@ -53,10 +73,12 @@ L'étape 1 fonctionne sans lui en attendant.
 ### Étape 2 : coaching d'entrée
 
 1. Le membre réserve **un seul** coaching : le coaching de présentation (une date précise, pas un créneau répété).
-2. Pendant ce coaching : choix de la niche, le coach lui donne un **compte déjà monétisé** (environ 10 000 abonnés),
-   le pays cible est confirmé, et le coach explique pourquoi il faut réserver plusieurs coachings par semaine.
-3. Sur le site, le membre indique le **@ du compte** et coche « Je suis connecté ».
-   **Aucun mot de passe n'est enregistré sur la plateforme** : il passe entre le coach et le membre, en privé.
+2. Le membre **prépare** ce coaching. Tout le reste se fait **ensemble, pendant le live** :
+   - choix de la niche ;
+   - le coach lui donne un **compte déjà monétisé** (environ 10 000 abonnés) et il s'y connecte ;
+   - le pays cible est confirmé ;
+   - il réserve ses coachings réguliers.
+3. Le **@ du compte** est noté sur sa fiche. **Aucun mot de passe n'est enregistré sur la plateforme.**
 4. Le coach ouvre l'étape 3.
 
 ### Étape 3 : validation du contenu, avant de publier
@@ -85,15 +107,17 @@ L'étape 1 fonctionne sans lui en attendant.
 
 **La règle** : au moins **une vidéo publiée par jour**, sans maximum.
 
-**Le compte rendu du jour** (24 h après la publication, quand TikTok a compté les revenus) :
+**Le jour de la publication**, il déclare ses vidéos publiées :
+- le **lien de chaque vidéo TikTok**, pour que le coach puisse aller la voir ;
+- une **capture du compte** dans son état actuel : le nombre de vidéos visibles prouve ce qu'il a publié.
+
+**Le compte rendu** (24 h après la publication, quand TikTok a compté les revenus) :
 - **Son compte**
-  - une **capture du compte** dans son état actuel : le nombre de vidéos visibles prouve ce qu'il a publié ;
   - le nombre de vidéos publiées ;
   - total d'abonnés et total de vues ;
   - abonnés gagnés et vues du jour ;
   - top 3 des pays parmi ses vues, et top 3 parmi ses abonnés.
 - **Pour chaque vidéo de la veille**, à remplir à la main :
-  - le **lien de la vidéo TikTok**, pour que le coach puisse aller la voir ;
   - vues, abonnés gagnés, heure de publication ;
   - temps de visionnage moyen, rétention après 10 secondes ;
   - **revenus générés (€)**.
@@ -103,6 +127,10 @@ L'étape 1 fonctionne sans lui en attendant.
   - « Mon compte bloque entre 0 et 200 vues. » ;
   - « Je ne gagne pas assez d'abonnés. » ;
   - « Est-ce que j'ai mal appliqué quelque chose sur mes vidéos ? ».
+
+**Les comptes rendus en retard ou à corriger** : chaque jour, à son heure de compte rendu, Bob lui envoie la liste
+de ses comptes rendus **non envoyés** et de ceux **à corriger** (où le coach a demandé des modifications),
+avec un bouton par vidéo : il les remplit un par un, jusqu'à ce qu'il n'en reste plus.
 
 ### Ce qui accompagne tout le parcours
 
@@ -180,6 +208,12 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
 - Si un membre a un créneau à une heure où le coach est absent, Bob le prévient,
   et ce coaching **ne compte pas** dans son minimum de 3.
 
+### Le suivi des modules sur Whop
+
+**[à vérifier]** Si l'API Whop donne la **progression** d'un membre dans les cours (leçons terminées), la plateforme l'affiche
+sur sa fiche, et une leçon terminée compte comme une interaction (pas d'absence). Sinon, le membre coche lui-même,
+chaque jour, les modules regardés.
+
 ### Les annulations
 
 - **Le membre**, jusqu'à 30 minutes avant : il touche la séance, indique pourquoi (justification obligatoire),
@@ -210,13 +244,12 @@ puis ce qu'il faut faire et ce qu'il faut envoyer.
 Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **sans raison donnée**.
 
 ### Avant le sinistre
-- **Une absence, c'est l'absence d'interaction sur la plateforme.** Chaque étape a ses tâches quotidiennes et ses délais :
-  **[à compléter]** les délais de chaque étape, donnés par le coach.
+- **Une absence, c'est l'absence d'interaction sur la plateforme.**
+- **Après 3 jours d'absence**, Bob : « Pourquoi tu n'es pas là ? »
+- **Après 6 jours**, Bob : « À partir de demain, tu seras compté comme sinistré : tous tes accès seront bloqués. »
+  (La règle des 7 jours est aussi expliquée dès le premier coaching.)
+- **Au 7e jour** : 1er sinistre.
 - Le coach peut aussi déclarer un sinistre lui-même, à tout moment.
-- Bob prévient avant : relance **après 2 jours** d'absence, puis **avertissement après 5 jours**
-  (« dans 2 jours, tu seras sinistré »), et le coach est prévenu après 3 jours.
-- **[à confirmer]** Un bouton **Prévenir d'une absence** : le membre qui donne sa raison à l'avance (maladie, voyage…)
-  n'est pas sinistré, puisqu'un sinistre, c'est une absence sans raison.
 
 ### Pendant le sinistre
 - Il reçoit le rôle **Sinistré**. Comme pour En Attente, il ne voit plus **qu'un seul salon** : **#sinistrés**.
@@ -224,15 +257,28 @@ Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **san
   les salons Elite, car l'autorisation d'un rôle l'emporte sur l'interdiction d'un autre.
 - Sur la plateforme, il ne voit que son profil : **plus de réservation de coaching**, et ses créneaux sont libérés.
 - Dans #sinistrés, un bouton ouvre la **fiche de sinistre** : pourquoi il était absent, et ses engagements à partir de maintenant.
+- Tant qu'il ne l'a pas remplie, Bob le relance **toutes les 24 h**.
+- **Les jours d'absence continuent de se compter.** S'il reste encore 7 jours sinistré sans revenir, c'est un **2e sinistre**,
+  puis un **3e** au bout de 7 jours de plus.
 - Le coach lit la fiche et choisit **Demander des précisions** ou **Réhabiliter**. La réhabilitation retire le rôle Sinistré,
   rend le rôle Elite, et Bob le prévient.
 
 ### Le compteur
 - Les sinistres sont **comptés** et visibles sur sa fiche (1 / 3, 2 / 3, 3 / 3).
 - Pendant les 3 mois, à la réhabilitation, il **retrouve ses lives individuels**, tant qu'il n'a pas 3 sinistres.
-- **Au 3e sinistre** (21 jours d'absence au total) : il est **sinistré total**. Une fois réhabilité, il retrouve le serveur
-  et la plateforme, mais **plus jamais de live individuel**, seulement le live de groupe.
-- Après les 3 mois, la question ne se pose plus : plus personne n'a de live individuel.
+- **Au 3e sinistre** (21 jours d'absence au total) : il est **sinistré total**, et le compteur s'arrête.
+  Une fois réhabilité, il retrouve le serveur et la plateforme, mais **plus jamais de live individuel**, seulement le live de groupe.
+- La fiche affiche son **nombre de jours d'absence**. À la fin des 90 jours, on voit combien de jours il a été présent
+  et combien il a été absent.
+
+### Les 90 jours et les absences
+- **Cas normal** : les jours d'absence **ne sont pas rendus**. Les 90 jours continuent de courir pendant le sinistre.
+- **Force majeure** : pendant ses 90 jours, le coach peut cliquer **Retirer les sinistres**.
+  - Le compteur de sinistres revient à 0, et il retrouve ses **lives individuels**.
+  - **Les jours d'absence sont retirés** de son accompagnement : les 90 jours reprennent là où il s'était arrêté.
+  - Exemple : 14 jours faits, puis 30 jours d'absence. Avec la force majeure, il reprend au 14e jour,
+    et il lui reste 76 jours.
+- Après les 90 jours, la question ne se pose plus : plus personne n'a de live individuel.
 
 ## 7. Les notifications : l'application Overmaxx
 
@@ -240,6 +286,7 @@ Un **sinistre**, c'est une **semaine pleine d'absence** (7 jours de suite) **san
   avec l'icône Overmaxx, et elle s'ouvre comme une vraie application. Pas besoin de passer par un store.
 - Elle peut envoyer des **notifications** sur le téléphone. Sur Android, ça marche partout.
   Sur iPhone, seulement si l'application a été ajoutée à l'écran d'accueil (iOS 16.4 ou plus récent).
+- **L'application envoie ses propres notifications, sans passer par Discord.** Pas besoin de store (Play Store, App Store).
 - Le membre choisit où il reçoit ses notifications : **Bob (Discord)** ou **l'application**.
 - **Exception : les rappels de paiement** passent par les deux. D'abord Bob, puis l'application 10 minutes plus tard,
   seulement s'il n'a pas encore payé.
