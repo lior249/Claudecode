@@ -660,3 +660,31 @@ test('progression Whop : compte Whop gardé à l\'acceptation, leçons terminée
     assert.strictEqual(m.db.prepare('SELECT COUNT(*) n FROM progression_whop').get().n, 3, 'pas de doublon');
   } finally { await m.fermer(); }
 });
+
+test('le coach (admin) ne réserve pas de coaching et ne postule pas à l\'Elite ; il garde ses aperçus', async () => {
+  const m = await monter({ avecCandidatures: true });
+  try {
+    const admin = cookieSession(ADMIN, 'overmaxx');
+    assert.strictEqual((await m.get('/coaching', { cookie: admin })).headers.get('location'), '/admin');
+    const r = await fetch(`${m.base}/api/coaching/creneaux`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: admin },
+      body: JSON.stringify({ selection: [0, 1, 2, 3].map((jour) => ({ jour, heure: '15:00' })) }) });
+    assert.strictEqual(r.status, 403);
+    assert.strictEqual((await m.get('/coaching/elite', { cookie: admin })).headers.get('location'), '/admin/candidatures');
+    assert.strictEqual((await m.get('/coaching/elite/candidature', { cookie: admin })).headers.get('location'), '/admin/candidatures');
+    const f = await fetch(`${m.base}/api/candidature/formulaire`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: admin }, body: JSON.stringify({ reponses: { nom: 'Moi' } }) });
+    assert.strictEqual(f.status, 403);
+    assert.strictEqual(m.candidatures.parDiscord(ADMIN), null);
+    const espace = await (await m.get('/admin', { cookie: admin })).text();
+    assert.doesNotMatch(espace, /Mes coachings/, 'pas de « Mes coachings » dans le menu du coach');
+    for (const page of ['candidature', 'coaching']) assert.strictEqual((await m.get(`/admin/apercu/${page}`, { cookie: admin })).status, 200, page);
+
+    // /connexion dans Discord : seulement l'espace admin.
+    const reponses = [];
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures,
+      client: { isReady: () => true, users: { fetch: async () => ({ send: async () => {} }) } },
+      serveur: { members: { fetch: async () => ({ roles: { cache: { has: () => false } } }) } } });
+    await bob.surInteraction({ user: { id: ADMIN, username: 'overmaxx' }, isButton: () => false, isChatInputCommand: () => true, commandName: 'connexion', reply: async (o) => reponses.push(o) });
+    const libelles = reponses[0].components.flatMap((rangee) => rangee.components.map((b) => b.data.label));
+    assert.deepStrictEqual(libelles, ['Espace admin', 'Candidatures', 'Membres']);
+  } finally { await m.fermer(); }
+});

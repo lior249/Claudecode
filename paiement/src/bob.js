@@ -366,11 +366,15 @@ function creerBob({ config, db, commandes, coaching, candidatures, maintenant = 
     const roles = m ? m.roles.cache : { has: () => false };
     const boutons = [];
     const eliteOk = roles.has(config.offres.elite.roleDiscord) && !(config.discord.roleGoat && roles.has(config.discord.roleGoat));
+    // Le coach (admin) : seulement son espace, ni réservation de coaching ni candidature Elite.
     if (user.id === config.discord.adminId) {
-      boutons.push({ label: 'Espace admin', url: lienMagique(config, u, '/admin') });
-      boutons.push({ label: 'Candidatures', url: lienMagique(config, u, '/admin/candidatures') });
+      return avecBoutons('Tes accès à overmaxx.online (personnels, ne les partage pas) :', [
+        { label: 'Espace admin', url: lienMagique(config, u, '/admin') },
+        { label: 'Candidatures', url: lienMagique(config, u, '/admin/candidatures') },
+        { label: 'Membres', url: lienMagique(config, u, '/admin/membres') },
+      ]);
     }
-    if (eliteOk || user.id === config.discord.adminId) boutons.push({ label: 'Réserver mes coachings', url: lienMagique(config, u, '/coaching') });
+    if (eliteOk) boutons.push({ label: 'Réserver mes coachings', url: lienMagique(config, u, '/coaching') });
     if (!eliteOk) boutons.push({ label: 'Candidature Elite', url: lienMagique(config, u, `${config.offres.elite.base}/candidature`) });
     return avecBoutons('Tes accès à overmaxx.online (personnels, ne les partage pas) :', boutons);
   }

@@ -143,6 +143,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   // ---- Elite ----
   const elite = config.offres.elite;
   app.get('/coaching/elite', (req, res) => {
+    if (estLeCoach(lireSession(req, config.secretApp))) return res.redirect(302, '/admin/candidatures');
     // Déjà candidat (formulaire envoyé, même suivi par le seul cookie de candidature) : on montre où il en est.
     const { c } = candidatureDe(req);
     if (c && c.statut !== 'formulaire') return res.redirect(302, `${config.offres.elite.base}/candidature`);
@@ -362,9 +363,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   // ================= Coaching privé =================
 
-  // Accès : rôle Elite sur le serveur, sans le rôle GOAT. L'admin a toujours accès.
+  // Accès : rôle Elite sur le serveur, sans le rôle GOAT. L'admin est le coach : il ne réserve pas de séance.
+  const estLeCoach = (session) => Boolean(session && session.id === config.discord.adminId);
   async function droitsCoaching(session) {
-    if (session.id === config.discord.adminId) return { ok: true };
+    if (estLeCoach(session)) return { interdit: 'C\'est toi le coach : tu ne réserves pas de séance. Ton calendrier est dans l\'espace admin.' };
     const roles = await oauth.rolesSurServeur(session.id);
     if (!roles) return { interdit: 'Tu n\'es pas sur le serveur Discord Overmaxx avec ce compte.' };
     if (config.discord.roleGoat && roles.includes(config.discord.roleGoat)) {
@@ -376,6 +378,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
 
   app.get('/coaching', async (req, res) => {
     const session = lireSession(req, config.secretApp);
+    if (estLeCoach(session)) return res.redirect(302, '/admin'); // le coach a son calendrier
     if (!session) return res.send(E.pageConnexionRequise(config, { retour: '/coaching', message: 'Coaching privé', lienDiscord: lienDiscord({ but: 'connexion', retour: '/coaching' }) }));
     try {
       const d = await droitsCoaching(session);
@@ -452,6 +455,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
   }
 
   app.get('/coaching/elite/candidature', (req, res) => {
+    if (estLeCoach(lireSession(req, config.secretApp))) return res.redirect(302, '/admin/candidatures');
     const suivi = candidatureDe(req);
     let { c, session } = suivi;
     if (!c && session && candidatures) c = candidatures.demarrer(session.id, session.pseudo);
@@ -481,6 +485,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     // Connexion obligatoire (bouton de Bob) : le candidat est le compte Discord connecté.
     const session = lireSession(req, config.secretApp);
     if (!session) return res.status(401).json({ erreur: 'Ta connexion a expiré. Recharge la page pour te reconnecter avec Discord.' });
+    if (estLeCoach(session)) return res.status(403).json({ erreur: 'C\'est toi le coach : tu ne postules pas à l\'Elite.' });
     const v = verifierReponses('candidature', req.body && req.body.reponses, { sauter: ['discord'] });
     if (v.erreur) return res.status(400).json(v);
     const discordId = session.id;
@@ -581,6 +586,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures 
     'guide-elite': () => P.pageGuide(config, { offre: elite, ref: 'APERCU', membre: { email: 'exemple@gmail.com' }, lienWhop: 'https://whop.com', codeLiaison: 'AB12CD', lienDiscord: '#' }),
     'candidature-retenu': () => E.pageConfirmation(config, { session: { id: 'apercu', pseudo: 'exemple' } }),
     'paiement-elite': () => P.pageFormulaire(config, { offre: elite, type: 'inscription', action: '#', lienCarte: elite.lienCarte }),
+    candidature: () => E.pageEliteCandidature(config, { session: { id: 'apercu', pseudo: 'exemple' } }),
+    coaching: () => {
+      const membre = { id: 'apercu', pseudo: 'membre exemple' };
+      return E.pageCoaching(config, { session: membre, coaching, grille: coaching.grille(membre.id), seances: [], espace: { session: membre, estAdmin: false } });
+    },
   };
   for (const statut of ['examen', 'video', 'valide', 'refuse']) {
     APERCUS[`candidature-${statut}`] = () => E.pageCandidature(config, {

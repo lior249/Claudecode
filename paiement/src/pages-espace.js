@@ -69,7 +69,8 @@ function navEspace(espace = {}) {
       { cle: 'membres', libelle: 'Membres', lien: '/admin/membres', icone: 'membres' },
       { cle: 'pages', libelle: 'Pages du site', lien: '/admin/pages', icone: 'pages' });
   }
-  nav.push({ section: 'Mon espace' }, { cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
+  // Le coach (admin) ne réserve pas de séance : pas de « Mes coachings » pour lui.
+  if (!espace.estAdmin) nav.push({ section: 'Mon espace' }, { cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
   nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/', icone: 'site', externe: true });
   return nav;
 }
@@ -517,7 +518,7 @@ function pageAdminPages(config, { espace }) {
       ['/community', 'Community', 'Présentation et prix de la Community.'],
       ['/community/paiement', 'Paiement Community', 'Nom, email, puis paiement mobile money.'],
       ['/community/renouveler', 'Renouvellement Community', 'Sans lien personnel : l\'email est demandé.'],
-      ['/coaching/elite', 'Candidature Elite', 'Vidéo de présentation puis formulaire 1.', video(config.offres.elite.wistiaVsl, 'WISTIA_VSL_ELITE')],
+      ['/admin/apercu/candidature', 'Candidature Elite', 'Vidéo de présentation puis formulaire 1 (aperçu : le coach ne postule pas).', video(config.offres.elite.wistiaVsl, 'WISTIA_VSL_ELITE')],
     ]],
     ['Aperçus (exemples, rien n\'est enregistré)', [
       ['/admin/apercu/guide-community', 'Après paiement Community', 'Guide d\'accès : vidéo, Discord, Whop.', video(config.offres.community.wistiaGuide, 'WISTIA_GUIDE_COMMUNITY')],
@@ -530,7 +531,7 @@ function pageAdminPages(config, { espace }) {
       ['/admin/apercu/paiement-elite', 'Paiement Elite (mobile money)', 'Page du lien personnel, avec « Payer plutôt par carte ».'],
     ]],
     ['Membres et gestion', [
-      ['/coaching', 'Mes coachings', 'Grille de réservation (Elite).'],
+      ['/admin/apercu/coaching', 'Coachings d\'un membre', 'La grille de réservation, telle qu\'un membre Elite la voit (aperçu).'],
       ['/admin', 'Calendrier', ''],
       ['/admin/candidatures', 'Candidatures', ''],
       ['/admin/membres', 'Membres', ''],
