@@ -474,3 +474,67 @@ test('paiement confirmé en étant connecté : Bob donne le rôle tout de suite 
     assert.strictEqual(dms.length, 2, 'sans compte Discord : rien');
   } finally { await m.fermer(); }
 });
+
+test('connexion par code (application installée) et appareil reconnu : « Me reconnecter » sans nouveau message de Bob', async () => {
+  const PID = '600000000000000002';
+  const holder = {};
+  const m = await monter({ avecCandidatures: true, connecte: false, bob: {
+    idDepuisPseudo: async (p) => (p.toLowerCase() === 'awa_27' ? PID : null),
+    envoyerConnexion: (...a) => holder.bob.envoyerConnexion(...a),
+  } });
+  try {
+    const d = fauxBobDiscord(m);
+    holder.bob = d.bob;
+    const cookies = (r) => Object.fromEntries(r.headers.getSetCookie().map((c) => c.split(';')[0].split('=')).map(([n, ...v]) => [n, v.join('=')]));
+    const demander = async () => {
+      const page = await (await m.poster('/connexion/pseudo', { pseudo: 'awa_27', retour: '/app' })).text();
+      const [, texte] = d.dms.filter(([id]) => id === PID).at(-1);
+      return { page, demande: page.match(/name="demande" value="([^"]+)"/)[1], code: texte.match(/Ton code : \*\*(\d{6})\*\*/)[1], texte };
+    };
+
+    // Bob envoie un code ; la page (dans l'application) a le champ du code.
+    const a = await demander();
+    assert.match(a.page, /action="\/connexion\/code"[\s\S]*autocomplete="one-time-code"/);
+    assert.match(a.texte, /valable 10 minutes[\s\S]*ne donne ce code à personne/);
+    const mauvais = await m.poster('/connexion/code', { demande: a.demande, code: a.code === '000000' ? '111111' : '000000' });
+    assert.strictEqual(mauvais.status, 400);
+    assert.match(await mauvais.text(), /pas le bon code/);
+    const bon = await m.poster('/connexion/code', { demande: a.demande, code: `${a.code.slice(0, 3)} ${a.code.slice(3)}` });
+    assert.strictEqual(bon.status, 303);
+    assert.strictEqual(bon.headers.get('location'), '/app');
+    const c1 = cookies(bon);
+    assert.ok(c1.ovx_session && c1.ovx_appareil, 'session ouverte et appareil reconnu');
+    assert.match(bon.headers.getSetCookie().find((c) => c.startsWith('ovx_appareil=')), /Max-Age=31536000/, 'reconnu un an');
+    assert.strictEqual((await m.poster('/connexion/code', { demande: a.demande, code: a.code })).status, 410, 'un code ne sert qu\'une fois');
+
+    // Se déconnecter : l'appareil reste reconnu ; l'accueil et la page de connexion proposent « Me reconnecter ».
+    const appareil = `ovx_appareil=${c1.ovx_appareil}`;
+    const sortie = await m.get('/deconnexion', { cookie: `ovx_session=${c1.ovx_session}; ${appareil}` });
+    assert.ok(!sortie.headers.getSetCookie().some((c) => c.startsWith('ovx_appareil=;')), 'appareil gardé');
+    const accueil = await (await m.get('/', { cookie: appareil })).text();
+    assert.match(accueil, /Content de te revoir, <b>awa_27<\/b>[\s\S]*action="\/connexion\/appareil"[\s\S]*Me reconnecter/);
+    assert.match(await (await m.get('/connexion?retour=%2Fapp', { cookie: appareil })).text(), /Bon retour[\s\S]*Cet appareil est reconnu[\s\S]*Me reconnecter/);
+    const avant = d.dms.length;
+    const retour = await m.poster('/connexion/appareil', { retour: '/app' }, { cookie: appareil });
+    assert.strictEqual(retour.status, 303);
+    assert.strictEqual(retour.headers.get('location'), '/app');
+    assert.ok(cookies(retour).ovx_session, 'reconnecté');
+    assert.strictEqual(d.dms.length, avant, 'sans nouveau message de Bob');
+
+    // Le jeton de l'appareil ne vaut pas une session ; sans appareil reconnu, « Me reconnecter » renvoie vers la connexion.
+    assert.match(await (await m.get('/community', { cookie: `ovx_session=${c1.ovx_appareil}` })).text(), /Recevoir mon code/);
+    assert.strictEqual((await m.poster('/connexion/appareil', { retour: '/app' })).headers.get('location'), '/connexion?retour=%2Fapp');
+
+    // « Ce n'est pas toi ? » et « Changer de compte » : l'appareil est oublié.
+    const oubli = await m.get('/connexion/oublier?retour=%2Fapp', { cookie: appareil });
+    assert.ok(oubli.headers.getSetCookie().some((c) => c.startsWith('ovx_appareil=;')));
+    assert.strictEqual(oubli.headers.get('location'), '/connexion?retour=%2Fapp');
+    assert.ok((await m.get('/deconnexion?autre=1', { cookie: appareil })).headers.getSetCookie().some((c) => c.startsWith('ovx_appareil=;')));
+
+    // 5 mauvais codes : le code ne vaut plus rien.
+    const b = await demander();
+    for (let k = 0; k < 4; k++) assert.strictEqual((await m.poster('/connexion/code', { demande: b.demande, code: 'abc' })).status, 400);
+    assert.strictEqual((await m.poster('/connexion/code', { demande: b.demande, code: 'abc' })).status, 429);
+    assert.strictEqual((await m.poster('/connexion/code', { demande: b.demande, code: b.code })).status, 410);
+  } finally { await m.fermer(); }
+});

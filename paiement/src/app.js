@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { signatureValide } = require('./saspay');
 const { lireJetonMembre, lienRenouvellement } = require('./liens');
-const { lireSession, ouvrirSession, fermerSession, verifier, signer } = require('./discord-oauth');
+const { lireSession, ouvrirSession, fermerSession, verifier, signer, lireAppareil, oublierAppareil } = require('./discord-oauth');
 const P = require('./pages');
 const E = require('./pages-espace');
 const V = require('./pages-parcours');
@@ -115,6 +115,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       ON CONFLICT(discord_id) DO UPDATE SET accueil_fini_le = COALESCE(accueil_fini_le, excluded.accueil_fini_le), maj_le = excluded.maj_le`),
   };
   const accueilFini = (id) => Boolean((qProfils.get.get(id) || {}).accueil_fini_le);
+  // Appareil reconnu (déjà connecté ici une fois) : « Me reconnecter », sans nouveau message de Bob.
+  const reconnexion = (req) => {
+    const a = lireAppareil(req, config.secretApp);
+    if (!a) return null;
+    const p = qProfils.get.get(a.id) || {};
+    return { pseudo: a.pseudo || 'toi', prenom: p.prenom || null, avatar: p.avatar || null };
+  };
   // L'espace qui s'ouvre après la connexion (ou depuis l'application), selon le compte ; d'abord l'accueil des nouveaux.
   // Pas encore de programme : null (la page d'accueil propose la Community et l'Elite).
   function accueilDe(session, { avecAccueil = true } = {}) {
@@ -234,7 +241,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   function connecte(req, res, retour, message) {
     const session = lireSession(req, config.secretApp);
     if (session) return session;
-    res.send(E.pageConnexionRequise(config, { retour: retourSur(retour || req.originalUrl, '/'), message }));
+    res.send(E.pageConnexionRequise(config, { retour: retourSur(retour || req.originalUrl, '/'), message, appareil: reconnexion(req) }));
     return null;
   }
   // Abonnement de cette offre déjà relié au compte Discord connecté.
@@ -290,7 +297,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // Accueil : la seule page ouverte à tous. Son but : faire entrer sur le Discord.
   app.get('/', (req, res) => {
     const session = lireSession(req, config.secretApp);
-    res.send(P.pageBienvenue(config, session ? { pseudo: session.pseudo || 'toi', espace: accueilDe(session) } : {}));
+    res.send(P.pageBienvenue(config, session ? { pseudo: session.pseudo || 'toi', espace: accueilDe(session) } : { appareil: reconnexion(req) }));
   });
   app.get('/community', (req, res) => {
     if (connecte(req, res, '/community', community.nom)) res.send(P.pageAccueil(config, community));
@@ -338,7 +345,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const c = candidatures ? commandes.db.prepare('SELECT discord_id, pseudo FROM candidatures WHERE invitation_token = ?').get(inv.token) : null;
     if (c && session && c.discord_id !== session.id) {
       res.status(403).send(P.pageMessage(config, 'Lien réservé', `Ce lien de paiement est réservé au compte Discord de ${c.pseudo || 'son candidat'}. Connecte-toi avec ce compte.`,
-        { lien: '/deconnexion', texteLien: 'Changer de compte' }));
+        { lien: '/deconnexion?autre=1', texteLien: 'Changer de compte' }));
       return null;
     }
     return inv;
@@ -465,8 +472,39 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const retour = retourSur(req.query.retour, '/app');
     // Déjà connecté : directement son espace.
     if (retour === '/app' && lireSession(req, config.secretApp)) return res.redirect(302, '/app');
-    return res.send(E.pageConnexionRequise(config, { retour }));
+    return res.send(E.pageConnexionRequise(config, { retour, appareil: reconnexion(req) }));
   });
+  // Appareil reconnu : un bouton, et la session se rouvre.
+  app.post('/connexion/appareil', formulaire, (req, res) => {
+    const retour = retourSur(String(req.body.retour || ''), '/app');
+    const a = lireAppareil(req, config.secretApp);
+    if (!a) return res.redirect(303, `/connexion?retour=${encodeURIComponent(retour)}`);
+    ouvrirSession(res, a, config);
+    apresConnexion(a, retour);
+    return res.redirect(303, retour);
+  });
+  // « Ce n'est pas toi ? » : l'appareil est oublié, on se connecte avec un autre compte.
+  app.get('/connexion/oublier', (req, res) => {
+    fermerSession(res);
+    oublierAppareil(res);
+    res.redirect(302, `/connexion?retour=${encodeURIComponent(retourSur(req.query.retour, '/app'))}`);
+  });
+  const apresConnexion = (u, retour) => {
+    if (candidatures && retour.startsWith(`${config.offres.elite.base}/candidature`)) candidatures.demarrer(u.id, u.pseudo);
+  };
+
+  // Codes de connexion : Bob envoie aussi un code à 6 chiffres. Tapé sur l'appareil qui l'a demandé (l'application
+  // installée comprise), il connecte cet appareil-là. Valable 10 minutes, 5 essais.
+  const codesConnexion = new Map();
+  const empreinteCode = (demande, code) => crypto.createHmac('sha256', config.secretApp).update(`code:${demande}:${code}`).digest();
+  function nouveauCode(id, retour) {
+    const t = Date.now();
+    for (const [k, v] of codesConnexion) if (v.expire < t) codesConnexion.delete(k);
+    const demande = crypto.randomBytes(18).toString('base64url');
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    codesConnexion.set(demande, { id, pseudo: null, retour, empreinte: empreinteCode(demande, code), expire: t + 10 * 60 * 1000, essais: 0 });
+    return { demande, code };
+  }
 
   // Anti-abus : 8 demandes par quart d'heure et par adresse IP, 3 boutons par demi-heure pour un même compte Discord.
   const demandesConnexion = { ip: new Map(), compte: new Map() };
@@ -491,14 +529,41 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       if (!id) {
         return page({ introuvable: true, erreur: 'Ce pseudo n\'est pas sur le serveur Overmaxx. Vérifie l\'orthographe (le petit nom sous ton nom, dans ton profil Discord), ou rejoins d\'abord le serveur.' }, 404);
       }
-      if (depasse(demandesConnexion.compte, id, 3, 30 * 60 * 1000)) return page({ erreur: 'Bob t\'a déjà envoyé plusieurs boutons : regarde sur Discord, ou réessaie dans une demi-heure.' }, 429);
-      const r = await bob.envoyerConnexion(id, retour, pseudo);
-      if (!r.ok) return page({ erreur: 'Bob n\'arrive pas à t\'écrire sur Discord. Vérifie que tu es bien sur le serveur Overmaxx, puis réessaie.' }, 502);
-      return res.send(E.pageConnexionEnvoyee(config, { url: r.url, retour }));
+      if (depasse(demandesConnexion.compte, id, 3, 30 * 60 * 1000)) return page({ erreur: 'Bob t\'a déjà envoyé plusieurs codes : regarde sur Discord, ou réessaie dans une demi-heure.' }, 429);
+      const { demande, code } = nouveauCode(id, retour);
+      const r = await bob.envoyerConnexion(id, retour, pseudo, { code });
+      if (!r.ok) {
+        codesConnexion.delete(demande);
+        return page({ erreur: 'Bob n\'arrive pas à t\'écrire sur Discord. Vérifie que tu es bien sur le serveur Overmaxx, puis réessaie.' }, 502);
+      }
+      codesConnexion.get(demande).pseudo = r.pseudo || pseudo;
+      return res.send(E.pageConnexionEnvoyee(config, { url: r.url, retour, demande }));
     } catch (err) {
       console.error('[connexion]', err.message);
       return page({ erreur: 'La connexion est indisponible pour le moment. Réessaie dans un instant.' }, 502);
     }
+  });
+
+  // Le code de Bob, tapé sur l'appareil qui l'a demandé.
+  const essaisCode = new Map();
+  app.post('/connexion/code', formulaire, (req, res) => {
+    const demande = String(req.body.demande || '').slice(0, 64);
+    const code = String(req.body.code || '').replace(/\D/g, '').slice(0, 6);
+    const d = codesConnexion.get(demande);
+    const retour = d ? d.retour : retourSur(String(req.body.retour || ''), '/app');
+    const page = (erreur, statut = 400, garder = true) => res.status(statut).send(E.pageConnexionEnvoyee(config, { retour, demande: garder && d ? demande : null, erreur }));
+    if (depasse(essaisCode, req.ip || 'inconnue', 20, 15 * 60 * 1000)) return page('Trop d\'essais. Réessaie dans un quart d\'heure.', 429, false);
+    if (!d || d.expire < Date.now()) { codesConnexion.delete(demande); return page('Ce code n\'est plus valable (10 minutes). Demande un nouveau code.', 410, false); }
+    const bon = code.length === 6 && crypto.timingSafeEqual(empreinteCode(demande, code), d.empreinte);
+    if (!bon) {
+      d.essais += 1;
+      if (d.essais >= 5) { codesConnexion.delete(demande); return page('Trop d\'essais avec ce code. Demande un nouveau code.', 429, false); }
+      return page('Ce n\'est pas le bon code. Regarde le dernier message de Bob.');
+    }
+    codesConnexion.delete(demande);
+    ouvrirSession(res, { id: d.id, pseudo: d.pseudo }, config);
+    apresConnexion(d, d.retour);
+    return res.redirect(303, d.retour);
   });
 
   // Lien envoyé par Bob dans Discord : connexion sans mot de passe (valable 30 jours, réutilisable).
@@ -513,7 +578,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     return res.redirect(302, retour);
   });
 
-  app.get('/deconnexion', (req, res) => { fermerSession(res); res.redirect(302, '/'); });
+  // Se déconnecter : l'appareil reste reconnu (« Me reconnecter »). Changer de compte (?autre=1) : il est oublié.
+  app.get('/deconnexion', (req, res) => {
+    fermerSession(res);
+    if (!req.query.autre) return res.redirect(302, '/');
+    oublierAppareil(res);
+    return res.redirect(302, '/connexion?retour=%2Fapp');
+  });
 
   app.get('/discord/callback', async (req, res) => {
     const st = oauth && oauth.lireState(String(req.query.state || ''));

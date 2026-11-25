@@ -302,6 +302,16 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
   mise à jour par Bob.
 - Hors du top 100 : il voit sa place (« Tu es 134e sur 210 ») ; son profil n'est visible que de lui et du coach.
 
+## Connexion par code et appareil reconnu
+
+- Sur la page de connexion, la personne donne son pseudo Discord. Bob lui envoie un **code à 6 chiffres** (valable 10 minutes,
+  5 essais) et le bouton « C'est bien moi, continuer ». Le code se tape **sur la page où il a été demandé** : c'est ce qui
+  permet de se connecter dans l'application installée (qui ne partage pas la connexion du navigateur). Le bouton, lui,
+  ouvre le site dans le navigateur.
+- Après une connexion, l'appareil reste **reconnu un an**. « Se déconnecter » ferme la session mais garde l'appareil :
+  l'accueil et la page de connexion affichent **Me reconnecter**, un seul bouton, sans nouveau message de Bob.
+- « Ce n'est pas toi ? Autre compte » et « Changer de compte » font oublier l'appareil (pour un téléphone prêté).
+
 ## Rôles donnés à la main (validation)
 
 Quand quelqu'un reçoit le rôle **Community** ou **Elite** sans avoir payé sur le site, Bob regarde qui l'a donné

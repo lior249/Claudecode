@@ -1555,12 +1555,18 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
 
     // Connexion depuis le site : la personne donne son pseudo, Bob lui envoie un bouton pour confirmer que c'est bien elle.
     // La connexion s'ouvre seulement dans le navigateur qui clique sur ce bouton.
-    async envoyerConnexion(id, retour, saisie = '') {
+    // Connexion au site : un code à 6 chiffres (à taper là où il l'a demandé, dans l'application aussi) et un bouton (navigateur).
+    async envoyerConnexion(id, retour, saisie = '', { code } = {}) {
       const m = await membreDuServeur(id);
       const pseudo = (m && m.user && m.user.username) || String(saisie).trim().replace(/^@/, '');
-      const r = await envoyer(id, avecBoutons('**Connexion à overmaxx.online**\nTu viens de demander à te connecter au site. Clique sur le bouton pour continuer.\n'
-        + '*Ce n\'est pas toi ? Ignore simplement ce message.*', [{ label: 'C\'est bien moi, continuer', url: lienPerso(id, pseudo, retour) }]));
-      return { id, ok: r.ok, url: r.url };
+      const texte = code
+        ? `**Connexion à overmaxx.online**\nTon code : **${code}** (valable 10 minutes)\n`
+          + 'Tape-le sur la page où tu l\'as demandé, même dans l\'application. Ou appuie sur le bouton pour continuer dans ton navigateur.\n'
+          + '*Ce n\'est pas toi ? Ignore ce message et ne donne ce code à personne.*'
+        : '**Connexion à overmaxx.online**\nTu viens de demander à te connecter au site. Clique sur le bouton pour continuer.\n'
+          + '*Ce n\'est pas toi ? Ignore simplement ce message.*';
+      const r = await envoyer(id, avecBoutons(texte, [{ label: 'C\'est bien moi, continuer', url: lienPerso(id, pseudo, retour) }]));
+      return { id, pseudo, ok: r.ok, url: r.url };
     },
 
     // Après la connexion Discord d'un membre payé.

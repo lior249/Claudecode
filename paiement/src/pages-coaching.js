@@ -70,7 +70,7 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
     <h1>Coaching privé</h1>
     <div class="carte"><p style="margin:0">${echapper(interdit)}</p></div>
     ${versParcours ? '<a class="bouton" href="/parcours" style="max-width:340px">Mon parcours</a>'
-    : '<a class="bouton secondaire" href="/deconnexion" style="max-width:340px">Changer de compte</a>'}
+    : '<a class="bouton secondaire" href="/deconnexion?autre=1" style="max-width:340px">Changer de compte</a>'}
     ${blocSupport(config)}`, espace, 'coaching');
   }
   const min = config.coaching.minParSemaine;

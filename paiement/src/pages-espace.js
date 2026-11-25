@@ -99,19 +99,38 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
 // Toutes les pages (sauf l'accueil) demandent le compte Discord. Pas de mot de passe : la personne donne son pseudo,
 // Bob lui envoie sur Discord un bouton « C'est bien moi, continuer », qui ouvre le site connecté.
 const TUTO_PSEUDO = (FORMULAIRES.candidature.questions.find((x) => x.id === 'discord') || {}).images || [];
-function pageConnexionRequise(config, { retour = '/', message, erreur, pseudo, introuvable } = {}) {
+// Appareil reconnu : sa photo, son pseudo et « Me reconnecter » (sans Bob).
+function carteReconnexion(appareil, retour) {
+  const initiale = echapper((appareil.prenom || appareil.pseudo || '?').slice(0, 1).toUpperCase());
+  return `<div class="carte" style="display:flex;align-items:center;gap:14px">
+    ${appareil.avatar ? `<img src="${echapper(appareil.avatar)}" alt="" width="52" height="52" style="width:52px;height:52px;border-radius:50%;object-fit:cover;flex:none">`
+    : `<span style="width:52px;height:52px;border-radius:50%;background:var(--surface-2,#232428);display:grid;place-items:center;font-weight:700;font-size:20px;flex:none">${initiale}</span>`}
+    <div style="min-width:0"><b style="overflow-wrap:anywhere">${echapper(appareil.pseudo)}</b><br><span class="doux petit">Cet appareil est reconnu : pas besoin d'un nouveau code de Bob.</span></div>
+  </div>
+  <form method="post" action="/connexion/appareil" style="margin:0"><input type="hidden" name="retour" value="${echapper(retour)}">
+    <button class="bouton" type="submit">Me reconnecter</button></form>
+  <p class="doux petit centre" style="margin:16px 0 0"><a href="/connexion/oublier?retour=${encodeURIComponent(retour)}">Ce n'est pas toi ? Utiliser un autre compte</a></p>`;
+}
+
+function pageConnexionRequise(config, { retour = '/', message, erreur, pseudo, introuvable, appareil } = {}) {
   // Depuis la page d'accueil (ou l'application) : « Se connecter à Overmaxx », puis son espace s'ouvre.
   const accueil = retour === '/app';
+  if (appareil) {
+    return gabarit('Connexion', `
+  <p class="etiquette">${echapper(message || 'Overmaxx')}</p>
+  <h1>Bon retour${appareil.prenom ? `, ${echapper(appareil.prenom)}` : ''}</h1>
+  ${carteReconnexion(appareil, retour)}`);
+  }
   return gabarit('Connexion', `
   <p class="etiquette">${echapper(message || 'Overmaxx')}</p>
   <h1>${accueil ? 'Se connecter à Overmaxx' : 'Connecte ton compte Discord'}</h1>
-  <p class="doux">Indique ton pseudo Discord. Bob, notre bot, t'envoie un bouton sur Discord : un clic, et tu continues ici, connecté. Aucun mot de passe.</p>
+  <p class="doux">Indique ton pseudo Discord. Bob, notre bot, t'envoie un code sur Discord : tape-le ici, et tu es connecté. Aucun mot de passe.</p>
   <form class="carte" method="post" action="/connexion/pseudo" novalidate>
     <label for="pseudo"><b>Ton pseudo Discord</b></label>
     <input id="pseudo" name="pseudo" value="${echapper(pseudo || '')}" placeholder="ex. awa_27" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" required style="margin-top:8px">
     <input type="hidden" name="retour" value="${echapper(retour)}">
     ${erreur ? `<p class="erreur-form" style="margin:10px 0 0">${echapper(erreur)}</p>` : ''}
-    <button class="bouton" type="submit">Recevoir mon bouton de connexion</button>
+    <button class="bouton" type="submit">Recevoir mon code</button>
   </form>
   ${TUTO_PSEUDO.length ? `<details class="carte"><summary style="cursor:pointer;font-weight:600">Où trouver mon pseudo ?</summary>
     <div style="display:flex;flex-direction:column;gap:16px;margin-top:14px">${TUTO_PSEUDO.map((im) => `<figure style="margin:0">
@@ -122,14 +141,34 @@ function pageConnexionRequise(config, { retour = '/', message, erreur, pseudo, i
   ${fenetreTutoBob(config)}` : ''}`);
 }
 
-function pageConnexionEnvoyee(config, { url, retour = '/' }) {
+// Bob a envoyé le code : on le tape ici (dans l'application aussi), et cet appareil est connecté.
+const SCRIPT_CODE = `(function () {
+  var c = document.getElementById('code');
+  if (!c) return;
+  c.addEventListener('input', function () {
+    var v = c.value.replace(/\\D/g, '').slice(0, 6);
+    if (c.value !== v) c.value = v;
+    if (v.length === 6 && !c.form.dataset.envoye) { c.form.dataset.envoye = '1'; c.form.submit(); }
+  });
+})();`;
+function pageConnexionEnvoyee(config, { url, retour = '/', demande, erreur }) {
+  const formulaire = demande ? `<form class="carte" method="post" action="/connexion/code" style="display:grid;gap:12px">
+    <p style="margin:0">Bob vient de t'envoyer un <b>code à 6 chiffres</b>, en message privé ou dans ton fil <b>Bob</b> du serveur. Tape-le ici :</p>
+    <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="••••••" aria-label="Code de Bob"
+      style="font-size:30px;letter-spacing:.45em;text-align:center;font-weight:700;padding:14px 10px" required>
+    <input type="hidden" name="demande" value="${echapper(demande)}"><input type="hidden" name="retour" value="${echapper(retour)}">
+    ${erreur ? `<p class="erreur-form" style="margin:0">${echapper(erreur)}</p>` : ''}
+    <button class="bouton" type="submit" style="margin:0">Me connecter</button>
+  </form>` : `<div class="carte">${erreur ? `<p class="erreur-form" style="margin:0">${echapper(erreur)}</p>` : ''}</div>
+  <a class="bouton" href="/connexion?retour=${encodeURIComponent(retour)}">Recevoir un nouveau code</a>`;
   return gabarit('Regarde sur Discord', `
   <div class="icone-ronde">${ICONE.ok}</div>
   <h1 class="centre">Regarde sur Discord</h1>
-  <div class="carte"><p style="margin:0">Bob vient de t'envoyer un bouton, en message privé ou dans ton fil <b>Bob</b> du serveur.
-    Appuie sur <b>C'est bien moi, continuer</b> : le site s'ouvre et tu es connecté.</p></div>
-  ${url ? `<a class="bouton" href="${echapper(url)}">Ouvrir Discord</a>` : ''}
-  <a class="bouton secondaire" href="/connexion?retour=${encodeURIComponent(retour)}">Je n'ai rien reçu</a>`);
+  ${formulaire}
+  ${demande && url ? `<a class="bouton secondaire" href="${echapper(url)}">Ouvrir Discord</a>` : ''}
+  ${demande ? `<p class="doux petit" style="margin:16px 0 0">Ensuite, cet appareil reste reconnu : après une déconnexion, « Me reconnecter » suffit.
+    Tu peux aussi appuyer sur <b>C'est bien moi, continuer</b> dans le message de Bob : le site s'ouvre alors dans ton navigateur.</p>
+  <a class="bouton secondaire" href="/connexion?retour=${encodeURIComponent(retour)}">Je n'ai rien reçu</a>` : ''}`, demande ? { script: SCRIPT_CODE } : {});
 }
 
 const boutonDiscord = (config) => (config.lienDiscord

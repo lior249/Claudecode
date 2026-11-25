@@ -103,23 +103,42 @@ function creerDiscordOAuth(config, fetchImpl = fetch) {
 
 // Session de connexion (coaching, admin), dans un cookie signé.
 const COOKIE = 'ovx_session';
+// Appareil reconnu : après une première connexion (bouton ou code de Bob), « Me reconnecter » suffit, même après
+// « Se déconnecter ». Utile surtout pour l'application installée, qui ne partage pas la connexion du navigateur.
+const APPAREIL = 'ovx_appareil';
+const lireCookie = (req, nom) => {
+  const brut = (req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith(`${nom}=`));
+  try { return brut ? decodeURIComponent(brut.slice(nom.length + 1)) : null; } catch { return null; }
+};
 
 function lireSession(req, secret) {
-  const brut = (req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith(`${COOKIE}=`));
-  return brut ? verifier(decodeURIComponent(brut.slice(COOKIE.length + 1)), secret) : null;
+  const j = verifier(lireCookie(req, COOKIE), secret);
+  return j && !j.but ? j : null; // jamais un autre jeton (lien de Bob, appareil) à la place de la session
 }
 
 function ouvrirSession(res, utilisateur, config) {
+  const secure = config.baseUrl.startsWith('https://');
   // Connexion gardée 30 jours sur l'appareil.
   const duree = 30 * 24 * 3600 * 1000;
   const jeton = signer({ id: utilisateur.id, pseudo: utilisateur.pseudo, exp: Date.now() + duree }, config.secretApp);
-  res.cookie(COOKIE, jeton, {
-    httpOnly: true, sameSite: 'lax', secure: config.baseUrl.startsWith('https://'), maxAge: duree, path: '/',
-  });
+  res.cookie(COOKIE, jeton, { httpOnly: true, sameSite: 'lax', secure, maxAge: duree, path: '/' });
+  // L'appareil reste reconnu un an (renouvelé à chaque connexion).
+  const an = 365 * 24 * 3600 * 1000;
+  res.cookie(APPAREIL, signer({ but: 'appareil', id: utilisateur.id, pseudo: utilisateur.pseudo, exp: Date.now() + an }, config.secretApp),
+    { httpOnly: true, sameSite: 'lax', secure, maxAge: an, path: '/' });
 }
 
 function fermerSession(res) {
   res.clearCookie(COOKIE, { path: '/' });
 }
 
-module.exports = { creerDiscordOAuth, signer, verifier, lireSession, ouvrirSession, fermerSession };
+function lireAppareil(req, secret) {
+  const j = verifier(lireCookie(req, APPAREIL), secret);
+  return j && j.but === 'appareil' && j.id ? { id: j.id, pseudo: j.pseudo } : null;
+}
+
+function oublierAppareil(res) {
+  res.clearCookie(APPAREIL, { path: '/' });
+}
+
+module.exports = { creerDiscordOAuth, signer, verifier, lireSession, ouvrirSession, fermerSession, lireAppareil, oublierAppareil };

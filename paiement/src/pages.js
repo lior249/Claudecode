@@ -347,16 +347,22 @@ function fenetreTutoBob(config, { rejoindre = true } = {}) {
 
 // Page d'accueil : la vidéo, puis rejoindre le Discord ; « Déjà membre ? » se connecter (avec son compte Discord, via Bob).
 // Déjà connecté : un bouton vers son espace (ou, s'il n'a pas encore de programme, les deux programmes).
-function pageBienvenue(config, { pseudo, espace } = {}) {
-  const changer = '<p class="doux petit" style="margin:16px 0 0"><a href="/deconnexion">Ce n\'est pas toi ? Changer de compte</a></p>';
+function pageBienvenue(config, { pseudo, espace, appareil } = {}) {
+  const changer = '<p class="doux petit" style="margin:16px 0 0"><a href="/deconnexion?autre=1">Ce n\'est pas toi ? Changer de compte</a></p>';
+  // Appareil reconnu (déjà connecté ici) : « Me reconnecter », sans passer par Bob.
+  const seConnecter = appareil ? `
+    <p class="doux petit" style="margin:22px 0 0">Déjà membre ? Content de te revoir, <b>${echapper(appareil.prenom || appareil.pseudo)}</b>.</p>
+    <form method="post" action="/connexion/appareil" style="margin:8px 0 0"><input type="hidden" name="retour" value="/app">
+      <button class="bouton secondaire" type="submit" style="margin:0">Me reconnecter</button></form>
+    <p class="doux petit" style="margin:12px 0 0"><a href="/connexion/oublier?retour=%2Fapp">Ce n'est pas toi ? Autre compte</a></p>` : `
+    <p class="doux petit" style="margin:22px 0 0">Déjà membre ?</p>
+    <a class="bouton secondaire" href="/connexion?retour=%2Fapp" style="margin-top:8px">Se connecter</a>`;
   // Visiteur : la vidéo, puis Rejoindre le Discord (bouton blanc) ; « Déjà membre ? » Se connecter (bouton transparent).
   const actions = !pseudo ? `
     <h1>Bienvenue sur Overmaxx</h1>
     <p class="doux">Rejoins le serveur Discord : Bob, notre bot, t'accueille et t'ouvre ton espace.</p>
     ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}" data-tuto-bob>Rejoindre le Discord</a>
-    ${fenetreTutoBob(config)}` : ''}
-    <p class="doux petit" style="margin:22px 0 0">Déjà membre ?</p>
-    <a class="bouton secondaire" href="/connexion?retour=%2Fapp" style="margin-top:8px">Se connecter</a>`
+    ${fenetreTutoBob(config)}` : ''}${seConnecter}`
     : espace ? `
     <h1>Bon retour, ${echapper(pseudo)}</h1>
     <p class="doux">Ton espace Overmaxx t'attend.</p>
