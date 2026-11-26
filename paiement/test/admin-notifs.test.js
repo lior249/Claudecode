@@ -158,3 +158,31 @@ test('coach : Planifier (remarque à un élève, message à tous), profil coach,
     assert.match(liste, /data-tri="revenus"[\s\S]*class="ls-ligne"/);
   } finally { await m.fermer(); }
 });
+
+test('remarque modifiée par le coach : jamais supprimée ; déjà lue → l\'élève est prévenu et la bulle se rallume', async () => {
+  const modifs = [];
+  const m = await monter({ bob: { parcours: { remarque: async () => {}, remarqueModifiee: async (p) => { modifs.push(p.discord_id); } } } });
+  try {
+    m.parcours.assurer('A', { pseudo: 'p_A' });
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const eleve = { cookie: cookieSession('A', 'p_A') };
+    await m.poster('/admin/planifier/remarque', { eleve: 'A', texte: 'Première version.' }, coach);
+    const id = m.db.prepare('SELECT id FROM remarques').get().id;
+    // Pas encore lue : modifiée sans prévenir.
+    await m.poster(`/admin/remarques/${id}`, { texte: 'Deuxième version.' }, coach);
+    assert.deepStrictEqual(modifs, []);
+    await m.get('/remarques', eleve); // lue
+    await new Promise((x) => setTimeout(x, 5));
+    const page = await (await m.get('/admin/planifier?onglet=remarque', coach)).text();
+    assert.match(page, /Écrire une remarque[\s\S]*Mes dernières remarques[\s\S]*Deuxième version\.[\s\S]*action="\/admin\/remarques\/\d+"/);
+    assert.match(page, /modifiée · lue/);
+    const r = await m.poster(`/admin/remarques/${id}`, { texte: 'Troisième version.' }, coach);
+    assert.strictEqual(r.headers.get('location'), '/admin/planifier?onglet=remarque&fait=modifiee');
+    assert.deepStrictEqual(modifs, ['A'], 'déjà lue : prévenu');
+    assert.match(await (await m.get('/profil', eleve)).text(), /Remarques : 1 nouveau/, 'la bulle se rallume');
+    assert.match(await (await m.get('/remarques', eleve)).text(), /Troisième version\./);
+    assert.strictEqual(m.db.prepare('SELECT COUNT(*) n FROM remarques').get().n, 1, 'rien n\'est supprimé');
+    assert.match(await (await m.get('/coach', coach)).text(), /Tâches du jour[\s\S]*Coachings du jour/);
+    assert.doesNotMatch(await (await m.get('/coach', coach)).text(), /Générés/);
+  } finally { await m.fermer(); }
+});

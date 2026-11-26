@@ -94,6 +94,7 @@ const STYLE_PROFIL = `<style>
   .pf h2.section { font-size:15px; text-transform:uppercase; letter-spacing:.1em; color:var(--doux); margin:6px 0 10px; }
   .pf-groupe { display:flex; align-items:center; gap:6px; }
   .pf-menu { cursor:pointer; }
+  @media (max-width: 959px) { .pf-doublon { display:none; } }
   @media (min-width: 960px) { .pf-menu { display:none; } }
   .pf-icone .compteur { position:absolute; top:-3px; right:-9px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:#ff3b30; color:#fff;
     font:800 11px/19px var(--police); text-align:center; border:2px solid #000; box-sizing:content-box; }
@@ -257,8 +258,8 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
     <div class="pf-haut">
       <div class="pf-groupe">
         <label class="pf-icone pf-menu" for="menu-ouvert" aria-label="Ouvrir le menu">${ICONES.menu}</label>
-        <a class="pf-icone" href="/notifications" aria-label="Notifications${notifications ? ` : ${notifications} non lue(s)` : ''}">${ICONES.cloche}${compteur(notifications)}</a>
-        <a class="pf-icone" href="/remarques" aria-label="Remarques du coach${remarquesNouvelles ? ` : ${remarquesNouvelles} nouvelle(s)` : ''}">${ICONES.bulle}${compteur(remarquesNouvelles)}</a>
+        <a class="pf-icone pf-doublon" href="/notifications" aria-label="Notifications${notifications ? ` : ${notifications} non lue(s)` : ''}">${ICONES.cloche}${compteur(notifications)}</a>
+        <a class="pf-icone pf-doublon" href="/remarques" aria-label="Remarques du coach${remarquesNouvelles ? ` : ${remarquesNouvelles} nouvelle(s)` : ''}">${ICONES.bulle}${compteur(remarquesNouvelles)}</a>
       </div>
       <div class="pf-groupe">
         <a class="pf-chaine" href="/parcours/etape-4" aria-label="Chaîne de ${chaine} jours">${FLAMME(flamme)}${chaine}</a>
@@ -455,9 +456,11 @@ const STYLE_PLANIFIER = `<style>
   .pl-onglets { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; padding:4px; border-radius:999px; background:var(--surface-2,#151515); margin:0 0 16px; max-width:640px; }
   .pl-onglets a { padding:10px 6px; border-radius:999px; color:var(--doux); font-weight:700; font-size:13.5px; text-decoration:none; text-align:center; }
   .pl-onglets a[aria-current] { background:#fff; color:#000; }
+  .pl-ecrire > summary { list-style:none; cursor:pointer; text-align:center; } .pl-ecrire > summary::-webkit-details-marker { display:none; }
+  .pl-ecrire[open] > summary { background:transparent; color:#fff; border:1px solid var(--bord-fort); }
 </style>`;
 const dateCourte = (iso) => new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = [], onglet = 'evenement', message, erreur, test, maintenant = new Date().toISOString() }) {
+function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = [], remarques = [], onglet = 'evenement', message, erreur, test, maintenant = new Date().toISOString() }) {
   const fin7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
   const estMessage = (a) => a.fin_le && a.fin_le === a.cree_le; // message seul : jamais dans la bannière
   const enCours = (a) => !estMessage(a) && (a.fin_le ? a.fin_le > maintenant : a.cree_le > new Date(Date.now() - 7 * 864e5).toISOString());
@@ -471,14 +474,24 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
       <small>Une page du site (/parcours, /coaching…) ouvre l'espace de chaque élève, déjà connecté.</small></div>`;
   let corps;
   if (onglet === 'remarque') {
-    corps = `<form class="carte" method="post" action="/admin/planifier/remarque" style="display:grid;gap:12px;max-width:640px">
+    corps = `<details class="pl-ecrire" ${erreur ? 'open' : ''}><summary class="bouton" style="max-width:640px">Écrire une remarque</summary>
+      <form class="carte" method="post" action="/admin/planifier/remarque" style="display:grid;gap:12px;max-width:640px;margin-top:10px">
       <p class="doux petit" style="margin:0">Elle s'affiche dans ses Remarques du coach (pastille rouge sur sa bulle), et Bob le prévient.</p>
       <div class="champ"><label for="eleve">Élève</label><select id="eleve" name="eleve" required><option value="">Choisis un élève</option>
         ${eleves.map((e) => `<option value="${echapper(e.id)}">${echapper(e.nom)}${e.pseudo ? ` (@${echapper(e.pseudo)})` : ''} · étape ${e.etape >= 5 ? 'GOAT' : e.etape}</option>`).join('')}</select></div>
       <div class="champ"><label for="texte">Remarque</label><textarea id="texte" name="texte" maxlength="2000" required placeholder="Ce qui va, ce qu'il doit changer…"></textarea></div>
       <div data-images="/admin/images"><label class="fichier">${ICONE.plus}<span><b>Joindre des images</b><br>Captures, exemples… (facultatif)</span><input type="file" accept="image/*" multiple hidden></label>
         <input type="hidden" name="images" value=""><div class="apercus" style="margin-top:8px"></div></div>
-      <button class="bouton" type="submit" style="margin:0">Envoyer la remarque</button></form>`;
+      <button class="bouton" type="submit" style="margin:0">Envoyer la remarque</button></form></details>
+    <h2 style="font-size:16px;margin:22px 0 4px">Mes dernières remarques</h2>
+    <p class="doux petit" style="margin:0 0 10px">Tu peux les modifier, pas les supprimer. Si l'élève l'avait déjà lue, Bob le prévient qu'elle a changé.</p>
+    <div style="display:grid;gap:8px;max-width:640px">${remarques.map((x) => `<div class="carte" style="margin:0">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline"><b>${echapper(x.nom)}</b>
+        <span class="doux petit">${echapper(dateCourte(x.modifie_le || x.cree_le))}${x.modifie_le ? ' · modifiée' : ''} · ${x.lue ? 'lue' : 'pas encore lue'}</span></div>
+      <p style="margin:6px 0 0;white-space:pre-line">${echapper(x.texte)}</p>${x.images.length ? `<p class="doux petit" style="margin:4px 0 0">${x.images.length} image(s)</p>` : ''}
+      <details style="margin-top:8px"><summary class="doux petit" style="cursor:pointer">Modifier</summary>
+        <form method="post" action="/admin/remarques/${x.id}" style="display:grid;gap:8px;margin-top:8px"><textarea name="texte" maxlength="8000" required>${echapper(x.texte)}</textarea>
+          <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer la modification</button></form></details></div>`).join('') || '<p class="vide-traiter">Aucune remarque pour le moment.</p>'}</div>`;
   } else if (onglet === 'message') {
     const messages = annonces.filter(estMessage);
     corps = `<form id="form-annonce" class="carte" method="post" action="/admin/planifier/message" data-n="${nbEleves}" style="display:grid;gap:12px;max-width:640px">
@@ -528,8 +541,11 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
 }
 
 // Profil du coach : sa pièce dorée, ses chiffres, les raccourcis et ses meilleurs élèves.
-function pageCoach(config, { espace, pseudo, avatar, nbEleves, revenusEleves, aTraiter, seancesAujourdhui, top = [] }) {
+function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites = 0, seancesAujourdhui, seancesFaites = 0, top = [] }) {
   const nom = pseudo || 'Coach';
+  const barre = (titre, fait, total, lien, vide, pleineSiVide) => `<a class="pf-objectif-barre" href="${lien}">
+    <span class="haut"><span>${titre}</span><b>${total ? `${fait} / ${total}` : vide}</b></span>
+    <span class="barre"><i style="width:${total ? Math.round((fait / total) * 100) : pleineSiVide ? 100 : 0}%"></i></span></a>`;
   return page('Mon profil', `${STYLE_PROFIL}${STYLE_ROLES}
   <div class="pf">
     <div class="pf-identite" style="margin-top:6px">
@@ -538,14 +554,15 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, revenusEleves, aT
     </div>
     <div class="pf-chiffres">
       <div><b>${ICONES.jours}${nbEleves}</b><small>Élèves</small></div><span class="sep"></span>
-      <div><b>${ICONES.revenus}${dollars(revenusEleves || 0, { centimes: false })}</b><small>Générés</small></div><span class="sep"></span>
-      <div><b>${aTraiter}</b><small>À traiter</small></div>
+      <div><b>${aTraiter}</b><small>À traiter</small></div><span class="sep"></span>
+      <div><b>${seancesAujourdhui}</b><small>Coachings auj.</small></div>
     </div>
+    <h2 class="section">Aujourd'hui</h2>
+    ${barre('Tâches du jour', faites, faites + aTraiter, '/admin/a-traiter', 'Rien à traiter', true)}
+    ${barre('Coachings du jour', seancesFaites, seancesAujourdhui, '/admin', 'Aucun coaching')}
     <div class="pf-cartes" style="grid-template-columns:1fr 1fr">
       <a class="pf-carte" href="/admin/a-traiter"><h3>À traiter</h3><p class="vert">${aTraiter} en attente</p><p>Exercices, vidéos, comptes rendus, candidatures…</p></a>
-      <a class="pf-carte" href="/admin"><h3>Calendrier</h3><p class="vert">${seancesAujourdhui} séance(s) aujourd'hui</p><p>Tes coachings et tes disponibilités.</p></a>
       <a class="pf-carte" href="/admin/eleves"><h3>Élèves Elite</h3><p class="vert">${nbEleves} élève(s)</p><p>Kanban ou liste triable.</p></a>
-      <a class="pf-carte" href="/admin/planifier"><h3>Planifier</h3><p class="vert">Événement, remarque, message</p><p>Pour un élève ou pour tous.</p></a>
     </div>
     <h2 class="section">Meilleurs élèves</h2>
     <div class="cm-liste">${top.map((m, i) => `<a class="cm-ligne" href="/classement/${encodeURIComponent(m.id)}" style="color:#fff;text-decoration:none"><span class="rond">${i + 1}</span>

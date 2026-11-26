@@ -609,6 +609,13 @@ function migrerV25(db) {
   db.exec('PRAGMA user_version = 25');
 }
 
+// v26 : le coach peut modifier une remarque envoyée (jamais la supprimer) : date de modification.
+function migrerV26(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 26) return;
+  if (!colonnes(db, 'remarques').includes('modifie_le')) db.exec('ALTER TABLE remarques ADD COLUMN modifie_le TEXT');
+  db.exec('PRAGMA user_version = 26');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -643,6 +650,7 @@ function ouvrirBase(fichier) {
   migrerV23(db);
   migrerV24(db);
   migrerV25(db);
+  migrerV26(db);
   return db;
 }
 

@@ -197,6 +197,19 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       const r = q.remarque.run(discordId, soumissionId, type, mot || '(image)', images.length ? JSON.stringify(images) : null, iso());
       return { id: Number(r.lastInsertRowid) };
     },
+    // Le coach modifie une remarque (texte seulement) ; elle ne se supprime jamais.
+    modifierRemarque(id, texte) {
+      const mot = String(texte || '').trim().slice(0, 8000);
+      if (!mot) return { erreur: 'La remarque ne peut pas être vide.' };
+      const r = db.prepare('SELECT * FROM remarques WHERE id = ?').get(Number(id));
+      if (!r) return { erreur: 'Remarque introuvable.' };
+      db.prepare('UPDATE remarques SET texte = ?, modifie_le = ? WHERE id = ?').run(mot, iso(), r.id);
+      return { remarque: { ...r, texte: mot } };
+    },
+    dernieresRemarques(n = 40) {
+      return db.prepare('SELECT * FROM remarques ORDER BY COALESCE(modifie_le, cree_le) DESC, id DESC LIMIT ?').all(n)
+        .map((r) => ({ ...r, images: r.images ? JSON.parse(r.images) : [], parcours: q.get.get(r.discord_id) }));
+    },
     remarques(discordId) {
       return q.remarques.all(discordId).map((r) => ({ ...r, images: r.images ? JSON.parse(r.images) : [] }));
     },

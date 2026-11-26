@@ -72,7 +72,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // Notifications non lues et nouvelles remarques du coach d'un membre (pastilles rouges, nombre sur l'icône de l'application).
   function compteursMembre(id) {
     const vues = (commandes.db.prepare('SELECT remarques_vues_le FROM profils_membres WHERE discord_id = ?').get(id) || {}).remarques_vues_le || '';
-    return { notifs: notifsAdmin.nonLuesMembre(id), remarques: commandes.db.prepare('SELECT COUNT(*) n FROM remarques WHERE discord_id = ? AND cree_le > ?').get(id, vues).n };
+    return { notifs: notifsAdmin.nonLuesMembre(id), remarques: commandes.db.prepare('SELECT COUNT(*) n FROM remarques WHERE discord_id = ? AND COALESCE(modifie_le, cree_le) > ?').get(id, vues).n };
   }
   // Événements en cours : jusqu'à leur date de fin (sinon 7 jours après leur création).
   const evenementsEnCours = () => {
@@ -1207,7 +1207,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       derniers7: [7, 6, 5, 4, 3, 2, 1].map((k) => envoyes.has(decaler(aujourdhui, -k))), tache,
       suivis: suivis.map((s) => membreVu(s.suivi)), nbSuivis: suivis.length, nbConcurrents: communaute.concurrents(id).length,
       invitations: communaute.invitationsRecues(id).length, notifications: notifsAdmin.nonLuesMembre(id),
-      remarquesNouvelles: commandes.db.prepare('SELECT COUNT(*) n FROM remarques WHERE discord_id = ? AND cree_le > ?').get(id, profil.remarques_vues_le || '').n,
+      remarquesNouvelles: commandes.db.prepare('SELECT COUNT(*) n FROM remarques WHERE discord_id = ? AND COALESCE(modifie_le, cree_le) > ?').get(id, profil.remarques_vues_le || '').n,
       ...carrousel(p, aujourdhui), seances: coaching.prochainesSeances(id, 14).filter((x) => !x.touchee)
         .map((x) => ({ date: x.date, heure: x.heure, debut: new Date(x.debut).toISOString(), type: C.NOMS_TYPES[x.type] || 'Coaching' })),
     };
@@ -1231,15 +1231,26 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const onglet = ['remarque', 'message'].includes(req.query.onglet) ? req.query.onglet : 'evenement';
     const qp = (id) => qProfils.get.get(id) || {};
     res.send(PF.pageAnnonces(config, { espace: espaceDe(lireSession(req, config.secretApp)), nbEleves: parcours.tous().length, onglet,
+      remarques: onglet === 'remarque' ? parcours.dernieresRemarques().map((r) => ({ ...r, nom: (r.parcours && (qp(r.discord_id).prenom || r.parcours.pseudo)) || r.discord_id,
+        lue: Boolean((qp(r.discord_id).remarques_vues_le || '') >= (r.modifie_le || r.cree_le)) })) : [],
       eleves: parcours.tous().map((p) => ({ id: p.discord_id, nom: qp(p.discord_id).prenom || p.pseudo || p.discord_id, pseudo: p.pseudo, etape: p.etape })).sort((x, y) => x.nom.localeCompare(y.nom, 'fr')),
       annonces: commandes.db.prepare('SELECT * FROM annonces ORDER BY id DESC LIMIT 30').all(),
       test: req.query.test ? String(req.query.test).slice(0, 200) : null,
-      message: req.query.fait === 'remarque' ? 'Remarque envoyée : Bob l\'a prévenu.' : req.query.fait === 'message' ? `Message envoyé à ${Number(req.query.n) || 0} élève(s).`
+      message: req.query.fait === 'modifiee' ? 'Remarque modifiée.' : req.query.fait === 'remarque' ? 'Remarque envoyée : Bob l\'a prévenu.' : req.query.fait === 'message' ? `Message envoyé à ${Number(req.query.n) || 0} élève(s).`
         : req.query.fait ? (Number(req.query.n) ? `Événement publié et envoyé à ${Number(req.query.n)} élève(s).` : 'Événement publié dans la bannière.') : null, maintenant: new Date().toISOString(),
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   };
   app.get('/admin/planifier', pagePlanifier);
   app.get('/admin/annonces', pagePlanifier);
+  app.post('/admin/remarques/:id', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/planifier?onglet=remarque')) return;
+    const r = parcours.modifierRemarque(req.params.id, req.body.texte);
+    if (r.erreur) return res.redirect(303, `/admin/planifier?onglet=remarque&erreur=${encodeURIComponent(r.erreur)}`);
+    // Déjà lue : l'élève est prévenu que la remarque a changé.
+    const vues = (qProfils.get.get(r.remarque.discord_id) || {}).remarques_vues_le;
+    if (vues && vues >= (r.remarque.modifie_le || r.remarque.cree_le)) prevenir('remarqueModifiee', parcours.get(r.remarque.discord_id));
+    return res.redirect(303, '/admin/planifier?onglet=remarque&fait=modifiee');
+  });
   app.post('/admin/planifier/remarque', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/planifier?onglet=remarque')) return;
     const p = parcours.get(String(req.body.eleve || ''));
@@ -1277,8 +1288,16 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const aujourdhui = new Date().toISOString().slice(0, 10);
     let seances = 0;
     try { seances = coaching.occurrences(aujourdhui, aujourdhui).filter((o) => !o.touchee).length; } catch { seances = 0; }
-    res.send(PF.pageCoach(config, { espace, pseudo: session.pseudo, avatar: (qProfils.get.get(session.id) || {}).avatar, nbEleves: parcours.tous().length,
-      revenusEleves: liste.reduce((t, m) => t + m.revenus, 0), aTraiter: espace.aTraiterParcours, seancesAujourdhui: seances, top: liste.filter((m) => m.revenus > 0).slice(0, 5) }));
+    // Tâches du jour : décisions prises aujourd'hui, sur ce qui reste à traiter.
+    const debut = `${aujourdhui}T00:00:00.000Z`;
+    const n = (sql) => { try { return commandes.db.prepare(sql).get(debut).n; } catch { return 0; } };
+    const faites = n('SELECT COUNT(*) n FROM soumissions WHERE decide_le >= ?') + n('SELECT COUNT(*) n FROM comptes_rendus WHERE decide_le >= ?')
+      + n('SELECT COUNT(*) n FROM recompenses WHERE confirme_le >= ?') + n('SELECT COUNT(*) n FROM acces_manuels WHERE decide_le >= ?') + n('SELECT COUNT(*) n FROM candidatures WHERE maj_le >= ? AND statut NOT IN (\'examen\', \'video\')');
+    let seancesFaites = 0;
+    try { seancesFaites = coaching.occurrences(aujourdhui, aujourdhui).filter((o) => !o.touchee && new Date(o.debut) < new Date()).length; } catch { seancesFaites = 0; }
+    const profil = qProfils.get.get(session.id) || {};
+    res.send(PF.pageCoach(config, { espace, pseudo: profil.prenom || (session.pseudo !== 'coach' ? session.pseudo : null), avatar: profil.avatar, nbEleves: parcours.tous().length,
+      aTraiter: espace.aTraiterParcours, faites, seancesAujourdhui: seances, seancesFaites, top: liste.filter((m) => m.revenus > 0).slice(0, 5) }));
   });
   app.post('/admin/annonces', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/annonces')) return;

@@ -1041,6 +1041,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await notifier.membre(p.discord_id, avecBoutons('**Ton coach a ajouté une remarque sur ta fiche.**',
         [{ label: 'Lire la remarque', url: lienPerso(p.discord_id, p.pseudo, '/fiche#remarques') }]));
     },
+    async remarqueModifiee(p) {
+      if (!p) return;
+      await notifier.membre(p.discord_id, avecBoutons('**Ton coach a modifié une remarque.** Reviens la lire.',
+        [{ label: 'Lire la remarque', url: lienPerso(p.discord_id, p.pseudo, '/remarques') }]));
+    },
     async etapeOuverte(p, n) {
       await notifier.membre(p.discord_id, avecBoutons(`**Étape ${n} ouverte : ${ETAPES_NOMS[n] || ''}.**${n === 3 ? ' Envoie tes 3 vidéos dans les 72 heures, et ne publie rien avant qu\'elles soient validées.' : ''}`,
         [{ label: n <= 3 ? `Ouvrir l'étape ${n}` : 'Mon parcours', url: lienPerso(p.discord_id, p.pseudo, n <= 3 ? `/parcours/etape-${n}` : '/parcours') }]));
@@ -1231,7 +1236,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     ON CONFLICT(discord_id) DO UPDATE SET avatar = excluded.avatar`);
   async function majAvatars() {
     if (!parcours || !client || !client.users) return;
-    for (const p of parcours.tous()) {
+    const ids = [...parcours.tous().map((p) => p.discord_id), ...(config.discord.adminId ? [config.discord.adminId] : [])];
+    for (const id of ids) {
+      const p = { discord_id: id };
       try {
         const u = await client.users.fetch(p.discord_id);
         const url = u && typeof u.displayAvatarURL === 'function' ? u.displayAvatarURL({ extension: 'png', size: 128 }) : null;
