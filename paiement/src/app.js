@@ -18,6 +18,7 @@ const { creerSuivi, QUESTIONS, jourLisible } = require('./suivi');
 const { creerSinistres } = require('./sinistres');
 const { creerAccesManuels } = require('./acces-manuels');
 const { creerCommunaute } = require('./communaute');
+const { creerNotifsAdmin } = require('./admin-notifs');
 const PF = require('./pages-profil');
 const { roleLePlusHaut } = require('./pages-classement');
 const { verifierReponses } = require('./formulaires');
@@ -49,6 +50,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const acces = accesManuels || (bob && bob.acces) || creerAccesManuels({ db: commandes.db, parcours, coaching });
   // Suivis, concurrences et chaîne d'activité des élèves Elite.
   const communaute = communauteDonnee || creerCommunaute({ db: commandes.db, parcours, suivi });
+  // Espace notifications du coach : journal des messages de Bob et rappels.
+  const notifsAdmin = (bob && bob.notifsAdmin) || creerNotifsAdmin({ db: commandes.db });
   // Jeton de l'application installée (dans son manifeste) : elle s'ouvre déjà connectée, même sur iPhone.
   // Le même toute la journée, valable un an.
   const jetonApp = (session) => signer({ but: 'app', id: session.id, pseudo: session.pseudo, exp: (Math.floor(Date.now() / 864e5) + 365) * 864e5 }, config.secretApp);
@@ -61,7 +64,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const aTraiterParcours = estAdmin
       ? parcours.aTraiter().total + suivi.enAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
-    return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null };
+    return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
+      notifsNonLues: estAdmin ? notifsAdmin.nonLues() : 0 };
   };
   const app = express();
   app.disable('x-powered-by');
@@ -186,16 +190,50 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       return;
     }
     const p = parcours.get(m.id);
+    const moi = parcours.get(session.id);
+    const relation = moi && !moi.retire_le && session.id !== m.id ? {
+      suit: communaute.suit(session.id, m.id), concurrent: communaute.concurrents(session.id).some((c) => c.autre === m.id),
+      peutDefier: communaute.peutConcourir(session.id) && communaute.peutConcourir(m.id),
+      message: { suivi: 'Tu le suis : tu recevras ses nouveaux résultats.', retire: 'Tu ne le suis plus.', defi: 'Invitation envoyée : Bob le prévient.' }[req.query.fait],
+      erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null } : null;
     res.send(V.pageProfil(config, { espace: espaceDe(session), parcours: p, tableau: suivi.tableau(m.id), stats: suivi.stats(m.id),
-      recompenses: suivi.recompenses(m.id), vuePublique: true, avatar: m.avatar }));
+      recompenses: suivi.recompenses(m.id), vuePublique: true, avatar: m.avatar, relation, chaine: m.chaine }));
   });
 
   // ================= Notifications : Bob ou l'application =================
   app.get('/notifications', (req, res) => {
     const session = connecte(req, res, '/notifications', 'Notifications');
     if (!session) return;
+    const onglet = ['rappels', 'reglages'].includes(req.query.onglet) ? req.query.onglet : 'notifications';
+    // Le coach : Notifications (journal de Bob) et Mes rappels ; les réglages de l'application à part.
+    if (session.id === config.discord.adminId && onglet !== 'reglages') {
+      const espace = espaceDe(session);
+      const notifications = onglet === 'notifications' ? notifsAdmin.liste() : [];
+      const nonLues = notifsAdmin.nonLues();
+      if (onglet === 'notifications') { notifsAdmin.toutLu(); espace.notifsNonLues = 0; }
+      return res.send(N.pageNotificationsAdmin(config, { espace, onglet, notifications, nonLues: onglet === 'notifications' ? 0 : nonLues,
+        rappels: notifsAdmin.rappels(), modeles: notifsAdmin.MODELES, JOURS: notifsAdmin.JOURS,
+        message: { ajoute: 'Rappel ajouté : Bob te l\'enverra à l\'heure choisie.', supprime: 'Rappel supprimé.' }[req.query.fait],
+        erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+    }
     res.send(N.pageNotifications(config, { espace: espaceDe(session), clePublique: push.clePublique(), canal: push.canal(session.id),
       appareils: push.abonnements(session.id) }));
+  });
+  // Mes rappels (coach).
+  app.post('/admin/rappels', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/notifications?onglet=rappels')) return;
+    const r = notifsAdmin.creer({ texte: req.body.texte, frequence: req.body.frequence, jours: req.body.jours, date: req.body.date, heure: req.body.heure });
+    res.redirect(303, `/notifications?onglet=rappels&${r.erreur ? `erreur=${encodeURIComponent(r.erreur)}` : 'fait=ajoute'}`);
+  });
+  app.post('/admin/rappels/:id/supprimer', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/notifications?onglet=rappels')) return;
+    notifsAdmin.supprimer(req.params.id);
+    res.redirect(303, '/notifications?onglet=rappels&fait=supprime');
+  });
+  app.post('/admin/rappels/:id/basculer', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/notifications?onglet=rappels')) return;
+    notifsAdmin.basculer(req.params.id);
+    res.redirect(303, '/notifications?onglet=rappels');
   });
   const apiNotif = (chemin, action) => app.post(chemin, json, async (req, res) => {
     const session = lireSession(req, config.secretApp);
@@ -1172,8 +1210,19 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       message: { suivi: 'Tu le suis : tu recevras ses nouveaux résultats.', retire: 'Tu ne le suis plus.', defi: 'Invitation envoyée : Bob le prévient.', accepte: 'Concurrence lancée !', refuse: 'Invitation refusée.', abandon: 'Concurrence arrêtée.' }[req.query.fait],
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
-  const versCommunaute = (res, r, fait) => res.redirect(303, `/communaute?${r.erreur ? `erreur=${encodeURIComponent(r.erreur)}` : `fait=${fait}`}`);
-  const membreCommunaute = (req, res) => { const x = membreParcours(req, res, '/communaute', { sinistreOk: true }); return x ? x.p.discord_id : null; };
+  // Après l'action : retour à la page d'où elle vient (Communauté, ou le profil d'un membre du classement).
+  let retourAction = '/communaute';
+  const versCommunaute = (res, r, fait) => {
+    const base = retourAction;
+    retourAction = '/communaute';
+    res.redirect(303, `${base}?${r.erreur ? `erreur=${encodeURIComponent(r.erreur)}` : `fait=${fait}`}`);
+  };
+  const membreCommunaute = (req, res) => {
+    const x = membreParcours(req, res, '/communaute', { sinistreOk: true });
+    const r = String((req.body && req.body.retour) || '');
+    retourAction = /^\/classement\/[\w-]{1,40}$/.test(r) ? r : '/communaute';
+    return x ? x.p.discord_id : null;
+  };
   app.post('/communaute/suivre', formulaire, (req, res) => {
     const id = membreCommunaute(req, res); if (!id) return;
     versCommunaute(res, communaute.suivre(id, String(req.body.id || '')), 'suivi');

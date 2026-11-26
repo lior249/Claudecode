@@ -11,6 +11,7 @@ const { JOURS, dateISO, ajouterJours, aHeure, lundiDe } = require('./coaching');
 const { jourLisible } = require('./suivi');
 const { nomRole, nomCourt, ROLES: ROLES_DISCORD } = require('./roles');
 const { creerAccesManuels } = require('./acces-manuels');
+const { creerNotifsAdmin } = require('./admin-notifs');
 
 const JOUR_MS = 24 * 3600 * 1000;
 const PALIERS_JOURS = [10, 5, 3, 1]; // 1 = dernières 24 h
@@ -30,6 +31,7 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'nu
 function creerBob({ config, db, commandes, coaching, candidatures, parcours, suivi, sinistres, push, accesManuels, maintenant = () => new Date(),
   attendre = (ms) => new Promise((r) => setTimeout(r, ms)), client: clientInjecte, serveur: serveurInjecte } = {}) {
   const acces = accesManuels || creerAccesManuels({ db, parcours, coaching, maintenant });
+  const notifsAdmin = creerNotifsAdmin({ db, maintenant });
   const actif = config.discordActif || Boolean(clientInjecte);
   const client = clientInjecte || (actif ? new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -177,7 +179,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   }
   const notifier = {
     // Selon son choix : l'application, ou Bob. Si aucun appareil ne répond, Bob prend le relais.
-    admin: async (contenu) => (config.discord.adminId ? ((await parApplication(config.discord.adminId, contenu)) || messagePrive(config.discord.adminId, contenu)) : false),
+    // Chaque message au coach est aussi rangé dans son espace Notifications (site).
+    admin: async (contenu) => {
+      try { notifsAdmin.noter(contenu); } catch (err) { console.warn('[bob] journal admin :', err.message); }
+      return config.discord.adminId ? ((await parApplication(config.discord.adminId, contenu)) || messagePrive(config.discord.adminId, contenu)) : false;
+    },
     // Message privé, sinon fil privé avec les mêmes boutons. Si rien ne passe, l'admin le sait (une fois par jour et par membre).
     membre: async (discordId, contenu) => (await parApplication(discordId, contenu)) || (await envoyer(discordId, contenu)).ok,
     // Rappels de paiement : toujours par Bob, puis par l'application 10 minutes plus tard, s'il n'a toujours pas payé.
@@ -1177,6 +1183,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       const lignes = seances.map((s) => `- ${jourHeureLocale(id, aHeure(s.date, s.heure))} (${s.date.split('-').reverse().slice(0, 2).join('/')})`).join('\n');
       await notifier.membre(id, avecBoutons(`Ta semaine de coaching est réservée (à ton heure) :\n${lignes}\nPense à réserver la suivante.`,
         [{ label: 'Mes coachings', url: lienPerso(id, null, '/coaching') }]));
+      if (seances.length) {
+        await notifier.admin(avecBoutons(`**Coaching réservé** : ${nomCoaching(id)} (<@${id}>) a réservé ${seances.length} séance(s) :\n${seances.map((s) => `- ${s.date.split('-').reverse().join('/')} à ${s.heure} GMT`).join('\n')}`,
+          [{ label: 'Ouvrir le calendrier', url: lienCoach(`/admin?semaine=${lundiDe(new Date(`${seances[0].date}T12:00:00Z`))}`) }]));
+      }
     },
     async report(id, avant, apres, justification) {
       await notifier.admin(`**Séance reportée** : ${nomCoaching(id)} (<@${id}>), du ${avant.date} ${avant.heure} GMT au **${apres.date} ${apres.heure} GMT**.\nJustification : ${justification}`);
@@ -1432,6 +1442,13 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   // ---------- Boucle ----------
   let tour = 0;
   let enCours = false;
+  // Les rappels que le coach s'est créés (espace Notifications → Mes rappels), à l'heure GMT choisie.
+  async function rappelsAdmin() {
+    for (const r of notifsAdmin.dus()) {
+      notifsAdmin.marquerEnvoye(r.id);
+      await notifier.admin(avecBoutons(`⏰ **Rappel** : ${r.texte}`, [{ label: 'Mes rappels', url: lienCoach('/notifications?onglet=rappels') }]));
+    }
+  }
   async function cycle() {
     if (enCours) return;
     enCours = true;
@@ -1442,6 +1459,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       if (tour % 2 === 0) await synchroRoles();
       await rappelsQuotidiens();
       await notificationsDifferees();
+      await rappelsAdmin();
       if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); await surveillerAbsences(); await demanderDisponibilites(); await majAvatars(); }
       if (tour++ % 10 === 0) await libererCreneaux();
     } catch (err) {
@@ -1451,6 +1469,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
 
   return {
     notifier,
+    notifsAdmin,
+    rappelsAdmin,
     cycle,
     surInteraction,
     COMMANDES,
@@ -1609,6 +1629,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       const d = decales.length
         ? `\n\nPas cette semaine (réservé trop tard, ou créneau indisponible ce jour-là) : ${decales.map((x) => `${x.effectifLe.split('-').reverse().slice(0, 2).join('/')} ${heureLocale(discordId, aHeure(x.effectifLe, x.heure))}`).join(', ')} est ta première séance.`
         : '';
+      if (reservations.length) {
+        await notifier.admin(avecBoutons(`**Créneaux fixes réservés** : ${nomCoaching(discordId)} (<@${discordId}>) :\n${reservations.map((r) => `- ${JOURS[r.jour] || r.jour} à ${r.heure} GMT, à partir du ${r.effectif_le.split('-').reverse().join('/')}`).join('\n')}`,
+          [{ label: 'Ouvrir le calendrier', url: lienCoach('/admin') }]));
+      }
       await notifier.membre(discordId, avecBoutons(`Tes créneaux de coaching fixes sont enregistrés (à ton heure) :\n${lignes}${d}`,
         [{ label: 'Mes coachings', url: lienPerso(discordId, null, '/coaching') }]));
     },

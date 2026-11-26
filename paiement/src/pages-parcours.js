@@ -1062,7 +1062,7 @@ function blocTableau(tableau, { titre = 'Récompenses estimées' } = {}) {
 
 // ---------- Mon profil : le tableau de bord en haut, puis les objectifs et les statistiques ----------
 // (page prévue pour le futur classement : rien de privé dessus, pas de remarques du coach).
-function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses = [], vueCoach, vuePublique, avatar }) {
+function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses = [], vueCoach, vuePublique, avatar, relation, chaine = 0 }) {
   const trophees = recompenses.filter((r) => r.confirme_le);
   const nom = p.pseudo || p.nom || 'Membre';
   return page(vueCoach || vuePublique ? `Profil de ${nom}` : 'Mon profil', `<style>
@@ -1079,7 +1079,15 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   <div class="profil-tete"><div class="avatar" aria-hidden="true">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : echapper(nom.charAt(0).toUpperCase())}</div>
     <div><h1>${echapper(nom)}</h1><p>${echapper([p.compte_tiktok, p.niche].filter(Boolean).join(' · ') || 'Overmaxx Elite')}</p>
       <div class="badges"><span>${p.etape >= 5 ? 'GOAT' : `Étape ${p.etape}`}</span><span>Jour ${jourDe(p)} sur 90</span>
-        ${trophees.map((r) => pastilleRole(r.role)).join('')}${pastilleRole('elite')}</div></div></div>
+        ${trophees.map((r) => pastilleRole(r.role)).join('')}${pastilleRole('elite')}${chaine >= 3 ? `<span style="border-color:#ff9a3c;color:#ff9a3c">🔥 ${chaine} jours d'affilée</span>` : ''}</div></div></div>
+  ${relation ? `${relation.message ? `<p class="message-ok">${echapper(relation.message)}</p>` : ''}${relation.erreur ? `<p class="erreur-form">${echapper(relation.erreur)}</p>` : ''}
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 18px">
+    ${relation.concurrent ? '<span class="bouton secondaire" style="width:auto;margin:0;pointer-events:none">Ton concurrent</span>'
+    : `<form method="post" action="/communaute/${relation.suit ? 'ne-plus-suivre' : 'suivre'}" style="margin:0"><input type="hidden" name="id" value="${echapper(p.discord_id)}"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
+      <button class="bouton${relation.suit ? ' secondaire' : ''}" type="submit" style="width:auto;margin:0;padding-left:22px;padding-right:22px">${relation.suit ? 'Ne plus suivre' : 'Suivre'}</button></form>`}
+    ${relation.peutDefier && !relation.concurrent ? `<form method="post" action="/communaute/defier" style="margin:0"><input type="hidden" name="id" value="${echapper(p.discord_id)}"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
+      <button class="bouton secondaire" type="submit" style="width:auto;margin:0;padding-left:22px;padding-right:22px">Défier</button></form>` : ''}
+  </div>` : ''}
   <div class="colonnes-2">
     <div>${blocTableau(tableau)}</div>
     <div>${blocObjectifs(stats)}${blocStats(stats)}</div>

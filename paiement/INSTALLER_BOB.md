@@ -335,6 +335,16 @@ retire-les à la main.
 - Sur téléphone, **barre du bas** : Classement · Remarques · Mes rappels · Profil. La vibration de la roue marche sur Android ;
   Apple ne la permet pas aux sites (iPhone).
 
+## Notifications du coach : Notifications et Mes rappels
+
+- **Notifications** (menu Gestion) : chaque message que Bob t'envoie y est aussi rangé, avec « Ouvrir » vers la bonne page.
+  Le nombre de non lues s'affiche dans le menu. Une réservation de coaching (semaine, créneaux fixes, coaching d'entrée,
+  report, réserve) t'envoie une notification.
+- **Mes rappels** : tes propres rappels (chaque jour, certains jours, ou une seule fois), à l'heure GMT choisie, avec des idées
+  en un clic (coachings du jour, disponibilités, événement, comptes rendus). Bob te les envoie dans l'application ou sur Discord.
+- Pour suivre ou défier quelqu'un, les élèves ouvrent son profil depuis le **classement** (boutons Suivre / Défier),
+  ou la section **Recommandés** de Communauté.
+
 ## Connexion par code et appareil reconnu
 
 - Sur la page de connexion, la personne donne son pseudo Discord. Bob lui envoie un **code à 6 chiffres** (valable 10 minutes,

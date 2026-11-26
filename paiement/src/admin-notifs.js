@@ -1,0 +1,102 @@
+'use strict';
+
+// Espace notifications du coach (admin) :
+//  - le journal : chaque message que Bob t'envoie y est aussi rangé (lu / non lu), avec la page à ouvrir ;
+//  - mes rappels : ceux que tu crées toi-même (une fois, chaque jour ou certains jours, à une heure GMT).
+const HEURE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const FREQUENCES = ['une-fois', 'jour', 'semaine'];
+const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+// Idées de rappels proposées en un clic.
+const MODELES = [
+  { texte: 'Vérifier les coachings du jour', frequence: 'jour', heure: '08:00' },
+  { texte: 'Donner mes disponibilités de la semaine', frequence: 'semaine', jours: [0], heure: '18:00' },
+  { texte: 'Préparer le prochain événement', frequence: 'semaine', jours: [3], heure: '10:00' },
+  { texte: 'Valider les comptes rendus en attente', frequence: 'jour', heure: '20:00' },
+];
+
+// Texte lisible depuis un message Discord : sans le gras ni les mentions.
+function texteDe(contenu) {
+  const brut = typeof contenu === 'string' ? contenu : (contenu && contenu.content) || '';
+  return brut.replace(/\*\*|__|`/g, '').replace(/\s*\(<@!?\d+>\)/g, '').replace(/<@!?\d+>/g, 'un membre').trim().slice(0, 1500);
+}
+// La page du site du premier bouton (lien personnel de Bob → seulement le chemin, jamais le jeton).
+function lienDe(contenu) {
+  const rangees = (contenu && contenu.components) || [];
+  for (const r of rangees) {
+    for (const b of r.components || []) {
+      const url = b.data && b.data.url;
+      if (!url) continue;
+      try {
+        const u = new URL(url);
+        const retour = u.searchParams.get('retour');
+        if (retour && /^\/(?![/\\])/.test(retour)) return retour.slice(0, 300);
+        return /^https:\/\//.test(url) && !u.searchParams.get('t') ? url.slice(0, 300) : null;
+      } catch { /* lien invalide */ }
+    }
+  }
+  return null;
+}
+
+function creerNotifsAdmin({ db, maintenant = () => new Date() }) {
+  const q = {
+    ajouter: db.prepare('INSERT INTO notifications_admin (texte, lien, cree_le) VALUES (?, ?, ?)'),
+    liste: db.prepare('SELECT * FROM notifications_admin ORDER BY id DESC LIMIT ?'),
+    nonLues: db.prepare('SELECT COUNT(*) n FROM notifications_admin WHERE lu_le IS NULL'),
+    toutLu: db.prepare('UPDATE notifications_admin SET lu_le = ? WHERE lu_le IS NULL'),
+    purger: db.prepare('DELETE FROM notifications_admin WHERE cree_le < ?'),
+    rappels: db.prepare('SELECT * FROM rappels_admin ORDER BY actif DESC, heure, id'),
+    rappel: db.prepare('SELECT * FROM rappels_admin WHERE id = ?'),
+    creer: db.prepare('INSERT INTO rappels_admin (texte, frequence, jours, date, heure, actif, cree_le) VALUES (?, ?, ?, ?, ?, 1, ?)'),
+    supprimer: db.prepare('DELETE FROM rappels_admin WHERE id = ?'),
+    basculer: db.prepare('UPDATE rappels_admin SET actif = 1 - actif WHERE id = ?'),
+    envoye: db.prepare('UPDATE rappels_admin SET dernier_envoi = ?, actif = CASE WHEN frequence = \'une-fois\' THEN 0 ELSE actif END WHERE id = ?'),
+    actifs: db.prepare('SELECT * FROM rappels_admin WHERE actif = 1'),
+  };
+  const iso = () => maintenant().toISOString();
+
+  return {
+    MODELES, JOURS,
+    // Journal : chaque message de Bob au coach.
+    noter(contenu) {
+      const texte = texteDe(contenu);
+      if (!texte) return;
+      q.ajouter.run(texte, lienDe(contenu), iso());
+      q.purger.run(new Date(maintenant().getTime() - 90 * 86400000).toISOString()); // 90 jours gardés
+    },
+    liste(n = 100) { return q.liste.all(n); },
+    nonLues() { return q.nonLues.get().n; },
+    toutLu() { q.toutLu.run(iso()); },
+
+    rappels() { return q.rappels.all().map((r) => ({ ...r, jours: r.jours ? r.jours.split(',').map(Number) : [] })); },
+    creer({ texte, frequence, jours, date, heure }) {
+      const t = String(texte || '').trim().slice(0, 300);
+      if (!t) return { erreur: 'Écris ton rappel.' };
+      if (!FREQUENCES.includes(frequence)) return { erreur: 'Choisis quand le rappel revient.' };
+      if (!HEURE.test(String(heure || ''))) return { erreur: 'Choisis une heure.' };
+      const liste = [].concat(jours || []).map(Number).filter((j) => Number.isInteger(j) && j >= 0 && j <= 6);
+      if (frequence === 'semaine' && !liste.length) return { erreur: 'Choisis au moins un jour de la semaine.' };
+      if (frequence === 'une-fois' && !DATE.test(String(date || ''))) return { erreur: 'Choisis la date du rappel.' };
+      q.creer.run(t, frequence, frequence === 'semaine' ? [...new Set(liste)].sort().join(',') : null, frequence === 'une-fois' ? date : null, heure, iso());
+      return { ok: true };
+    },
+    supprimer(id) { q.supprimer.run(Number(id)); },
+    basculer(id) { q.basculer.run(Number(id)); },
+    // Rappels à envoyer maintenant (heure GMT atteinte, pas encore envoyés pour cette occurrence, dans l'heure).
+    dus(now = maintenant()) {
+      const jour = now.toISOString().slice(0, 10);
+      const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+      return q.actifs.all().filter((r) => {
+        const [h, m] = r.heure.split(':').map(Number);
+        const a = h * 60 + m;
+        if (minutes < a || minutes >= a + 60) return false;
+        if (r.frequence === 'une-fois' && r.date !== jour) return false;
+        if (r.frequence === 'semaine' && !String(r.jours || '').split(',').map(Number).includes(now.getUTCDay())) return false;
+        return !r.dernier_envoi || r.dernier_envoi.slice(0, 10) !== jour;
+      });
+    },
+    marquerEnvoye(id) { q.envoye.run(iso(), Number(id)); },
+  };
+}
+
+module.exports = { creerNotifsAdmin, texteDe, lienDe, MODELES, JOURS };

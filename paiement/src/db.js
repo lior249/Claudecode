@@ -533,6 +533,31 @@ function migrerV20(db) {
   PRAGMA user_version = 20;`);
 }
 
+// v21 : espace notifications du coach. Journal des messages de Bob (lu / non lu) et rappels qu'il se crée lui-même.
+function migrerV21(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 21) return;
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications_admin (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    texte   TEXT NOT NULL,
+    lien    TEXT,                             -- page du site à ouvrir (chemin), si le message avait un bouton
+    cree_le TEXT NOT NULL,
+    lu_le   TEXT
+  );
+  CREATE TABLE IF NOT EXISTS rappels_admin (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    texte         TEXT NOT NULL,
+    frequence     TEXT NOT NULL,              -- une-fois | jour | semaine
+    jours         TEXT,                       -- semaine : 0 (dimanche) à 6, séparés par des virgules
+    date          TEXT,                       -- une-fois : AAAA-MM-JJ
+    heure         TEXT NOT NULL,              -- HH:MM, heure GMT
+    actif         INTEGER NOT NULL DEFAULT 1,
+    dernier_envoi TEXT,
+    cree_le       TEXT NOT NULL
+  );
+  PRAGMA user_version = 21;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -562,6 +587,7 @@ function ouvrirBase(fichier) {
   migrerV18(db);
   migrerV19(db);
   migrerV20(db);
+  migrerV21(db);
   return db;
 }
 

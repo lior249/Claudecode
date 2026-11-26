@@ -164,4 +164,73 @@ function pageNotifications(config, { espace, clePublique, canal, appareils = [],
   ${fenetreTutoBob(config, { rejoindre: false })}`, espace, 'notifications', { script });
 }
 
-module.exports = { pageNotifications, blocInstallation, SCRIPT_OUTILS_APP, STYLE_NOTIF };
+// ---------- Espace notifications du coach : deux onglets, Notifications et Mes rappels ----------
+const STYLE_ADMIN_NOTIF = `<style>
+  .onglets-admin { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:999px; background:var(--surface-2, #151515); margin:0 0 18px; max-width:520px; }
+  .onglets-admin a { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:999px; color:var(--doux); font-weight:700; font-size:14px; text-decoration:none; }
+  .onglets-admin a[aria-current] { background:#fff; color:#000; }
+  .onglets-admin b { display:inline-grid; place-items:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:#ff8a00; color:#000; font-size:11px; }
+  .nf-liste { display:grid; gap:8px; max-width:760px; }
+  .nf { display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:16px; background:var(--surface); border:1px solid var(--bord); }
+  .nf.nouvelle { border-color:#3a3a3a; background:#141414; }
+  .nf .pt { flex:none; width:9px; height:9px; margin-top:7px; border-radius:50%; background:transparent; } .nf.nouvelle .pt { background:#ff8a00; }
+  .nf .corps { flex:1; min-width:0; } .nf p { margin:0; white-space:pre-line; overflow-wrap:anywhere; font-size:14.5px; }
+  .nf small { color:var(--doux); font-size:12.5px; } .nf a.ouvrir { flex:none; align-self:center; font-size:13px; font-weight:700; color:#fff; padding:7px 12px; border:1px solid var(--bord-fort); border-radius:999px; text-decoration:none; }
+  .rp-form { display:grid; gap:12px; max-width:560px; }
+  .rp-form .ligne { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .rp-jours { display:flex; flex-wrap:wrap; gap:6px; } .rp-jours label { display:inline-flex; align-items:center; gap:6px; padding:7px 11px; border:1px solid var(--bord-fort); border-radius:999px; font-size:13px; cursor:pointer; }
+  .rp-modeles { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 4px; } .rp-modeles button { padding:7px 12px; border-radius:999px; border:1px dashed var(--bord-fort); background:transparent; color:#fff; font:600 12.5px var(--police); cursor:pointer; }
+  .rp { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px; background:var(--surface); border:1px solid var(--bord); }
+  .rp.pause { opacity:.55; } .rp .corps { flex:1; min-width:0; } .rp b { display:block; overflow-wrap:anywhere; } .rp small { color:var(--doux); }
+  .rp form { margin:0; } .rp .bouton { margin:0; width:auto; min-height:34px; padding:5px 12px; font-size:12.5px; }
+</style>`;
+const quandRappel = (r, JOURS) => (r.frequence === 'jour' ? `Chaque jour à ${r.heure} GMT`
+  : r.frequence === 'semaine' ? `${r.jours.map((j) => JOURS[j]).join(', ')} à ${r.heure} GMT` : `Le ${r.date.split('-').reverse().join('/')} à ${r.heure} GMT`);
+const SCRIPT_RAPPELS = `(function () {
+  var f = document.querySelector('.rp-form'); if (!f) return;
+  function maj() { var v = f.frequence.value; f.querySelector('[data-pour="semaine"]').hidden = v !== 'semaine'; f.querySelector('[data-pour="une-fois"]').hidden = v !== 'une-fois'; }
+  f.frequence.addEventListener('change', maj); maj();
+  document.querySelectorAll('[data-modele]').forEach(function (b) { b.addEventListener('click', function () {
+    var m = JSON.parse(b.getAttribute('data-modele'));
+    f.texte.value = m.texte; f.frequence.value = m.frequence; f.heure.value = m.heure;
+    f.querySelectorAll('input[name="jours"]').forEach(function (c) { c.checked = (m.jours || []).indexOf(Number(c.value)) >= 0; });
+    maj(); f.texte.focus();
+  }); });
+})();`;
+function pageNotificationsAdmin(config, { espace, onglet, notifications = [], nonLues = 0, rappels = [], modeles = [], JOURS = [], message, erreur }) {
+  const formatHeure = (iso) => new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' GMT';
+  const tabs = `<nav class="onglets-admin" aria-label="Notifications">
+    <a href="/notifications"${onglet === 'notifications' ? ' aria-current="page"' : ''}>Notifications${nonLues ? `<b>${nonLues}</b>` : ''}</a>
+    <a href="/notifications?onglet=rappels"${onglet === 'rappels' ? ' aria-current="page"' : ''}>Mes rappels</a></nav>`;
+  const corps = onglet === 'rappels' ? `
+    <form class="carte rp-form" method="post" action="/admin/rappels">
+      <h2 style="margin:0">Nouveau rappel</h2>
+      <div class="rp-modeles">${modeles.map((m) => `<button type="button" data-modele="${echapper(JSON.stringify(m))}">+ ${echapper(m.texte)}</button>`).join('')}</div>
+      <div class="champ"><label for="texte">Le rappel</label><input id="texte" name="texte" maxlength="300" placeholder="ex. Vérifier les coachings du jour" required></div>
+      <div class="ligne">
+        <div class="champ"><label for="frequence">Quand</label><select id="frequence" name="frequence">
+          <option value="jour">Chaque jour</option><option value="semaine">Certains jours</option><option value="une-fois">Une seule fois</option></select></div>
+        <div class="champ"><label for="heure">Heure (GMT)</label><input id="heure" name="heure" type="time" value="09:00" required></div>
+      </div>
+      <div class="rp-jours" data-pour="semaine" hidden>${JOURS.map((j, i) => ({ j, i })).slice(1).concat([{ j: JOURS[0], i: 0 }])
+    .map(({ j, i }) => `<label><input type="checkbox" name="jours" value="${i}">${echapper(j)}</label>`).join('')}</div>
+      <div class="champ" data-pour="une-fois" hidden><label for="date">Date</label><input id="date" name="date" type="date"></div>
+      ${erreur ? `<p class="erreur-form" style="margin:0">${echapper(erreur)}</p>` : ''}
+      <button class="bouton" type="submit" style="margin:0">Ajouter le rappel</button>
+      <p class="doux petit" style="margin:0">Bob te l'envoie à l'heure choisie, dans l'application ou sur Discord selon ton réglage.</p>
+    </form>
+    <h2 style="font-size:16px;margin:22px 0 10px">Mes rappels (${rappels.length})</h2>
+    <div class="nf-liste">${rappels.map((r) => `<div class="rp${r.actif ? '' : ' pause'}"><div class="corps"><b>${echapper(r.texte)}</b><small>${echapper(quandRappel(r, JOURS))}${r.actif ? '' : ' · en pause'}</small></div>
+      ${r.frequence === 'une-fois' && !r.actif && r.dernier_envoi ? '' : `<form method="post" action="/admin/rappels/${r.id}/basculer"><button class="bouton secondaire" type="submit">${r.actif ? 'Pause' : 'Reprendre'}</button></form>`}
+      <form method="post" action="/admin/rappels/${r.id}/supprimer"><button class="bouton secondaire" type="submit" aria-label="Supprimer">Supprimer</button></form></div>`).join('')
+      || '<p class="vide-traiter">Aucun rappel. Crée-en un avec le formulaire, ou une des idées en un clic.</p>'}</div>`
+    : `<div class="nf-liste">${notifications.map((n) => `<div class="nf${n.lu_le ? '' : ' nouvelle'}"><span class="pt"></span>
+      <div class="corps"><p>${echapper(n.texte)}</p><small>${echapper(formatHeure(n.cree_le))}</small></div>
+      ${n.lien ? `<a class="ouvrir" href="${echapper(n.lien)}">Ouvrir</a>` : ''}</div>`).join('') || '<p class="vide-traiter">Aucune notification pour le moment.</p>'}</div>
+    <p class="doux petit" style="margin:18px 0 0"><a href="/notifications?onglet=reglages">Réglages : application et notifications sur ce téléphone</a></p>`;
+  return pageEspace('Notifications', `${STYLE_ADMIN_NOTIF}
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Notifications</h1></div></div>
+  ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${tabs}${corps}`, espace, 'notifications', onglet === 'rappels' ? { script: SCRIPT_RAPPELS } : {});
+}
+
+module.exports = { pageNotifications, pageNotificationsAdmin, blocInstallation, SCRIPT_OUTILS_APP, STYLE_NOTIF };

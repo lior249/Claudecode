@@ -205,6 +205,8 @@ function pageCommunaute(config, { espace, suivis, concurrents, recues, envoyees,
   <a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
   <div class="titre-page"><div><p class="etiquette">Communauté</p><h1>Ceux qui te motivent</h1></div><span class="doux petit">${places} / 10 places</span></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <a class="bouton secondaire" href="/classement" style="max-width:420px">Trouver des membres dans le classement</a>
+  <p class="doux petit" style="margin:6px 0 0">Ouvre le profil d'un membre du classement, puis Suivre ou Défier.</p>
   ${recues.length ? `<section class="cm-section"><h2>Invitations à concourir</h2><p>Le premier qui atteint l'objectif gagne. Un concurrent prend une de tes 10 places.</p>
     <div class="cm-liste">${recues.map((c) => ligne(c.membre, `${bouton(`/communaute/concurrences/${c.id}`, 'Refuser', { reponse: 'non' })}${bouton(`/communaute/concurrences/${c.id}`, 'Accepter', { reponse: 'oui' }, 'vert')}`,
     `Premier à ${dollars(c.objectif, { centimes: false })}`)).join('')}</div></section>` : ''}
@@ -219,7 +221,7 @@ function pageCommunaute(config, { espace, suivis, concurrents, recues, envoyees,
   <section class="cm-section"><h2>Je suis (${suivis.length})</h2><p>Tu reçois leurs nouveaux résultats : l'argent gagné, sinon les vues.</p>
     <div class="cm-liste">${suivis.map((s) => ligne(s.membre, s.type === 'concurrent' ? '<span class="doux petit">Concurrent</span>' : bouton('/communaute/ne-plus-suivre', 'Ne plus suivre', { id: s.membre.id }),
     `${s.membre.role ? echapper(nomRole(s.membre.role)) : 'Elite'}${flammeTxt(s.membre.chaine)}`)).join('') || '<p class="vide-traiter">Tu ne suis personne pour le moment.</p>'}</div></section>
-  <section class="cm-section"><h2>En vogue</h2><p>Les meilleurs résultats de la semaine. Places prises ? Retire quelqu'un qui ne poste plus, puis suis-les.</p>
+  <section class="cm-section"><h2>Recommandés</h2><p>En vogue : les meilleurs résultats de la semaine. Places prises ? Retire quelqu'un qui ne poste plus, puis suis-les.</p>
     <div class="cm-liste">${enVogue.map((x) => ligne(x.membre, places >= 10 ? '' : bouton('/communaute/suivre', 'Suivre', { id: x.membre.id }, 'vert'),
     `${dollars(x.revenus, { centimes: false })} · ${vuesCourtes(x.vues)} vues cette semaine${flammeTxt(x.chaine)}`)).join('') || '<p class="vide-traiter">Pas encore de résultats cette semaine.</p>'}</div></section>`, espace, 'communaute');
 }
