@@ -79,7 +79,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
     const aTraiterParcours = estAdmin
-      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + ressources.enAttente().length + aTraiter : 0;
+      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + ressources.enAttente().length + (() => { const v = parcours.aValider(); return v.positionnements.length + v.comptes.length + v.demandes.length; })() + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
     const c = !estAdmin && session ? compteursMembre(session.id) : { notifs: 0, remarques: 0 };
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
@@ -1034,7 +1034,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!x) return;
     if (x.p.etape < 3) return res.redirect(303, '/parcours');
     const r = parcours.choisirStrategie(x.session.id, { niche: req.body.niche, methode: req.body.methode, pays: req.body.pays });
-    if (!r.erreur) prevenir('activiteEleve', r.parcours, 'a choisi sa **stratégie** (niche, méthode 10K, pays).', `/admin/membres/${encodeURIComponent(x.session.id)}/profil`);
+    if (!r.erreur && r.envoye) prevenir('activiteEleve', r.parcours, 'a envoyé son **positionnement** (niche, méthode 10K, pays) : à valider.', `/admin/membres/${encodeURIComponent(x.session.id)}#positionnement`);
     res.redirect(303, r.erreur ? `/parcours/etape-3?erreur=${encodeURIComponent(r.erreur)}#strategie` : '/parcours/etape-3?fait=strategie#strategie');
   });
   // Envoi en deux temps : les informations (note et retour de l'IA à l'étape 1), puis la vidéo.
@@ -1134,8 +1134,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const { lienCompte } = require('./tiktok');
     const l = lienCompte(req.body.compte);
     if (!l) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: 'Colle le lien de ton profil TikTok, par exemple https://www.tiktok.com/@ton.compte.' })); return; }
-    parcours.majCompte(x.session.id, { compte: l });
-    prevenir('activiteEleve', parcours.get(x.session.id), `a ajouté son **compte TikTok** : ${l}`);
+    const r = parcours.envoyerCompte(x.session.id, l);
+    if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
+    prevenir('activiteEleve', r.parcours, `a ${r.changement ? 'changé' : 'envoyé'} son **compte TikTok** : ${l}\nÀ valider.`, `/admin/membres/${encodeURIComponent(x.session.id)}#compte`);
     res.redirect(303, '/parcours/etape-4?ok=compte');
   });
   app.post('/parcours/etape-4/publication', formulaire, (req, res) => {
@@ -1432,7 +1433,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const profil = qProfils.get.get(session.id) || {};
     const p = parcours.get(session.id);
     res.send(PF.pageReglages(config, { espace: espaceDe(session), prenom: profil.prenom, pays: profil.pays, parcours: Boolean(p && !p.retire_le), etape: p ? p.etape : 0, compteTikTok: p && p.compte_tiktok,
-      message: { profil: 'Profil enregistré.', tiktok: 'Lien du compte enregistré.' }[req.query.fait], erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+      compte: { valide: Boolean(p && p.compte_valide_le), autorise: Boolean(p && p.compte_change_autorise), demande: Boolean(p && p.compte_demande_le) },
+      message: { profil: 'Profil enregistré.', tiktok: 'Lien envoyé : ton coach le valide.', demande: 'Demande envoyée à ton coach.' }[req.query.fait], erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
   app.post('/reglages/profil', formulaire, (req, res) => {
     const session = connecte(req, res, '/reglages', 'Réglages');
@@ -1449,9 +1451,19 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const brut = String(req.body.compte || '').trim();
     if (!p || p.retire_le) return res.redirect(303, '/reglages');
     if (!brut || lienCompte(brut) === undefined) return res.redirect(303, `/reglages?erreur=${encodeURIComponent('Colle le lien de ton profil TikTok (https://www.tiktok.com/@ton.compte).')}`);
-    parcours.majCompte(session.id, { compte: brut });
-    prevenir('activiteEleve', parcours.get(session.id), `a modifié son **compte TikTok** : ${lienCompte(brut) || brut}`);
+    const r = parcours.envoyerCompte(session.id, lienCompte(brut) || brut);
+    if (r.erreur) return res.redirect(303, `/reglages?erreur=${encodeURIComponent(r.erreur)}`);
+    prevenir('activiteEleve', r.parcours, `a ${r.changement ? 'changé' : 'envoyé'} son **compte TikTok** : ${lienCompte(brut) || brut}\nÀ valider.`, `/admin/membres/${encodeURIComponent(session.id)}#compte`);
     return res.redirect(303, '/reglages?fait=tiktok');
+  });
+  // Compte validé : l'élève demande un changement (compte bloqué, shadowban…) ; le coach l'autorise ou non.
+  app.post('/reglages/tiktok/demande', formulaire, (req, res) => {
+    const session = connecte(req, res, '/reglages', 'Réglages');
+    if (!session) return;
+    const r = parcours.demanderChangementCompte(session.id, req.body.motif);
+    if (r.erreur) return res.redirect(303, `/reglages?erreur=${encodeURIComponent(r.erreur)}`);
+    prevenir('activiteEleve', r.parcours, `demande à **changer de compte TikTok** :\n${r.parcours.compte_demande}`, `/admin/membres/${encodeURIComponent(session.id)}#compte`);
+    return res.redirect(303, '/reglages?fait=demande');
   });
   app.get('/profil', (req, res) => {
     const x = membreParcours(req, res, '/profil', { sinistreOk: true });
@@ -1676,7 +1688,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // Réalisations : les vidéos de l'étape 3 (jusqu'au passage à l'étape 4) et les vidéos relues de l'étape 4 (les 3 dernières).
   const realisationsDe = (id) => [...((parcours.get(id) || {}).etape <= 3 ? parcours.soumissions(id, 3) : []), ...parcours.soumissions(id, 4).slice().sort((a, b) => String(b.cree_le).localeCompare(String(a.cree_le)))]
     .filter((x) => x.etat !== 'brouillon').map((x) => ({ ...x, remarque: (parcours.remarquesDe(x.id) || [])[0] || null }));
-  const donneesFiche = (id) => ({ realisations: realisationsDe(id), stats: suivi.stats(id), recompenses: suivi.recompenses(id), sinistre: sinistres.enCours(id),
+  const donneesFiche = (id) => ({ realisations: realisationsDe(id), strategie: parcours.strategie(id), stats: suivi.stats(id), recompenses: suivi.recompenses(id), sinistre: sinistres.enCours(id),
     historique: sinistres.historique(id), joursAbsence: sinistres.joursAbsence(id) });
   app.get('/fiche', (req, res) => {
     const x = membreParcours(req, res, '/fiche', { sinistreOk: true });
@@ -1708,6 +1720,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       comptesRendus: suivi.enAttente(), resultats: suivi.resultatsEnAttente(), fichesSinistre: sinistres.fichesATraiter(), roles: suivi.aConfirmer(),
       acces: acces.enAttente(), accesRefuses: acces.refuses(), nomsOffres: Object.fromEntries(Object.values(config.offres).map((o) => [o.id, o.nom])),
       ressources: ressources.enAttente().map((r) => ({ ...r, nom: nomAuteur(r.auteur), titre: RS.titreDe(r) })),
+      aValider: parcours.aValider(),
       messagesRecus: messages.recusATraiter().map((m) => ({ ...m, nom: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id })),
       // Toutes les notifications non lues du coach (sauf les messages d'élèves, déjà dans la liste).
       notifications: notifsAdmin.nonLuesListe(100).filter((n) => !String(n.lien || '').startsWith('/admin/messages-recus/')),
@@ -1855,7 +1868,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, `/admin/membres/${encodeURIComponent(req.params.id)}`)) return;
     const p = ficheDe(req, res);
     if (!p) return;
-    const message = { remarque: 'Message envoyé : il le voit dans ses Remarques, et Bob l\'a prévenu.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.',
+    const message = { positionnement: 'Positionnement validé : verrouillé pour l\'élève, Bob l\'a prévenu.', 'compte-valide': 'Compte TikTok validé : verrouillé pour l\'élève.',
+      changement: 'Changement de compte autorisé : l\'élève peut envoyer un nouveau lien une fois.', refus: 'Changement refusé : il garde son compte.',
+      remarque: 'Message envoyé : il le voit dans ses Remarques, et Bob l\'a prévenu.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.',
       recompense: 'Rôle confirmé. Bob le donne et prévient le membre.', precisions: 'Précisions demandées. Bob a prévenu le membre.', rehabiliter: 'Membre réhabilité : Bob lui rend le rôle Elite.',
       declarer: 'Sinistre déclaré. Bob l\'a prévenu.', retirer: 'Sinistres retirés : jours d\'absence rendus sur ses 90 jours.' }[req.query.fait] || req.query.erreur || null;
     res.send(V.pageFiche(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, parcours: p, remarques: parcours.remarques(p.discord_id), choix: choixStrategie(),
@@ -1874,17 +1889,46 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const p = ficheDe(req, res);
     if (!p) return;
     const vide = (v) => (v === undefined || v === null || String(v) === '' ? undefined : String(v));
-    const st = parcours.choisirStrategie(p.discord_id, { niche: vide(req.body.niche), methode: vide(req.body.methode), pays: vide(req.body.pays) });
+    const st = parcours.choisirStrategie(p.discord_id, { niche: vide(req.body.niche), methode: vide(req.body.methode), pays: vide(req.body.pays) }, { coach: true });
     if (st.erreur) return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?erreur=${encodeURIComponent(st.erreur)}`);
-    const champs = p.etape >= 4 && typeof req.body.compte === 'string' ? { compte: req.body.compte } : {};
+    const champs = p.etape >= 4 && typeof req.body.compte === 'string' && req.body.compte.trim() ? { compte: req.body.compte } : {};
     if (req.body.ouvrir === '3') {
       const r = parcours.ouvrirEtape3(p.discord_id, champs);
       if (!r.erreur) prevenir('etapeOuverte', r.parcours, 3);
       res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=etape3`);
       return;
     }
-    parcours.majCompte(p.discord_id, champs);
+    if (champs.compte) { parcours.majCompte(p.discord_id, champs); parcours.validerCompte(p.discord_id); }
     res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=compte`);
+  });
+  // Positionnement et compte TikTok : le coach valide (verrouillé pour l'élève), autorise ou refuse un changement de compte.
+  app.post('/admin/membres/:id/positionnement/valider', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const r = parcours.validerPositionnement(p.discord_id);
+    if (r.erreur) return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?erreur=${encodeURIComponent(r.erreur)}#positionnement`);
+    prevenir('messageEleve', r.parcours, '**Ton positionnement est validé** : niche, méthode 10K et pays. C\'est avec lui que ton coach t\'accompagne.', '/parcours/etape-3#strategie');
+    return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=positionnement#positionnement`);
+  });
+  app.post('/admin/membres/:id/compte/valider', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const r = parcours.validerCompte(p.discord_id);
+    if (r.erreur) return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?erreur=${encodeURIComponent(r.erreur)}#compte`);
+    prevenir('messageEleve', r.parcours, '**Ton compte TikTok est validé.** C\'est celui que ton coach suit.', '/parcours/etape-4');
+    return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=compte-valide#compte`);
+  });
+  app.post('/admin/membres/:id/compte/changement', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const oui = req.body.decision === 'autoriser';
+    const r = parcours.deciderChangementCompte(p.discord_id, oui);
+    prevenir('messageEleve', r.parcours, oui ? '**Ton coach autorise le changement de compte TikTok.** Envoie le lien du nouveau compte (Réglages).'
+      : '**Ton coach garde ton compte TikTok actuel.** Écris-lui si tu as une question.', oui ? '/reglages' : '/remarques');
+    return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=${oui ? 'changement' : 'refus'}#compte`);
   });
   app.get('/admin/membres/:id/profil', (req, res) => {
     if (!estAdmin(req, res, `/admin/membres/${encodeURIComponent(req.params.id)}/profil`)) return;
@@ -1951,12 +1995,14 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       id: p.discord_id, nom: p.nom || p.pseudo || p.discord_id, pseudo: p.pseudo, etape: p.etape,
       jour: Math.min(90, Math.max(1, Math.floor((maintenant - new Date(p.entree_le)) / 864e5) + 1)),
       compte: p.compte_tiktok, niche: p.niche, pays: p.pays_cible || p.pays, niveau: p.niveau, nicheId: p.niche_id, methodeId: p.methode_id, paysCible: p.pays_cible,
+      // Plus il a rempli (niveau, positionnement, compte, vidéos, revenus), plus il monte dans sa colonne.
+      score: [p.niveau, p.niche_id, p.methode_id, p.pays_cible, p.positionnement_valide_le, p.compte_tiktok, p.compte_valide_le, p.etape3_le].filter(Boolean).length,
       sinistre: Boolean(p.sinistre_depuis), sinistres: p.sinistres || 0, retard: retards.has(p.discord_id), aTraiter: compte[p.discord_id] || 0,
       forcees: JSON.parse(p.etapes_forcees || '[]'), tache: p.etape <= 4 ? (parcours.tache(p.discord_id) || {}).titre : null,
       manquants: parcours.manquants(p.discord_id), entree: (p.entree_le || '').slice(0, 10),
       // Vue liste : revenus, vidéos, régularité (chaîne et jours avec un compte rendu), rang.
       ...(() => { const st = suivi.stats(p.discord_id) || {}; const r = roleLePlusHaut(suivi.recompenses(p.discord_id));
-        return { revenus: st.revenusTotal || 0, videos: st.videosPubliees || 0, joursCr: commandes.db.prepare('SELECT COUNT(*) n FROM comptes_rendus WHERE discord_id = ? AND envoye_le IS NOT NULL').get(p.discord_id).n,
+        return { revenus: st.revenusTotal || 0, videos: st.videosPubliees || 0, scoreActivite: (st.videosPubliees ? 1 : 0) + (st.revenusTotal ? 1 : 0), joursCr: commandes.db.prepare('SELECT COUNT(*) n FROM comptes_rendus WHERE discord_id = ? AND envoye_le IS NOT NULL').get(p.discord_id).n,
           chaine: communaute.chaine(p.discord_id), role: p.sinistre_depuis ? 'sinistre' : r || 'elite', rang: ['elite', 'goat', '1500', '5000', '10000'].indexOf(r || 'elite') }; })(),
     })).sort((x, y) => x.nom.localeCompare(y.nom, 'fr'));
   }
@@ -1987,9 +2033,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const b = req.body || {};
     // Niche, méthode et pays : choisis dans les listes (ressources publiques, 8 pays) ; compte TikTok à partir de l'étape 4.
     const vide = (v) => (v === undefined || v === null || String(v) === '' ? undefined : String(v));
-    const r = parcours.choisirStrategie(req.params.id, { niche: vide(b.niche), methode: vide(b.methode), pays: vide(b.pays) });
+    const r = parcours.choisirStrategie(req.params.id, { niche: vide(b.niche), methode: vide(b.methode), pays: vide(b.pays) }, { coach: true });
     if (r.erreur) { res.status(400).json(r); return; }
-    if (typeof b.compte === 'string' && b.compte.trim()) parcours.majCompte(req.params.id, { compte: b.compte });
+    if (typeof b.compte === 'string' && b.compte.trim()) { parcours.majCompte(req.params.id, { compte: b.compte }); parcours.validerCompte(req.params.id); }
     res.json({ ok: true });
   });
   app.post('/admin/eleves/ajouter', formulaire, async (req, res) => {

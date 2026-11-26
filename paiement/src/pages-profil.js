@@ -332,7 +332,7 @@ function pageRevenus(config, { espace, tableau, stats, objectif }) {
 }
 
 // Réglages : prénom et pays, lien du compte TikTok, notifications, compte.
-function pageReglages(config, { espace, prenom, pays, compteTikTok, parcours: aUnParcours, etape = 0, message, erreur }) {
+function pageReglages(config, { espace, prenom, pays, compteTikTok, parcours: aUnParcours, etape = 0, compte = {}, message, erreur }) {
   return page('Réglages', `<a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
   <div class="titre-page"><div><p class="etiquette">Mon compte</p><h1>Réglages</h1></div></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
@@ -343,12 +343,21 @@ function pageReglages(config, { espace, prenom, pays, compteTikTok, parcours: aU
       <div class="champ"><label for="pays">Pays</label><input id="pays" name="pays" maxlength="60" value="${echapper(pays || '')}"></div>
       <button class="bouton" type="submit" style="margin:0">Enregistrer</button>
     </form>
-    ${aUnParcours && etape >= 4 ? `<form class="carte" method="post" action="/reglages/tiktok" style="display:grid;gap:12px">
-      <h2 style="margin:0">Mon compte TikTok</h2>
-      <div class="champ"><label for="compte">Lien de mon compte</label><input id="compte" name="compte" inputmode="url" value="${echapper(compteTikTok || '')}" placeholder="https://www.tiktok.com/@ton.compte">
-        <small>Sur TikTok : ton profil › Partager le profil › Copier le lien.</small></div>
-      <button class="bouton" type="submit" style="margin:0">Enregistrer</button>
-    </form>` : ''}
+    ${aUnParcours && etape >= 4 ? (compte.valide && !compte.autorise
+    ? `<div class="carte" style="display:grid;gap:10px"><div class="envoi-tete"><h2 style="margin:0">Mon compte TikTok</h2><span class="etat" data-etat="valide">Validé</span></div>
+      <p style="margin:0;overflow-wrap:anywhere">${echapper(compteTikTok || '')}</p>
+      ${compte.demande ? `<p class="doux petit" style="margin:0">Demande de changement envoyée : ton coach va répondre.</p>`
+    : `<details><summary class="doux petit" style="cursor:pointer">Demander un changement de compte</summary>
+        <form method="post" action="/reglages/tiktok/demande" style="display:grid;gap:10px;margin-top:10px">
+          <textarea name="motif" maxlength="1000" required placeholder="Pourquoi ? ex. Mon compte est shadowban depuis une semaine."></textarea>
+          <button class="bouton secondaire" type="submit" style="margin:0">Envoyer la demande au coach</button></form></details>`}</div>`
+    : `<form class="carte" method="post" action="/reglages/tiktok" style="display:grid;gap:12px">
+      <h2 style="margin:0">Mon compte TikTok${compte.autorise ? ' : nouveau compte' : ''}</h2>
+      ${compte.autorise ? '<p class="message-ok" style="margin:0">Ton coach autorise le changement : envoie le lien du nouveau compte.</p>' : ''}
+      <div class="champ"><label for="compte">Lien de mon compte</label><input id="compte" name="compte" inputmode="url" value="${compte.autorise ? '' : echapper(compteTikTok || '')}" placeholder="https://www.tiktok.com/@ton.compte">
+        <small>Sur TikTok : ton profil › Partager le profil › Copier le lien. Ton coach le valide ensuite.</small></div>
+      <button class="bouton" type="submit" style="margin:0">Envoyer</button>
+    </form>`) : ''}
     <div class="carte"><h2 style="margin:0 0 6px">Notifications et application</h2><p class="doux petit" style="margin:0 0 4px">Bob ou l'application, tes appareils, installer l'application.</p>
       <a class="bouton secondaire" href="/notifications">Régler mes notifications</a></div>
     <div class="carte"><h2 style="margin:0 0 6px">Coachings</h2><p class="doux petit" style="margin:0 0 4px">Tes créneaux et ton rappel avant chaque séance.</p>

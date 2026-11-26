@@ -568,3 +568,20 @@ ou sur **overmaxx.online/admin/candidatures**.
     - compte TikTok ajouté ou changé ;
     - heures choisies, stratégie choisie ;
     - messages, propositions de ressources, coachings réservés ou déplacés.
+
+## Positionnement et compte validés par le coach ; tableau des élèves allégé
+
+- **Positionnement** (niche, méthode 10K, pays) : l'élève l'envoie à l'étape 3.
+  - Sur sa fiche : rouge (pas envoyé), jaune (envoyé, à valider), vert (acté).
+  - Tu le valides (À traiter ou sa fiche) : il est verrouillé, l'élève ne peut plus le changer.
+  - Toi, tu peux toujours le modifier avec « Modifier ».
+- **Compte TikTok** : l'élève l'envoie à l'étape 4, tu le valides, il est verrouillé.
+  - En cas de problème (shadowban…), l'élève demande un changement depuis ses Réglages, avec la raison.
+  - Tu autorises (il envoie un nouveau lien une fois, puis tu revalides) ou tu gardes l'ancien.
+- **Fiche** : plus de formulaires ouverts. Des états en couleur, et « Modifier » pour ouvrir le formulaire.
+- **Tableau des élèves** :
+  - colonnes séparées par des lignes verticales ;
+  - cartes allégées, sans niche ni compte ;
+  - plus de bouton « Déplacer » : sur ordinateur on glisse, sur téléphone appui long puis on glisse ;
+  - « Compléter » apparaît seulement s'il manque quelque chose ;
+  - dans chaque colonne, les élèves les plus complets sont en haut.

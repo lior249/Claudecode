@@ -630,16 +630,23 @@ function blocStrategie({ strategie: st = {}, niches = [], methodes = [], pays = 
     return `<option value="${r.id}"${choisi && choisi.id === r.id ? ' selected' : ''}${interdite ? ' disabled' : ''}>${echapper(nom(r))}${interdite ? ' (L2 : pas pour ton profil L1)' : r.etat === 'attente' ? ' (en attente du coach)' : ''}</option>`;
   }).join('');
   const nomMethode = (r) => r.titre || `Méthode ${({ video: 'vidéo', carrousel: 'carrousel', cta: 'CTA' })[r.categorie] || ''}${r.pour ? ` · ${r.pour === 'L1L2' ? 'L1 et L2' : r.pour}` : ''}`;
+  // Validé par le coach : affiché, plus modifiable.
+  if (st.valide) {
+    return `<div class="carte" id="strategie"><div class="envoi-tete"><h2>Mon positionnement</h2><span class="etat" data-etat="valide">${ICONE.ok}Acté</span></div>
+      <dl class="details" style="margin-top:8px"><div><dt>Niche</dt><dd>${echapper((st.niche || {}).titre || '—')}</dd></div>
+        <div><dt>Méthode 10K</dt><dd>${echapper(st.methode ? nomMethode(st.methode) : '—')}</dd></div><div><dt>Pays visé</dt><dd>${echapper(st.pays || '—')}</dd></div></dl>
+      <p class="doux petit" style="margin:8px 0 0">Validé par ton coach : c'est avec ce positionnement qu'il t'accompagne. Il ne se change plus.</p></div>`;
+  }
   return `<form class="carte" id="strategie" method="post" action="/parcours/etape-3/strategie" style="display:grid;gap:12px">
-    <div class="envoi-tete"><h2>Ma stratégie</h2>${st.complete ? `<span class="etat" data-etat="valide">${ICONE.ok}Choisie</span>` : '<span class="etat" data-etat="corriger">À choisir</span>'}</div>
+    <div class="envoi-tete"><h2>Mon positionnement</h2>${st.envoye ? '<span class="etat" data-etat="attente">Envoyé · à valider</span>' : '<span class="etat" data-etat="corriger">À envoyer</span>'}</div>
     ${message ? `<p class="message-ok" style="margin:0">${echapper(message)}</p>` : ''}
-    <p class="doux petit" style="margin:0">Seul ton coach voit tes choix. Ils se changent à tout moment ; regarde les <a href="/ressources">Ressources</a> pour comparer.</p>
+    <p class="doux petit" style="margin:0">Seul ton coach voit tes choix. Une fois validés par lui, ils ne se changent plus : regarde bien les <a href="/ressources">Ressources</a> avant.</p>
     <div class="champ"><label for="niche">Ma niche</label><select id="niche" name="niche" required><option value="">Choisis ta niche</option>${opt(niches, st.niche, (r) => r.titre)}</select>
       <small><a href="/ressources/nouvelle?type=niche&amp;retour=etape-3">+ Ajouter ma niche</a> : elle sera relue par le coach.</small></div>
     <div class="champ"><label for="methode">Ma méthode pour 10K abonnés</label><select id="methode" name="methode" required><option value="">Choisis ta méthode</option>${opt(methodes, st.methode, nomMethode)}</select></div>
     <div class="champ"><label for="pays-cible">Le pays que je vise</label><select id="pays-cible" name="pays" required><option value="">Choisis un pays</option>
       ${pays.map((x) => `<option value="${echapper(x)}"${st.pays === x ? ' selected' : ''}>${drapeaux[x] || ''} ${echapper(x)}</option>`).join('')}</select></div>
-    <button class="bouton" type="submit" style="margin:0">Enregistrer ma stratégie</button></form>`;
+    <button class="bouton" type="submit" style="margin:0">${st.envoye ? 'Modifier mon positionnement' : 'Envoyer mon positionnement'}</button></form>`;
 }
 function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarquesDe, coachings, maxMo, strategie = null }) {
   const fini = p.etape > 3;
@@ -707,7 +714,38 @@ function blocRealisations(liste, { vueCoach }) {
     : x.etat !== 'valide' ? `<a class="bouton secondaire" href="/parcours/etape-${x.etape === 4 ? '4#avis' : '3'}" style="margin-top:10px">${x.etat === 'corriger' ? 'Envoyer une nouvelle version' : 'Voir'}</a>` : ''}
     </div>`).join('<hr style="border:0;border-top:1px solid var(--bord);margin:0">')}</div></div>`;
 }
-function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0, choix = null, realisations = [] }) {
+// Positionnement (niche, méthode 10K, pays) et compte TikTok : un état en couleur (rouge : pas envoyé ; jaune : envoyé,
+// à valider ; vert : acté). Le formulaire ne s'ouvre qu'avec « Modifier » (coach). Validé : verrouillé pour l'élève.
+const pastilleEtat = (envoye, valide) => (valide ? '<span class="etat" data-etat="valide">Acté</span>'
+  : envoye ? '<span class="etat" data-etat="attente">Envoyé · à valider</span>' : '<span class="etat" data-etat="corriger">Pas encore envoyé</span>');
+function blocPositionnement({ p, vueCoach, base, choix, strategie: st }) {
+  st = st || {};
+  const nomMethode = st.methode ? (st.methode.titre || `Méthode ${st.methode.categorie}`) : null;
+  const pos = `<div class="carte" id="positionnement"><div class="envoi-tete"><h2>Positionnement</h2>${pastilleEtat(st.envoye, st.valide)}</div>
+    <dl class="details" style="margin-top:8px">
+      <div><dt>Niche</dt><dd>${st.niche ? (vueCoach ? `<a href="/ressources/${st.niche.id}">${echapper(st.niche.titre)}</a>` : echapper(st.niche.titre)) : '—'}</dd></div>
+      <div><dt>Méthode 10K</dt><dd>${nomMethode ? echapper(nomMethode) : '—'}</dd></div>
+      <div><dt>Pays visé</dt><dd>${echapper(st.pays || '—')}</dd></div></dl>
+    ${vueCoach ? `${st.complete && !st.valide ? `<form method="post" action="${base}/positionnement/valider" style="margin:10px 0 0"><button class="bouton vert" type="submit" style="margin:0">Valider le positionnement</button></form>` : ''}
+      <details style="margin-top:10px"><summary class="doux petit" style="cursor:pointer">Modifier</summary>
+        <form method="post" action="${base}/compte" style="display:grid;gap:10px;margin-top:10px">${choixNichePays(choix, p)}
+          <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer (validé d'office)</button></form></details>`
+    : st.valide ? '<p class="doux petit" style="margin:8px 0 0">Validé par ton coach : c\'est avec lui qu\'il t\'accompagne.</p>' : ''}
+    ${vueCoach && p.etape === 2 ? `<form method="post" action="${base}/compte" style="margin:10px 0 0"><button class="bouton" type="submit" name="ouvrir" value="3" style="margin:0">Ouvrir l'étape 3</button></form>` : ''}</div>`;
+  if (p.etape < 4) return pos;
+  const valide = Boolean(p.compte_valide_le);
+  const compte = `<div class="carte" id="compte"><div class="envoi-tete"><h2>Compte TikTok</h2>${pastilleEtat(Boolean(p.compte_tiktok), valide)}</div>
+    <p style="margin:8px 0 0">${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : '<span class="doux">pas encore envoyé</span>'}</p>
+    ${p.compte_demande_le ? `<div class="manquants" style="margin:10px 0 0;border:1px solid #5a4a1a;background:#1d1708;color:#f1d38a;border-radius:12px;padding:10px 12px"><b>Demande de changement de compte</b><p style="margin:4px 0 0">${echapper(p.compte_demande)}</p></div>` : ''}
+    ${p.compte_change_autorise ? '<p class="doux petit" style="margin:8px 0 0">Changement autorisé : en attente du nouveau lien.</p>' : ''}
+    ${vueCoach ? `${p.compte_tiktok && !valide ? `<form method="post" action="${base}/compte/valider" style="margin:10px 0 0"><button class="bouton vert" type="submit" style="margin:0">Valider le compte</button></form>` : ''}
+      ${p.compte_demande_le ? `<form method="post" action="${base}/compte/changement" class="deux-boutons" style="margin-top:10px"><button class="bouton secondaire" type="submit" name="decision" value="refuser">Garder ce compte</button><button class="bouton" type="submit" name="decision" value="autoriser">Autoriser le changement</button></form>` : ''}
+      <details style="margin-top:10px"><summary class="doux petit" style="cursor:pointer">Modifier</summary>
+        <form method="post" action="${base}/compte" style="display:grid;gap:10px;margin-top:10px"><div class="champ"><label for="compte-lien">Lien du compte TikTok</label><input id="compte-lien" name="compte" value="${echapper(p.compte_tiktok || '')}" placeholder="https://www.tiktok.com/@compte"></div>
+          <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer</button></form></details>` : ''}</div>`;
+  return pos + compte;
+}
+function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0, choix = null, realisations = [], strategie = null }) {
   // Ce qui attend une décision du coach (sinistre, rôle à confirmer) passe en haut de la colonne.
   const aConfirmer = recompenses.some((r) => !r.confirme_le);
   const base = vueCoach ? `/admin/membres/${encodeURIComponent(p.discord_id)}` : '/fiche';
@@ -745,17 +783,7 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
         <div><dt>Fin des 90 jours</dt><dd>${echapper(formatDate(p.fin_le))}</dd></div>
         <div><dt>Profil type</dt><dd>${echapper(p.niveau || '—')}</dd></div>
       </dl></div>
-      ${vueCoach ? `<form class="carte" method="post" action="${base}/compte" style="display:grid;gap:10px">
-        <h2 style="margin:0">Niche, méthode et pays</h2>
-        ${p.etape >= 4 ? `<div class="champ"><label for="compte">Lien du compte TikTok</label><input id="compte" name="compte" value="${echapper(p.compte_tiktok || '')}" placeholder="https://www.tiktok.com/@compte"></div>`
-    : '<p class="doux petit" style="margin:0">Le compte TikTok est demandé à l\'élève à l\'étape 4, quand il commence à publier.</p>'}
-        ${choixNichePays(choix, p)}
-        ${p.etape === 2 ? '<button class="bouton" type="submit" name="ouvrir" value="3" style="margin-top:0">Enregistrer et ouvrir l\'étape 3</button>' : ''}
-        <button class="bouton${p.etape === 2 ? ' secondaire' : ''}" type="submit" style="margin-top:0">Enregistrer</button></form>`
-    : `<div class="carte"><h2>${p.etape >= 4 ? 'Compte TikTok' : 'Ma niche'}</h2><dl class="details">
-        ${p.etape >= 4 ? `<div><dt>Compte</dt><dd>${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : '<a href="/parcours/etape-4#compte">à ajouter</a>'}</dd></div>` : ''}
-        <div><dt>Niche</dt><dd>${echapper(p.niche || '—')}</dd></div>
-        <div><dt>Pays visé</dt><dd>${echapper(p.pays_cible || p.pays || '—')}</dd></div></dl></div>`}
+      ${blocPositionnement({ p, vueCoach, base, choix, strategie })}
       <div class="carte"><h2>Parcours</h2><dl class="details">${dates.map(([t, le]) => `<div><dt>${echapper(t)}</dt><dd>${echapper(le)}</dd></div>`).join('')}</dl>
         ${p.etapes_forcees ? `<p class="doux petit" style="margin:10px 0 0">Passée(s) par ${vueCoach ? 'toi' : 'ton coach'} : étape(s) ${echapper(JSON.parse(p.etapes_forcees).join(', '))}.</p>` : ''}
         ${vueCoach && p.etape < 5 ? `<a class="bouton secondaire" href="/admin/eleves?eleve=${encodeURIComponent(p.discord_id)}">Changer d'étape</a>` : ''}</div>
@@ -831,7 +859,7 @@ const STYLE_TRAITER = `<style>
   .tr-sep { font-size:14px; color:var(--doux); margin:18px 0 6px; text-transform:uppercase; letter-spacing:.06em; }
   .tr-tag[data-cat="etape-1"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="etape-2"] { color:#c8f23a; border-color:#4a5a15; }
   .tr-tag[data-cat="etape-3"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="etape-4"] { color:#7ee0b0; border-color:#1f5a3d; } .tr-tag[data-cat="videos"] { color:#ff9ad5; border-color:#6b1f4a; }
-  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; } .tr-tag[data-cat="ressources"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="avis"] { color:#ffb26b; border-color:#6b4316; }
+  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; } .tr-tag[data-cat="ressources"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="avis"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="positionnement"] { color:#c8f23a; border-color:#4a5a15; }
   .tr-tag[data-cat="candidatures"] { color:#d4b3ff; border-color:#4b2b7a; } .tr-tag[data-cat="acces"] { color:#fff; } .tr-tag[data-cat="retards"] { color:#ffcf6b; border-color:#6b4a0e; }
   .tr-ouvrir { flex:none; width:auto !important; margin:0 !important; min-height:40px; padding:8px 16px; }
   .tr-carte .choix-acces { flex:none; } .tr-carte .choix-acces .bouton { min-height:40px; padding:8px 14px; }
@@ -842,7 +870,7 @@ const STYLE_TRAITER = `<style>
 
 // À traiter : une seule file, toutes les catégories mélangées (le plus ancien d'abord), avec une étiquette sous chaque carte.
 // Les filtres en haut, rangés par nombre (ceux qui restent le plus d'abord) : un clic n'affiche que cette catégorie.
-function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {}, messagesRecus = [], notifications = [], ressources = [], dejaTraites = [] }) {
+function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {}, messagesRecus = [], notifications = [], ressources = [], dejaTraites = [], aValider = { positionnements: [], comptes: [], demandes: [] } }) {
   const nom = (p) => (p && (p.nom || p.pseudo)) || '?';
   const items = [];
   const ajouter = (cat, x) => items.push({ cat, ...x });
@@ -865,6 +893,10 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   for (const c of candidatures) {
     ajouter('candidatures', { qui: c.nom, pseudo: c.pseudo, quand: c.maj_le, quoi: c.statut === 'video' ? 'Vidéo de présentation reçue' : 'Formulaire de candidature à examiner', lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
   }
+  const fiche = (p, ancre) => `/admin/membres/${encodeURIComponent(p.discord_id)}#${ancre}`;
+  for (const p of aValider.positionnements) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.positionnement_le, quoi: `Positionnement à valider : ${p.niche || '—'} · ${p.pays_cible || '—'}`, lien: fiche(p, 'positionnement'), bouton: 'Voir' });
+  for (const p of aValider.comptes) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.compte_envoye_le, quoi: `Compte TikTok à valider : ${p.compte_tiktok}`, lien: fiche(p, 'compte'), bouton: 'Voir' });
+  for (const p of aValider.demandes) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.compte_demande_le, quoi: `Demande de changement de compte : ${p.compte_demande}`, lien: fiche(p, 'compte'), bouton: 'Décider' });
   for (const r of ressources) {
     ajouter('ressources', { qui: r.nom || 'Un élève', ficheId: r.auteur, quand: r.cree_le, lien: `/ressources/${r.id}`, bouton: 'Relire',
       quoi: `Propose ${{ niche: 'la niche', methode: 'la méthode', tutoriel: 'le tutoriel' }[r.type]} « ${r.titre} »`,
@@ -893,7 +925,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   const faits = dejaTraites.map((n) => ({ ...n, fait: true }));
   const tous = [...items, ...notifs, ...retards, ...faits];
   const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['avis', 'Vidéos à relire'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
-    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
+    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['positionnement', 'Positionnement et compte'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
   const nb = (c) => tous.filter((x) => x.cat === c).length;
   const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
   const libelle = Object.fromEntries(CATS);

@@ -732,6 +732,19 @@ function migrerV32(db) {
   db.exec('PRAGMA user_version = 32');
 }
 
+// v33 : le positionnement (niche, méthode, pays) et le compte TikTok sont validés par le coach, puis verrouillés pour l'élève.
+// Changement de compte (shadowban…) : l'élève le demande, le coach l'autorise, l'élève change une fois, le coach revalide.
+function migrerV33(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 33) return;
+  const c = colonnes(db, 'parcours');
+  for (const [n, t] of [['positionnement_le', 'TEXT'], ['positionnement_valide_le', 'TEXT'], ['compte_envoye_le', 'TEXT'], ['compte_valide_le', 'TEXT'],
+    ['compte_demande', 'TEXT'], ['compte_demande_le', 'TEXT'], ['compte_change_autorise', 'INTEGER']]) if (!c.includes(n)) db.exec(`ALTER TABLE parcours ADD COLUMN ${n} ${t}`);
+  // Les élèves déjà en route : ce qui est déjà renseigné compte comme envoyé (à valider par le coach).
+  db.exec("UPDATE parcours SET positionnement_le = maj_le WHERE niche_id IS NOT NULL AND methode_id IS NOT NULL AND pays_cible IS NOT NULL AND positionnement_le IS NULL");
+  db.exec('UPDATE parcours SET compte_envoye_le = maj_le WHERE compte_tiktok IS NOT NULL AND compte_envoye_le IS NULL');
+  db.exec('PRAGMA user_version = 33');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -773,6 +786,7 @@ function ouvrirBase(fichier) {
   migrerV30(db);
   migrerV31(db);
   migrerV32(db);
+  migrerV33(db);
   return db;
 }
 

@@ -122,3 +122,32 @@ test('compte TikTok : jamais demandé avant l\'étape 4 (réglages, fiche, étap
     assert.match(await (await m.get('/parcours', c)).text(), /Ajoute le lien de ton compte TikTok/);
   } finally { await m.fermer(); }
 });
+
+test('compte TikTok : envoyé par l\'élève, validé par le coach, verrouillé ; changement demandé puis autorisé une fois', async () => {
+  const appels = [];
+  const m = await monter({ bob: { parcours: new Proxy({}, { get: (o, nom) => async (...a) => { appels.push([nom, ...a]); return true; } }) } });
+  try {
+    m.parcours.assurer('X', { pseudo: 'x' });
+    m.db.prepare("UPDATE parcours SET etape = 4 WHERE discord_id = 'X'").run();
+    const eleve = { cookie: cookieSession('X', 'x') };
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    await m.poster('/parcours/etape-4/compte', { compte: '@premier' }, eleve);
+    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /Compte TikTok à valider : https:\/\/www\.tiktok\.com\/@premier/);
+    assert.match(await (await m.get('/admin/membres/X', coach)).text(), /id="compte"[\s\S]*Envoyé · à valider[\s\S]*Valider le compte/);
+    await m.poster('/admin/membres/X/compte/valider', {}, coach);
+    assert.ok(appels.some(([n, , t]) => n === 'messageEleve' && /compte TikTok est validé/.test(t)));
+    // Verrouillé : plus de champ, une demande de changement.
+    const reglages = await (await m.get('/reglages', eleve)).text();
+    assert.match(reglages, /Mon compte TikTok[\s\S]*Validé[\s\S]*Demander un changement de compte/);
+    assert.doesNotMatch(reglages, /name="compte"/);
+    assert.match((await m.poster('/reglages/tiktok', { compte: '@autre' }, eleve)).headers.get('location'), /erreur=/);
+    await m.poster('/reglages/tiktok/demande', { motif: 'Mon compte est shadowban depuis une semaine.' }, eleve);
+    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /Demande de changement de compte : Mon compte est shadowban/);
+    await m.poster('/admin/membres/X/compte/changement', { decision: 'autoriser' }, coach);
+    assert.match(await (await m.get('/reglages', eleve)).text(), /Ton coach autorise le changement/);
+    await m.poster('/reglages/tiktok', { compte: '@nouveau' }, eleve);
+    const p = m.parcours.get('X');
+    assert.deepStrictEqual([p.compte_tiktok, p.compte_valide_le, p.compte_change_autorise], ['https://www.tiktok.com/@nouveau', null, null], 'à revalider, une seule fois');
+    assert.match((await m.poster('/reglages/tiktok', { compte: '@encore' }, eleve)).headers.get('location'), /fait=tiktok/, 'pas encore validé : il peut corriger');
+  } finally { await m.fermer(); }
+});

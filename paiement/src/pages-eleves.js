@@ -3,7 +3,7 @@
 const { pastilleRole, STYLE_ROLES } = require('./roles');
 
 // Tableau des élèves Elite (Kanban) : une colonne par étape (1 à 4), et GOAT en lecture seule.
-// Le coach glisse un élève vers une autre étape (ou touche « Déplacer » sur téléphone) ; vers l'avant, il confirme
+// Le coach glisse un élève vers une autre étape (sur téléphone : appui long puis glisser) ; vers l'avant, il confirme
 // en voyant tout ce qui n'a pas été validé sur la plateforme. Le compte TikTok, l'élève le donne lui-même à l'étape 4.
 // GOAT ne se donne pas à la main : il se gagne avec des résultats suivis sur la plateforme.
 const { echapper } = require('./pages');
@@ -18,18 +18,21 @@ const COLONNES = [
 ];
 
 const STYLE_KANBAN = `<style>
-  .kanban { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(185px, 1fr); gap:12px; overflow-x:auto; padding-bottom:12px;
+  .kanban { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(185px, 1fr); gap:0; overflow-x:auto; padding-bottom:12px;
     scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
   @media (max-width: 720px) { .kanban { grid-auto-columns:86%; } }
-  .colonne { scroll-snap-align:start; background:#0b0b0b; border:1px solid var(--bord); border-radius:18px; padding:12px; min-height:240px; display:flex; flex-direction:column; gap:10px; }
-  .colonne.survol { border-color:#fff; background:#151515; }
-  .colonne.goat { background:linear-gradient(#17130a, #0b0b0b); border-color:#4a3d14; }
+  .colonne { scroll-snap-align:start; background:transparent; border:0; border-left:1px solid var(--bord); padding:4px 12px 12px; min-height:240px; display:flex; flex-direction:column; gap:10px; }
+  .colonne:first-child { border-left:0; padding-left:0; }
+  .colonne.survol { background:rgba(255,255,255,.04); }
+  .colonne.goat { border-left-color:#4a3d14; }
   .colonne > header { display:flex; align-items:baseline; justify-content:space-between; gap:8px; padding:2px 4px 6px; }
   .colonne > header b { font-size:14px; } .colonne > header small { color:var(--doux); font-size:12px; }
   .colonne .num { display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:#222; font-size:12px; font-weight:800; margin-right:6px; }
   .colonne.goat .num { background:#f5c542; color:#000; }
   .colonne .vide { color:var(--gris); font-size:13px; text-align:center; padding:18px 6px; border:1px dashed var(--bord); border-radius:12px; }
-  .eleve { background:var(--surface); border:1px solid var(--bord); border-radius:14px; padding:12px; display:grid; gap:6px; cursor:grab; touch-action:manipulation; }
+  .eleve { background:var(--surface); border:1px solid var(--bord); border-radius:14px; padding:12px; display:grid; gap:6px; cursor:grab; touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+  .eleve.tenu { outline:2px solid #fff; transform:scale(1.02); }
+  .fantome { position:fixed; z-index:60; pointer-events:none; opacity:.9; width:200px; transform:rotate(-2deg); box-shadow:0 12px 30px rgba(0,0,0,.6); }
   .eleve[draggable="false"] { cursor:default; }
   .eleve.deplace { opacity:.4; }
   .eleve .nom { font-weight:700; color:#fff; text-decoration:none; font-size:15px; overflow-wrap:anywhere; }
@@ -64,16 +67,13 @@ function carte(e) {
   return `<article class="eleve" data-id="${echapper(e.id)}" draggable="${goat ? 'false' : 'true'}">
     <a class="nom" href="/admin/membres/${encodeURIComponent(e.id)}">${echapper(e.nom)}</a>
     <span class="sous">${echapper(e.pseudo || '')}${e.pseudo ? ' · ' : ''}jour ${e.jour} sur 90</span>
-    <span class="sous">${e.compte ? `${echapper(e.compte)}${e.niche ? ` · ${echapper(e.niche)}` : ''}` : (e.etape >= 4 ? '<span style="color:#ffb35c">Compte TikTok à renseigner</span>' : (e.niche ? echapper(e.niche) : ''))}</span>
     ${e.tache ? `<span class="tache">${echapper(e.tache)}</span>` : ''}
     <div class="pastilles">${e.sinistre ? `<span class="rouge">Sinistré ${e.sinistres}/3</span>` : ''}${e.retard ? '<span class="rouge">En retard</span>' : ''}
       ${e.aTraiter ? `<span class="orange">${e.aTraiter} à traiter</span>` : ''}${e.forcees.length ? `<span>Passé par toi : ${e.forcees.join(', ')}</span>` : ''}
       ${e.niveau ? `<span>${echapper(e.niveau)}</span>` : ''}${goat ? '<span class="or">GOAT</span>' : ''}</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">${goat ? '' : '<button class="petit-bouton deplacer" type="button">Déplacer</button>'}
-      <button class="petit-bouton infos${manqueInfos(e) ? ' a-completer' : ''}" type="button">${manqueInfos(e) ? 'Compléter' : 'Infos'}</button></div>
+    ${manqueInfos(e) ? '<button class="petit-bouton infos a-completer" type="button" style="justify-self:start">Compléter</button>' : ''}
   </article>`;
 }
-
 // Vue liste : une ligne par élève, triable par plusieurs critères à la fois (dans l'ordre où on les choisit), croissant ou décroissant.
 const CRITERES = [['entree', 'Arrivée'], ['rang', 'Rang'], ['revenus', 'Revenus'], ['videos', 'Posts'], ['regularite', 'Régularité'], ['etape', 'Étape']];
 function vueListe(eleves) {
@@ -163,7 +163,10 @@ const STYLE_LISTE = `<style>
   @media (max-width: 720px) { .ls-ligne { grid-template-columns:1fr 1fr 1fr; } .ls-nom { grid-column:1 / -1; } }
 </style>`;
 function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur, vue = 'kanban', choix = { niches: [], methodes: [], pays: [], drapeaux: {} } }) {
-  const parColonne = (n) => eleves.filter((e) => (n === 5 ? e.etape >= 5 : e.etape === n));
+  // Dans chaque colonne : celui qui a le plus de données d'abord.
+  const remplissage = (e) => (e.score || 0) + (e.scoreActivite || 0);
+  const parColonne = (n) => eleves.filter((e) => (n === 5 ? e.etape >= 5 : e.etape === n))
+    .sort((a, b) => remplissage(b) - remplissage(a) || a.nom.localeCompare(b.nom, 'fr'));
   const donnees = {};
   for (const e of eleves) donnees[e.id] = { nom: e.nom, etape: e.etape, compte: e.compte || '', niche: e.nicheId ? String(e.nicheId) : '', methode: e.methodeId ? String(e.methodeId) : '',
     pays: e.paysCible || '', niveau: e.niveau || '', manquants: e.manquants };
@@ -221,7 +224,37 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
   document.querySelectorAll('.eleve[draggable=true]').forEach(function (c) {
     c.addEventListener('dragstart', function (ev) { tire = c.getAttribute('data-id'); c.classList.add('deplace'); ev.dataTransfer.setData('text/plain', tire); ev.dataTransfer.effectAllowed = 'move'; });
     c.addEventListener('dragend', function () { c.classList.remove('deplace'); });
-    c.querySelector('.deplacer').onclick = function () { ouvrir(c.getAttribute('data-id'), 0); };
+  });
+  // Téléphone : appui long sur la vignette, puis glisser vers une colonne (le glisser-déposer classique ne marche pas au doigt).
+  var colonnes = document.querySelectorAll('.colonne[data-etape]'), fantome = null, appui = null, depart = null, idTenu = null;
+  function colonneSous(x, y) { var el = document.elementFromPoint(x, y); return el && el.closest ? el.closest('.colonne[data-etape]') : null; }
+  document.querySelectorAll('.eleve[draggable=true]').forEach(function (c) {
+    c.addEventListener('touchstart', function (ev) {
+      if (ev.target.closest('a, button')) return;
+      var t = ev.touches[0]; depart = { x: t.clientX, y: t.clientY };
+      appui = setTimeout(function () {
+        idTenu = c.getAttribute('data-id'); c.classList.add('tenu');
+        fantome = c.cloneNode(true); fantome.classList.add('fantome'); document.body.appendChild(fantome);
+        fantome.style.left = (depart.x - 100) + 'px'; fantome.style.top = (depart.y - 30) + 'px';
+        if (navigator.vibrate) navigator.vibrate(15);
+      }, 350);
+    }, { passive: true });
+    c.addEventListener('touchmove', function (ev) {
+      var t = ev.touches[0];
+      if (!fantome) { if (depart && (Math.abs(t.clientX - depart.x) > 8 || Math.abs(t.clientY - depart.y) > 8)) clearTimeout(appui); return; }
+      ev.preventDefault();
+      fantome.style.left = (t.clientX - 100) + 'px'; fantome.style.top = (t.clientY - 30) + 'px';
+      colonnes.forEach(function (col) { col.classList.remove('survol'); });
+      var col = colonneSous(t.clientX, t.clientY); if (col) col.classList.add('survol');
+    }, { passive: false });
+    c.addEventListener('touchend', function (ev) {
+      clearTimeout(appui);
+      if (!fantome) return;
+      var t = ev.changedTouches[0], col = colonneSous(t.clientX, t.clientY);
+      fantome.remove(); fantome = null; c.classList.remove('tenu');
+      colonnes.forEach(function (x) { x.classList.remove('survol'); });
+      if (col) { var n = +col.getAttribute('data-etape'); if (n <= 4 && D.eleves[idTenu].etape !== n) ouvrir(idTenu, n); }
+    });
   });
   document.querySelectorAll('.colonne[data-etape]').forEach(function (col) {
     var n = +col.getAttribute('data-etape');
@@ -276,7 +309,7 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
   ${message ? `<p class="message-ok" style="color:var(--ok);font-weight:600">${echapper(message)}</p>` : ''}
   ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   ${STYLE_LISTE}<nav class="vues" aria-label="Vue"><a href="/admin/eleves"${vue === 'kanban' ? ' aria-current="page"' : ''}>Kanban</a><a href="/admin/eleves?vue=liste"${vue === 'liste' ? ' aria-current="page"' : ''}>Liste</a></nav>
-  ${vue === 'liste' ? vueListe(eleves) : `<p class="doux" style="margin:0 0 12px">Glisse un élève vers une autre étape (ou touche <b>Déplacer</b>). Tu peux le faire passer de l'étape 1 à l'étape 4 ;
+  ${vue === 'liste' ? vueListe(eleves) : `<p class="doux" style="margin:0 0 12px">Glisse un élève vers une autre étape (sur téléphone : appui long, puis glisse). Les plus complets sont en haut. Tu peux le faire passer de l'étape 1 à l'étape 4 ;
     GOAT se gagne seulement avec les résultats suivis sur la plateforme.</p>
   <div class="kanban">${colonnes}</div>`}
   ${sansDiscord.length ? `<div class="carte"><h2>Elite sans compte Discord relié</h2><p class="doux petit" style="margin:0 0 8px">Ils doivent se connecter au site avec leur compte Discord pour apparaître ici.</p>

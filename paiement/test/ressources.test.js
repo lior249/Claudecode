@@ -68,11 +68,21 @@ test('ressources : publier, proposer, valider, aimer, remarque ; stratégie de l
     // Étape 3 : niche (même sa proposition), méthode, pays parmi les 8.
     assert.match(await (await m.get('/parcours', A)).text(), /Choisis ta niche, ta méthode et ton pays/);
     const etape3 = await (await m.get('/parcours/etape-3', A)).text();
-    assert.match(etape3, /Ma stratégie[\s\S]*Recettes à 2 euros \(en attente du coach\)[\s\S]*Ajouter ma niche[\s\S]*Corée du Sud/);
+    assert.match(etape3, /Mon positionnement[\s\S]*Recettes à 2 euros \(en attente du coach\)[\s\S]*Ajouter ma niche[\s\S]*Corée du Sud/);
     assert.match(etape3, /<option value="\d+">Faits historiques<\/option>/);
     assert.match((await m.poster('/parcours/etape-3/strategie', { niche: prop.id, methode: methode.id, pays: 'Belgique' }, A)).headers.get('location'), /erreur=/);
     assert.match((await m.poster('/parcours/etape-3/strategie', { niche: prop.id, methode: methode.id, pays: 'Japon' }, A)).headers.get('location'), /fait=strategie/);
     assert.strictEqual(m.parcours.strategie('A').complete, true);
+    assert.ok(appels.some(([n, , t]) => n === 'activiteEleve' && /positionnement/.test(t)), 'le coach est prévenu');
+    // Le coach le voit « à valider » (jaune) dans À traiter et sur la fiche, le formulaire derrière « Modifier » ; il valide → verrouillé.
+    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /data-filtre="positionnement"[\s\S]*Positionnement à valider/);
+    const ficheA = await (await m.get('/admin/membres/A', coach)).text();
+    assert.match(ficheA, /id="positionnement"[\s\S]*Envoyé · à valider[\s\S]*Valider le positionnement[\s\S]*<summary[^>]*>Modifier<\/summary>/);
+    await m.poster('/admin/membres/A/positionnement/valider', {}, coach);
+    assert.strictEqual(m.parcours.strategie('A').valide, true);
+    assert.match(await (await m.get('/parcours/etape-3', A)).text(), /Mon positionnement[\s\S]*Acté[\s\S]*ne se change plus/);
+    assert.match((await m.poster('/parcours/etape-3/strategie', { niche: niche.id, methode: methode.id, pays: 'France' }, A)).headers.get('location'), /erreur=/, 'verrouillé');
+    assert.strictEqual(m.parcours.get('A').pays_cible, 'Japon');
     assert.match((await m.poster('/parcours/etape-3/strategie', { niche: prop.id, methode: '999', pays: 'Japon' }, B)).headers.get('location'), /parcours|erreur/);
 
     // Le coach valide : publique, l'élève est prévenu ; il ne peut plus la modifier.

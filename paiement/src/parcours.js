@@ -295,9 +295,11 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
     },
     // Étape 3 : l'élève choisit sa niche (une niche publique, ou la sienne proposée au coach), sa méthode 10K et son pays cible.
     // Visible par le coach seulement (jamais dans le classement ni par les autres élèves).
-    choisirStrategie(discordId, { niche, methode, pays } = {}) {
+    choisirStrategie(discordId, { niche, methode, pays } = {}, { coach = false } = {}) {
       const p = q.get.get(discordId);
       if (!p) return { erreur: 'Membre introuvable.' };
+      // Validé par le coach : c'est avec ce positionnement qu'on l'accompagne ; seul le coach peut le changer.
+      if (!coach && p.positionnement_valide_le) return { erreur: 'Ton positionnement est validé par ton coach : il ne se change plus. Écris-lui si tu as une vraie raison.' };
       const ressource = (id, type) => (id === undefined || id === '' ? undefined
         : db.prepare("SELECT * FROM ressources WHERE id = ? AND type = ? AND (etat = 'public' OR (auteur = ? AND etat != 'refuse'))").get(Number(id), type, discordId) || null);
       const n = ressource(niche, 'niche'); const m = ressource(methode, 'methode');
@@ -310,14 +312,66 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       db.prepare(`UPDATE parcours SET niche_id = COALESCE(?, niche_id), niche = COALESCE(?, niche), methode_id = COALESCE(?, methode_id),
         pays_cible = COALESCE(?, pays_cible), maj_le = ? WHERE discord_id = ?`)
         .run(n ? n.id : null, n ? n.titre : null, m ? m.id : null, pays || null, iso(), discordId);
-      return { parcours: q.get.get(discordId) };
+      const apres = q.get.get(discordId);
+      // Complet : envoyé au coach (l'élève) ; validé d'office quand c'est le coach qui le choisit.
+      if (apres.niche_id && apres.methode_id && apres.pays_cible) {
+        if (coach) db.prepare('UPDATE parcours SET positionnement_le = COALESCE(positionnement_le, ?), positionnement_valide_le = ? WHERE discord_id = ?').run(iso(), iso(), discordId);
+        else db.prepare('UPDATE parcours SET positionnement_le = ?, positionnement_valide_le = NULL WHERE discord_id = ?').run(iso(), discordId);
+      }
+      return { parcours: q.get.get(discordId), envoye: !coach && Boolean(apres.niche_id && apres.methode_id && apres.pays_cible) };
     },
     strategie(discordId) {
       const p = q.get.get(discordId);
       if (!p) return null;
       const r = (id) => (id ? db.prepare('SELECT id, type, titre, categorie, pour, etat FROM ressources WHERE id = ?').get(id) || null : null);
       const niche = r(p.niche_id); const methode = r(p.methode_id);
-      return { niche, methode, pays: p.pays_cible || null, complete: Boolean(niche && methode && p.pays_cible) };
+      return { niche, methode, pays: p.pays_cible || null, complete: Boolean(niche && methode && p.pays_cible),
+        envoye: Boolean(p.positionnement_le), valide: Boolean(p.positionnement_valide_le) };
+    },
+    validerPositionnement(discordId) {
+      const p = q.get.get(discordId);
+      if (!p || !(p.niche_id && p.methode_id && p.pays_cible)) return { erreur: 'Positionnement incomplet.' };
+      db.prepare('UPDATE parcours SET positionnement_valide_le = ?, positionnement_le = COALESCE(positionnement_le, ?) WHERE discord_id = ?').run(iso(), iso(), discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    // ---- Compte TikTok : envoyé par l'élève, validé par le coach, puis verrouillé ----
+    envoyerCompte(discordId, lien) {
+      const p = q.get.get(discordId);
+      if (!p) return { erreur: 'Membre introuvable.' };
+      if (p.compte_valide_le && !p.compte_change_autorise) return { erreur: 'Ton compte est validé par ton coach : demande-lui un changement si besoin (compte bloqué, shadowban…).' };
+      api.majCompte(discordId, { compte: lien });
+      db.prepare('UPDATE parcours SET compte_envoye_le = ?, compte_valide_le = NULL, compte_change_autorise = NULL, compte_demande = NULL, compte_demande_le = NULL WHERE discord_id = ?').run(iso(), discordId);
+      return { parcours: q.get.get(discordId), changement: Boolean(p.compte_valide_le) };
+    },
+    validerCompte(discordId) {
+      const p = q.get.get(discordId);
+      if (!p || !p.compte_tiktok) return { erreur: 'Aucun compte à valider.' };
+      db.prepare('UPDATE parcours SET compte_valide_le = ?, compte_change_autorise = NULL WHERE discord_id = ?').run(iso(), discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    demanderChangementCompte(discordId, motif) {
+      const p = q.get.get(discordId);
+      if (!p || !p.compte_valide_le) return { erreur: 'Ton compte n\'est pas encore validé : tu peux encore le changer toi-même.' };
+      const m = String(motif || '').trim().slice(0, 1000);
+      if (m.length < 5) return { erreur: 'Explique pourquoi tu dois changer de compte (compte bloqué, shadowban…).' };
+      db.prepare('UPDATE parcours SET compte_demande = ?, compte_demande_le = ? WHERE discord_id = ?').run(m, iso(), discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    // Le coach autorise (ou refuse) un changement de compte : l'élève pourra envoyer un nouveau lien une fois.
+    deciderChangementCompte(discordId, autoriser) {
+      const p = q.get.get(discordId);
+      if (!p) return { erreur: 'Membre introuvable.' };
+      db.prepare('UPDATE parcours SET compte_change_autorise = ?, compte_demande = NULL, compte_demande_le = NULL WHERE discord_id = ?').run(autoriser ? 1 : null, discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    // Pour À traiter : positionnements et comptes envoyés à valider, demandes de changement de compte.
+    aValider() {
+      const tous = q.tous.all().filter((p) => !p.retire_le);
+      return {
+        positionnements: tous.filter((p) => p.positionnement_le && !p.positionnement_valide_le),
+        comptes: tous.filter((p) => p.compte_envoye_le && p.compte_tiktok && !p.compte_valide_le),
+        demandes: tous.filter((p) => p.compte_demande_le),
+      };
     },
     // Ce qui n'a pas été validé sur la plateforme, étape par étape (tableau des élèves).
     manquants(discordId) {

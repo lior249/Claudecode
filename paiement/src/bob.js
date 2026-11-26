@@ -1138,6 +1138,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     // Forum « ressources » : appelé par la plateforme quand une ressource devient publique ou change. Renvoie l'id du post.
     async publierRessource(r, auteur) { return publierRessource(r, auteur); },
     // Toute action d'un élève arrive chez le coach (notification), avec la page à ouvrir.
+    // Un message court à un élève, avec la page à ouvrir.
+    async messageEleve(p, texte, chemin) {
+      if (!p) return;
+      await notifier.membre(p.discord_id, avecBoutons(texte, [{ label: 'Ouvrir', url: lienPerso(p.discord_id, p.pseudo, chemin || '/parcours') }]));
+    },
     async activiteEleve(p, texte, chemin) {
       if (!p) return;
       await notifier.admin(avecBoutons(`**${p.nom || p.pseudo || p.discord_id}** (<@${p.discord_id}>) ${texte}`,
