@@ -15,10 +15,10 @@ const MODELES = [
   { texte: 'Valider les comptes rendus en attente', frequence: 'jour', heure: '20:00' },
 ];
 
-// Texte lisible depuis un message Discord : sans le gras ni les mentions.
+// Texte lisible depuis un message Discord : sans les mentions ; le **gras** est gardé (titre en gras dans les listes).
 function texteDe(contenu) {
   const brut = typeof contenu === 'string' ? contenu : (contenu && contenu.content) || '';
-  return brut.replace(/\*\*|__|`/g, '').replace(/\s*\(<@!?\d+>\)/g, '').replace(/<@!?\d+>/g, 'un membre').trim().slice(0, 1500);
+  return brut.replace(/__|`/g, '').replace(/\s*\(<@!?\d+>\)/g, '').replace(/<@!?\d+>/g, 'un membre').trim().slice(0, 1500);
 }
 // La page du site du premier bouton (lien personnel de Bob → seulement le chemin, jamais le jeton).
 function lienDe(contenu) {
@@ -126,4 +126,7 @@ function creerNotifsAdmin({ db, maintenant = () => new Date() }) {
   };
 }
 
-module.exports = { creerNotifsAdmin, texteDe, lienDe, MODELES, JOURS };
+// Rendu HTML d'un texte déjà échappé : **gras** → <b>, les ** orphelins (texte coupé) disparaissent.
+const gras = (html) => String(html || '').replace(/\*\*([^*]+?)\*\*/g, '<b>$1</b>').replace(/\*\*/g, '');
+
+module.exports = { gras, creerNotifsAdmin, texteDe, lienDe, MODELES, JOURS };

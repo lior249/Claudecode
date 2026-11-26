@@ -1059,14 +1059,15 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     },
     async ressourceProposee(r, p) {
       const nom = (p && (p.pseudo || p.nom)) || r.auteur;
-      await notifier.admin(avecBoutons(`📚 **${nom} propose ${r.type === 'niche' ? 'une niche' : 'une méthode'}** : ${r.titre || 'sans nom'}.`,
+      const quoi = { niche: 'une niche', methode: 'une méthode', tutoriel: 'un tutoriel' }[r.type] || 'une ressource';
+      await notifier.admin(avecBoutons(`📚 **${r.titre || 'Sans nom'}**\n${nom} propose ${quoi} : relis-la avant qu'elle soit visible par tous.`,
         [{ label: 'Relire', url: lienCoach(`/ressources/${r.id}`) }]));
     },
     async ressourceDecidee(r, p, titre) {
       if (!p) return;
       const ok = r.etat === 'public';
-      await notifier.membre(p.discord_id, avecBoutons(ok ? `📚 **Ta proposition « ${titre} » est validée.** Elle est visible par tous les élèves.`
-        : `📚 **Ta proposition « ${titre} » est à corriger.** ${r.motif || ''}`, [{ label: ok ? 'La voir' : 'La corriger', url: lienPerso(p.discord_id, p.pseudo, `/ressources/${r.id}`) }]));
+      await notifier.membre(p.discord_id, avecBoutons(ok ? `📚 **${titre}**\nTa proposition est validée : elle est visible par tous les élèves.`
+        : `📚 **${titre}**\nTa proposition est à corriger. ${r.motif || ''}`, [{ label: ok ? 'La voir' : 'La corriger', url: lienPerso(p.discord_id, p.pseudo, `/ressources/${r.id}`) }]));
     },
     async remarqueModifiee(p) {
       if (!p) return;

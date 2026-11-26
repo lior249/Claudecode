@@ -514,3 +514,11 @@ ou sur **overmaxx.online/admin/candidatures**.
 - **Formation sur Whop** : un bouton « Continuer la formation sur Whop ». Il ouvre l'application Whop si elle est installée, sinon le site.
   - Par défaut, il mène au lien de l'offre Elite sur Whop.
   - Pour un autre lien : `LIEN_FORMATION_WHOP=https://whop.com/...` dans overmaxx.env.
+
+## Ressources : images, liens un par un, tutoriels en étapes
+
+- **Liste façon Discord** : miniature à gauche (la première image), titre en gras, aperçu, likes.
+- **Images** : jusqu'à 5 par ressource. La première est la miniature (une capture d'un compte exemple), les autres montrent le contenu. × pour en retirer une.
+- **Liens** (exemples, contre-exemples, sources) : « + Ajouter un lien » ouvre un champ par lien ; × pour le retirer.
+- **Tutoriels et astuces** : les élèves peuvent aussi en proposer (validés par toi). Un tutoriel se découpe en étapes, chacune avec son explication et le lien du tuto à suivre, dans l'ordre.
+- **Notifications** : le titre s'affiche en gras dans tes notifications et dans À traiter (les anciennes restent comme avant).

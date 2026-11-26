@@ -1,5 +1,7 @@
 'use strict';
 
+const { gras } = require('./admin-notifs');
+
 // Parcours de l'accompagnement Elite : Mon parcours, les étapes 1 à 3, la fiche du membre,
 // et côté coach : À traiter et la validation d'un envoi. Voir docs/ACCOMPAGNEMENT-ELITE.md.
 const { ICONE, echapper, formatDate, blocVideo } = require('./pages');
@@ -89,6 +91,8 @@ const STYLE_PARCOURS = `<style>
   .note-ia small { font-size:14px; color:var(--doux); font-weight:600; }
   .apercus { display:flex; flex-wrap:wrap; gap:8px; }
   .apercus img { width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--bord); }
+  .apercu-img { position:relative; display:inline-block; } .apercu-img.principale img { width:110px; outline:2px solid #c8f23a; outline-offset:1px; }
+  .apercu-img button { position:absolute; top:-7px; right:-7px; width:24px; height:24px; border-radius:50%; border:0; background:#ff3b30; color:#fff; font:700 15px/24px var(--police); cursor:pointer; padding:0; }
   details > summary { cursor:pointer; font-weight:600; }
   .message-ok { color:var(--ok); font-weight:600; }
   .calcul-gain { margin:0; padding:10px 12px; border-radius:12px; background:var(--surface-2); color:var(--doux); font-size:14px; }
@@ -191,10 +195,26 @@ const scriptEnvoi = (maxMo) => `
 const SCRIPT_IMAGES = `
 (function () {
   document.querySelectorAll('[data-images]').forEach(function (zone) {
-    var input = zone.querySelector('input[type=file]'), cache = zone.querySelector('input[type=hidden]'), liste = zone.querySelector('.apercus'), noms = [];
-    var adresse = zone.getAttribute('data-images') || '/admin/images', une = zone.hasAttribute('data-une');
+    var input = zone.querySelector('input[type=file]'), cache = zone.querySelector('input[type=hidden]'), liste = zone.querySelector('.apercus');
+    var adresse = zone.getAttribute('data-images') || '/admin/images', une = zone.hasAttribute('data-une'), max = +zone.getAttribute('data-max') || 0;
+    var noms = cache.value ? cache.value.split(',').filter(Boolean) : [];
+    // Avec data-max : chaque image a un × pour la retirer ; la première est la principale.
+    function dessiner() {
+      if (!max) return;
+      liste.innerHTML = '';
+      noms.forEach(function (n, i) {
+        var c = document.createElement('span'); c.className = 'apercu-img' + (i === 0 ? ' principale' : '');
+        var im = document.createElement('img'); im.src = '/fichiers/images/' + n; im.alt = ''; c.appendChild(im);
+        var x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'Retirer cette image');
+        x.onclick = function () { noms.splice(i, 1); cache.value = noms.join(','); dessiner(); };
+        c.appendChild(x); liste.appendChild(c);
+      });
+      var l = zone.querySelector('label.fichier'); if (l) l.hidden = noms.length >= max;
+    }
+    dessiner();
     input.addEventListener('change', function () {
       Array.prototype.forEach.call(input.files, function (f) {
+        if (max && noms.length >= max) return;
         var x = new XMLHttpRequest();
         x.open('POST', adresse);
         x.setRequestHeader('Content-Type', f.type || 'image/jpeg');
@@ -203,7 +223,9 @@ const SCRIPT_IMAGES = `
           try { d = JSON.parse(x.responseText); } catch (e) { d = {}; }
           if (x.status === 200 && d.nom) {
             if (une) { noms = []; liste.innerHTML = ''; }
+            if (max && noms.length >= max) return;
             noms.push(d.nom); cache.value = noms.join(',');
+            if (max) { dessiner(); return; }
             var i = document.createElement('img'); i.src = '/fichiers/images/' + d.nom; i.alt = ''; liste.appendChild(i);
           } else { alert(d.erreur || 'Image refusée.'); }
         };
@@ -799,7 +821,8 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   }
   for (const r of ressources) {
     ajouter('ressources', { qui: r.nom || 'Un élève', ficheId: r.auteur, quand: r.cree_le, lien: `/ressources/${r.id}`, bouton: 'Relire',
-      quoi: `Propose ${r.type === 'niche' ? 'la niche' : 'la méthode'} « ${r.titre} »` });
+      quoi: `Propose ${{ niche: 'la niche', methode: 'la méthode', tutoriel: 'le tutoriel' }[r.type]} « ${r.titre} »`,
+      quoiHtml: `Propose ${{ niche: 'la niche', methode: 'la méthode', tutoriel: 'le tutoriel' }[r.type]} <b>${echapper(r.titre)}</b>` });
   }
   for (const m of messagesRecus) {
     ajouter('messages', { qui: m.nom, ficheId: m.discord_id, pseudo: m.parcours && m.parcours.pseudo, quand: m.cree_le, lien: `/admin/messages-recus/${m.id}`, bouton: m.lu_le ? 'Répondre' : 'Lire',
@@ -817,7 +840,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
     quoi: `Étape ${x.parcours.etape} : ${x.tache.titre}`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, bouton: 'Voir sa fiche' }));
   // Notifications non lues (pour information) : la plus récente d'abord ; l'ouvrir la marque lue.
   const notifs = notifications.map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le,
-    quoi: n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte, lien: `/admin/notifications/${n.id}/ouvrir`, bouton: n.lien ? 'Ouvrir' : 'Marquer comme lue' }));
+    quoi: n.texte, quoiHtml: gras(echapper(n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte)), lien: `/admin/notifications/${n.id}/ouvrir`, bouton: n.lien ? 'Ouvrir' : 'Marquer comme lue' }));
   items.sort((x, y) => String(x.quand || '').localeCompare(String(y.quand || '')));
   // À traiter (fond orange) d'abord ; puis, pour mémoire, ce qui est déjà traité ou lu (fond noir, comme une notification lue).
   for (const x of [...items, ...notifs]) x.aTraiter = true;
@@ -829,7 +852,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
   const libelle = Object.fromEntries(CATS);
   const carte = (x) => `<div class="tr-carte${x.aTraiter ? ' a-traiter' : ''}${x.fait ? ' fait' : ''}" data-cat="${x.cat}">
-    <div class="tr-corps">${x.ficheId ? `<a href="/admin/membres/${encodeURIComponent(x.ficheId)}" style="color:#fff"><b>${echapper(x.qui)}</b></a>` : `<b>${echapper(x.qui)}</b>`}${x.pseudo ? `<span class="doux petit">${echapper(x.pseudo)}</span>` : ''}<p>${echapper(x.quoi)}</p>
+    <div class="tr-corps">${x.ficheId ? `<a href="/admin/membres/${encodeURIComponent(x.ficheId)}" style="color:#fff"><b>${echapper(x.qui)}</b></a>` : `<b>${echapper(x.qui)}</b>`}${x.pseudo ? `<span class="doux petit">${echapper(x.pseudo)}</span>` : ''}<p>${x.quoiHtml || echapper(x.quoi)}</p>
       <span class="tr-bas"><span class="tr-tag" data-cat="${x.cat}">${echapper(libelle[x.cat])}</span>${x.quand ? `<span class="doux petit">${echapper(formatDate(x.quand))}</span>` : ''}</span></div>
     ${x.actions || (x.lien ? `<a class="bouton${x.bouton || x.fait ? ' secondaire' : ''} tr-ouvrir" href="${echapper(x.lien)}">${echapper(x.bouton || 'Ouvrir')}</a>` : '')}</div>`;
   return page('À traiter', `${STYLE_TRAITER}

@@ -9,7 +9,7 @@ const { creerBob } = require('../src/bob');
 const { texteDe, lienDe } = require('../src/admin-notifs');
 
 test('journal : texte lisible, lien vers la page sans le jeton', () => {
-  assert.strictEqual(texteDe('**Awa** (<@123>) a envoyé son **compte rendu**.'), 'Awa a envoyé son compte rendu.');
+  assert.strictEqual(texteDe('**Awa** (<@123>) a envoyé son **compte rendu**.'), '**Awa** a envoyé son **compte rendu**.');
   const contenu = { content: 'x', components: [{ components: [{ data: { url: 'https://overmaxx.online/connexion/bob?t=SECRET&retour=%2Fadmin%2Fcomptes-rendus%2F4' } }] }] };
   assert.strictEqual(lienDe(contenu), '/admin/comptes-rendus/4');
 });

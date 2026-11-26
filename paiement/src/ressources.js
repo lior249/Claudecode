@@ -13,13 +13,14 @@ const { lienCompte } = require('./tiktok');
 const TYPES = {
   niche: { nom: 'Niches', un: 'une niche', categories: [['L1', 'L1 · repost amélioré'], ['L2', 'L2 · commentaire'], ['L1L2', 'L1 et L2']] },
   methode: { nom: 'Méthodes 10K', un: 'une méthode', categories: [['video', 'Vidéo'], ['carrousel', 'Carrousel'], ['cta', 'CTA']] },
-  tutoriel: { nom: 'Tutoriels', un: 'un tutoriel', categories: [['montage', 'Montage'], ['ciblage', 'Ciblage'], ['scripting', 'Scripting'], ['astuce', 'Astuce'], ['autre', 'Autre']] },
+  tutoriel: { nom: 'Tutoriels', un: 'un tutoriel ou une astuce', categories: [['montage', 'Montage'], ['ciblage', 'Ciblage'], ['scripting', 'Scripting'], ['astuce', 'Astuce'], ['autre', 'Autre']] },
 };
 const PAYS = ['Allemagne', 'France', 'Angleterre', 'États-Unis', 'Brésil', 'Mexique', 'Corée du Sud', 'Japon'];
 const DRAPEAUX = { Allemagne: '🇩🇪', France: '🇫🇷', Angleterre: '🇬🇧', 'États-Unis': '🇺🇸', Brésil: '🇧🇷', Mexique: '🇲🇽', 'Corée du Sud': '🇰🇷', Japon: '🇯🇵' };
 const POUR = [['L1', 'L1'], ['L2', 'L2'], ['L1L2', 'L1 et L2']];
-// Les élèves proposent des niches et des méthodes ; les tutoriels viennent du coach.
-const PROPOSABLES = ['niche', 'methode'];
+// Les élèves proposent tout (niches, méthodes, tutoriels et astuces) : le coach valide avant que ce soit public.
+const PROPOSABLES = ['niche', 'methode', 'tutoriel'];
+const MAX_IMAGES = 5;
 
 function creerRessources({ db, maintenant = () => new Date() }) {
   const q = {
@@ -32,24 +33,26 @@ function creerRessources({ db, maintenant = () => new Date() }) {
     likes: db.prepare('SELECT COUNT(*) n FROM ressources_likes WHERE ressource_id = ?'),
     liker: db.prepare('INSERT OR IGNORE INTO ressources_likes (ressource_id, discord_id, cree_le) VALUES (?, ?, ?)'),
     deliker: db.prepare('DELETE FROM ressources_likes WHERE ressource_id = ? AND discord_id = ?'),
-    creer: db.prepare(`INSERT INTO ressources (type, titre, description, categorie, pour, pays, rpm_min, rpm_max, exemples, contre_exemples, sources, lien, auteur, etat, cree_le)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    creer: db.prepare(`INSERT INTO ressources (type, titre, description, categorie, pour, pays, rpm_min, rpm_max, exemples, contre_exemples, sources, lien, images, etapes, auteur, etat, cree_le)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
     maj: db.prepare(`UPDATE ressources SET titre = ?, description = ?, categorie = ?, pour = ?, pays = ?, rpm_min = ?, rpm_max = ?, exemples = ?, contre_exemples = ?,
-      sources = ?, lien = ?, maj_le = ? WHERE id = ?`),
+      sources = ?, lien = ?, images = ?, etapes = ?, maj_le = ? WHERE id = ?`),
     decider: db.prepare('UPDATE ressources SET etat = ?, motif = ?, decide_le = ? WHERE id = ?'),
     attente: db.prepare("SELECT * FROM ressources WHERE etat = 'attente' ORDER BY cree_le"),
   };
   const iso = () => maintenant().toISOString();
   const json = (v) => { try { return JSON.parse(v || '[]'); } catch { return []; } };
   const lire = (r) => (r ? { ...r, pays: json(r.pays), exemples: json(r.exemples), contre_exemples: json(r.contre_exemples), sources: json(r.sources),
+    images: json(r.images), etapes: json(r.etapes),
     likes: r.likes !== undefined ? r.likes : q.likes.get(r.id).n } : null);
   // Liens collés un par ligne (ou séparés par des espaces) : profils TikTok nettoyés, autres liens https gardés.
-  const liens = (v) => [...new Set(String(v || '').split(/[\s,]+/).map((x) => x.trim()).filter(Boolean)
+  const liens = (v) => [...new Set([].concat(v || []).join('\n').split(/[\s,]+/).map((x) => x.trim()).filter(Boolean)
     .map((x) => lienCompte(x) || (/^https:\/\/\S+$/.test(x) ? x.slice(0, 300) : null)).filter(Boolean))].slice(0, 20);
   const montant = (v) => { const s = String(v ?? '').trim().replace(/[$\s]/g, '').replace(',', '.'); if (!s) return null; const n = Number(s); return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : NaN; };
 
   // Vérifie et met en forme les champs d'un formulaire. Renvoie { erreur } ou { champs }.
-  function champsDe(type, b, { coach }) {
+  // images : noms déjà vérifiés par l'application (images du membre, ou du coach) ; 5 au plus, la première en miniature.
+  function champsDe(type, b, { coach, images = [] }) {
     const t = TYPES[type];
     if (!t) return { erreur: 'Type de ressource inconnu.' };
     const titre = String(b.titre || '').trim().slice(0, 100) || null;
@@ -57,7 +60,8 @@ function creerRessources({ db, maintenant = () => new Date() }) {
     const categorie = t.categories.some(([c]) => c === b.categorie) ? b.categorie : null;
     if (type !== 'methode' && !titre) return { erreur: type === 'niche' ? 'Donne un nom à la niche.' : 'Donne un titre au tutoriel.' };
     if (!categorie) return { erreur: type === 'niche' ? 'Choisis le type de contenu (L1 ou L2).' : 'Choisis le type.' };
-    const champs = { titre, description, categorie, pour: null, pays: null, rpm_min: null, rpm_max: null, exemples: '[]', contre_exemples: '[]', sources: '[]', lien: null };
+    const champs = { titre, description, categorie, pour: null, pays: null, rpm_min: null, rpm_max: null, exemples: '[]', contre_exemples: '[]', sources: '[]', lien: null,
+      images: JSON.stringify([...new Set(images)].slice(0, MAX_IMAGES)), etapes: '[]' };
     champs.exemples = JSON.stringify(liens(b.exemples));
     if (type === 'niche') {
       if (!description) return { erreur: 'Décris le sujet de la niche.' };
@@ -74,16 +78,27 @@ function creerRessources({ db, maintenant = () => new Date() }) {
       if (!description && !titre) return { erreur: 'Explique la méthode.' };
     }
     if (type === 'tutoriel') {
-      const l = String(b.lien || '').trim();
-      if (l && !/^https:\/\/\S+$/.test(l)) return { erreur: 'Le lien doit commencer par https://.' };
-      champs.lien = l ? l.slice(0, 400) : null;
-      if (!description && !champs.lien) return { erreur: 'Ajoute une explication ou un lien.' };
+      // Les étapes, dans l'ordre : ce qu'il faut faire, et le lien du tuto à suivre (facultatif).
+      const textes = [].concat(b.etape_texte || []); const leurs = [].concat(b.etape_lien || []);
+      const etapes = [];
+      for (let i = 0; i < Math.max(textes.length, leurs.length) && etapes.length < 15; i++) {
+        const t = String(textes[i] || '').trim().slice(0, 600); const l = String(leurs[i] || '').trim();
+        if (!t && !l) continue;
+        if (l && !/^https:\/\/\S+$/.test(l)) return { erreur: `Étape ${etapes.length + 1} : le lien doit commencer par https://.` };
+        etapes.push({ texte: t, lien: l ? l.slice(0, 400) : null });
+      }
+      champs.etapes = JSON.stringify(etapes);
+      if (!description && !etapes.length) return { erreur: 'Ajoute une explication ou au moins une étape.' };
     }
     return { champs };
   }
 
   const api = {
-    TYPES, PAYS, DRAPEAUX, POUR, PROPOSABLES,
+    TYPES, PAYS, DRAPEAUX, POUR, PROPOSABLES, MAX_IMAGES,
+    // Une image visible par tous : jointe à une ressource publique (ou à une de ses propositions).
+    imagePublique(nom, discordId) {
+      return Boolean(db.prepare("SELECT 1 FROM ressources WHERE images LIKE ? AND (etat = 'public' OR auteur = ?)").get(`%"${String(nom).replace(/[%_"]/g, '')}"%`, String(discordId || '')));
+    },
     une(id) { return lire(q.une.get(Number(id))); },
     // Liste d'un type : publiques (+ les propositions de l'élève) ; tout pour le coach.
     liste(type, { pour = null, coach = false } = {}) {
@@ -99,26 +114,26 @@ function creerRessources({ db, maintenant = () => new Date() }) {
       return { aime: !deja, likes: q.likes.get(r.id).n };
     },
     // Le coach publie directement ; un élève propose (niche, méthode) : en attente de validation.
-    creer(type, b, { auteur = null } = {}) {
+    creer(type, b, { auteur = null, images = [] } = {}) {
       const coach = !auteur;
-      if (!coach && !PROPOSABLES.includes(type)) return { erreur: 'Seul le coach ajoute des tutoriels.' };
-      const r = champsDe(type, b, { coach });
+      if (!coach && !PROPOSABLES.includes(type)) return { erreur: 'Type de ressource inconnu.' };
+      const r = champsDe(type, b, { coach, images });
       if (r.erreur) return r;
       const c = r.champs;
       const id = Number(q.creer.run(type, c.titre, c.description, c.categorie, c.pour, c.pays, c.rpm_min, c.rpm_max, c.exemples, c.contre_exemples, c.sources, c.lien,
-        auteur, coach ? 'public' : 'attente', iso()).lastInsertRowid);
+        c.images, c.etapes, auteur, coach ? 'public' : 'attente', iso()).lastInsertRowid);
       return { ressource: api.une(id) };
     },
     peutModifier(r, { discordId, coach }) { return Boolean(r && (coach || (r.auteur && r.auteur === discordId && r.etat !== 'public'))); },
-    modifier(id, b, { discordId = null, coach = false } = {}) {
+    modifier(id, b, { discordId = null, coach = false, images = [] } = {}) {
       const r = api.une(id);
       if (!r) return { erreur: 'Ressource introuvable.' };
       if (!api.peutModifier(r, { discordId, coach })) return { erreur: 'Elle est validée : seul le coach peut la modifier.' };
-      const x = champsDe(r.type, b, { coach });
+      const x = champsDe(r.type, b, { coach, images });
       if (x.erreur) return x;
       const c = x.champs;
       if (!coach) c.pour = r.pour;
-      q.maj.run(c.titre, c.description, c.categorie, c.pour, c.pays, c.rpm_min, c.rpm_max, c.exemples, c.contre_exemples, c.sources, c.lien, iso(), r.id);
+      q.maj.run(c.titre, c.description, c.categorie, c.pour, c.pays, c.rpm_min, c.rpm_max, c.exemples, c.contre_exemples, c.sources, c.lien, c.images, c.etapes, iso(), r.id);
       // Refusée puis corrigée par l'élève : elle repart en attente.
       if (!coach && r.etat === 'refuse') q.decider.run('attente', null, null, r.id);
       return { ressource: api.une(r.id) };
@@ -138,4 +153,4 @@ function creerRessources({ db, maintenant = () => new Date() }) {
   return api;
 }
 
-module.exports = { creerRessources, TYPES, PAYS, DRAPEAUX, POUR };
+module.exports = { creerRessources, TYPES, PAYS, DRAPEAUX, POUR, MAX_IMAGES };

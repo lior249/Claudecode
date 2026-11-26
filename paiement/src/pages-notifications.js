@@ -1,5 +1,7 @@
 'use strict';
 
+const { gras } = require('./admin-notifs');
+
 // Page « Notifications » : installer l'application Overmaxx sur son téléphone, puis choisir où recevoir ses messages
 // (Bob sur Discord, ou l'application). Les rappels de paiement passent toujours par les deux.
 // Les outils communs (installer, activer les notifications) servent aussi à l'accueil des nouveaux membres.
@@ -225,7 +227,7 @@ function pageNotificationsAdmin(config, { espace, onglet, notifications = [], no
       <form method="post" action="/admin/rappels/${r.id}/supprimer"><button class="bouton secondaire" type="submit" aria-label="Supprimer">Supprimer</button></form></div>`).join('')
       || '<p class="vide-traiter">Aucun rappel. Crée-en un avec le formulaire, ou une des idées en un clic.</p>'}</div>`
     : `<div class="nf-liste">${notifications.map((n) => `<div class="nf${n.lu_le ? '' : ' nouvelle'}"><span class="pt"></span>
-      <div class="corps"><p>${echapper(n.texte)}</p><small>${echapper(formatHeure(n.cree_le))}</small></div>
+      <div class="corps"><p>${gras(echapper(n.texte))}</p><small>${echapper(formatHeure(n.cree_le))}</small></div>
       ${n.lien || !n.lu_le ? `<a class="ouvrir" href="/admin/notifications/${n.id}/ouvrir">${n.lien ? 'Ouvrir' : 'Lue'}</a>` : ''}</div>`).join('') || '<p class="vide-traiter">Aucune notification pour le moment.</p>'}</div>
     <p class="doux petit" style="margin:18px 0 0"><a href="/notifications?onglet=reglages">Réglages : application et notifications sur ce téléphone</a></p>`;
   return pageEspace('Notifications', `${STYLE_ADMIN_NOTIF}
@@ -240,7 +242,7 @@ function pageNotificationsMembre(config, { espace, notifications = [] }) {
   <div class="titre-page"><div><p class="etiquette">Mon compte</p><h1>Notifications</h1></div></div>
   <nav class="onglets-admin" aria-label="Notifications"><a href="/notifications" aria-current="page">Notifications</a><a href="/notifications?onglet=reglages">Réglages</a></nav>
   <div class="nf-liste">${notifications.map((n) => `<div class="nf${n.lu_le ? '' : ' nouvelle'}"><span class="pt"></span>
-    <div class="corps"><p>${echapper(n.texte)}</p><small>${echapper(formatHeure(n.cree_le))}</small></div>
+    <div class="corps"><p>${gras(echapper(n.texte))}</p><small>${echapper(formatHeure(n.cree_le))}</small></div>
     ${n.lien ? `<a class="ouvrir" href="${echapper(n.lien)}">Ouvrir</a>` : ''}</div>`).join('') || '<p class="vide-traiter">Aucune notification pour le moment.</p>'}</div>`, espace, 'notifications');
 }
 

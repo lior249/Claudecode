@@ -1568,6 +1568,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const x = membreParcours(req, res, retour, { sinistreOk: true });
     return x ? { ...x, coach: false } : null;
   }
+  // Images d'une ressource : celles du coach, ou celles envoyées par l'élève lui-même (ou déjà sur la ressource).
+  const imagesRessource = (b, x, deja = []) => imagesDe(b).filter((n) => x.coach || deja.includes(n) || parcours.imageDuMembre(n, x.session.id));
   const nomAuteur = (id) => (id ? (qProfils.get.get(id) || {}).prenom || (parcours.get(id) || {}).pseudo || 'un élève' : null);
   app.get('/ressources', (req, res) => {
     const type = ['niche', 'methode', 'tutoriel'].includes(req.query.type) ? req.query.type : 'niche';
@@ -1580,14 +1582,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const type = ['niche', 'methode', 'tutoriel'].includes(req.query.type) ? req.query.type : 'niche';
     const x = lecteurRessources(req, res, `/ressources/nouvelle?type=${type}`);
     if (!x) return;
-    if (!x.coach && type === 'tutoriel') return res.redirect(303, '/ressources?type=tutoriel');
     res.send(RS.pageFormRessource(config, { espace: x.espace, type, coach: x.coach }));
   });
   app.post('/ressources/nouvelle', formulaire, (req, res) => {
     const type = ['niche', 'methode', 'tutoriel'].includes(req.body.type) ? req.body.type : 'niche';
     const x = lecteurRessources(req, res, `/ressources/nouvelle?type=${type}`);
     if (!x) return;
-    const r = ressources.creer(type, req.body, { auteur: x.coach ? null : x.session.id });
+    const r = ressources.creer(type, req.body, { auteur: x.coach ? null : x.session.id, images: imagesRessource(req.body, x) });
     if (r.erreur) return res.status(400).send(RS.pageFormRessource(config, { espace: x.espace, type, coach: x.coach, erreur: r.erreur, valeurs: req.body }));
     if (!x.coach) prevenir('ressourceProposee', r.ressource, x.p);
     // « Ajouter ma niche » depuis l'étape 3 : on y revient, la niche déjà choisie.
@@ -1632,7 +1633,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!x) return;
     const r = ressourceDe(req, res, x);
     if (!r) return;
-    const m = ressources.modifier(r.id, req.body, { discordId: x.session.id, coach: x.coach });
+    const m = ressources.modifier(r.id, req.body, { discordId: x.session.id, coach: x.coach, images: imagesRessource(req.body, x, r.images) });
     if (m.erreur) return res.status(400).send(RS.pageFormRessource(config, { espace: x.espace, type: r.type, r, coach: x.coach, erreur: m.erreur, valeurs: req.body }));
     return res.redirect(303, `/ressources/${r.id}?fait=modifie`);
   });
@@ -1670,7 +1671,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const chemin = parcours.cheminImage(req.params.nom);
     if (!session || !chemin) { res.status(404).end(); return; }
     const deLAnnonce = Boolean(commandes.db.prepare('SELECT 1 FROM annonces WHERE image = ?').get(req.params.nom));
-    if (!estLeCoach(session) && !deLAnnonce && !parcours.peutVoirImage(req.params.nom, session.id)) { res.status(403).end(); return; }
+    if (!estLeCoach(session) && !deLAnnonce && !parcours.peutVoirImage(req.params.nom, session.id)
+      && !(parcours.get(session.id) && ressources.imagePublique(req.params.nom, session.id))) { res.status(403).end(); return; }
     res.set('Cache-Control', 'private, max-age=86400');
     res.sendFile(chemin, (err) => { if (err && !res.headersSent) res.status(404).end(); });
   });
@@ -1692,7 +1694,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       notifications: notifsAdmin.nonLuesListe(100).filter((n) => !String(n.lien || '').startsWith('/admin/messages-recus/')),
       // Déjà traité (7 derniers jours) : notifications lues et messages d'élèves traités, les plus récents d'abord.
       dejaTraites: [
-        ...notifsAdmin.luesRecentes(20).map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le, quoi: n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte,
+        ...notifsAdmin.luesRecentes(20).map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le, quoi: n.texte,
+          quoiHtml: require('./admin-notifs').gras(require('./pages').echapper(n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte)),
           lien: n.lien ? `/admin/notifications/${n.id}/ouvrir` : null, bouton: n.lien ? 'Rouvrir' : null })),
         ...messages.traitesRecents(10).map((m) => ({ cat: 'messages', qui: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id, ficheId: m.discord_id,
           quand: m.traite_le, quoi: m.texte.length > 140 ? `${m.texte.slice(0, 140)}…` : m.texte, lien: `/admin/messages-recus/${m.id}`, bouton: 'Revoir' })),

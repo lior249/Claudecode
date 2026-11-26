@@ -706,6 +706,15 @@ function migrerV29(db) {
   db.exec('PRAGMA user_version = 29');
 }
 
+// v30 : ressources illustrées (jusqu'à 5 images, la première en miniature) ; tutoriels en étapes (texte + lien).
+function migrerV30(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 30) return;
+  const c = colonnes(db, 'ressources');
+  if (!c.includes('images')) db.exec('ALTER TABLE ressources ADD COLUMN images TEXT');
+  if (!c.includes('etapes')) db.exec('ALTER TABLE ressources ADD COLUMN etapes TEXT');
+  db.exec('PRAGMA user_version = 30');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -744,6 +753,7 @@ function ouvrirBase(fichier) {
   migrerV27(db);
   migrerV28(db);
   migrerV29(db);
+  migrerV30(db);
   return db;
 }
 
