@@ -238,7 +238,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     // Le coach : Notifications (journal de Bob) et Mes rappels ; les réglages de l'application à part.
     if (session.id === config.discord.adminId && onglet !== 'reglages') {
       const espace = espaceDe(session);
-      const notifications = onglet === 'notifications' ? notifsAdmin.liste() : [];
+      // Les non lues en haut (les plus récentes d'abord), puis celles déjà ouvertes.
+      const notifications = onglet === 'notifications' ? notifsAdmin.liste().slice().sort((a, b) => (a.lu_le ? 1 : 0) - (b.lu_le ? 1 : 0) || b.id - a.id) : [];
       // Le coach lit chaque notification une à une : seule l'ouverture d'une notification la marque lue.
       const nonLues = notifsAdmin.nonLues();
       return res.send(N.pageNotificationsAdmin(config, { espace, onglet, notifications, nonLues,
@@ -1362,6 +1363,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (vues && vues >= (r.remarque.modifie_le || r.remarque.cree_le)) prevenir('remarqueModifiee', parcours.get(r.remarque.discord_id));
     return res.redirect(303, '/admin/planifier?onglet=message&fait=modifie');
   });
+  // Gestion : Planifier, Élèves, Ressources (et mes rappels).
+  app.get('/admin/gestion', (req, res) => {
+    if (!estAdmin(req, res, '/admin/gestion')) return;
+    res.send(PF.pageGestion(config, { espace: espaceDe(lireSession(req, config.secretApp)), nbEleves: parcours.tous().length, evenements: evenementsEnCours().length,
+      ressources: commandes.db.prepare("SELECT COUNT(*) n FROM ressources WHERE etat = 'public'").get().n, aValider: ressources.enAttente().length }));
+  });
   // Profil du coach.
   app.get('/coach', (req, res) => {
     if (!estAdmin(req, res, '/coach')) return;
@@ -1380,7 +1387,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     try { seancesFaites = coaching.occurrences(aujourdhui, aujourdhui).filter((o) => !o.touchee && new Date(o.debut) < new Date()).length; } catch { seancesFaites = 0; }
     const profil = qProfils.get.get(session.id) || {};
     res.send(PF.pageCoach(config, { espace, pseudo: profil.prenom || (session.pseudo !== 'coach' ? session.pseudo : null), avatar: profil.avatar, nbEleves: parcours.tous().length,
-      aTraiter: espace.aTraiterParcours, faites, seancesAujourdhui: seances, seancesFaites, top: liste.filter((m) => m.revenus > 0).slice(0, 5) }));
+      aTraiter: espace.aTraiterParcours, faites, seancesAujourdhui: seances, seancesFaites, top: liste.filter((m) => m.revenus > 0).slice(0, 5),
+      // À la une : les meilleurs résultats de vidéos validés ces 7 derniers jours.
+      aLaUne: commandes.db.prepare(`SELECT id, discord_id, jour, ok_vues vues, ok_revenus revenus FROM publications WHERE res_etat = 'valide' AND res_decide_le >= ?
+        ORDER BY ok_revenus DESC, ok_vues DESC LIMIT 8`).all(new Date(Date.now() - 7 * 864e5).toISOString())
+        .map((x) => ({ ...x, nom: (qProfils.get.get(x.discord_id) || {}).prenom || (parcours.get(x.discord_id) || {}).pseudo || x.discord_id })) }));
   });
   app.post('/admin/annonces', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/annonces')) return;

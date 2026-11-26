@@ -232,3 +232,16 @@ test('remarques compactes : 3 bien visibles, les suivantes en fondu, « Tout aff
     assert.match(fiche, /Remarques du coach[\s\S]*Tout afficher \(6\)[\s\S]*Statistiques/, 'statistiques juste sous les remarques');
   } finally { await m.fermer(); }
 });
+
+test('notifications du coach : les 5 dernières, non lues en haut, « Afficher plus »', async () => {
+  const m = await monter();
+  try {
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    for (let k = 1; k <= 8; k++) m.db.prepare('INSERT INTO notifications_admin (texte, lien, cree_le, lu_le) VALUES (?, ?, ?, ?)').run(`Notif ${k}`, '/admin', new Date().toISOString(), k === 8 ? new Date().toISOString() : null);
+    const page = await (await m.get('/notifications', coach)).text();
+    const ordre = [...page.matchAll(/Notif (\d)/g)].map((x) => Number(x[1]));
+    assert.deepStrictEqual(ordre, [7, 6, 5, 4, 3, 2, 1, 8], 'la notification déjà ouverte (8) descend en bas');
+    assert.strictEqual((page.match(/data-plus hidden/g) || []).length, 3);
+    assert.match(page, /Afficher plus \(3\)/);
+  } finally { await m.fermer(); }
+});

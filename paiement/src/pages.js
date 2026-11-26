@@ -313,6 +313,7 @@ const ICONES_NAV = {
   notifications: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg>',
   sortie: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/></svg>',
   ressources: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h5.5a2 2 0 0 1 2 2V20a1.8 1.8 0 0 0-1.8-1.8H5z"/><path d="M19 4.5h-5.5a2 2 0 0 0-1 .3M19 4.5v13.7h-5.7a1.8 1.8 0 0 0-1.8 1.8"/></svg>',
+  gestion: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>',
   menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
 };
 
@@ -425,7 +426,7 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonA
     ${sansHaut ? '' : `<header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label></header>`}
     <main class="espace-contenu">${banniereEvenements(evenements)}${contenu}</main>
   </div>
-  ${barreBas ? `<nav class="barre-bas" aria-label="Navigation rapide" style="grid-template-columns:repeat(${barreBas.length}, 1fr)">${barreBas.map((n) => `<a href="${echapper(n.lien)}"${n.cle === actif ? ' class="actif" aria-current="page"' : ''}${n.badge ? ` aria-label="${echapper(n.libelle)} : ${n.badge} nouveau(x)"` : ''}><span class="icone-bb">${ICONES_NAV[n.icone] || ''}${n.badge ? `<span class="compteur-bb">${n.badge > 9 ? '9+' : n.badge}</span>` : ''}</span><span>${echapper(n.libelle)}</span></a>`).join('')}</nav>` : ''}
+  ${barreBas ? `<nav class="barre-bas" aria-label="Navigation rapide" style="grid-template-columns:repeat(${barreBas.length}, 1fr)">${barreBas.map((n) => `<a href="${echapper(n.lien)}"${(n.actifs || [n.cle]).includes(actif) ? ' class="actif" aria-current="page"' : ''}${n.badge ? ` aria-label="${echapper(n.libelle)} : ${n.badge} nouveau(x)"` : ''}><span class="icone-bb">${ICONES_NAV[n.icone] || ''}${n.badge ? `<span class="compteur-bb">${n.badge > 9 ? '9+' : n.badge}</span>` : ''}</span><span>${echapper(n.libelle)}</span></a>`).join('')}</nav>` : ''}
 </div>`, { script: `${script || ''}${scriptPastille}`, entete: false, brut: true, jetonApp });
 }
 

@@ -65,6 +65,7 @@ function navEspace(espace = {}) {
   if (espace.estAdmin) {
     nav.push({ section: 'Gestion' },
       { cle: 'coach', libelle: 'Mon profil', lien: '/coach', icone: 'profil' },
+      { cle: 'gestion', libelle: 'Gestion', lien: '/admin/gestion', icone: 'gestion' },
       { cle: 'traiter', libelle: 'À traiter', lien: '/admin/a-traiter', icone: 'traiter', badge: espace.aTraiterParcours || null },
       { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
       { cle: 'eleves', libelle: 'Élèves Elite', lien: '/admin/eleves', icone: 'eleves' },
@@ -92,13 +93,12 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
   return gabaritEspace(titre, `${STYLE_GRILLE}${STYLE_BUREAU}${contenu}`, {
     ...options, nav: navEspace(espace), actif, jetonApp: espace && espace.jetonApp, evenements: (espace && espace.evenements) || [],
     // Élèves de l'accompagnement : la barre du bas sur téléphone.
-    // Le coach : Profil, À traiter, Calendrier, Planifier, Classement.
+    // Le coach : Profil, À traiter, Calendrier, Gestion (Planifier, Élèves, Ressources). Le classement est sur son profil.
     barreBas: espace && espace.estAdmin ? [
-      { cle: 'coach', libelle: 'Profil', lien: '/coach', icone: 'profil' },
+      { cle: 'coach', libelle: 'Profil', lien: '/coach', icone: 'profil', actifs: ['coach', 'classement'] },
       { cle: 'traiter', libelle: 'À traiter', lien: '/admin/a-traiter', icone: 'traiter', badge: espace.aTraiterParcours || 0 },
       { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
-      { cle: 'planifier', libelle: 'Planifier', lien: '/admin/planifier', icone: 'annonces' },
-      { cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' }]
+      { cle: 'gestion', libelle: 'Gestion', lien: '/admin/gestion', icone: 'gestion', actifs: ['gestion', 'planifier', 'eleves', 'ressources'] }]
       : espace && espace.parcours ? [
       { cle: 'profil', libelle: 'Profil', lien: '/profil', icone: 'profil' },
       { cle: 'notifications', libelle: 'Mes rappels', lien: '/notifications', icone: 'notifications', badge: espace.notifsNonLues || 0 },

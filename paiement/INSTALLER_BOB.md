@@ -595,3 +595,12 @@ ou sur **overmaxx.online/admin/candidatures**.
   - test 1 : affiche une notification directement sur le téléphone. S'il ne s'affiche pas, c'est un réglage du téléphone (Notifications › Overmaxx, mode Concentration).
   - test 2 : passe par Apple ou Google et affiche leur réponse exacte (acceptée, refusée et pourquoi).
 - **Mes appareils** : chaque appareil montre la réponse au dernier envoi (accepté ou refusé).
+
+## Gestion, profil du coach, notifications triées
+
+- **Barre du bas (coach)** : Profil, À traiter, Calendrier, Gestion.
+- **Gestion** : quatre cases côte à côte : Planifier, Gérer les élèves, Ressources, Mes rappels. Chacune affiche un chiffre, et une alerte s'il y a quelque chose à relire.
+- **Mon profil (coach)** :
+  - « À la une » remplace « À traiter » : les meilleurs résultats de vidéos validés des 7 derniers jours.
+  - Le Classement est accessible depuis ton profil.
+- **Notifications (coach)** : les 5 premières, puis « Afficher plus ». Les non lues restent en haut ; une notification ouverte descend en bas.

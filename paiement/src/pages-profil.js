@@ -664,8 +664,22 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
   ${corps}`, espace, 'planifier', null, SCRIPT_ANNONCE + SCRIPT_DESTINATAIRES);
 }
 
+// Gestion (coach) : Planifier, Élèves Elite et Ressources, en cases côte à côte (la barre du bas reste courte).
+function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources = 0, aValider = 0, aCompleter = 0 }) {
+  const tuile = (lien, titre, ligne, texte, alerte) => `<a class="pf-carte" href="${lien}" style="min-height:140px"><h3>${titre}</h3>
+    <p class="vert">${ligne}</p><p>${texte}</p>${alerte ? `<p style="color:#ffb35c;font-weight:700;margin-top:6px">${alerte}</p>` : ''}</a>`;
+  return page('Gestion', `${STYLE_PROFIL}
+  <div class="titre-page"><div><p class="etiquette">Coach</p><h1>Gestion</h1></div></div>
+  <div class="pf"><div class="pf-cartes" style="grid-template-columns:1fr 1fr">
+    ${tuile('/admin/planifier', 'Planifier', `${evenements} événement(s) en cours`, 'Événements, messages aux élèves, accusés de lecture.')}
+    ${tuile('/admin/eleves', 'Gérer les élèves', `${nbEleves} élève(s)`, 'Kanban par étape, ou liste triable.', aCompleter ? `${aCompleter} à compléter` : '')}
+    ${tuile('/ressources', 'Ressources', `${ressources} publiée(s)`, 'Niches, méthodes 10K, tutoriels.', aValider ? `${aValider} proposition(s) à relire` : '')}
+    ${tuile('/notifications?onglet=rappels', 'Mes rappels', 'Tes rappels', 'Une fois, chaque jour ou certains jours.')}
+  </div></div>`, espace, 'gestion');
+}
+
 // Profil du coach : sa pièce dorée, ses chiffres, les raccourcis et ses meilleurs élèves.
-function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites = 0, seancesAujourdhui, seancesFaites = 0, top = [] }) {
+function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites = 0, seancesAujourdhui, seancesFaites = 0, top = [], aLaUne = [] }) {
   const nom = pseudo || 'Coach';
   const barre = (titre, fait, total, lien, vide, pleineSiVide) => `<a class="pf-objectif-barre" href="${lien}">
     <span class="haut"><span>${titre}</span><b>${total ? `${fait} / ${total}` : vide}</b></span>
@@ -685,13 +699,16 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
     ${barre('Tâches du jour', faites, faites + aTraiter, '/admin/a-traiter', 'Rien à traiter', true)}
     ${barre('Coachings du jour', seancesFaites, seancesAujourdhui, '/admin', 'Aucun coaching')}
     <div class="pf-cartes" style="grid-template-columns:1fr 1fr">
-      <a class="pf-carte" href="/admin/a-traiter"><h3>À traiter</h3><p class="vert">${aTraiter} en attente</p><p>Exercices, vidéos, comptes rendus, candidatures…</p></a>
-      <a class="pf-carte" href="/admin/eleves"><h3>Élèves Elite</h3><p class="vert">${nbEleves} élève(s)</p><p>Kanban ou liste triable.</p></a>
+      <a class="pf-carte" href="#a-la-une"><h3>À la une</h3><p class="vert">${aLaUne.length} résultat(s)</p><p>Les meilleurs résultats de tes élèves, 7 derniers jours.</p></a>
+      <a class="pf-carte" href="/classement"><h3>Classement</h3><p class="vert">${top.length ? `1er : ${echapper(top[0].nom)}` : 'Top 100'}</p><p>Tous les élèves, par revenus.</p></a>
     </div>
+    <h2 class="section" id="a-la-une">À la une</h2>
+    <div class="cm-liste">${aLaUne.map((x) => `<a class="cm-ligne" href="/admin/resultats/${x.id}" style="color:#fff;text-decoration:none"><span class="rond">${echapper(x.nom.charAt(0).toUpperCase())}</span>
+      <div class="qui"><b>${echapper(x.nom)}</b><small>${dollars(x.revenus)} · ${vuesCourtes(x.vues)} vues · vidéo du ${echapper(jourLisible(x.jour))}</small></div></a>`).join('') || '<p class="vide-traiter">Pas encore de résultat validé cette semaine.</p>'}</div>
     <h2 class="section">Meilleurs élèves</h2>
     <div class="cm-liste">${top.map((m, i) => `<a class="cm-ligne" href="/classement/${encodeURIComponent(m.id)}" style="color:#fff;text-decoration:none"><span class="rond">${i + 1}</span>
       <div class="qui"><b>${echapper(m.nom)}</b><small>${dollars(m.revenus, { centimes: false })} · ${vuesCourtes(m.vues)} vues</small></div></a>`).join('') || '<p class="vide-traiter">Pas encore de résultats.</p>'}</div>
   </div>${STYLE_COMMU}`, espace, 'coach');
 }
 
-module.exports = { pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
+module.exports = { pageGestion, pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
