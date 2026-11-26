@@ -233,4 +233,15 @@ function pageNotificationsAdmin(config, { espace, onglet, notifications = [], no
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${tabs}${corps}`, espace, 'notifications', onglet === 'rappels' ? { script: SCRIPT_RAPPELS } : {});
 }
 
-module.exports = { pageNotifications, pageNotificationsAdmin, blocInstallation, SCRIPT_OUTILS_APP, STYLE_NOTIF };
+// Notifications d'un membre : ses derniers messages (Bob ou l'application), puis l'onglet Réglages.
+function pageNotificationsMembre(config, { espace, notifications = [] }) {
+  const formatHeure = (iso) => new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return pageEspace('Notifications', `${STYLE_ADMIN_NOTIF}
+  <div class="titre-page"><div><p class="etiquette">Mon compte</p><h1>Notifications</h1></div></div>
+  <nav class="onglets-admin" aria-label="Notifications"><a href="/notifications" aria-current="page">Notifications</a><a href="/notifications?onglet=reglages">Réglages</a></nav>
+  <div class="nf-liste">${notifications.map((n) => `<div class="nf${n.lu_le ? '' : ' nouvelle'}"><span class="pt"></span>
+    <div class="corps"><p>${echapper(n.texte)}</p><small>${echapper(formatHeure(n.cree_le))}</small></div>
+    ${n.lien ? `<a class="ouvrir" href="${echapper(n.lien)}">Ouvrir</a>` : ''}</div>`).join('') || '<p class="vide-traiter">Aucune notification pour le moment.</p>'}</div>`, espace, 'notifications');
+}
+
+module.exports = { pageNotificationsMembre, pageNotifications, pageNotificationsAdmin, blocInstallation, SCRIPT_OUTILS_APP, STYLE_NOTIF };

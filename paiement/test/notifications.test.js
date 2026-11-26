@@ -116,7 +116,7 @@ test('application installable : manifeste, service worker, ouverture déjà conn
     for (let i = 1; i <= 4; i++) assert.strictEqual((await m.get(`/static/aide/bob-${i}.jpg`)).status, 200);
 
     // Page Notifications et ses appels.
-    const notif = await (await m.get('/notifications', { cookie: membre })).text();
+    const notif = await (await m.get('/notifications?onglet=reglages', { cookie: membre })).text();
     assert.match(notif, /Où recevoir mes notifications/);
     assert.match(notif, /Sur l'écran d'accueil/);
     const api = (chemin, corps, cookie = membre) => fetch(`${m.base}${chemin}`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify(corps) });
@@ -128,7 +128,7 @@ test('application installable : manifeste, service worker, ouverture déjà conn
     const t = await (await api('/api/notifications/test', {})).json();
     assert.strictEqual(t.appareils, 1);
     assert.strictEqual(m.envoisPush[0][1].titre, 'Notifications activées');
-    assert.match(await (await m.get('/notifications', { cookie: membre })).text(), /Android · application/);
+    assert.match(await (await m.get('/notifications?onglet=reglages', { cookie: membre })).text(), /Android · application/);
     assert.strictEqual((await api('/api/notifications/test', {}, '')).status, 401);
     // Plus aucun appareil : Bob reprend.
     assert.strictEqual((await api('/api/notifications/desabonnement', { endpoint: a.endpoint })).status, 200);

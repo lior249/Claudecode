@@ -89,3 +89,23 @@ test('annonce du coach : envoyée à tous les élèves (lien perso pour une page
     assert.match(profil, /Annonce du coach[\s\S]*Live ce soir[\s\S]*Rendez-vous à 21 h\.[\s\S]*href="\/parcours\/etape-4"/);
   } finally { await m.fermer(); }
 });
+
+test('élève : pastilles rouges (9+) sur la cloche et la bulle, remises à zéro à l\'ouverture', async () => {
+  const m = await monter();
+  try {
+    m.parcours.assurer('A', { pseudo: 'p_A' });
+    const { creerNotifsAdmin } = require('../src/admin-notifs');
+    const n = creerNotifsAdmin({ db: m.db });
+    for (let k = 0; k < 12; k++) n.noterMembre('A', `**Message ${k}**`);
+    m.parcours.ajouterRemarque('A', { texte: 'Bien joué', type: 'remarque' });
+    const a = { cookie: cookieSession('A', 'p_A') };
+    const profil = await (await m.get('/profil', a)).text();
+    assert.match(profil, /aria-label="Notifications : 12 non lue\(s\)">[\s\S]*?<span class="compteur">9\+<\/span>/);
+    assert.match(profil, /aria-label="Remarques du coach : 1 nouvelle\(s\)">[\s\S]*?<span class="compteur">1<\/span>/);
+    assert.match(profil, /class="pf-avatar piece" style="--piece:#5b6cff"/, 'pièce bleue : Elite');
+    assert.match(await (await m.get('/notifications', a)).text(), /Message 11[\s\S]*Message 0/);
+    await m.get('/remarques', a);
+    const apres = await (await m.get('/profil', a)).text();
+    assert.doesNotMatch(apres, /class="compteur"/);
+  } finally { await m.fermer(); }
+});

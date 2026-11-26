@@ -335,6 +335,15 @@ retire-les à la main.
 - Sur téléphone, **barre du bas** : Classement · Remarques · Mes rappels · Profil. La vibration de la roue marche sur Android ;
   Apple ne la permet pas aux sites (iPhone).
 
+## Pastilles, pièce et objectif (Mon profil)
+
+- **Pastilles rouges** sur la cloche (notifications non lues, jusqu'à « 9+ ») et sur la bulle (nouvelles remarques du coach).
+  Chaque message de Bob ou de l'application à un élève est rangé dans sa page Notifications (onglets Notifications / Réglages).
+- **Photo en pièce** de la couleur du rang : bleu Elite, vert Membre, doré GOAT et €10k, or €5k, orange €1.5k ; rouge et photo
+  en gris pour un sinistré. Un reflet passe du bas vers le haut.
+- **Prochain objectif** sous les chiffres : barre de progression, le montant à droite ; elle ouvre Mes revenus (même barre).
+- **Roue des jours** : chaque jour donne son action (faire, corriger ou voir son compte rendu).
+
 ## Annonce à tous les élèves
 
 Menu Gestion → **Annonce aux élèves** (`/admin/annonces`) : un titre, un message, et si besoin **+ Ajouter un lien**

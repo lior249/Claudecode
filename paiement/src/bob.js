@@ -185,7 +185,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       return config.discord.adminId ? ((await parApplication(config.discord.adminId, contenu)) || messagePrive(config.discord.adminId, contenu)) : false;
     },
     // Message privé, sinon fil privé avec les mêmes boutons. Si rien ne passe, l'admin le sait (une fois par jour et par membre).
-    membre: async (discordId, contenu) => (await parApplication(discordId, contenu)) || (await envoyer(discordId, contenu)).ok,
+    membre: async (discordId, contenu) => {
+      try { notifsAdmin.noterMembre(discordId, contenu); } catch (err) { console.warn('[bob] journal membre :', err.message); }
+      return (await parApplication(discordId, contenu)) || (await envoyer(discordId, contenu)).ok;
+    },
     // Rappels de paiement : toujours par Bob, puis par l'application 10 minutes plus tard, s'il n'a toujours pas payé.
     paiement: async (discordId, contenu, { membreId, accesAvant } = {}) => {
       const ok = (await envoyer(discordId, contenu)).ok;

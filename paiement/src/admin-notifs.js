@@ -52,6 +52,11 @@ function creerNotifsAdmin({ db, maintenant = () => new Date() }) {
     basculer: db.prepare('UPDATE rappels_admin SET actif = 1 - actif WHERE id = ?'),
     envoye: db.prepare('UPDATE rappels_admin SET dernier_envoi = ?, actif = CASE WHEN frequence = \'une-fois\' THEN 0 ELSE actif END WHERE id = ?'),
     actifs: db.prepare('SELECT * FROM rappels_admin WHERE actif = 1'),
+    ajouterM: db.prepare('INSERT INTO notifications_membres (discord_id, texte, lien, cree_le) VALUES (?, ?, ?, ?)'),
+    purgerM: db.prepare('DELETE FROM notifications_membres WHERE cree_le < ?'),
+    listeM: db.prepare('SELECT * FROM notifications_membres WHERE discord_id = ? ORDER BY id DESC LIMIT ?'),
+    nonLuesM: db.prepare('SELECT COUNT(*) n FROM notifications_membres WHERE discord_id = ? AND lu_le IS NULL'),
+    toutLuM: db.prepare('UPDATE notifications_membres SET lu_le = ? WHERE lu_le IS NULL AND discord_id = ?'),
   };
   const iso = () => maintenant().toISOString();
 
@@ -67,6 +72,17 @@ function creerNotifsAdmin({ db, maintenant = () => new Date() }) {
     liste(n = 100) { return q.liste.all(n); },
     nonLues() { return q.nonLues.get().n; },
     toutLu() { q.toutLu.run(iso()); },
+
+    // Les notifications de chaque membre (messages de Bob ou de l'application), pour sa cloche.
+    noterMembre(discordId, contenu) {
+      const texte = texteDe(contenu);
+      if (!discordId || !texte) return;
+      q.ajouterM.run(String(discordId), texte, lienDe(contenu), iso());
+      q.purgerM.run(new Date(maintenant().getTime() - 60 * 86400000).toISOString());
+    },
+    listeMembre(discordId, n = 60) { return q.listeM.all(String(discordId), n); },
+    nonLuesMembre(discordId) { return q.nonLuesM.get(String(discordId)).n; },
+    toutLuMembre(discordId) { q.toutLuM.run(iso(), String(discordId)); },
 
     rappels() { return q.rappels.all().map((r) => ({ ...r, jours: r.jours ? r.jours.split(',').map(Number) : [] })); },
     creer({ texte, frequence, jours, date, heure }) {

@@ -92,6 +92,25 @@ const STYLE_PROFIL = `<style>
   .pf-tache h3 { margin:0; font-size:16px; } .pf-tache p { margin:3px 0 0; font-size:13px; color:var(--doux); }
   .pf h2.section { font-size:15px; text-transform:uppercase; letter-spacing:.1em; color:var(--doux); margin:6px 0 10px; }
   .pf-groupe { display:flex; align-items:center; gap:6px; }
+  .pf-icone .compteur { position:absolute; top:-3px; right:-9px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:#ff3b30; color:#fff;
+    font:800 11px/19px var(--police); text-align:center; border:2px solid #000; box-sizing:content-box; }
+  /* La photo dans une pièce de monnaie : tranche métallique de la couleur du rang, reflet qui passe du bas vers le haut. */
+  .pf-avatar.piece { position:relative; width:108px; height:108px; padding:9px; border:0; border-radius:50%; overflow:hidden; isolation:isolate;
+    background:radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--piece) 35%, #fff) 0%, var(--piece) 38%, color-mix(in srgb, var(--piece) 45%, #000) 100%);
+    box-shadow:0 0 0 1px color-mix(in srgb, var(--piece) 60%, #000), 0 6px 22px color-mix(in srgb, var(--piece) 35%, transparent), inset 0 2px 3px rgba(255,255,255,.45), inset 0 -3px 5px rgba(0,0,0,.45); }
+  .pf-avatar.piece .face { display:block; width:100%; height:100%; border-radius:50%; overflow:hidden; box-shadow:inset 0 0 0 2px rgba(0,0,0,.45), 0 0 0 2px color-mix(in srgb, var(--piece) 50%, #000); }
+  .pf-avatar.piece::after { content:""; position:absolute; inset:-40%; z-index:2; pointer-events:none;
+    background:linear-gradient(0deg, transparent 38%, color-mix(in srgb, var(--piece) 25%, #fff) 50%, transparent 62%); opacity:.55; mix-blend-mode:screen;
+    animation:ovx-piece 3.6s ease-in-out infinite; }
+  @keyframes ovx-piece { 0% { transform:translateY(60%) rotate(-20deg); } 55%, 100% { transform:translateY(-60%) rotate(-20deg); } }
+  .pf-avatar.piece[data-sinistre]::after { animation:none; opacity:0; } .pf-avatar.piece[data-sinistre] img { filter:grayscale(1); }
+  .pf-objectif-barre { display:block; margin:-4px 0 18px; padding:12px 14px; border-radius:16px; background:#101010; border:1px solid #222; color:#fff; text-decoration:none; }
+  .pf-objectif-barre .haut { display:flex; justify-content:space-between; align-items:baseline; font-size:13px; color:var(--doux); }
+  .pf-objectif-barre .haut b { color:#fff; font-size:15px; }
+  .pf-objectif-barre .barre { display:block; height:8px; margin:8px 0 6px; border-radius:999px; background:#262626; overflow:hidden; }
+  .pf-objectif-barre .barre i { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg, #9fd11f, var(--lime)); }
+  .pf-objectif-barre .bas { font-size:12px; color:var(--doux); }
+  @media (prefers-reduced-motion: reduce) { .pf-avatar.piece::after { animation:none; } }
   .pf-avatar { display:block; text-decoration:none; color:#fff; }
   .pf-frise { display:block; text-decoration:none; color:inherit; margin:0 0 6px; } .pf-frise .etapes { margin-bottom:8px; }
   .pf-carrousel-cadre { padding:0; display:flex; flex-direction:column; }
@@ -192,13 +211,25 @@ function panneauJour(d, i, tache) {
     const etat = { valide: 'Compte rendu validé', attente: 'Compte rendu en attente de validation', corriger: 'Compte rendu à corriger' }[d.e];
     corps = `<p>${etat}</p><div class="res"><div><b>${d.g !== null ? dollars(d.g) : '—'}</b><small>Gagné ce jour-là</small></div>
       <div><b>${d.v !== null ? vuesCourtes(d.v) : '—'}</b><small>Vues du jour</small></div><div><b>${d.n}</b><small>Vidéo${d.n > 1 ? 's' : ''}</small></div></div>
-      ${d.e === 'corriger' ? `<a class="bouton" href="/parcours/compte-rendu/${d.j}">Corriger mon compte rendu</a>` : ''}`;
+      <a class="bouton${d.e === 'corriger' ? '' : ' secondaire'}" href="/parcours/compte-rendu/${d.j}">${d.e === 'corriger' ? 'Corriger mon compte rendu' : 'Voir mon compte rendu'}</a>`;
   } else if (d.e === 'publie') {
     corps = `<p>${d.n} vidéo${d.n > 1 ? 's' : ''} publiée${d.n > 1 ? 's' : ''}, compte rendu pas encore envoyé.</p><a class="bouton" href="/parcours/compte-rendu/${d.j}">Faire mon compte rendu</a>`;
-  } else corps = '<p>Aucune vidéo ce jour-là.</p>';
+  } else corps = d.etape4 ? '<p>Aucune vidéo déclarée ce jour-là.</p>' : '<p>Rien à faire ce jour-là : tes tâches sont celles d\'aujourd\'hui.</p>';
   return `<section class="jour-panneau" data-jour="${d.j}"${d.aujourdhui ? '' : ' hidden'}><h2>${echapper(titre)}</h2>${corps}${d.futur ? '' : encourage}</section>`;
 }
 
+// Pastille rouge : le nombre, jusqu'à 9+.
+const compteur = (n) => (n ? `<span class="compteur">${n > 9 ? '9+' : n}</span>` : '');
+// La couleur de la pièce (contour de la photo) : celle du rang Discord.
+const couleurPiece = (role) => ({ goat: '#f5c518', 10000: '#f5c518', 5000: '#d9a21b', 1500: '#ee8a2d', elite: '#5b6cff', membre: '#57d17a', sinistre: '#e5484d' })[role] || '#5b6cff';
+// Prochain objectif : la barre de progression (ouvre Mes revenus).
+function barreObjectif(objectif, total) {
+  if (!objectif) return '';
+  const pct = Math.min(100, Math.round((total / objectif.montant) * 100));
+  return `<a class="pf-objectif-barre" href="/revenus" aria-label="Prochain objectif : ${pct} %">
+    <span class="haut"><span>Prochain objectif</span><b>${dollars(objectif.montant, { centimes: false })}</b></span>
+    <span class="barre"><i style="width:${pct}%"></i></span><span class="bas">${dollars(total)} · ${pct} %</span></a>`;
+}
 function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, nbSuivis, nbConcurrents, invitations, notifications, rappel,
   rang, totalClasses, revenusMois, objectif, seances = [], remarquesNouvelles = 0, annonce }) {
   const nom = prenom || p.pseudo || 'Membre';
@@ -220,8 +251,8 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
     ${carteAnnonce(annonce)}
     <div class="pf-haut">
       <div class="pf-groupe">
-        <a class="pf-icone" href="/notifications" aria-label="Notifications et rappels">${ICONES.cloche}${notifications ? '<span class="point"></span>' : ''}</a>
-        <a class="pf-icone" href="/remarques" aria-label="Remarques du coach">${ICONES.bulle}${remarquesNouvelles ? '<span class="point"></span>' : ''}</a>
+        <a class="pf-icone" href="/notifications" aria-label="Notifications${notifications ? ` : ${notifications} non lue(s)` : ''}">${ICONES.cloche}${compteur(notifications)}</a>
+        <a class="pf-icone" href="/remarques" aria-label="Remarques du coach${remarquesNouvelles ? ` : ${remarquesNouvelles} nouvelle(s)` : ''}">${ICONES.bulle}${compteur(remarquesNouvelles)}</a>
       </div>
       <div class="pf-groupe">
         <a class="pf-chaine" href="/parcours/etape-4" aria-label="Chaîne de ${chaine} jours">${FLAMME(flamme)}${chaine}</a>
@@ -229,14 +260,16 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
       </div>
     </div>
     <div class="pf-identite">
-      <a class="pf-avatar" href="/fiche" aria-label="Ma fiche">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</a>
+      <a class="pf-avatar piece" style="--piece:${echapper(couleurPiece(p.sinistre_depuis ? 'sinistre' : role))}"${p.sinistre_depuis ? ' data-sinistre' : ''} href="/fiche" aria-label="Ma fiche">
+        <span class="face">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</span></a>
       <h1>${echapper(nom)}</h1><p>@${echapper(p.pseudo || '')}</p>
     </div>
     <div class="pf-chiffres">
       <div><b>${ICONES.revenus}${dollars(stats.revenusTotal || 0, { centimes: false })}</b><small>Revenus</small></div><span class="sep"></span>
-      <div><b>${pastilleRole(role)}</b><small>Rang</small></div><span class="sep"></span>
+      <div><b>${pastilleRole(p.sinistre_depuis ? 'sinistre' : role)}</b><small>Rang</small></div><span class="sep"></span>
       <div><b>${ICONES.jours}${jourDepuis}</b><small>Jours</small></div>
     </div>
+    ${barreObjectif(objectif, stats.revenusTotal || 0)}
     <a class="pf-frise" href="/parcours" aria-label="Mon parcours">${frise(Math.min(p.etape, 5))}</a>
     <div class="roue-cadre"><div class="roue" role="listbox" aria-label="Jours">${roue}</div><button type="button" class="roue-retour" hidden>Revenir à aujourd'hui</button></div>
     ${jours.map((d, i) => panneauJour(d, i, tache)).join('')}
@@ -258,9 +291,14 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
 }
 
 // Revenus : le tableau de bord TikTok (ouvert depuis le carrousel de Mon profil).
-function pageRevenus(config, { espace, tableau, stats }) {
-  return page('Mes revenus', `<a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
+function pageRevenus(config, { espace, tableau, stats, objectif }) {
+  const style = `<style>.pf-objectif-barre { display:block; margin:0 0 18px; padding:12px 14px; border-radius:16px; background:#101010; border:1px solid #222; color:#fff; text-decoration:none; max-width:640px; }
+  .pf-objectif-barre .haut { display:flex; justify-content:space-between; font-size:13px; color:var(--doux); } .pf-objectif-barre .haut b { color:#fff; font-size:15px; }
+  .pf-objectif-barre .barre { display:block; height:8px; margin:8px 0 6px; border-radius:999px; background:#262626; overflow:hidden; }
+  .pf-objectif-barre .barre i { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg, #9fd11f, #c8f23a); } .pf-objectif-barre .bas { font-size:12px; color:var(--doux); }</style>`;
+  return page('Mes revenus', `${style}<a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
   <div class="titre-page"><div><p class="etiquette">Mon profil</p><h1>Mes revenus</h1></div><span class="doux petit">Total validé : ${dollars((stats || {}).revenusTotal || 0)}</span></div>
+  ${barreObjectif(objectif, (stats || {}).revenusTotal || 0)}
   ${blocTableau(tableau)}`, espace, 'profil', null, SCRIPT_TABLEAU);
 }
 

@@ -582,6 +582,23 @@ function migrerV23(db) {
   PRAGMA user_version = 23;`);
 }
 
+// v24 : notifications de chaque membre (pastille rouge de la cloche) et dernières remarques du coach vues (pastille de la bulle).
+function migrerV24(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 24) return;
+  if (!colonnes(db, 'profils_membres').includes('remarques_vues_le')) db.exec('ALTER TABLE profils_membres ADD COLUMN remarques_vues_le TEXT');
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications_membres (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id TEXT NOT NULL,
+    texte      TEXT NOT NULL,
+    lien       TEXT,
+    cree_le    TEXT NOT NULL,
+    lu_le      TEXT
+  );
+  CREATE INDEX IF NOT EXISTS notifications_membres_id ON notifications_membres(discord_id, lu_le);
+  PRAGMA user_version = 24;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -614,6 +631,7 @@ function ouvrirBase(fichier) {
   migrerV21(db);
   migrerV22(db);
   migrerV23(db);
+  migrerV24(db);
   return db;
 }
 

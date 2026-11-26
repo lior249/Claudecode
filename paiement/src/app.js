@@ -218,6 +218,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
         message: { ajoute: 'Rappel ajouté : Bob te l\'enverra à l\'heure choisie.', supprime: 'Rappel supprimé.' }[req.query.fait],
         erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
     }
+    if (onglet === 'notifications' && session.id !== config.discord.adminId) {
+      const liste = notifsAdmin.listeMembre(session.id);
+      notifsAdmin.toutLuMembre(session.id);
+      return res.send(N.pageNotificationsMembre(config, { espace: espaceDe(session), notifications: liste }));
+    }
     res.send(N.pageNotifications(config, { espace: espaceDe(session), clePublique: push.clePublique(), canal: push.canal(session.id),
       appareils: push.abonnements(session.id) }));
   });
@@ -1177,7 +1182,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const jours = [];
     for (let j = debut; j <= decaler(aujourdhui, 3); j = decaler(j, 1)) {
       const cr = crs[j];
-      jours.push({ j, aujourdhui: j === aujourdhui, futur: j > aujourdhui, e: cr ? cr.etat : pubs[j] ? 'publie' : 'vide',
+      jours.push({ j, aujourdhui: j === aujourdhui, futur: j > aujourdhui, e: cr ? cr.etat : pubs[j] ? 'publie' : 'vide', etape4: p.etape >= 4,
         g: cr && gains[j] !== undefined ? gains[j] : null, v: cr ? cr.vues_jour : null, n: pubs[j] || 0 });
     }
     const envoyes = new Set(Object.values(crs).filter((c) => c.envoye_le).map((c) => c.jour));
@@ -1189,7 +1194,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       jourDepuis: Math.max(1, Math.floor((Date.now() - new Date(p.entree_le)) / 864e5) + 1), jours, chaine, flamme: communaute.flamme(chaine),
       derniers7: [7, 6, 5, 4, 3, 2, 1].map((k) => envoyes.has(decaler(aujourdhui, -k))), tache,
       suivis: suivis.map((s) => membreVu(s.suivi)), nbSuivis: suivis.length, nbConcurrents: communaute.concurrents(id).length,
-      invitations: communaute.invitationsRecues(id).length, notifications: communaute.invitationsRecues(id).length > 0,
+      invitations: communaute.invitationsRecues(id).length, notifications: notifsAdmin.nonLuesMembre(id),
+      remarquesNouvelles: commandes.db.prepare('SELECT COUNT(*) n FROM remarques WHERE discord_id = ? AND cree_le > ?').get(id, profil.remarques_vues_le || '').n,
       ...carrousel(p, aujourdhui), seances: coaching.prochainesSeances(id, 14).filter((x) => !x.touchee)
         .map((x) => ({ date: x.date, heure: x.heure, debut: new Date(x.debut).toISOString(), type: C.NOMS_TYPES[x.type] || 'Coaching' })),
     };
@@ -1238,7 +1244,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.get('/revenus', (req, res) => {
     const x = membreParcours(req, res, '/revenus', { sinistreOk: true });
     if (!x) return;
-    res.send(PF.pageRevenus(config, { espace: x.espace, tableau: suivi.tableau(x.p.discord_id), stats: suivi.stats(x.p.discord_id) }));
+    const stats = suivi.stats(x.p.discord_id) || {};
+    res.send(PF.pageRevenus(config, { espace: x.espace, tableau: suivi.tableau(x.p.discord_id), stats, objectif: (stats.objectifs || []).find((o) => !o.atteint) || null }));
   });
   // Réglages : prénom, pays, lien du compte TikTok ; liens vers notifications et coachings.
   app.get('/reglages', (req, res) => {
@@ -1331,6 +1338,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.get('/remarques', (req, res) => {
     const x = membreParcours(req, res, '/remarques', { sinistreOk: true });
     if (!x) return;
+    commandes.db.prepare(`INSERT INTO profils_membres (discord_id, remarques_vues_le, maj_le) VALUES (?, ?, ?)
+      ON CONFLICT(discord_id) DO UPDATE SET remarques_vues_le = excluded.remarques_vues_le`).run(x.p.discord_id, new Date().toISOString(), new Date().toISOString());
     res.send(PF.pageRemarques(config, { espace: x.espace, remarques: parcours.remarques(x.p.discord_id) }));
   });
 
