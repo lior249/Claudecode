@@ -91,7 +91,7 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     const double = await m.poster('/parcours/etape-4/publication', { liens: `${lien1}?is_from_webapp=1` }, { cookie: membre });
     assert.strictEqual(double.status, 400);
     assert.match(await double.text(), /déjà été postée/);
-    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Ta vidéo du jour est déclarée/);
+    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Ta vidéo du jour est déclarée|Fais l.{1,6}update de ton compte/);
 
     // 24 h après : les résultats de chaque vidéo (capture, vues, revenus), puis le coach valide.
     const hier = jourIso(new Date(Date.now() - JOUR));

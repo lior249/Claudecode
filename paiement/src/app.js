@@ -19,6 +19,7 @@ const { creerSinistres } = require('./sinistres');
 const { creerAccesManuels } = require('./acces-manuels');
 const { creerCommunaute } = require('./communaute');
 const { creerNotifsAdmin } = require('./admin-notifs');
+const { creerMessages } = require('./messages');
 const { lienCompte } = require('./tiktok');
 const PF = require('./pages-profil');
 const { roleLePlusHaut } = require('./pages-classement');
@@ -53,6 +54,18 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const communaute = communauteDonnee || creerCommunaute({ db: commandes.db, parcours, suivi });
   // Espace notifications du coach : journal des messages de Bob et rappels.
   const notifsAdmin = (bob && bob.notifsAdmin) || creerNotifsAdmin({ db: commandes.db });
+  const messages = creerMessages({ db: commandes.db, parcours });
+  // Notifie chaque destinataire d'un message du coach, l'un après l'autre, et note s'il a été délivré (👍) ou non (👎).
+  function diffuser(envoi, remarques, options = {}) {
+    const envoyer = bob && bob.parcours && bob.parcours.message;
+    (async () => {
+      for (const r of remarques) {
+        let ok = false;
+        try { ok = envoyer ? Boolean(await envoyer(envoi, r.parcours, options)) : false; } catch (err) { console.error('[bob] message :', err.message); }
+        messages.marquerLivre(r.id, ok);
+      }
+    })();
+  }
   // Jeton de l'application installée (dans son manifeste) : elle s'ouvre déjà connectée, même sur iPhone.
   // Le même toute la journée, valable un an.
   const jetonApp = (session) => signer({ but: 'app', id: session.id, pseudo: session.pseudo, exp: (Math.floor(Date.now() / 864e5) + 365) * 864e5 }, config.secretApp);
@@ -63,7 +76,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
     const aTraiterParcours = estAdmin
-      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + aTraiter : 0;
+      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
     const c = !estAdmin && session ? compteursMembre(session.id) : { notifs: 0, remarques: 0 };
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
@@ -1241,56 +1254,57 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // Planifier : événement (bannière), remarque à un élève, message à tous. /admin/annonces reste une autre adresse.
   const pagePlanifier = (req, res) => {
     if (!estAdmin(req, res, '/admin/planifier')) return;
-    const onglet = ['remarque', 'message'].includes(req.query.onglet) ? req.query.onglet : 'evenement';
+    const onglet = ['remarque', 'message'].includes(req.query.onglet) ? 'message' : 'evenement';
     const qp = (id) => qProfils.get.get(id) || {};
+    const fait = { modifie: 'Message modifié.', relance: `Relance envoyée à ${Number(req.query.n) || 0} élève(s).`, message: `Message envoyé à ${Number(req.query.n) || 0} élève(s).` }[req.query.fait];
     res.send(PF.pageAnnonces(config, { espace: espaceDe(lireSession(req, config.secretApp)), nbEleves: parcours.tous().length, onglet,
-      remarques: onglet === 'remarque' ? parcours.dernieresRemarques().map((r) => ({ ...r, nom: (r.parcours && (qp(r.discord_id).prenom || r.parcours.pseudo)) || r.discord_id,
-        lue: Boolean((qp(r.discord_id).remarques_vues_le || '') >= (r.modifie_le || r.cree_le)) })) : [],
+      envois: onglet === 'message' ? messages.envois(40) : [],
+      choisis: [].concat(req.query.a || []).map(String).slice(0, 200),
       eleves: parcours.tous().map((p) => ({ id: p.discord_id, nom: qp(p.discord_id).prenom || p.pseudo || p.discord_id, pseudo: p.pseudo, etape: p.etape })).sort((x, y) => x.nom.localeCompare(y.nom, 'fr')),
       annonces: commandes.db.prepare('SELECT * FROM annonces ORDER BY id DESC LIMIT 30').all(),
       test: req.query.test ? String(req.query.test).slice(0, 200) : null,
-      message: req.query.fait === 'modifiee' ? 'Remarque modifiée.' : req.query.fait === 'remarque' ? 'Remarque envoyée : Bob l\'a prévenu.' : req.query.fait === 'message' ? `Message envoyé à ${Number(req.query.n) || 0} élève(s).`
-        : req.query.fait ? (Number(req.query.n) ? `Événement publié et envoyé à ${Number(req.query.n)} élève(s).` : 'Événement publié dans la bannière.') : null, maintenant: new Date().toISOString(),
+      message: fait || (req.query.fait ? (Number(req.query.n) ? `Événement publié et envoyé à ${Number(req.query.n)} élève(s).` : 'Événement publié dans la bannière.') : null), maintenant: new Date().toISOString(),
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   };
   app.get('/admin/planifier', pagePlanifier);
   app.get('/admin/annonces', pagePlanifier);
+  // Envoyer un message : à un ou plusieurs élèves (ids). « eleve » reste accepté (ancien formulaire de remarque).
+  const envoyerMessage = (req, res, retour) => {
+    const ids = [].concat(req.body.ids || [], req.body.eleve || []).flatMap((x) => String(x).split(',')).map((x) => x.trim()).filter(Boolean);
+    const r = messages.envoyer({ titre: req.body.titre, texte: req.body.texte, images: imagesDe(req.body), ids });
+    if (r.erreur) return res.redirect(303, retour(r.erreur));
+    diffuser(r.envoi, r.remarques);
+    return res.redirect(303, retour(null, r.remarques.length));
+  };
+  app.post(['/admin/planifier/message', '/admin/planifier/remarque'], formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/planifier?onglet=message')) return;
+    envoyerMessage(req, res, (erreur, n) => (erreur ? `/admin/planifier?onglet=message&erreur=${encodeURIComponent(erreur)}` : `/admin/planifier?onglet=message&fait=message&n=${n}`));
+  });
+  // Modifier un message (jamais le supprimer) : ceux qui l'avaient lu sont prévenus.
+  app.post('/admin/messages/:id', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/planifier?onglet=message')) return;
+    const r = messages.modifier(req.params.id, { titre: req.body.titre, texte: req.body.texte });
+    if (r.erreur) return res.redirect(303, `/admin/planifier?onglet=message&erreur=${encodeURIComponent(r.erreur)}`);
+    for (const d of r.dejaLu) prevenir('remarqueModifiee', parcours.get(d.id));
+    return res.redirect(303, '/admin/planifier?onglet=message&fait=modifie');
+  });
+  // Relancer ceux qui ne l'ont pas encore lu.
+  app.post('/admin/messages/:id/relancer', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/planifier?onglet=message')) return;
+    const e = messages.envoi(req.params.id);
+    if (!e) return res.redirect(303, `/admin/planifier?onglet=message&erreur=${encodeURIComponent('Message introuvable.')}`);
+    const cibles = e.destinataires.filter((d) => !d.lu).map((d) => ({ id: d.remarqueId, parcours: parcours.get(d.id) })).filter((x) => x.parcours);
+    diffuser(e, cibles, { relance: true });
+    return res.redirect(303, `/admin/planifier?onglet=message&fait=relance&n=${cibles.length}`);
+  });
+  // Ancienne modification d'une remarque seule (remarques écrites avant « Envoyer un message »).
   app.post('/admin/remarques/:id', formulaire, (req, res) => {
-    if (!estAdmin(req, res, '/admin/planifier?onglet=remarque')) return;
+    if (!estAdmin(req, res, '/admin/planifier?onglet=message')) return;
     const r = parcours.modifierRemarque(req.params.id, req.body.texte);
-    if (r.erreur) return res.redirect(303, `/admin/planifier?onglet=remarque&erreur=${encodeURIComponent(r.erreur)}`);
-    // Déjà lue : l'élève est prévenu que la remarque a changé.
+    if (r.erreur) return res.redirect(303, `/admin/planifier?onglet=message&erreur=${encodeURIComponent(r.erreur)}`);
     const vues = (qProfils.get.get(r.remarque.discord_id) || {}).remarques_vues_le;
     if (vues && vues >= (r.remarque.modifie_le || r.remarque.cree_le)) prevenir('remarqueModifiee', parcours.get(r.remarque.discord_id));
-    return res.redirect(303, '/admin/planifier?onglet=remarque&fait=modifiee');
-  });
-  app.post('/admin/planifier/remarque', formulaire, (req, res) => {
-    if (!estAdmin(req, res, '/admin/planifier?onglet=remarque')) return;
-    const p = parcours.get(String(req.body.eleve || ''));
-    if (!p || p.retire_le) return res.redirect(303, `/admin/planifier?onglet=remarque&erreur=${encodeURIComponent('Choisis un élève.')}`);
-    const r = parcours.ajouterRemarque(p.discord_id, { texte: req.body.texte, images: imagesDe(req.body) });
-    if (r.erreur) return res.redirect(303, `/admin/planifier?onglet=remarque&erreur=${encodeURIComponent(r.erreur)}`);
-    prevenir('remarque', p);
-    return res.redirect(303, '/admin/planifier?onglet=remarque&fait=remarque');
-  });
-  // Message à tous : une notification simple, jamais dans la bannière (fin = création).
-  app.post('/admin/planifier/message', formulaire, (req, res) => {
-    if (!estAdmin(req, res, '/admin/planifier?onglet=message')) return;
-    const titre = String(req.body.titre || '').trim().slice(0, 120);
-    const texte = String(req.body.texte || '').trim().slice(0, 1800);
-    const lien = String(req.body.lien || '').trim().slice(0, 400) || null;
-    const erreur = (t) => res.redirect(303, `/admin/planifier?onglet=message&erreur=${encodeURIComponent(t)}`);
-    if (!titre || !texte) return erreur('Écris un titre et un message.');
-    if (lien && !/^https:\/\/\S+$/.test(lien) && !/^\/(?![/\\])\S*$/.test(lien)) return erreur('Le lien doit commencer par https:// ou être une page du site (/…).');
-    const ids = parcours.tous().map((p) => p.discord_id);
-    const now = new Date().toISOString();
-    const r = commandes.db.prepare('INSERT INTO annonces (titre, texte, lien, destinataires, cree_le, fin_le, notifier) VALUES (?, ?, ?, ?, ?, ?, 1)').run(titre, texte, lien, ids.length, now, now);
-    const a = commandes.db.prepare('SELECT * FROM annonces WHERE id = ?').get(Number(r.lastInsertRowid));
-    if (bob && bob.parcours && bob.parcours.annonce) {
-      bob.parcours.annonce(a, ids, null).then((n) => commandes.db.prepare('UPDATE annonces SET envoyes = ? WHERE id = ?').run(n, a.id))
-        .catch((err) => console.error('[bob] message :', err.message));
-    } else commandes.db.prepare('UPDATE annonces SET envoyes = 0 WHERE id = ?').run(a.id);
-    return res.redirect(303, `/admin/planifier?onglet=message&fait=message&n=${ids.length}`);
+    return res.redirect(303, '/admin/planifier?onglet=message&fait=modifie');
   });
   // Profil du coach.
   app.get('/coach', (req, res) => {
@@ -1458,7 +1472,49 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!x) return;
     commandes.db.prepare(`INSERT INTO profils_membres (discord_id, remarques_vues_le, maj_le) VALUES (?, ?, ?)
       ON CONFLICT(discord_id) DO UPDATE SET remarques_vues_le = excluded.remarques_vues_le`).run(x.p.discord_id, new Date().toISOString(), new Date().toISOString());
-    res.send(PF.pageRemarques(config, { espace: { ...x.espace, remarquesNouvelles: 0 }, remarques: parcours.remarques(x.p.discord_id) }));
+    res.send(PF.pageRemarques(config, { espace: { ...x.espace, remarquesNouvelles: 0 }, remarques: parcours.remarques(x.p.discord_id),
+      envoyes: messages.envoyesPar(x.p.discord_id), fait: req.query.fait === 'envoye', erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  // L'élève écrit au coach : rangé dans À traiter, et Bob prévient le coach.
+  app.post('/remarques/ecrire', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/remarques', { sinistreOk: true });
+    if (!x) return;
+    const imgs = imagesDe(req.body).filter((n) => parcours.imageDuMembre(n, x.p.discord_id));
+    const r = messages.ecrireAuCoach(x.p.discord_id, { texte: req.body.texte, images: imgs });
+    if (r.erreur) return res.redirect(303, `/remarques?erreur=${encodeURIComponent(r.erreur)}`);
+    prevenir('messageAuCoach', r.message, x.p);
+    return res.redirect(303, '/remarques?fait=envoye');
+  });
+  // Coach : lire un message d'élève, y répondre (un message à lui seul), ou le marquer traité.
+  const messageRecuDe = (req, res) => {
+    const m = messages.recu(req.params.id);
+    if (!m) res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce message n\'existe pas.', { lien: '/admin/a-traiter', texteLien: 'À traiter' }));
+    return m;
+  };
+  app.get('/admin/messages-recus/:id', (req, res) => {
+    if (!estAdmin(req, res, `/admin/messages-recus/${encodeURIComponent(req.params.id)}`)) return;
+    const m = messageRecuDe(req, res);
+    if (!m) return;
+    messages.marquerLu(m.id);
+    const nom = (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id;
+    res.send(PF.pageMessageRecu(config, { espace: espaceDe(lireSession(req, config.secretApp)), m, nom, fait: req.query.fait === 'repondu' }));
+  });
+  app.post('/admin/messages-recus/:id/repondre', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const m = messageRecuDe(req, res);
+    if (!m) return;
+    const r = messages.envoyer({ titre: req.body.titre || 'Réponse à ton message', texte: req.body.texte, images: imagesDe(req.body), ids: [m.discord_id] });
+    if (r.erreur) return res.redirect(303, `/admin/messages-recus/${m.id}?erreur=${encodeURIComponent(r.erreur)}`);
+    diffuser(r.envoi, r.remarques);
+    messages.marquerTraite(m.id);
+    return res.redirect(303, `/admin/messages-recus/${m.id}?fait=repondu`);
+  });
+  app.post('/admin/messages-recus/:id/traite', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const m = messageRecuDe(req, res);
+    if (!m) return;
+    messages.marquerTraite(m.id);
+    return res.redirect(303, '/admin/a-traiter');
   });
 
   // Données de la fiche (membre et coach).
@@ -1476,7 +1532,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const chemin = parcours.cheminImage(req.params.nom);
     if (!session || !chemin) { res.status(404).end(); return; }
     const deLAnnonce = Boolean(commandes.db.prepare('SELECT 1 FROM annonces WHERE image = ?').get(req.params.nom));
-    if (!estLeCoach(session) && !deLAnnonce && parcours.proprietaireImage(req.params.nom) !== session.id) { res.status(403).end(); return; }
+    if (!estLeCoach(session) && !deLAnnonce && !parcours.peutVoirImage(req.params.nom, session.id)) { res.status(403).end(); return; }
     res.set('Cache-Control', 'private, max-age=86400');
     res.sendFile(chemin, (err) => { if (err && !res.headersSent) res.status(404).end(); });
   });
@@ -1491,7 +1547,22 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     }) : [];
     res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter(), candidatures: demandes,
       comptesRendus: suivi.enAttente(), resultats: suivi.resultatsEnAttente(), fichesSinistre: sinistres.fichesATraiter(), roles: suivi.aConfirmer(),
-      acces: acces.enAttente(), accesRefuses: acces.refuses(), nomsOffres: Object.fromEntries(Object.values(config.offres).map((o) => [o.id, o.nom])) }));
+      acces: acces.enAttente(), accesRefuses: acces.refuses(), nomsOffres: Object.fromEntries(Object.values(config.offres).map((o) => [o.id, o.nom])),
+      messagesRecus: messages.recusATraiter().map((m) => ({ ...m, nom: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id })),
+      // Toutes les notifications non lues du coach (sauf les messages d'élèves, déjà dans la liste).
+      notifications: notifsAdmin.nonLuesListe(100).filter((n) => !String(n.lien || '').startsWith('/admin/messages-recus/')) }));
+  });
+  // Ouvrir une notification depuis À traiter : marquée lue, puis sa page (ou la liste des notifications).
+  app.get('/admin/notifications/:id/ouvrir', (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const n = notifsAdmin.lire(req.params.id);
+    const lien = n && n.lien && /^\/(?![/\\])/.test(n.lien) ? n.lien : n && n.lien && /^https:\/\//.test(n.lien) ? n.lien : '/notifications?onglet=notifications';
+    res.redirect(302, lien);
+  });
+  app.post('/admin/notifications/tout-lu', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    notifsAdmin.toutLu();
+    res.redirect(303, '/admin/a-traiter');
   });
   // Rôle donné à la main : Oui (accès au site) ou Non. Même décision que les boutons de Bob.
   app.post('/admin/acces/:programme/:id', formulaire, async (req, res) => {
@@ -1606,7 +1677,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, `/admin/membres/${encodeURIComponent(req.params.id)}`)) return;
     const p = ficheDe(req, res);
     if (!p) return;
-    const message = { remarque: 'Remarque publiée. Bob a prévenu le membre.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.',
+    const message = { remarque: 'Message envoyé : il le voit dans ses Remarques, et Bob l\'a prévenu.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.',
       recompense: 'Rôle confirmé. Bob le donne et prévient le membre.', precisions: 'Précisions demandées. Bob a prévenu le membre.', rehabiliter: 'Membre réhabilité : Bob lui rend le rôle Elite.',
       declarer: 'Sinistre déclaré. Bob l\'a prévenu.', retirer: 'Sinistres retirés : jours d\'absence rendus sur ses 90 jours.' }[req.query.fait] || req.query.erreur || null;
     res.send(V.pageFiche(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, parcours: p, remarques: parcours.remarques(p.discord_id),
@@ -1616,9 +1687,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, '/admin/membres')) return;
     const p = ficheDe(req, res);
     if (!p) return;
-    const r = parcours.ajouterRemarque(p.discord_id, { texte: req.body.texte, images: imagesDe(req.body) });
-    if (!r.erreur) prevenir('remarque', p);
-    res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}${r.erreur ? '' : '?fait=remarque'}#remarques`);
+    const r = messages.envoyer({ titre: req.body.titre, texte: req.body.texte, images: imagesDe(req.body), ids: [p.discord_id] });
+    if (!r.erreur) diffuser(r.envoi, r.remarques);
+    res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}${r.erreur ? `?erreur=${encodeURIComponent(r.erreur)}` : '?fait=remarque'}#remarques`);
   });
   app.post('/admin/membres/:id/compte', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/membres')) return;

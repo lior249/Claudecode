@@ -4,7 +4,7 @@
 // son résultat), la chaîne 🔥, ceux qu'il suit, la tâche du moment ; puis le tableau de bord des revenus.
 // Et la page Communauté : suivis (10 places), concurrents (3), invitations, suggestions.
 const { echapper } = require('./pages');
-const { page, remarque, listeRemarques, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce } = require('./pages-parcours');
+const { page, remarque, listeRemarques, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce, barreMiseEnForme, texteSimple, zoneImages } = require('./pages-parcours');
 const { ICONE } = require('./pages');
 const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
@@ -408,9 +408,36 @@ function pageCommunaute(config, { espace, suivis, concurrents, recues, envoyees,
 }
 
 // ---------- Remarques du coach ----------
-function pageRemarques(config, { espace, remarques }) {
+// Remarques et messages du coach ; « Écrire au coach » : un message direct, rangé dans son À traiter.
+function pageRemarques(config, { espace, remarques, envoyes = [], fait, erreur }) {
   return page('Remarques du coach', `<div class="titre-page"><div><p class="etiquette">Mon accompagnement</p><h1>Remarques du coach</h1></div><span class="doux petit">${remarques.length} au total</span></div>
+  ${fait ? '<p class="message-ok">Message envoyé : ton coach le reçoit dans ses notifications.</p>' : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <details class="carte ecrire-coach"${erreur ? ' open' : ''} style="margin:0 0 14px"><summary style="cursor:pointer;font-weight:700;list-style:none">✉️ Écrire au coach</summary>
+    <form method="post" action="/remarques/ecrire" style="display:grid;gap:10px;margin-top:10px">
+      <textarea name="texte" maxlength="4000" required placeholder="Ta question, ta demande… Ton coach te répond ici, dans tes remarques."></textarea>
+      <div data-images="/api/parcours/image"><label class="fichier">${ICONE.plus}<span><b>Joindre des images</b><br>Captures (facultatif)</span><input type="file" accept="image/*" multiple hidden></label>
+        <input type="hidden" name="images" value=""><div class="apercus" style="margin-top:8px"></div></div>
+      <button class="bouton" type="submit" style="margin:0">Envoyer au coach</button></form>
+    ${envoyes.length ? `<div style="display:grid;gap:6px;margin-top:12px"><b class="petit">Mes derniers messages</b>${envoyes.slice(0, 5).map((m) => `<div class="doux petit" style="border-left:2px solid #333;padding-left:10px">
+      <span>${echapper(new Date(m.cree_le).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }))} · ${m.traite_le ? 'répondu' : m.lu_le ? 'lu par le coach' : 'envoyé'}</span>
+      <p style="margin:2px 0 0;color:#ddd;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${echapper(m.texte)}</p></div>`).join('')}</div>` : ''}
+  </details>
   ${remarques.length ? listeRemarques(remarques) : '<p class="vide-traiter">Pas encore de remarque.</p>'}`, espace, 'remarques');
+}
+// Coach : un message reçu d'un élève, et sa réponse.
+function pageMessageRecu(config, { espace, m, nom, fait }) {
+  const p = m.parcours || {};
+  return page('Message reçu', `${STYLE_MESSAGES}<a class="retour" href="/admin/a-traiter"><span aria-hidden="true">‹</span> À traiter</a>
+  <div class="titre-page"><div><p class="etiquette">Message d'un élève</p><h1><a href="/admin/membres/${encodeURIComponent(m.discord_id)}" style="color:inherit">${echapper(nom)}</a></h1></div>
+    <span class="doux petit">${echapper(dateCourte(m.cree_le))} GMT${m.traite_le ? ' · traité' : ''}</span></div>
+  ${fait ? '<p class="message-ok">Réponse envoyée : il la voit dans ses Remarques, et Bob l\'a prévenu.</p>' : ''}
+  <div class="carte" style="max-width:640px">${m.sujet ? `<p class="etiquette" style="margin:0 0 6px">${echapper(m.sujet)}</p>` : ''}<p style="margin:0;white-space:pre-line">${echapper(m.texte)}</p>
+    ${m.images.length ? `<div class="images" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${m.images.map((x) => `<a href="/fichiers/images/${echapper(x)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(x)}" alt="" style="max-height:180px;border-radius:12px"></a>`).join('')}</div>` : ''}
+    <p class="doux petit" style="margin:10px 0 0">${p.pseudo ? `@${echapper(p.pseudo)} · ` : ''}étape ${p.etape >= 5 ? 'GOAT' : p.etape || '?'} · <a href="/admin/membres/${encodeURIComponent(m.discord_id)}">Voir sa fiche</a></p></div>
+  <h2 style="font-size:16px;margin:18px 0 0">Répondre</h2>
+  ${formulaireMessage({ pour: { id: m.discord_id, nom }, action: `/admin/messages-recus/${m.id}/repondre`, ouvert: true })}
+  ${m.traite_le ? '' : `<form method="post" action="/admin/messages-recus/${m.id}/traite" style="max-width:640px;margin-top:10px"><button class="bouton secondaire" type="submit" style="margin:0">Marquer comme traité, sans répondre</button></form>`}`,
+  espace, 'traiter');
 }
 
 // ---------- Annonces du coach ----------
@@ -459,19 +486,115 @@ const SCRIPT_ANNONCE = `(function () {
 })();`;
 // Planifier (coach) : trois onglets. Événement (bannière, notification facultative), Remarque à un élève, Message à tous les élèves.
 const STYLE_PLANIFIER = `<style>
-  .pl-onglets { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; padding:4px; border-radius:999px; background:var(--surface-2,#151515); margin:0 0 16px; max-width:640px; }
+  .pl-onglets { display:grid; grid-template-columns:repeat(2, 1fr); gap:4px; padding:4px; border-radius:999px; background:var(--surface-2,#151515); margin:0 0 16px; max-width:640px; }
   .pl-onglets a { padding:10px 6px; border-radius:999px; color:var(--doux); font-weight:700; font-size:13.5px; text-decoration:none; text-align:center; }
   .pl-onglets a[aria-current] { background:#fff; color:#000; }
   .pl-ecrire > summary { list-style:none; cursor:pointer; text-align:center; } .pl-ecrire > summary::-webkit-details-marker { display:none; }
   .pl-ecrire[open] > summary { background:transparent; color:#fff; border:1px solid var(--bord-fort); }
 </style>`;
 const dateCourte = (iso) => new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = [], remarques = [], onglet = 'evenement', message, erreur, test, maintenant = new Date().toISOString() }) {
+// Choix des destinataires : la liste des élèves à cocher, une recherche par nom, « Tout sélectionner ».
+function choixDestinataires(eleves, choisis = []) {
+  const coches = new Set(choisis.map(String));
+  return `<div class="ds">
+    <button class="bouton secondaire ds-ouvrir" type="button" style="margin:0">Sélectionner les destinataires</button>
+    <p class="doux petit ds-resume" style="margin:6px 0 0">Aucun destinataire.</p>
+    <dialog class="fenetre ds-fenetre" aria-label="Destinataires"><div class="ds-boite">
+      <div class="ds-haut"><b>Destinataires</b><button class="bouton ds-ok" type="button" style="margin:0;width:auto">OK</button></div>
+      <input class="ds-cherche" type="search" placeholder="Rechercher un élève…" autocomplete="off">
+      <label class="ds-ligne ds-tous"><input type="checkbox" class="ds-tout"> <b>Tout sélectionner</b></label>
+      <div class="ds-liste">${eleves.map((e) => `<label class="ds-ligne" data-nom="${echapper(`${e.nom} ${e.pseudo || ''}`.toLowerCase())}">
+        <input type="checkbox" name="ids" value="${echapper(e.id)}"${coches.has(String(e.id)) ? ' checked' : ''}>
+        <span><b>${echapper(e.nom)}</b><small>${e.pseudo ? `@${echapper(e.pseudo)} · ` : ''}étape ${e.etape >= 5 ? 'GOAT' : e.etape}</small></span></label>`).join('') || '<p class="doux">Aucun élève Elite.</p>'}</div>
+    </div></dialog></div>`;
+}
+const SCRIPT_DESTINATAIRES = `(function () {
+  document.querySelectorAll('.ds').forEach(function (d) {
+    var f = d.querySelector('dialog'), boites = d.querySelectorAll('.ds-liste input'), tout = d.querySelector('.ds-tout'), cherche = d.querySelector('.ds-cherche'), resume = d.querySelector('.ds-resume');
+    var maj = function () {
+      var c = [].filter.call(boites, function (b) { return b.checked; });
+      var noms = c.map(function (b) { return b.parentNode.querySelector('b').textContent; });
+      resume.textContent = c.length ? c.length + ' destinataire' + (c.length > 1 ? 's' : '') + ' : ' + noms.slice(0, 4).join(', ') + (noms.length > 4 ? '…' : '') : 'Aucun destinataire.';
+      d.querySelector('.ds-ouvrir').textContent = c.length ? 'Destinataires (' + c.length + ')' : 'Sélectionner les destinataires';
+      var visibles = [].filter.call(boites, function (b) { return !b.closest('label').hidden; });
+      tout.checked = visibles.length > 0 && visibles.every(function (b) { return b.checked; });
+    };
+    d.querySelector('.ds-ouvrir').onclick = function () { f.showModal(); };
+    d.querySelector('.ds-ok').onclick = function () { f.close(); };
+    f.addEventListener('click', function (e) { if (e.target === f) f.close(); });
+    boites.forEach(function (b) { b.addEventListener('change', maj); });
+    tout.addEventListener('change', function () { boites.forEach(function (b) { if (!b.closest('label').hidden) b.checked = tout.checked; }); maj(); });
+    cherche.addEventListener('input', function () { var v = cherche.value.trim().toLowerCase();
+      boites.forEach(function (b) { var l = b.closest('label'); l.hidden = Boolean(v) && l.getAttribute('data-nom').indexOf(v) < 0; }); maj(); });
+    var form = d.closest('form'); if (form) form.addEventListener('submit', function (e) {
+      if (![].some.call(boites, function (b) { return b.checked; })) { e.preventDefault(); f.showModal(); return; }
+      var n = [].filter.call(boites, function (b) { return b.checked; }).length;
+      if (n > 1 && !confirm('Envoyer ce message à ' + n + ' élèves ?')) e.preventDefault(); });
+    maj();
+  });
+})();`;
+const STYLE_MESSAGES = `<style>
+  .ds-fenetre { width:min(520px, calc(100vw - 24px)); max-height:min(640px, calc(100dvh - 40px)); padding:0; }
+  .ds-boite { display:flex; flex-direction:column; gap:10px; padding:16px; max-height:inherit; box-sizing:border-box; }
+  .ds-haut { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .ds-liste { overflow:auto; display:grid; gap:2px; min-height:120px; }
+  .ds-ligne { display:flex; gap:12px; align-items:center; padding:8px; margin:0 !important; border-radius:12px; cursor:pointer; font-weight:400; }
+  .ds-ligne span b { font-size:15px; } .ds-ligne span small { margin:0; }
+  .ds-ligne:hover { background:rgba(255,255,255,.05); } .ds-ligne[hidden] { display:none; }
+  .ds-ligne input { width:20px; height:20px; margin:0; flex:none; accent-color:#c8f23a; }
+  .ds-ligne span { display:grid; } .ds-ligne small { color:var(--doux); font-size:12.5px; }
+  .ds-tous { border-bottom:1px solid var(--bord,#222); border-radius:0; }
+  .msg-envoi .titre-msg { display:block; font-weight:800; font-size:15px; color:#fff; }
+  .accuses { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .accuses details { position:relative; } .accuses summary { display:inline-block; list-style:none; cursor:pointer; padding:5px 11px; border-radius:999px; background:rgba(255,255,255,.07); font-weight:700; font-size:13.5px; }
+  .accuses summary::-webkit-details-marker { display:none; } .accuses details[open] summary { background:#fff; color:#000; }
+  .accuses .qui-liste { margin:8px 0 0; padding:10px 12px; border-radius:12px; background:var(--surface-2,#151515); font-size:13.5px; display:grid; gap:4px; min-width:180px; }
+  .accuses .qui-liste a { color:#fff; }
+</style>`;
+const accuse = (emoji, libelle, liste, id) => `<details><summary title="${libelle}">${emoji} ${liste.length}</summary>
+  <div class="qui-liste"><b>${libelle}</b>${liste.map((d) => `<a href="/admin/membres/${encodeURIComponent(d.id)}">${echapper(d.nom)}${d.pseudo ? ` <span class="doux">@${echapper(d.pseudo)}</span>` : ''}</a>`).join('') || '<span class="doux">Personne.</span>'}</div></details>`;
+function carteEnvoi(e) {
+  const pasLus = e.destinataires.filter((d) => !d.lu);
+  return `<details class="remarque compacte msg-envoi">
+    <summary><span class="qui">${echapper(dateCourte(e.modifie_le || e.cree_le))} GMT${e.modifie_le ? ' · modifié' : ''} · ${e.destinataires.length === 1 ? echapper(e.destinataires[0].nom) : `${e.destinataires.length} élèves`}${e.images.length ? ` · ${e.images.length} image(s)` : ''}</span>
+      ${e.titre ? `<b class="titre-msg">${echapper(e.titre)}</b>` : ''}<span class="apercu">${echapper(texteSimple(e.texte))}</span></summary>
+    <p>${texteRicheAnnonce(e.texte)}</p>
+    ${e.images.length ? `<div class="images">${e.images.map((x) => `<a href="/fichiers/images/${echapper(x)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(x)}" alt="" loading="lazy"></a>`).join('')}</div>` : ''}
+    <div class="accuses">${accuse('👎', 'Non délivré', e.nonLivres)}${accuse('👍', 'Délivré, pas encore lu', e.livres)}${accuse('👁️', 'Lu', e.lus)}${e.enCours.length ? accuse('⏳', 'Envoi en cours', e.enCours) : ''}</div>
+    ${pasLus.length ? `<form method="post" action="/admin/messages/${e.id}/relancer" style="margin:10px 0 0" onsubmit="return confirm('Renvoyer une notification aux ${pasLus.length} élève(s) qui ne l\'ont pas lu ?')">
+      <button class="bouton secondaire" type="submit" style="margin:0;width:auto">Relancer ceux qui ne l'ont pas lu (${pasLus.length})</button></form>` : ''}
+    <details style="margin-top:10px"><summary class="doux petit" style="cursor:pointer">Modifier</summary>
+      <form method="post" action="/admin/messages/${e.id}" style="display:grid;gap:8px;margin-top:8px">
+        <input name="titre" maxlength="120" value="${echapper(e.titre || '')}" placeholder="Titre">
+        ${barreMiseEnForme(`modif-${e.id}`)}<textarea id="modif-${e.id}" name="texte" maxlength="4000" required>${echapper(e.texte)}</textarea>
+        <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer la modification</button>
+        <small class="doux">Ceux qui l'avaient déjà lu sont prévenus qu'il a changé.</small></form></details>
+  </details>`;
+}
+// Le formulaire « Envoyer un message » : Planifier (plusieurs élèves) et fiche d'un élève (lui seul : `pour`).
+function formulaireMessage({ eleves = [], choisis = [], pour = null, action = '/admin/planifier/message', ouvert = false, test = false, testTexte = null }) {
+  const id = pour ? 'msg-texte-fiche' : 'msg-texte';
+  const form = `<form class="carte" method="post" action="${action}" style="display:grid;gap:12px;max-width:640px;margin-top:10px">
+      ${pour ? `<input type="hidden" name="ids" value="${echapper(pour.id)}"><p class="doux petit" style="margin:0">À <b>${echapper(pour.nom)}</b> : dans ses Remarques du coach, et Bob le prévient.</p>`
+    : `<p class="doux petit" style="margin:0">Chaque élève le reçoit dans ses Remarques du coach (pastille rouge) et en notification (application ou Bob).</p>${choixDestinataires(eleves, choisis)}`}
+      <div class="champ"><label for="${id}-titre">Titre</label><input id="${id}-titre" name="titre" maxlength="120" required placeholder="ex. Ton accroche peut être plus forte"></div>
+      <div class="champ"><label for="${id}">Message</label>${barreMiseEnForme(id)}<textarea id="${id}" name="texte" maxlength="4000" required placeholder="Ce qui va, ce qu'il faut changer… Sélectionne un mot puis G, I ou S pour le mettre en forme."></textarea></div>
+      ${zoneImages()}
+      <button class="bouton" type="submit" style="margin:0">Envoyer le message</button></form>`;
+  return `${STYLE_MESSAGES}<details class="pl-ecrire" ${ouvert ? 'open' : ''}><summary class="bouton" style="max-width:640px">Écrire un message</summary>${form}</details>
+    ${test ? `<details class="carte" style="max-width:640px;margin-top:12px"><summary style="cursor:pointer;font-weight:700">Tester une notification</summary>
+      <form method="post" action="/admin/notifications/test" style="display:grid;gap:10px;margin-top:10px">
+      <p class="doux petit" style="margin:0">Envoyée à ce seul compte : dans l'application ou par Bob, et rangée dans ses notifications.</p>
+      ${testTexte ? `<p class="message-ok" style="margin:0">${echapper(testTexte)}</p>` : ''}
+      <div style="display:flex;gap:8px"><input name="pseudo" placeholder="Pseudo Discord, ex. @ton_compte_test" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="41" required>
+        <button class="bouton secondaire" type="submit" style="margin:0;width:auto;white-space:nowrap">Envoyer un test</button></div></form></details>` : ''}`;
+}
+function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = [], envois = [], choisis = [], onglet = 'evenement', message, erreur, test, maintenant = new Date().toISOString() }) {
   const fin7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
   const estMessage = (a) => a.fin_le && a.fin_le === a.cree_le; // message seul : jamais dans la bannière
   const enCours = (a) => !estMessage(a) && (a.fin_le ? a.fin_le > maintenant : a.cree_le > new Date(Date.now() - 7 * 864e5).toISOString());
   const recu = (a) => (a.notifier === 0 ? 'sans notification' : a.envoyes === null ? 'envoi en cours…' : `reçu par ${a.envoyes} / ${a.destinataires}`);
-  const onglets = `<nav class="pl-onglets" aria-label="Planifier">${[['evenement', 'Événement'], ['remarque', 'Remarque'], ['message', 'Message à tous']]
+  const onglets = `<nav class="pl-onglets" aria-label="Planifier">${[['evenement', 'Événement'], ['message', 'Envoyer un message']]
     .map(([c, l]) => `<a href="/admin/planifier${c === 'evenement' ? '' : `?onglet=${c}`}"${onglet === c ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
   const lien = `<button id="ajouter-lien" class="bouton secondaire" type="button" style="margin:0;width:auto;justify-self:start">+ Ajouter un lien</button>
     <div id="zone-lien" class="champ" hidden><label for="lien">Lien</label>
@@ -479,42 +602,12 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
       <button id="retirer-lien" class="bouton secondaire" type="button" style="margin:0;width:auto">Retirer</button></div>
       <small>Une page du site (/parcours, /coaching…) ouvre l'espace de chaque élève, déjà connecté.</small></div>`;
   let corps;
-  if (onglet === 'remarque') {
-    corps = `<details class="pl-ecrire" ${erreur ? 'open' : ''}><summary class="bouton" style="max-width:640px">Écrire une remarque</summary>
-      <form class="carte" method="post" action="/admin/planifier/remarque" style="display:grid;gap:12px;max-width:640px;margin-top:10px">
-      <p class="doux petit" style="margin:0">Elle s'affiche dans ses Remarques du coach (pastille rouge sur sa bulle), et Bob le prévient.</p>
-      <div class="champ"><label for="eleve">Élève</label><select id="eleve" name="eleve" required><option value="">Choisis un élève</option>
-        ${eleves.map((e) => `<option value="${echapper(e.id)}">${echapper(e.nom)}${e.pseudo ? ` (@${echapper(e.pseudo)})` : ''} · étape ${e.etape >= 5 ? 'GOAT' : e.etape}</option>`).join('')}</select></div>
-      <div class="champ"><label for="texte">Remarque</label><textarea id="texte" name="texte" maxlength="2000" required placeholder="Ce qui va, ce qu'il doit changer…"></textarea></div>
-      <div data-images="/admin/images"><label class="fichier">${ICONE.plus}<span><b>Joindre des images</b><br>Captures, exemples… (facultatif)</span><input type="file" accept="image/*" multiple hidden></label>
-        <input type="hidden" name="images" value=""><div class="apercus" style="margin-top:8px"></div></div>
-      <button class="bouton" type="submit" style="margin:0">Envoyer la remarque</button></form></details>
-    <h2 style="font-size:16px;margin:22px 0 4px">Mes dernières remarques</h2>
-    <p class="doux petit" style="margin:0 0 10px">Tu peux les modifier, pas les supprimer. Si l'élève l'avait déjà lue, Bob le prévient qu'elle a changé.</p>
-    <div style="display:grid;gap:8px;max-width:640px">${remarques.map((x) => `<div class="carte" style="margin:0">
-      <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline"><b>${echapper(x.nom)}</b>
-        <span class="doux petit">${echapper(dateCourte(x.modifie_le || x.cree_le))}${x.modifie_le ? ' · modifiée' : ''} · ${x.lue ? 'lue' : 'pas encore lue'}</span></div>
-      <p style="margin:6px 0 0;white-space:pre-line">${echapper(x.texte)}</p>${x.images.length ? `<p class="doux petit" style="margin:4px 0 0">${x.images.length} image(s)</p>` : ''}
-      <details style="margin-top:8px"><summary class="doux petit" style="cursor:pointer">Modifier</summary>
-        <form method="post" action="/admin/remarques/${x.id}" style="display:grid;gap:8px;margin-top:8px"><textarea name="texte" maxlength="8000" required>${echapper(x.texte)}</textarea>
-          <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer la modification</button></form></details></div>`).join('') || '<p class="vide-traiter">Aucune remarque pour le moment.</p>'}</div>`;
-  } else if (onglet === 'message') {
-    const messages = annonces.filter(estMessage);
-    corps = `<form id="form-annonce" class="carte" method="post" action="/admin/planifier/message" data-n="${nbEleves}" style="display:grid;gap:12px;max-width:640px">
-      <p class="doux petit" style="margin:0">Une simple notification à tous les élèves Elite (application ou Bob), sans bannière.</p>
-      <div class="champ"><label for="titre">Titre</label><input id="titre" name="titre" maxlength="120" required placeholder="ex. Pense à ton compte rendu"></div>
-      <div class="champ"><label for="texte">Message</label><textarea id="texte" name="texte" maxlength="1800" required placeholder="Colle ton texte ici."></textarea></div>
-      ${lien}<input type="hidden" name="notifier" value="1">
-      <button class="bouton" type="submit" style="margin:0">Envoyer à tous les élèves</button></form>
-    <form class="carte" method="post" action="/admin/notifications/test" style="display:grid;gap:10px;max-width:640px">
-      <h2 style="margin:0">Tester une notification</h2>
-      <p class="doux petit" style="margin:0">Envoyée à ce seul compte : dans l'application ou par Bob, et rangée dans ses notifications (pastille rouge sur sa cloche).</p>
-      ${test ? `<p class="message-ok" style="margin:0">${echapper(test)}</p>` : ''}
-      <div style="display:flex;gap:8px"><input name="pseudo" placeholder="Pseudo Discord, ex. @ton_compte_test" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="41" required>
-        <button class="bouton secondaire" type="submit" style="margin:0;width:auto;white-space:nowrap">Envoyer un test</button></div></form>
-    <h2 style="font-size:16px;margin:22px 0 10px">Messages envoyés</h2>
-    <div style="display:grid;gap:8px;max-width:640px">${messages.map((a) => `<div class="carte" style="margin:0"><b>${echapper(a.titre)}</b>
-      <p class="doux petit" style="margin:4px 0 0">${echapper(dateCourte(a.cree_le))} GMT · ${recu(a)}</p></div>`).join('') || '<p class="vide-traiter">Aucun message pour le moment.</p>'}</div>`;
+  if (onglet === 'message') {
+    corps = formulaireMessage({ eleves, choisis, test: true, testTexte: test, ouvert: Boolean(erreur || choisis.length) }) + `
+    <h2 style="font-size:16px;margin:22px 0 4px">Messages envoyés</h2>
+    <p class="doux petit" style="margin:0 0 10px">👎 non délivré · 👍 délivré · 👁️ lu. Touche un nombre pour voir qui. Tu peux modifier un message, pas le supprimer.</p>
+    <div class="remarques-liste${envois.length > 3 ? ' repliee' : ''}" style="max-width:640px">${envois.map(carteEnvoi).join('') || '<p class="vide-traiter">Aucun message pour le moment.</p>'}</div>
+    ${envois.length > 3 ? `<button class="bouton secondaire tout-afficher" type="button" style="max-width:640px" onclick="var l=this.previousElementSibling;l.classList.remove('repliee');this.remove();">Tout afficher (${envois.length})</button>` : ''}`;
   } else {
     const evenements = annonces.filter((a) => !estMessage(a));
     corps = `<p class="doux" style="max-width:640px;margin:0 0 12px">Chaque événement s'affiche dans la bannière en haut des pages des élèves (plusieurs : elles défilent).
@@ -543,7 +636,7 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
   <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Planifier</h1></div><span class="doux petit">${nbEleves} élève(s) Elite</span></div>
   ${onglets}
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
-  ${corps}`, espace, 'planifier', null, SCRIPT_ANNONCE);
+  ${corps}`, espace, 'planifier', null, SCRIPT_ANNONCE + SCRIPT_DESTINATAIRES);
 }
 
 // Profil du coach : sa pièce dorée, ses chiffres, les raccourcis et ses meilleurs élèves.
@@ -576,4 +669,4 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
   </div>${STYLE_COMMU}`, espace, 'coach');
 }
 
-module.exports = { carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
+module.exports = { pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };

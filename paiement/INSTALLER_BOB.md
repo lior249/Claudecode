@@ -468,3 +468,15 @@ menu ☰ sur téléphone.
 
 Les décisions sur les candidatures se prennent avec les boutons **Retenir / Refuser / Valider** des messages de Bob,
 ou sur **overmaxx.online/admin/candidatures**.
+
+## Revenus, messages et À traiter
+
+- **Revenus** : le total vient des updates du compte (28 derniers jours), plus des vidéos. La première update validée compte entièrement. Ensuite, chaque jour : valeur des 28 jours + total d'il y a 28 jours. Le total ne baisse jamais.
+- **Planifier → Envoyer un message** : remplace « Remarque » et « Message à tous ».
+  - Choisis les destinataires : liste à cocher, recherche, « Tout sélectionner ».
+  - Titre en gras ; gras / italique / souligné avec G, I, S.
+  - Chaque élève le voit dans ses Remarques et reçoit une notification.
+- **Accusés sous chaque message** : 👎 non délivré, 👍 délivré, 👁️ lu. Touche un nombre pour voir qui. « Relancer » renvoie le message à ceux qui ne l'ont pas lu.
+- **Fiche d'un élève** : « Envoyer un message » à lui seul. Le bouton existe aussi sur son profil.
+- **Écrire au coach** : l'élève écrit depuis ses Remarques. Le message arrive dans À traiter (Messages) ; tu y réponds, ou tu le marques traité.
+- **À traiter** affiche aussi tes notifications non lues (filtre Notifications). En ouvrir une la marque lue.

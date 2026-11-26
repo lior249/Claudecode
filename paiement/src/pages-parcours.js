@@ -236,12 +236,36 @@ const ETATS = { vide: 'À envoyer', brouillon: 'À envoyer', attente: 'En attent
 const etatPuce = (cle) => `<span class="etat" data-etat="${cle === 'brouillon' ? 'vide' : cle}">${cle === 'valide' ? ICONE.ok : ''}${ETATS[cle] || cle}</span>`;
 
 // Texte d'une remarque : liens cliquables, retours à la ligne gardés.
-function texteRiche(t) {
-  return echapper(t || '').replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`).replace(/\n/g, '<br>');
+// Mise en forme des messages du coach : **gras**, *italique*, __souligné__ (comme sur Discord), liens cliquables.
+function miseEnForme(s) {
+  return s.replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>').replace(/__([^_\n]+?)__/g, '<u>$1</u>').replace(/(^|[^*\w])\*([^*\n]+?)\*(?!\w)/g, '$1<i>$2</i>');
 }
+function texteRiche(t) {
+  return echapper(t || '').split(/(https?:\/\/[^\s<]+)/g)
+    .map((x, i) => (i % 2 ? `<a href="${x}" target="_blank" rel="noopener">${x}</a>` : miseEnForme(x))).join('').replace(/\n/g, '<br>');
+}
+// Texte sans les marques de mise en forme (aperçus).
+const texteSimple = (t) => String(t || '').replace(/\*\*|__|\*/g, '');
+// Barre de mise en forme (gras, italique, souligné) au-dessus d'un champ de texte : entoure la sélection.
+const barreMiseEnForme = (cible) => `<div class="barre-format" data-pour="${cible}" role="toolbar" aria-label="Mise en forme">
+  <button type="button" data-marque="**" title="Gras"><b>G</b></button><button type="button" data-marque="*" title="Italique"><i>I</i></button><button type="button" data-marque="__" title="Souligné"><u>S</u></button></div>`;
+const SCRIPT_MISE_EN_FORME = `(function () {
+  document.querySelectorAll('.barre-format').forEach(function (b) {
+    var t = document.getElementById(b.getAttribute('data-pour')); if (!t) return;
+    b.querySelectorAll('[data-marque]').forEach(function (x) { x.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      x.addEventListener('click', function () {
+        var m = x.getAttribute('data-marque'), d = t.selectionStart, f = t.selectionEnd, v = t.value, sel = v.slice(d, f) || 'texte';
+        t.value = v.slice(0, d) + m + sel + m + v.slice(f); t.focus(); t.setSelectionRange(d + m.length, d + m.length + sel.length);
+      }); });
+  });
+})();`;
+const STYLE_FORMAT = `<style>
+  .barre-format { display:flex; gap:6px; margin:0 0 -4px; } .barre-format button { width:38px; height:34px; border-radius:10px; border:1px solid var(--bord-fort,#333); background:transparent; color:#fff; font:600 15px var(--police); cursor:pointer; }
+  .remarque .titre-msg { display:block; font-weight:800; color:#fff; font-size:15px; margin:2px 0 2px; }
+</style>`;
 function remarque(r) {
   return `<div class="remarque" data-type="${echapper(r.type || 'remarque')}">
-    <span class="qui">Ton coach · ${echapper(formatDate(r.cree_le))}</span>
+    <span class="qui">Ton coach · ${echapper(formatDate(r.cree_le))}</span>${r.titre ? `<b class="titre-msg">${echapper(r.titre)}</b>` : ''}
     ${r.texte && r.texte !== '(image)' ? `<p>${texteRiche(r.texte)}</p>` : ''}
     ${(r.images || []).length ? `<div class="images">${r.images.map((n) => `<a href="/fichiers/images/${echapper(n)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(n)}" alt="Image jointe par le coach" loading="lazy"></a>`).join('')}</div>` : ''}
   </div>`;
@@ -250,7 +274,7 @@ function remarqueCompacte(r) {
   const n = (r.images || []).length;
   return `<details class="remarque compacte" data-type="${echapper(r.type || 'remarque')}">
     <summary><span class="qui">Ton coach · ${echapper(formatDate(r.cree_le))}${r.modifie_le ? ' · modifiée' : ''}${n ? ` · ${n} image${n > 1 ? 's' : ''}` : ''}</span>
-      <span class="apercu">${echapper(r.texte && r.texte !== '(image)' ? r.texte : 'Image jointe par le coach')}</span></summary>
+      ${r.titre ? `<b class="titre-msg">${echapper(r.titre)}</b>` : ''}<span class="apercu">${echapper(r.texte && r.texte !== '(image)' ? texteSimple(r.texte) : 'Image jointe par le coach')}</span></summary>
     ${r.texte && r.texte !== '(image)' ? `<p>${texteRiche(r.texte)}</p>` : ''}
     ${n ? `<div class="images">${r.images.map((x) => `<a href="/fichiers/images/${echapper(x)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(x)}" alt="Image jointe par le coach" loading="lazy"></a>`).join('')}</div>` : ''}
   </details>`;
@@ -336,8 +360,8 @@ const SCRIPT_GAIN = `
   champ.addEventListener('input', calculer);
   calculer();
 })();`;
-const page = (titre, contenu, espace, actif, maxMo, plus = '') => pageEspace(titre, `${STYLE_PARCOURS}${contenu}`, espace, actif, {
-  script: `${SCRIPT_LOCAL}${maxMo ? scriptEnvoi(maxMo) : ''}${SCRIPT_IMAGES}${plus}`,
+const page = (titre, contenu, espace, actif, maxMo, plus = '') => pageEspace(titre, `${STYLE_PARCOURS}${STYLE_FORMAT}${contenu}`, espace, actif, {
+  script: `${SCRIPT_LOCAL}${maxMo ? scriptEnvoi(maxMo) : ''}${SCRIPT_IMAGES}${contenu.includes('barre-format') ? SCRIPT_MISE_EN_FORME : ''}${plus}`,
 });
 const enTete = (n, titre, d) => `<div class="titre-page"><div><p class="etiquette">Étape ${n} sur 4</p><h1>${echapper(titre)}</h1></div>${delai(d)}</div>${frise(n)}`;
 const jourDe = (p) => Math.min(90, Math.max(1, Math.floor((Date.now() - new Date(p.entree_le)) / 86400000) + 1));
@@ -554,11 +578,12 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
   <div class="colonnes-2">
     <div>
       ${vueCoach ? `<form class="carte" id="remarque" method="post" action="${base}/remarque" style="display:grid;gap:10px">
-        <h2 style="margin:0">Nouvelle remarque</h2>
-        <textarea name="texte" placeholder="Ta remarque. Les liens (https://…) deviennent cliquables."></textarea>
+        <h2 style="margin:0">Envoyer un message</h2>
+        <input name="titre" maxlength="120" required placeholder="Titre (en gras)" aria-label="Titre">
+        ${barreMiseEnForme('texte-fiche')}<textarea id="texte-fiche" name="texte" required placeholder="Ton message. Sélectionne un mot puis G, I ou S pour le mettre en forme."></textarea>
         ${zoneImages()}
-        <button class="bouton" type="submit" style="margin-top:0">Publier la remarque</button>
-        <p class="doux petit" style="margin:0">${echapper(p.pseudo || 'Le membre')} la voit sur sa fiche, et Bob le prévient.</p></form>` : ''}
+        <button class="bouton" type="submit" style="margin-top:0">Envoyer à ${echapper(p.pseudo || 'cet élève')}</button>
+        <p class="doux petit" style="margin:0">Il le voit dans ses Remarques du coach, et Bob le prévient. Accusés de lecture dans Planifier → Envoyer un message.</p></form>` : ''}
       <div class="carte" id="remarques">
         <div class="envoi-tete"><h2>Remarques du coach</h2><span class="doux petit">${remarques.length} au total</span></div>
         ${listeRemarques(remarques, { toutes })}
@@ -658,7 +683,7 @@ const STYLE_TRAITER = `<style>
   .tr-tag { font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; border:1px solid var(--bord-fort); color:#ddd; }
   .tr-tag[data-cat="etape-1"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="etape-2"] { color:#c8f23a; border-color:#4a5a15; }
   .tr-tag[data-cat="etape-3"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="etape-4"] { color:#7ee0b0; border-color:#1f5a3d; } .tr-tag[data-cat="videos"] { color:#ff9ad5; border-color:#6b1f4a; }
-  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; }
+  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; }
   .tr-tag[data-cat="candidatures"] { color:#d4b3ff; border-color:#4b2b7a; } .tr-tag[data-cat="acces"] { color:#fff; } .tr-tag[data-cat="retards"] { color:#ffcf6b; border-color:#6b4a0e; }
   .tr-ouvrir { flex:none; width:auto !important; margin:0 !important; min-height:40px; padding:8px 16px; }
   .tr-carte .choix-acces { flex:none; } .tr-carte .choix-acces .bouton { min-height:40px; padding:8px 14px; }
@@ -669,7 +694,7 @@ const STYLE_TRAITER = `<style>
 
 // À traiter : une seule file, toutes les catégories mélangées (le plus ancien d'abord), avec une étiquette sous chaque carte.
 // Les filtres en haut, rangés par nombre (ceux qui restent le plus d'abord) : un clic n'affiche que cette catégorie.
-function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {} }) {
+function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {}, messagesRecus = [], notifications = [] }) {
   const nom = (p) => (p && (p.nom || p.pseudo)) || '?';
   const items = [];
   const ajouter = (cat, x) => items.push({ cat, ...x });
@@ -691,6 +716,10 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   for (const c of candidatures) {
     ajouter('candidatures', { qui: c.nom, pseudo: c.pseudo, quand: c.maj_le, quoi: c.statut === 'video' ? 'Vidéo de présentation reçue' : 'Formulaire de candidature à examiner', lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
   }
+  for (const m of messagesRecus) {
+    ajouter('messages', { qui: m.nom, pseudo: m.parcours && m.parcours.pseudo, quand: m.cree_le, lien: `/admin/messages-recus/${m.id}`, bouton: m.lu_le ? 'Répondre' : 'Lire',
+      quoi: `${m.sujet ? `${m.sujet} : ` : ''}${m.texte.length > 140 ? `${m.texte.slice(0, 140)}…` : m.texte}` });
+  }
   const decision = (x, libelles) => `<form method="post" action="/admin/acces/${encodeURIComponent(x.programme)}/${encodeURIComponent(x.discord_id)}" class="choix-acces">
       ${libelles.map(([valeur, texte, classe]) => `<button class="bouton ${classe}" type="submit" name="decision" value="${valeur}">${echapper(texte)}</button>`).join('')}</form>`;
   for (const x of acces) {
@@ -701,10 +730,13 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   // Pour information : en retard (Bob les relance déjà), après le reste.
   const retards = a.retards.map((x) => ({ cat: 'retards', qui: nom(x.parcours), pseudo: x.parcours.pseudo, quand: x.tache.delai && x.tache.delai.fin,
     quoi: `Étape ${x.parcours.etape} : ${x.tache.titre}`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, bouton: 'Voir sa fiche' }));
+  // Notifications non lues (pour information) : la plus récente d'abord ; l'ouvrir la marque lue.
+  const notifs = notifications.map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le,
+    quoi: n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte, lien: `/admin/notifications/${n.id}/ouvrir`, bouton: 'Ouvrir' }));
   items.sort((x, y) => String(x.quand || '').localeCompare(String(y.quand || '')));
-  const tous = [...items, ...retards];
+  const tous = [...items, ...retards, ...notifs];
   const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
-    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['retards', 'En retard']];
+    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['retards', 'En retard'], ['notifications', 'Notifications']];
   const nb = (c) => tous.filter((x) => x.cat === c).length;
   const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
   const libelle = Object.fromEntries(CATS);
@@ -716,6 +748,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>À traiter</h1></div><span class="doux petit">${items.length} en attente de ta décision</span></div>
   <nav class="puces-traiter" aria-label="Filtres"><a href="#" data-filtre="" aria-pressed="true">Tout<b>${items.length}</b></a>${filtres.map((x) => `<a href="#" data-filtre="${x.c}"${x.n ? '' : ' data-vide'}>${echapper(x.l)}<b>${x.n}</b></a>`).join('')}</nav>
   <div class="tr-file">${tous.map(carte).join('') || '<p class="vide-traiter">Rien à traiter. Bravo !</p>'}</div>
+  ${notifs.length ? `<form method="post" action="/admin/notifications/tout-lu" style="margin-top:12px"><button class="bouton secondaire" type="submit" style="margin:0;width:auto">Marquer les ${notifs.length} notification(s) comme lues</button></form>` : ''}
   ${accesRefuses.length ? `<details class="carte" style="margin-top:18px"><summary>Accès au site refusés (${accesRefuses.length})</summary><div style="display:grid;gap:8px;margin-top:10px">
     ${accesRefuses.map((x) => `<div class="tr-carte"><div class="tr-corps"><b>${echapper(x.pseudo || x.discord_id)}</b><span class="doux petit">Rôle ${echapper(nomsOffres[x.programme] || x.programme)} · refusé le ${echapper(formatDate(x.decide_le))}</span></div>
       ${decision(x, [['oui', 'Donner l\'accès', 'secondaire']])}</div>`).join('')}</div></details>` : ''}
@@ -1148,6 +1181,7 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
     <div><h1>${echapper(nom)}</h1><p>${p.compte_tiktok ? `${lienTikTok(p.compte_tiktok)}${p.niche ? ` · ${echapper(p.niche)}` : ''}` : echapper(p.niche || 'Overmaxx Elite')}</p>
       <div class="badges"><span>${p.etape >= 5 ? 'GOAT' : `Étape ${p.etape}`}</span><span>Jour ${jourDe(p)} sur 90</span>
         ${trophees.map((r) => pastilleRole(r.role)).join('')}${pastilleRole('elite')}${chaine >= 3 ? `<span style="border-color:#ff9a3c;color:#ff9a3c">🔥 ${chaine} jours d'affilée</span>` : ''}</div></div></div>
+  ${vueCoach || (espace && espace.estAdmin) ? `<a class="bouton" href="/admin/membres/${encodeURIComponent(p.discord_id)}#remarque" style="width:auto;display:inline-block;margin:-4px 0 18px;padding-left:22px;padding-right:22px">✉️ Envoyer un message</a>` : ''}
   ${relation ? `${relation.message ? `<p class="message-ok">${echapper(relation.message)}</p>` : ''}${relation.erreur ? `<p class="erreur-form">${echapper(relation.erreur)}</p>` : ''}
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 18px">
     ${relation.concurrent ? `<form method="post" action="/communaute/concurrences/${relation.concurrenceId}/abandon" style="margin:0"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
@@ -1163,4 +1197,4 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
-module.exports = { pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+module.exports = { barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };

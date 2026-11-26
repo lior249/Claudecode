@@ -44,6 +44,9 @@ function creerNotifsAdmin({ db, maintenant = () => new Date() }) {
     liste: db.prepare('SELECT * FROM notifications_admin ORDER BY id DESC LIMIT ?'),
     nonLues: db.prepare('SELECT COUNT(*) n FROM notifications_admin WHERE lu_le IS NULL'),
     toutLu: db.prepare('UPDATE notifications_admin SET lu_le = ? WHERE lu_le IS NULL'),
+    nonLuesListe: db.prepare('SELECT * FROM notifications_admin WHERE lu_le IS NULL ORDER BY id DESC LIMIT ?'),
+    une: db.prepare('SELECT * FROM notifications_admin WHERE id = ?'),
+    lire: db.prepare('UPDATE notifications_admin SET lu_le = COALESCE(lu_le, ?) WHERE id = ?'),
     purger: db.prepare('DELETE FROM notifications_admin WHERE cree_le < ?'),
     rappels: db.prepare('SELECT * FROM rappels_admin ORDER BY actif DESC, heure, id'),
     rappel: db.prepare('SELECT * FROM rappels_admin WHERE id = ?'),
@@ -72,6 +75,9 @@ function creerNotifsAdmin({ db, maintenant = () => new Date() }) {
     liste(n = 100) { return q.liste.all(n); },
     nonLues() { return q.nonLues.get().n; },
     toutLu() { q.toutLu.run(iso()); },
+    nonLuesListe(n = 100) { return q.nonLuesListe.all(n); },
+    // Ouvre une notification : marquée lue ; renvoie la page à ouvrir.
+    lire(id) { const x = q.une.get(Number(id)); if (x) q.lire.run(iso(), x.id); return x || null; },
 
     // Les notifications de chaque membre (messages de Bob ou de l'application), pour sa cloche.
     noterMembre(discordId, contenu) {

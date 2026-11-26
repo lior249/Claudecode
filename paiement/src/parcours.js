@@ -239,6 +239,12 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       const r = q.imageDe.get(`%"${String(nom).replace(/[%_"]/g, '')}"%`);
       return r ? r.discord_id : null;
     },
+    // Un membre voit ses propres images, et celles jointes aux remarques et messages qu'il a reçus (un message peut aller à plusieurs élèves).
+    peutVoirImage(nom, discordId) {
+      const m = q.imageMembre.get(String(nom));
+      if (m && m.discord_id === discordId) return true;
+      return Boolean(db.prepare('SELECT 1 FROM remarques WHERE discord_id = ? AND images LIKE ?').get(String(discordId), `%"${String(nom).replace(/[%_"]/g, '')}"%`));
+    },
     imageDuMembre(nom, discordId) { const m = q.imageMembre.get(String(nom)); return Boolean(m && m.discord_id === discordId); },
 
     // Le coach ouvre l'étape 3 après le coaching d'entrée (compte TikTok, niche, pays notés sur la fiche).

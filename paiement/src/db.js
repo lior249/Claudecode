@@ -629,6 +629,45 @@ function migrerV27(db) {
   db.exec('PRAGMA user_version = 27');
 }
 
+// v28 : « Envoyer un message » (coach → un ou plusieurs élèves) : chaque envoi crée une remarque par élève, avec son titre
+// et l'état de livraison de la notification (👍 délivré, 👎 non délivré ; lu = vu dans ses Remarques).
+// Et les messages des élèves au coach (sujet : une ressource, plus tard).
+function migrerV28(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 28) return;
+  const c = colonnes(db, 'remarques');
+  if (!c.includes('titre')) db.exec('ALTER TABLE remarques ADD COLUMN titre TEXT');
+  if (!c.includes('envoi_id')) db.exec('ALTER TABLE remarques ADD COLUMN envoi_id INTEGER');
+  if (!c.includes('livre')) db.exec('ALTER TABLE remarques ADD COLUMN livre INTEGER');
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS envois_messages (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    titre     TEXT,
+    texte     TEXT NOT NULL,
+    images    TEXT,
+    lien      TEXT,
+    cree_le   TEXT NOT NULL,
+    modifie_le TEXT
+  );
+  CREATE INDEX IF NOT EXISTS remarques_envoi ON remarques(envoi_id);
+  CREATE TABLE IF NOT EXISTS messages_coach (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id  TEXT NOT NULL,
+    texte       TEXT NOT NULL,
+    images      TEXT,
+    sujet       TEXT,
+    cree_le     TEXT NOT NULL,
+    lu_le       TEXT,
+    traite_le   TEXT
+  );
+  CREATE INDEX IF NOT EXISTS messages_coach_membre ON messages_coach(discord_id);`);
+  // Les remarques écrites à la main avant : un envoi chacune, pour les retrouver dans « Messages envoyés ».
+  const anciennes = db.prepare("SELECT * FROM remarques WHERE type = 'remarque' AND soumission_id IS NULL AND envoi_id IS NULL").all();
+  const ajouter = db.prepare('INSERT INTO envois_messages (titre, texte, images, cree_le, modifie_le) VALUES (NULL, ?, ?, ?, ?)');
+  const lier = db.prepare('UPDATE remarques SET envoi_id = ?, livre = 1 WHERE id = ?');
+  for (const r of anciennes) lier.run(Number(ajouter.run(r.texte, r.images, r.cree_le, r.modifie_le).lastInsertRowid), r.id);
+  db.exec('PRAGMA user_version = 28');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -665,6 +704,7 @@ function ouvrirBase(fichier) {
   migrerV25(db);
   migrerV26(db);
   migrerV27(db);
+  migrerV28(db);
   return db;
 }
 

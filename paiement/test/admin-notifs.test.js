@@ -138,53 +138,78 @@ test('notification test : envoyée à un seul compte par son pseudo, rangée dan
   } finally { await m.fermer(); }
 });
 
-test('coach : Planifier (remarque à un élève, message à tous), profil coach, vue liste des élèves', async () => {
-  const envois = []; const remarques = [];
-  const m = await monter({ bob: { parcours: { annonce: async (a, ids) => { envois.push([a, ids]); return ids.length; }, remarque: async (p) => { remarques.push(p.discord_id); } } } });
+test('coach : Envoyer un message (destinataires, accusés 👎 👍 👁️, relance, modification), profil coach, vue liste', async () => {
+  const envois = []; const modifs = [];
+  // A reçoit (👍), B non (👎).
+  const bob = { parcours: { message: async (e, p, o = {}) => { envois.push([e.titre, p.discord_id, Boolean(o.relance)]); return p.discord_id !== 'B'; },
+    remarqueModifiee: async (p) => { modifs.push(p.discord_id); } } };
+  const m = await monter({ bob });
+  const attendre = () => new Promise((x) => setTimeout(x, 20));
   try {
-    for (const id of ['A', 'B']) m.parcours.assurer(id, { pseudo: `p_${id}` });
+    for (const id of ['A', 'B', 'C']) m.parcours.assurer(id, { pseudo: `p_${id}` });
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
-    assert.match(await (await m.get('/admin/planifier?onglet=remarque', coach)).text(), /<option value="A">p_A/);
-    const r = await m.poster('/admin/planifier/remarque', { eleve: 'A', texte: 'Ta dernière vidéo est très bonne.' }, coach);
-    assert.strictEqual(r.headers.get('location'), '/admin/planifier?onglet=remarque&fait=remarque');
-    assert.deepStrictEqual(remarques, ['A']);
-    assert.match(await (await m.get('/remarques', { cookie: cookieSession('A', 'p_A') })).text(), /Ta dernière vidéo est très bonne/);
-    const msg = await m.poster('/admin/planifier/message', { titre: 'Pense au compte rendu', texte: 'Ce soir avant 21 h.' }, coach);
-    assert.strictEqual(msg.headers.get('location'), '/admin/planifier?onglet=message&fait=message&n=2');
-    assert.strictEqual(envois.length, 1);
-    assert.doesNotMatch(await (await m.get('/profil', { cookie: cookieSession('A', 'p_A') })).text(), /Pense au compte rendu/, 'un message ne va pas dans la bannière');
-    assert.match(await (await m.get('/coach', coach)).text(), /Coach Overmaxx[\s\S]*Élèves/);
+    const eleveA = { cookie: cookieSession('A', 'p_A') };
+    const page = await (await m.get('/admin/planifier?onglet=message&a=B', coach)).text();
+    assert.match(page, /aria-current="page">Envoyer un message/);
+    assert.match(page, /Sélectionner les destinataires[\s\S]*Rechercher un élève[\s\S]*Tout sélectionner[\s\S]*value="A"[\s\S]*value="B" checked/);
+    assert.match(page, /data-marque="\*\*"[\s\S]*data-marque="\*"[\s\S]*data-marque="__"/, 'gras, italique, souligné');
+    assert.match((await m.poster('/admin/planifier/message', { titre: 'x', texte: 'y' }, coach)).headers.get('location'), /erreur=.*destinataire/);
+    const r = await m.poster('/admin/planifier/message', { titre: 'Pense à ton update', texte: 'Ce soir **avant 21 h**.', ids: ['A', 'B'] }, coach);
+    assert.strictEqual(r.headers.get('location'), '/admin/planifier?onglet=message&fait=message&n=2');
+    await attendre();
+    assert.deepStrictEqual(envois, [['Pense à ton update', 'A', false], ['Pense à ton update', 'B', false]]);
+    const remA = await (await m.get('/remarques', eleveA)).text(); // A le lit
+    assert.match(remA, /<b class="titre-msg">Pense à ton update<\/b>[\s\S]*Ce soir <b>avant 21 h<\/b>/);
+    await attendre();
+    const envoye = await (await m.get('/admin/planifier?onglet=message', coach)).text();
+    assert.match(envoye, /Messages envoyés[\s\S]*Pense à ton update/);
+    assert.match(envoye, /👎 1<\/summary>[\s\S]*p_B[\s\S]*👍 0<\/summary>[\s\S]*👁️ 1<\/summary>[\s\S]*p_A/);
+    assert.match(envoye, /Relancer ceux qui ne l'ont pas lu \(1\)/);
+    const id = m.db.prepare('SELECT id FROM envois_messages').get().id;
+    await m.poster(`/admin/messages/${id}/relancer`, {}, coach);
+    await attendre();
+    assert.deepStrictEqual(envois.pop(), ['Pense à ton update', 'B', true], 'relance : seulement ceux qui ne l\'ont pas lu');
+    // Modifier : jamais supprimer ; A l'avait lu → prévenu, et sa bulle se rallume.
+    assert.strictEqual((await m.poster(`/admin/messages/${id}`, { titre: 'Pense à ton update', texte: 'Ce soir avant 22 h.' }, coach)).headers.get('location'), '/admin/planifier?onglet=message&fait=modifie');
+    assert.deepStrictEqual(modifs, ['A']);
+    assert.match(await (await m.get('/profil', eleveA)).text(), /Remarques : 1 nouveau/);
+    assert.match(await (await m.get('/remarques', eleveA)).text(), /avant 22 h/);
+    assert.strictEqual(m.db.prepare('SELECT COUNT(*) n FROM remarques').get().n, 2, 'une remarque par élève, rien de supprimé');
+    assert.doesNotMatch(await (await m.get('/profil', eleveA)).text(), /class="evenements/, 'un message ne va pas dans la bannière');
+    assert.match(await (await m.get('/coach', coach)).text(), /Coach Overmaxx[\s\S]*Élèves[\s\S]*Tâches du jour[\s\S]*Coachings du jour/);
     const liste = await (await m.get('/admin/eleves?vue=liste', coach)).text();
     assert.match(liste, /class="bouton secondaire ls-ouvrir"[^>]*>Filtres[\s\S]*class="ls-panneau" hidden[\s\S]*data-tri="revenus"[\s\S]*↓ Décroissant[\s\S]*↑ Croissant[\s\S]*Appliquer[\s\S]*class="ls-ligne"/);
     assert.doesNotMatch(await (await m.get('/admin/eleves', coach)).text(), /déjà accompagné/, 'plus de formulaire d\'ajout');
   } finally { await m.fermer(); }
 });
 
-test('remarque modifiée par le coach : jamais supprimée ; déjà lue → l\'élève est prévenu et la bulle se rallume', async () => {
-  const modifs = [];
-  const m = await monter({ bob: { parcours: { remarque: async () => {}, remarqueModifiee: async (p) => { modifs.push(p.discord_id); } } } });
+test('élève → coach : message direct, rangé dans À traiter avec les notifications ; le coach répond', async () => {
+  const recus = []; const envois = [];
+  const m = await monter({ bob: { parcours: { messageAuCoach: async (x, p) => { recus.push([x.texte, p.discord_id]); }, message: async (e, p) => { envois.push([e.titre, p.discord_id]); return true; } } } });
+  const attendre = () => new Promise((x) => setTimeout(x, 20));
   try {
     m.parcours.assurer('A', { pseudo: 'p_A' });
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
     const eleve = { cookie: cookieSession('A', 'p_A') };
-    await m.poster('/admin/planifier/remarque', { eleve: 'A', texte: 'Première version.' }, coach);
-    const id = m.db.prepare('SELECT id FROM remarques').get().id;
-    // Pas encore lue : modifiée sans prévenir.
-    await m.poster(`/admin/remarques/${id}`, { texte: 'Deuxième version.' }, coach);
-    assert.deepStrictEqual(modifs, []);
-    await m.get('/remarques', eleve); // lue
-    await new Promise((x) => setTimeout(x, 5));
-    const page = await (await m.get('/admin/planifier?onglet=remarque', coach)).text();
-    assert.match(page, /Écrire une remarque[\s\S]*Mes dernières remarques[\s\S]*Deuxième version\.[\s\S]*action="\/admin\/remarques\/\d+"/);
-    assert.match(page, /modifiée · lue/);
-    const r = await m.poster(`/admin/remarques/${id}`, { texte: 'Troisième version.' }, coach);
-    assert.strictEqual(r.headers.get('location'), '/admin/planifier?onglet=remarque&fait=modifiee');
-    assert.deepStrictEqual(modifs, ['A'], 'déjà lue : prévenu');
-    assert.match(await (await m.get('/profil', eleve)).text(), /Remarques : 1 nouveau/, 'la bulle se rallume');
-    assert.match(await (await m.get('/remarques', eleve)).text(), /Troisième version\./);
-    assert.strictEqual(m.db.prepare('SELECT COUNT(*) n FROM remarques').get().n, 1, 'rien n\'est supprimé');
-    assert.match(await (await m.get('/coach', coach)).text(), /Tâches du jour[\s\S]*Coachings du jour/);
-    assert.doesNotMatch(await (await m.get('/coach', coach)).text(), /Générés/);
+    assert.match(await (await m.get('/remarques', eleve)).text(), /Écrire au coach/);
+    assert.strictEqual((await m.poster('/remarques/ecrire', { texte: 'Comment garder mes viewers ?' }, eleve)).headers.get('location'), '/remarques?fait=envoye');
+    await attendre();
+    assert.deepStrictEqual(recus, [['Comment garder mes viewers ?', 'A']]);
+    m.db.prepare("INSERT INTO notifications_admin (texte, lien, cree_le) VALUES ('Nouvelle candidature de x', '/admin/candidatures/1', ?)").run(new Date().toISOString());
+    const traiter = await (await m.get('/admin/a-traiter', coach)).text();
+    assert.match(traiter, /data-filtre="messages"[\s\S]*data-filtre="notifications"/);
+    assert.match(traiter, /Comment garder mes viewers \?[\s\S]*href="\/admin\/messages-recus\/1"/);
+    assert.match(traiter, /Nouvelle candidature de x[\s\S]*href="\/admin\/notifications\/\d+\/ouvrir"/);
+    const nid = m.db.prepare('SELECT id FROM notifications_admin').get().id;
+    assert.strictEqual((await m.get(`/admin/notifications/${nid}/ouvrir`, coach)).headers.get('location'), '/admin/candidatures/1');
+    assert.ok(m.db.prepare('SELECT lu_le FROM notifications_admin WHERE id = ?').get(nid).lu_le, 'ouverte : lue');
+    assert.strictEqual((await m.get('/admin/messages-recus/1', eleve)).status, 403);
+    assert.match(await (await m.get('/admin/messages-recus/1', coach)).text(), /Comment garder mes viewers[\s\S]*Répondre/);
+    await m.poster('/admin/messages-recus/1/repondre', { titre: 'Ta question', texte: 'Coupe les 2 premières secondes.' }, coach);
+    await attendre();
+    assert.deepStrictEqual(envois, [['Ta question', 'A']]);
+    assert.doesNotMatch(await (await m.get('/admin/a-traiter', coach)).text(), /Comment garder mes viewers/, 'répondu : plus à traiter');
+    assert.match(await (await m.get('/remarques', eleve)).text(), /Coupe les 2 premières secondes[\s\S]*|répondu/);
   } finally { await m.fermer(); }
 });
 

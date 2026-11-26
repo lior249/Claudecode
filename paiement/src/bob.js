@@ -1041,6 +1041,22 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await notifier.membre(p.discord_id, avecBoutons('**Ton coach a ajouté une remarque sur ta fiche.**',
         [{ label: 'Lire la remarque', url: lienPerso(p.discord_id, p.pseudo, '/fiche#remarques') }]));
     },
+    // Message du coach (Envoyer un message) : le titre en gras, puis le texte (même mise en forme que Discord).
+    // Renvoie true si la notification est arrivée (application ou Bob) : 👍 délivré, sinon 👎.
+    async message(e, p, { relance = false } = {}) {
+      if (!p) return false;
+      const titre = String(e.titre || 'Nouveau message de ton coach').replace(/\*/g, '');
+      const texte = e.texte && e.texte !== '(image)' ? e.texte : (e.images || []).length ? '(image jointe)' : '';
+      const debut = relance ? `🔔 **${titre}**\n_Rappel : tu n'as pas encore lu ce message._\n` : `✉️ **${titre}**\n`;
+      const contenu = avecBoutons(`${debut}${texte}`.slice(0, 1900), [{ label: 'Lire le message', url: lienPerso(p.discord_id, p.pseudo, '/remarques') }]);
+      return Boolean(await notifier.membre(p.discord_id, contenu));
+    },
+    // Message d'un élève au coach.
+    async messageAuCoach(m, p) {
+      const nom = (p && (p.pseudo || p.nom)) || m.discord_id;
+      await notifier.admin(avecBoutons(`✉️ **Message de ${nom}**${m.sujet ? ` (${m.sujet})` : ''}\n${String(m.texte === '(image)' ? '(image)' : m.texte).slice(0, 1500)}`,
+        [{ label: 'Lire et répondre', url: lienCoach(`/admin/messages-recus/${m.id}`) }]));
+    },
     async remarqueModifiee(p) {
       if (!p) return;
       await notifier.membre(p.discord_id, avecBoutons('**Ton coach a modifié une remarque.** Reviens la lire.',

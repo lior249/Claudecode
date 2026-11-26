@@ -139,16 +139,17 @@ test('parcours Elite : étape 1 (exercices), étape 2 (coaching d\'entrée), ét
     const img = await (await fetch(`${m.base}/admin/images`, { method: 'POST', headers: { 'Content-Type': 'image/png', cookie: coach }, body: png })).json();
     assert.match(img.nom, /^[a-f0-9]{24}\.png$/);
     assert.strictEqual((await fetch(`${m.base}/admin/images`, { method: 'POST', headers: { 'Content-Type': 'image/png', cookie: membre }, body: png })).status, 403);
-    await m.poster(`/admin/membres/${E1}/remarque`, { texte: 'Regarde ce hook : https://www.tiktok.com/@exemple', images: img.nom }, { cookie: coach });
+    await m.poster(`/admin/membres/${E1}/remarque`, { titre: 'Ton hook', texte: 'Regarde ce **hook** : https://www.tiktok.com/@exemple', images: img.nom }, { cookie: coach });
     await attendre();
-    assert.ok(dms.some(([id, t]) => id === E1 && /ajouté une remarque/.test(t)));
+    assert.ok(dms.some(([id, t]) => id === E1 && /✉️ \*\*Ton hook\*\*\nRegarde ce \*\*hook\*\*/.test(t)), 'message depuis la fiche : titre en gras');
     const fiche = await (await m.get('/fiche', { cookie: membre })).text();
     assert.match(fiche, /href="https:\/\/www\.tiktok\.com\/@exemple"/);
+    assert.match(fiche, /<b class="titre-msg">Ton hook<\/b>[\s\S]*Regarde ce <b>hook<\/b>/);
     assert.ok(fiche.includes(`/fichiers/images/${img.nom}`));
     assert.match(fiche, /class="remarque compacte"[\s\S]*class="apercu"/, 'remarques compactes : titre et aperçu, le reste à l\'ouverture');
     assert.strictEqual((await m.get(`/fichiers/images/${img.nom}`, { cookie: membre })).status, 200);
     assert.strictEqual((await m.get(`/fichiers/images/${img.nom}`, { cookie: cookieSession('AUTRE', 'x') })).status, 403);
-    assert.match(await (await m.get(`/admin/membres/${E1}`, { cookie: coach })).text(), /Nouvelle remarque/);
+    assert.match(await (await m.get(`/admin/membres/${E1}`, { cookie: coach })).text(), /Envoyer un message/);
   } finally { await m.fermer(); }
 });
 
