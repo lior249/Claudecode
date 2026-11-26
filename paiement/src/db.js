@@ -715,6 +715,13 @@ function migrerV30(db) {
   db.exec('PRAGMA user_version = 30');
 }
 
+// v31 : chaque ressource publique a aussi son post dans le forum « ressources » du Discord (double base).
+function migrerV31(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 31) return;
+  if (!colonnes(db, 'ressources').includes('discord_fil')) db.exec('ALTER TABLE ressources ADD COLUMN discord_fil TEXT');
+  db.exec('PRAGMA user_version = 31');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -754,6 +761,7 @@ function ouvrirBase(fichier) {
   migrerV28(db);
   migrerV29(db);
   migrerV30(db);
+  migrerV31(db);
   return db;
 }
 

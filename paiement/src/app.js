@@ -1570,6 +1570,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   }
   // Images d'une ressource : celles du coach, ou celles envoyées par l'élève lui-même (ou déjà sur la ressource).
   const imagesRessource = (b, x, deja = []) => imagesDe(b).filter((n) => x.coach || deja.includes(n) || parcours.imageDuMembre(n, x.session.id));
+  // Double base : une ressource publique est aussi postée (ou mise à jour) dans le forum « ressources » du Discord.
+  function versForum(r) {
+    if (!r || r.etat !== 'public' || !bob || !bob.parcours || !bob.parcours.publierRessource) return;
+    Promise.resolve(bob.parcours.publierRessource(r, r.auteur ? nomAuteur(r.auteur) : null))
+      .then((fil) => { if (typeof fil === 'string' && fil !== r.discord_fil) commandes.db.prepare('UPDATE ressources SET discord_fil = ? WHERE id = ?').run(fil, r.id); })
+      .catch((err) => console.error('[bob] forum des ressources :', err.message));
+  }
   const nomAuteur = (id) => (id ? (qProfils.get.get(id) || {}).prenom || (parcours.get(id) || {}).pseudo || 'un élève' : null);
   app.get('/ressources', (req, res) => {
     const type = ['niche', 'methode', 'tutoriel'].includes(req.query.type) ? req.query.type : 'niche';
@@ -1591,6 +1598,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const r = ressources.creer(type, req.body, { auteur: x.coach ? null : x.session.id, images: imagesRessource(req.body, x) });
     if (r.erreur) return res.status(400).send(RS.pageFormRessource(config, { espace: x.espace, type, coach: x.coach, erreur: r.erreur, valeurs: req.body }));
     if (!x.coach) prevenir('ressourceProposee', r.ressource, x.p);
+    else versForum(r.ressource);
     // « Ajouter ma niche » depuis l'étape 3 : on y revient, la niche déjà choisie.
     if (!x.coach && type === 'niche' && req.query.retour === 'etape-3') { parcours.choisirStrategie(x.session.id, { niche: r.ressource.id }); return res.redirect(303, '/parcours/etape-3?fait=niche'); }
     return res.redirect(303, `/ressources?type=${type}&fait=${x.coach ? 'ajoute' : 'propose'}`);
@@ -1635,6 +1643,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!r) return;
     const m = ressources.modifier(r.id, req.body, { discordId: x.session.id, coach: x.coach, images: imagesRessource(req.body, x, r.images) });
     if (m.erreur) return res.status(400).send(RS.pageFormRessource(config, { espace: x.espace, type: r.type, r, coach: x.coach, erreur: m.erreur, valeurs: req.body }));
+    versForum(m.ressource);
     return res.redirect(303, `/ressources/${r.id}?fait=modifie`);
   });
   // Une remarque d'élève sur une ressource : un message au coach (À traiter), avec le nom de la ressource.
@@ -1653,6 +1662,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const r = ressources.decider(req.params.id, String(req.body.decision || ''), req.body.motif);
     if (r.erreur) return res.redirect(303, `/ressources/${encodeURIComponent(req.params.id)}?erreur=${encodeURIComponent(r.erreur)}`);
     if (r.ressource.auteur) prevenir('ressourceDecidee', r.ressource, parcours.get(r.ressource.auteur), RS.titreDe(r.ressource));
+    versForum(r.ressource);
     return res.redirect(303, `/ressources/${r.ressource.id}?fait=${r.ressource.etat === 'public' ? 'valide' : 'refuse'}`);
   });
 

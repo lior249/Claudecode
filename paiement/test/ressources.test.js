@@ -97,3 +97,77 @@ test('ressources : publier, proposer, valider, aimer, remarque ; stratégie de l
     assert.doesNotMatch(await (await m.get('/classement', B)).text(), /Recettes/);
   } finally { await m.fermer(); }
 });
+
+test('forum Discord : chaque ressource publique y est postée avec ses tags (double base)', async () => {
+  const FR = require('../src/forum-ressources');
+  const niche = { id: 7, type: 'niche', titre: 'Tricotage', description: 'Tutos de tricot.', categorie: 'L1', pays: ['Allemagne', 'France', 'Angleterre', 'Brésil'],
+    rpm_min: 0.4, rpm_max: 1.2, exemples: ['https://www.tiktok.com/@tricot.vrai'], contre_exemples: [], sources: ['https://www.tiktok.com/@source'], images: [], etapes: [] };
+  assert.strictEqual(FR.titreDe(niche), '🚀 Tricotage (Repost amélioré)');
+  assert.deepStrictEqual(FR.tagsDe(niche), ['repost']);
+  assert.deepStrictEqual(FR.tagsDe({ ...niche, categorie: 'L2' }), ['Cmtry']);
+  assert.deepStrictEqual(FR.tagsDe({ type: 'methode' }), ['10k Abos']);
+  assert.deepStrictEqual(FR.tagsDe({ type: 'tutoriel' }), ['guide']);
+  const c = FR.contenuDe(niche, { auteur: 'awa_27', baseUrl: 'https://overmaxx.test' });
+  assert.match(c, /\*\*Thématique : Tricotage\*\*[\s\S]*Pays recommandés : 🇩🇪 🇫🇷 🇬🇧 🇧🇷[\s\S]*RPM : \$0\.40 – \$1\.20[\s\S]*Comptes exemples :\n@tricot\.vrai[\s\S]*Comptes sources :\n@source[\s\S]*Proposée par awa_27 · sur la plateforme : https:\/\/overmaxx\.test\/ressources\/7/);
+  assert.strictEqual(FR.titreDe({ type: 'methode', titre: 'Versus #1', categorie: 'video' }), '😈 (Méthode) 10k - Versus #1');
+  assert.match(FR.contenuDe({ id: 2, type: 'tutoriel', titre: 'Viewers', categorie: 'astuce', etapes: [{ texte: 'Regarde ce tuto', lien: 'https://x.y/1' }], exemples: [] }), /\*\*Étape 1 :\*\* Regarde ce tuto\nhttps:\/\/x\.y\/1/);
+
+  // La plateforme poste (coach : tout de suite ; élève : à la validation), puis garde l'identifiant du post.
+  const posts = [];
+  const m = await monter({ bob: { parcours: { publierRessource: async (r, auteur) => { posts.push([r.id, r.etat, auteur]); return `fil-${r.id}`; }, ressourceProposee: async () => {}, ressourceDecidee: async () => {} } } });
+  try {
+    m.parcours.assurer('A', { pseudo: 'p_A' });
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    await m.poster('/ressources/nouvelle', { type: 'niche', titre: 'Tricotage', description: 'x', categorie: 'L1' }, coach);
+    await m.poster('/ressources/nouvelle', { type: 'methode', description: 'Carrousel', categorie: 'carrousel' }, { cookie: cookieSession('A', 'p_A') });
+    await new Promise((x) => setTimeout(x, 20));
+    assert.deepStrictEqual(posts, [[1, 'public', null]], 'une proposition n\'est pas postée');
+    await m.poster('/admin/ressources/2/decision', { decision: 'valider' }, coach);
+    await new Promise((x) => setTimeout(x, 20));
+    assert.deepStrictEqual(posts[1], [2, 'public', 'p_A']);
+    assert.deepStrictEqual(m.db.prepare('SELECT discord_fil FROM ressources ORDER BY id').all().map((x) => x.discord_fil), ['fil-1', 'fil-2']);
+    // Modifiée : le même post est mis à jour.
+    await m.poster('/ressources/1/modifier', { titre: 'Tricot', description: 'y', categorie: 'L1' }, coach);
+    await new Promise((x) => setTimeout(x, 20));
+    assert.deepStrictEqual(posts[2], [1, 'public', null]);
+  } finally { await m.fermer(); }
+});
+
+test('Bob crée le forum « ressources » (tags) une seule fois, publie puis met à jour le post', async () => {
+  const { creerBob } = require('../src/bob');
+  const m = await monter();
+  try {
+    const crees = []; const fils = new Map(); const dms = [];
+    const forum = {
+      id: 'F1', availableTags: [],
+      threads: {
+        create: async (o) => { const f = { id: `T${fils.size + 1}`, o, edit: async (x) => { f.edite = x; }, fetchStarterMessage: async () => ({ edit: async (x) => { f.message = x; } }) }; fils.set(f.id, f); return f; },
+        fetch: async (id) => fils.get(id) || null,
+      },
+    };
+    const serveur = {
+      id: 'G', roles: { everyone: { id: 'G' } }, members: { fetch: async (id) => ({ id, roles: { cache: new Set() } }) },
+      channels: {
+        create: async (o) => { crees.push(o); forum.availableTags = o.availableTags.map((t, i) => ({ ...t, id: `tag${i}` })); return forum; },
+        fetch: async (id) => (id === 'F1' && crees.length ? forum : null),
+      },
+    };
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures, parcours: m.parcours, suivi: m.suivi,
+      sinistres: m.sinistres, serveur, client: { isReady: () => true, user: { id: 'BOB' }, users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content || c]) }) } } });
+    const r = { id: 3, type: 'niche', titre: 'Tricotage', description: 'x', categorie: 'L2', pays: ['France'], rpm_min: null, rpm_max: null, exemples: [], contre_exemples: [], sources: [], images: [], etapes: [] };
+    const id = await bob.parcours.publierRessource(r, null);
+    assert.strictEqual(id, 'T1');
+    assert.strictEqual(crees.length, 1);
+    assert.strictEqual(crees[0].name, 'ressources');
+    assert.deepStrictEqual(crees[0].availableTags.map((t) => t.name), ['10k Abos', 'repost', 'Cmtry', 'guide']);
+    assert.ok(crees[0].permissionOverwrites.some((p) => p.id === 'G' && p.deny.length), 'caché à @everyone');
+    assert.deepStrictEqual(fils.get('T1').o.appliedTags, ['tag2'], 'L2 → Cmtry');
+    assert.match(fils.get('T1').o.message.content, /Thématique : Tricotage/);
+    // Deuxième publication du même : mise à jour, pas de nouveau forum ni de nouveau post.
+    assert.strictEqual(await bob.parcours.publierRessource({ ...r, titre: 'Tricot', discord_fil: 'T1' }, null), 'T1');
+    assert.strictEqual(crees.length, 1);
+    assert.strictEqual(fils.size, 1);
+    assert.strictEqual(fils.get('T1').edite.name, '🚀 Tricot (Commentaire)');
+    assert.match(fils.get('T1').message.content, /Thématique : Tricot\*\*/);
+  } finally { await m.fermer(); }
+});

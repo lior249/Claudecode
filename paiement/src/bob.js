@@ -4,6 +4,7 @@ const {
   Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle,
   SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType, AuditLogEvent,
 } = require('discord.js');
+const FR = require('./forum-ressources');
 
 const STATUTS_CANDIDATURE_PROTEGES = ['examen', 'retenu', 'video', 'valide'];
 const { lienRenouvellement, lienMagique } = require('./liens');
@@ -1017,6 +1018,67 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   const ETAPES_NOMS = { 1: 'Prise en main', 2: 'Coaching d\'entrée', 3: 'Validation du contenu', 4: 'Publication et suivi', 5: 'GOAT' };
   const quoi = (s) => (s.etape === 1 ? `ton exercice ${s.emplacement}` : `ta vidéo ${s.emplacement.slice(1)}`);
   const lienCoach = (chemin) => lienPerso(config.discord.adminId, 'coach', chemin);
+
+  // ---------- Forum « ressources » (double base avec la plateforme) ----------
+  // Créé par Bob au démarrage s'il n'existe pas : visible des rôles Elite, GOAT et revenus ; seuls les posts de Bob,
+  // les élèves peuvent répondre dedans. Les tags classent : 10k Abos (méthodes), repost (L1), Cmtry (L2), guide (tutoriels).
+  const qReglage = {
+    get: db.prepare('SELECT valeur FROM reglages WHERE cle = ?'),
+    set: db.prepare('INSERT INTO reglages (cle, valeur, maj_le) VALUES (?, ?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, maj_le = excluded.maj_le'),
+  };
+  let forumEnCours = null;
+  async function forumRessources() {
+    if (!serveur) return null;
+    if (forumEnCours) return forumEnCours;
+    forumEnCours = (async () => {
+      const id = (qReglage.get.get('forum_ressources') || {}).valeur;
+      let forum = id ? await serveur.channels.fetch(id).catch(() => null) : null;
+      const tags = (f) => f.availableTags || [];
+      if (!forum) {
+        const P = PermissionFlagsBits;
+        const roles = [config.offres.elite.roleDiscord, config.discord.roleGoat, ...Object.values(config.discord.rolesRevenus || {})].filter(Boolean);
+        forum = await serveur.channels.create({
+          name: FR.NOM_FORUM, type: ChannelType.GuildForum, reason: 'Overmaxx : ressources de la plateforme',
+          topic: 'Niches, méthodes 10K et tutoriels : publiés par Bob depuis la plateforme Overmaxx. Réponds dans chaque post.',
+          availableTags: FR.TAGS.map((t) => ({ name: t.name, emoji: { id: null, name: t.emoji } })),
+          permissionOverwrites: [
+            { id: serveur.roles.everyone.id, deny: [P.ViewChannel] },
+            { id: client.user.id, allow: [P.ViewChannel, P.SendMessages, P.SendMessagesInThreads, P.ManageThreads, P.AttachFiles, P.EmbedLinks, P.ReadMessageHistory] },
+            ...roles.map((r) => ({ id: r, allow: [P.ViewChannel, P.SendMessagesInThreads, P.ReadMessageHistory, P.AddReactions], deny: [P.SendMessages, P.CreatePublicThreads] })),
+          ],
+        });
+        qReglage.set.run('forum_ressources', forum.id, maintenant().toISOString());
+        await notifier.admin(`📚 **Forum des ressources créé** : <#${forum.id}>. Chaque niche, méthode ou tutoriel publié sur la plateforme y arrive tout seul, avec ses tags.`);
+      } else {
+        const manquants = FR.TAGS.filter((t) => !tags(forum).some((x) => x.name === t.name));
+        if (manquants.length) {
+          forum = await forum.setAvailableTags([...tags(forum).map((x) => ({ id: x.id, name: x.name, emoji: x.emoji, moderated: x.moderated })),
+            ...manquants.map((t) => ({ name: t.name, emoji: { id: null, name: t.emoji } }))]);
+        }
+      }
+      return forum;
+    })();
+    try { return await forumEnCours; } finally { forumEnCours = null; }
+  }
+  // Publie (ou met à jour) le post d'une ressource publique. Renvoie l'identifiant du post.
+  async function publierRessource(r, auteur) {
+    const forum = await forumRessources();
+    if (!forum) return null;
+    const ids = FR.tagsDe(r).map((n) => (forum.availableTags.find((t) => t.name === n) || {}).id).filter(Boolean);
+    const fichiers = (r.images || []).map((n) => parcours && parcours.cheminImage(n)).filter((c) => c && require('fs').existsSync(c)).slice(0, 5);
+    const contenu = FR.contenuDe(r, { auteur, baseUrl: config.baseUrl });
+    let fil = r.discord_fil ? await forum.threads.fetch(r.discord_fil).catch(() => null) : null;
+    if (fil) {
+      await fil.edit({ name: FR.titreDe(r), appliedTags: ids });
+      const premier = await fil.fetchStarterMessage().catch(() => null);
+      if (premier) await premier.edit({ content: contenu, files: fichiers, attachments: [] });
+      log(`forum : ressource ${r.id} mise à jour`);
+      return fil.id;
+    }
+    fil = await forum.threads.create({ name: FR.titreDe(r), appliedTags: ids, message: { content: contenu, files: fichiers } });
+    log(`forum : ressource ${r.id} publiée`);
+    return fil.id;
+  }
   const prevenirParcours = {
     // Le membre a envoyé un exercice ou une vidéo : le coach est prévenu.
     async envoiRecu(s, p) {
@@ -1057,6 +1119,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await notifier.admin(avecBoutons(`✉️ **Message de ${nom}**${m.sujet ? ` (${m.sujet})` : ''}\n${String(m.texte === '(image)' ? '(image)' : m.texte).slice(0, 1500)}`,
         [{ label: 'Lire et répondre', url: lienCoach(`/admin/messages-recus/${m.id}`) }]));
     },
+    // Forum « ressources » : appelé par la plateforme quand une ressource devient publique ou change. Renvoie l'id du post.
+    async publierRessource(r, auteur) { return publierRessource(r, auteur); },
     async ressourceProposee(r, p) {
       const nom = (p && (p.pseudo || p.nom)) || r.auteur;
       const quoi = { niche: 'une niche', methode: 'une méthode', tutoriel: 'un tutoriel' }[r.type] || 'une ressource';
@@ -1639,6 +1703,27 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
               }
             } else console.warn('[bob] salon des sinistrés :', r.erreur);
           } catch (err) { console.error('[bob] salon des sinistrés :', err.message); }
+        }
+        // Forum des ressources : créé s'il manque ; les ressources publiques pas encore postées y sont ajoutées.
+        if (serveur) {
+          try {
+            await forumRessources();
+            const { creerRessources } = require('./ressources');
+            const rs = creerRessources({ db });
+            for (const { id } of db.prepare("SELECT id FROM ressources WHERE etat = 'public' AND discord_fil IS NULL ORDER BY id").all()) {
+              const r = rs.une(id);
+              const auteur = r.auteur ? ((parcours && parcours.get(r.auteur)) || {}).pseudo || null : null;
+              const fil = await publierRessource(r, auteur);
+              if (fil) db.prepare('UPDATE ressources SET discord_fil = ? WHERE id = ?').run(fil, id);
+            }
+          } catch (err) {
+            console.error('[bob] forum des ressources :', err.message);
+            if (!dejaEnvoye('config:forum-ressources')) {
+              marquer('config:forum-ressources');
+              await notifier.admin('Je n\'ai pas pu créer le **forum des ressources**. Le serveur doit être en mode **Communauté** (les forums en ont besoin), et mon rôle doit avoir **Gérer les salons** '
+                + '(Paramètres du serveur > Rôles > Bob). Ensuite, relance le site.').catch(() => {});
+            }
+          }
         }
         // Savoir qui donne les rôles (Whop ou toi) : Bob lit le journal d'audit du serveur.
         try {

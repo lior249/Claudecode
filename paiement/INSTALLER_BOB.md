@@ -533,3 +533,18 @@ ou sur **overmaxx.online/admin/candidatures**.
   - Une niche ou une méthode manque : ajoute-la d'abord dans les Ressources.
 - **Profil L1** : les niches L2 (commentaire) ne lui sont pas proposées, ni par toi ni par l'élève à l'étape 3. Un profil L2 les voit toutes.
 - **Plus de niveau ni de date d'entrée** dans la fenêtre « Infos ».
+
+## Forum « ressources » sur Discord (double base)
+
+- Au démarrage, **Bob crée lui-même le forum `ressources`**, avec 4 tags :
+  - 🚀 **10k Abos** : méthodes ;
+  - 🔁 **repost** : niches L1 ;
+  - 💡 **Cmtry** : niches L2 ;
+  - 📘 **guide** : tutoriels et astuces.
+- **Visibilité** : il est caché à tout le monde sauf aux rôles Elite, GOAT et revenus. Ils lisent et répondent dans les posts ; seul Bob crée les posts.
+- **Quand une ressource est postée** : quand toi tu l'ajoutes, ou quand tu valides une proposition d'élève.
+- **Contenu du post** : titre avec emoji (« 🚀 Tricotage (Repost amélioré) », « 😈 (Méthode) 10k - … »), thématique, pays en drapeaux, RPM, liens, étapes, ses images, et le lien vers la plateforme.
+- **Une ressource modifiée** met à jour le même post.
+- **Les ressources publiques déjà sur la plateforme** sont postées au démarrage.
+- **Si le forum ne se crée pas** : le serveur doit être en mode **Communauté** (les forums en ont besoin) et Bob doit avoir **Gérer les salons**. Bob te prévient si ça bloque.
+- Les posts que tu avais faits à la main avant restent dans ton ancien forum : Bob ne les copie pas.
