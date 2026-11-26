@@ -95,3 +95,27 @@ test('suivre (10 places), défier (3 concurrents), résultats envoyés à ceux q
     assert.strictEqual((await m.get('/remarques', cookie('E0'))).status, 200);
   } finally { await m.fermer(); }
 });
+
+test('régularité (flamme → heatmap), « Je suis » en carrousel, Mon parcours : à faire, heatmap, remarque ; lien Whop', async () => {
+  const m = await monter();
+  try {
+    eleve(m, 'A'); eleve(m, 'B'); eleve(m, 'C');
+    m.db.prepare("UPDATE parcours SET compte_tiktok = 'https://www.tiktok.com/@a' WHERE discord_id = 'A'").run();
+    compteRendu(m, 'A', jourIl(1)); compteRendu(m, 'A', jourIl(2));
+    m.db.prepare("INSERT INTO publications (discord_id, jour, lien, cree_le) VALUES ('A', ?, 'https://tiktok.com/A/autre', ?)").run(jourIl(1), new Date().toISOString());
+    m.db.prepare("INSERT INTO suivis (suiveur, suivi, type, cree_le) VALUES ('A', 'B', 'suivi', ?), ('A', 'C', 'concurrent', ?)").run(new Date().toISOString(), new Date().toISOString());
+    m.parcours.ajouterRemarque('A', { texte: 'Bravo pour ta semaine', images: ['abcdefabcdefabcdefabcdef.png'] });
+    const cookie = { cookie: cookieSession('A', 'p_A') };
+    const profil = await (await m.get('/profil', cookie)).text();
+    assert.match(profil, /class="pf-chaine" type="button" data-ouvrir="regularite-fenetre"/);
+    assert.match(profil, /id="regularite-fenetre"[\s\S]*Ma régularité[\s\S]*class="heatmap"/);
+    assert.match(profil, /Mes concurrents[\s\S]*Mes suivis/, 'concurrents puis suivis, dans un carrousel');
+    // Hier : 2 vidéos, un résultat donné, l'update du compte → 3 et plus (le plus vif).
+    assert.match(profil, new RegExp(`title="${Number(jourIl(1).slice(8))} [a-zéû]+ : \\d+ tâches"`));
+    assert.match(profil, /data-n="3"/);
+    const parcoursPage = await (await m.get('/parcours', cookie)).text();
+    assert.match(parcoursPage, /À faire maintenant[\s\S]*Ma régularité[\s\S]*class="heatmap"[\s\S]*Dernière remarque du coach/);
+    assert.match(parcoursPage, /<details class="remarque compacte"/, 'les images de la remarque à l\'ouverture');
+    assert.match(parcoursPage, /Continuer la formation sur Whop/);
+  } finally { await m.fermer(); }
+});

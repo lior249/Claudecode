@@ -984,13 +984,27 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const remarquesDe = (id) => parcours.remarquesDe(id);
   const maxMo = config.videoParcoursMo || 150;
 
+  // Régularité : le nombre de tâches faites chaque jour (6 derniers mois) : exercices et vidéos envoyés, vidéos déclarées,
+  // résultats donnés, updates du compte envoyés.
+  const aujourdhuiDe = (p) => (p && p.fuseau ? suivi.aujourdhui(p) : new Date().toISOString().slice(0, 10));
+  function activiteDe(id) {
+    const depuis = new Date(Date.now() - 190 * 864e5).toISOString().slice(0, 10);
+    const n = {};
+    const compter = (sql) => { for (const r of commandes.db.prepare(sql).all(id, depuis)) if (r.j) n[r.j] = (n[r.j] || 0) + r.n; };
+    compter("SELECT substr(envoye_le, 1, 10) j, COUNT(*) n FROM soumissions WHERE discord_id = ? AND envoye_le IS NOT NULL AND envoye_le >= ? GROUP BY j");
+    compter('SELECT jour j, COUNT(*) n FROM publications WHERE discord_id = ? AND jour >= ? GROUP BY j');
+    compter('SELECT substr(res_envoye_le, 1, 10) j, COUNT(*) n FROM publications WHERE discord_id = ? AND res_envoye_le IS NOT NULL AND res_envoye_le >= ? GROUP BY j');
+    compter('SELECT jour j, COUNT(*) n FROM comptes_rendus WHERE discord_id = ? AND envoye_le IS NOT NULL AND jour >= ? GROUP BY j');
+    return n;
+  }
   app.get('/parcours', (req, res) => {
     const x = membreParcours(req, res, '/parcours');
     if (!x) return;
     const prochaine = coaching.prochainesSeances(x.session.id, 14)[0];
     res.send(V.pageParcours(config, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id), rappel: aFaireDe(x.p),
       prochain: prochaine ? prochaine.debut : null, derniere: parcours.remarques(x.session.id)[0] || null, formation: formationDe(x.session.id),
-      stats: x.p.etape >= 4 ? suivi.stats(x.session.id) : null }));
+      stats: x.p.etape >= 4 ? suivi.stats(x.session.id) : null, activite: activiteDe(x.session.id), aujourdhui: aujourdhuiDe(x.p),
+      chaine: communaute.chaine(x.session.id), lienWhop: config.offres.elite.lienFormation || null }));
   });
   app.get('/parcours/etape-:n', (req, res) => {
     const n = Number(req.params.n);
@@ -1257,7 +1271,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       parcours: p, prenom: profil.prenom, avatar: profil.avatar, stats: suivi.stats(id) || {}, role: roleLePlusHaut(suivi.recompenses(id)) || 'elite',
       jourDepuis: Math.max(1, Math.floor((Date.now() - new Date(p.entree_le)) / 864e5) + 1), jours, chaine, flamme: communaute.flamme(chaine),
       derniers7: [7, 6, 5, 4, 3, 2, 1].map((k) => envoyes.has(decaler(aujourdhui, -k))), tache,
-      suivis: suivis.map((s) => membreVu(s.suivi)), nbSuivis: suivis.length, nbConcurrents: communaute.concurrents(id).length,
+      suivis: suivis.filter((s) => s.type !== 'concurrent').map((s) => membreVu(s.suivi)), concurrents: suivis.filter((s) => s.type === 'concurrent').map((s) => membreVu(s.suivi)),
+      nbSuivis: suivis.length, nbConcurrents: communaute.concurrents(id).length, activite: activiteDe(id), aujourdhui,
       invitations: communaute.invitationsRecues(id).length, notifications: notifsAdmin.nonLuesMembre(id),
       remarquesNouvelles: commandes.db.prepare('SELECT COUNT(*) n FROM remarques WHERE discord_id = ? AND COALESCE(modifie_le, cree_le) > ?').get(id, profil.remarques_vues_le || '').n,
       ...carrousel(p, aujourdhui), seances: coaching.prochainesSeances(id, 14).filter((x) => !x.touchee)

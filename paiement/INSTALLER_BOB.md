@@ -499,3 +499,18 @@ ou sur **overmaxx.online/admin/candidatures**.
   - Rien ne change tout seul : l'élève reçoit la demande et agit depuis Mes coachings.
 - **Notifications** : « Coaching réservé » ouvre le créneau, un message ouvre le message, une notification sur un élève ouvre sa fiche.
 - **À traiter** : en orange, ce qui attend ta décision ; en noir, sous « Déjà traité », ce que tu as déjà lu ou traité (7 derniers jours).
+
+## Profil et parcours : régularité, Je suis, formation Whop
+
+- **Flamme** (en haut de Mon profil) : elle ouvre la régularité, un calendrier du mois façon GitHub ou Duolingo.
+  - Chaque jour se colore selon les tâches faites : exercices ou vidéos envoyés, vidéos déclarées, résultats donnés, update du compte.
+  - 1 tâche = vert foncé, 2 = plus clair, 3 et plus = le plus vif.
+  - ‹ › pour voir les 6 derniers mois.
+- **Je suis** : une carte qui défile toute seule, « Mes concurrents » puis « Mes suivis ».
+- **Mon parcours**, dans l'ordre :
+  1. À faire maintenant ;
+  2. Ma régularité (le même calendrier) ;
+  3. la dernière remarque du coach, repliée : ses images s'affichent quand on l'ouvre.
+- **Formation sur Whop** : un bouton « Continuer la formation sur Whop ». Il ouvre l'application Whop si elle est installée, sinon le site.
+  - Par défaut, il mène au lien de l'offre Elite sur Whop.
+  - Pour un autre lien : `LIEN_FORMATION_WHOP=https://whop.com/...` dans overmaxx.env.

@@ -366,6 +366,64 @@ const page = (titre, contenu, espace, actif, maxMo, plus = '') => pageEspace(tit
 const enTete = (n, titre, d) => `<div class="titre-page"><div><p class="etiquette">Étape ${n} sur 4</p><h1>${echapper(titre)}</h1></div>${delai(d)}</div>${frise(n)}`;
 const jourDe = (p) => Math.min(90, Math.max(1, Math.floor((Date.now() - new Date(p.entree_le)) / 86400000) + 1));
 
+// ---------- Régularité : la heatmap du mois (comme GitHub ou Duolingo) ----------
+// activite : { 'AAAA-MM-JJ': nombre de tâches faites ce jour }. 1 tâche = vert foncé, 2 = plus clair, 3 et plus = le plus vif.
+const MOIS_NOMS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+function blocHeatmap(activite = {}, aujourdhui = new Date().toISOString().slice(0, 10), { mois = 6, id = 'regularite' } = {}) {
+  const [a, m] = aujourdhui.split('-').map(Number);
+  const grilles = [];
+  for (let k = mois - 1; k >= 0; k--) {
+    const d = new Date(Date.UTC(a, m - 1 - k, 1));
+    const an = d.getUTCFullYear(); const mo = d.getUTCMonth();
+    const nbJours = new Date(Date.UTC(an, mo + 1, 0)).getUTCDate();
+    const decalage = (d.getUTCDay() + 6) % 7; // lundi en premier
+    let cases = '<i class="hm-vide"></i>'.repeat(decalage);
+    let actifs = 0; let taches = 0;
+    for (let j = 1; j <= nbJours; j++) {
+      const jour = `${an}-${String(mo + 1).padStart(2, '0')}-${String(j).padStart(2, '0')}`;
+      const n = Number(activite[jour]) || 0;
+      if (n) { actifs++; taches += n; }
+      const niveau = jour > aujourdhui ? 'futur' : Math.min(n, 3);
+      cases += `<i data-n="${niveau}"${jour === aujourdhui ? ' class="hm-auj"' : ''} title="${j} ${MOIS_NOMS[mo]} : ${n} tâche${n > 1 ? 's' : ''}"><span>${j}</span></i>`;
+    }
+    grilles.push(`<div class="hm-mois" data-mois="${k}"${k ? ' hidden' : ''}>
+      <div class="hm-tete"><button type="button" class="hm-nav" data-aller="${k + 1}"${k === mois - 1 ? ' disabled' : ''} aria-label="Mois précédent">‹</button>
+        <b>${MOIS_NOMS[mo].charAt(0).toUpperCase()}${MOIS_NOMS[mo].slice(1)} ${an}</b>
+        <button type="button" class="hm-nav" data-aller="${k - 1}"${k === 0 ? ' disabled' : ''} aria-label="Mois suivant">›</button></div>
+      <div class="hm-grille"><b>L</b><b>M</b><b>M</b><b>J</b><b>V</b><b>S</b><b>D</b>${cases}</div>
+      <p class="doux petit hm-resume">${actifs} jour${actifs > 1 ? 's' : ''} actif${actifs > 1 ? 's' : ''} · ${taches} tâche${taches > 1 ? 's' : ''} faite${taches > 1 ? 's' : ''}</p></div>`);
+  }
+  return `<div class="heatmap" id="${id}">${grilles.join('')}
+    <div class="hm-legende"><span>0</span><i data-n="0"></i><i data-n="1"></i><i data-n="2"></i><i data-n="3"></i><span>3+ tâches</span></div></div>`;
+}
+const STYLE_HEATMAP = `<style>
+  .heatmap .hm-tete { display:flex; align-items:center; justify-content:space-between; margin:0 0 10px; }
+  .heatmap .hm-nav { width:36px; height:36px; border-radius:50%; border:1px solid var(--bord-fort,#333); background:transparent; color:#fff; font:600 20px/1 var(--police); cursor:pointer; }
+  .heatmap .hm-nav:disabled { opacity:.25; cursor:default; }
+  .heatmap .hm-grille { display:grid; grid-template-columns:repeat(7, 1fr); gap:5px; }
+  .heatmap .hm-grille > b { text-align:center; font-size:11px; color:var(--doux); font-weight:700; }
+  .heatmap .hm-grille i { aspect-ratio:1; border-radius:7px; background:#1a1a1a; display:grid; place-items:center; font-style:normal; }
+  .heatmap .hm-grille i span { font-size:10.5px; color:rgba(255,255,255,.45); font-weight:600; }
+  .heatmap i[data-n="1"] { background:#0e4429; } .heatmap i[data-n="2"] { background:#26a641; } .heatmap i[data-n="3"] { background:#39d353; }
+  .heatmap i[data-n="2"] span, .heatmap i[data-n="3"] span { color:rgba(0,0,0,.6); }
+  .heatmap i[data-n="futur"] { background:transparent; border:1px dashed #222; }
+  .heatmap i.hm-vide { background:transparent; }
+  .heatmap i.hm-auj { outline:2px solid #fff; outline-offset:-2px; }
+  .heatmap .hm-resume { margin:10px 0 0; }
+  .heatmap .hm-legende { display:flex; align-items:center; gap:5px; justify-content:flex-end; margin-top:8px; font-size:11.5px; color:var(--doux); }
+  .heatmap .hm-legende i { width:14px; height:14px; border-radius:4px; }
+  .heatmap .hm-legende i[data-n="0"] { background:#1a1a1a; }
+</style>`;
+const SCRIPT_HEATMAP = `(function () {
+  document.querySelectorAll('.heatmap').forEach(function (h) {
+    h.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-aller]'); if (!b || b.disabled) return;
+      var k = b.getAttribute('data-aller');
+      h.querySelectorAll('.hm-mois').forEach(function (m) { m.hidden = m.getAttribute('data-mois') !== k; });
+    });
+  });
+})();`;
+
 // ---------- Membre : Mon parcours ----------
 // Fenêtre de Mon parcours : ce qu'il reste à faire (à chaque ouverture) ; « Bravo » quand une nouvelle étape s'ouvre.
 // La fenêtre « Ce qu'il te reste à faire » : la vidéo où le coach présente l'étape, puis les choses à faire.
@@ -415,7 +473,7 @@ function fenetreAFaire(r) {
     setTimeout(function () { d.showModal(); }, 300); // la fenêtre arrive 0,3 s après la page
   })();</script>`;
 }
-function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, formation, stats, rappel }) {
+function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, formation, stats, rappel, activite = {}, aujourdhui, chaine = 0, lienWhop = null }) {
   return page('Mon parcours', `
   <div class="titre-page"><div><p class="etiquette">Overmaxx Elite · jour ${jourDe(p)} sur 90</p><h1>Mon parcours</h1></div></div>
   ${frise(p.etape)}
@@ -428,8 +486,10 @@ function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, 
         <p class="doux" style="margin:0">${echapper(tache.texte)}</p>
         <a class="bouton" href="${echapper(tache.lien)}">${echapper(tache.bouton)}</a>
       </div>
-      ${derniere ? `<div class="carte"><div class="envoi-tete"><h2>Dernière remarque du coach</h2><a class="doux petit" href="/fiche#remarques">Toutes les remarques</a></div>
-        <div style="margin-top:12px">${remarque(derniere)}</div></div>` : ''}
+      <div class="carte"><div class="envoi-tete"><h2>Ma régularité</h2><span class="doux petit">${chaine >= 3 ? `🔥 ${chaine} jours d'affilée` : 'tâches faites par jour'}</span></div>
+        <div style="margin-top:12px">${blocHeatmap(activite, aujourdhui, { id: 'regularite-parcours' })}</div></div>
+      ${derniere ? `<div class="carte"><div class="envoi-tete"><h2>Dernière remarque du coach</h2><a class="doux petit" href="/remarques">Toutes les remarques</a></div>
+        <div class="remarques-liste" style="margin-top:12px">${remarqueCompacte(derniere)}</div></div>` : ''}
       ${p.etape >= 4 ? blocObjectifs(stats, { lien: '/profil' }) : ''}
     </div>
     <div>
@@ -440,14 +500,16 @@ function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, 
         ${p.etape >= 3 ? '<a class="bouton secondaire" href="/coaching">Mes coachings</a>' : ''}
       </div>
       <div class="carte">
-        <h2>Formation sur Whop</h2>
+        <div class="envoi-tete"><h2>Formation sur Whop</h2>${lienWhop ? `<a class="doux petit" href="${echapper(lienWhop)}" target="_blank" rel="noopener">Ouvrir ›</a>` : ''}</div>
         ${formation ? `<div class="recap"><div><b>${formation.faites} / ${formation.total || '?'}</b><span>leçons terminées</span></div>
           <div><b>${formation.derniere ? echapper(formatDate(formation.derniere)) : '—'}</b><span>dernière activité</span></div></div>
           <p class="doux petit" style="margin:10px 0 0">Mis à jour tout seul depuis Whop : rien à cocher.</p>`
     : '<p class="doux" style="margin:0">Ta progression apparaîtra ici dès que ton accès Whop sera validé.</p>'}
+        ${lienWhop ? `<a class="bouton secondaire" href="${echapper(lienWhop)}" target="_blank" rel="noopener">Continuer la formation sur Whop</a>
+          <p class="doux petit" style="margin:6px 0 0">S'ouvre dans l'application Whop si elle est installée, sinon dans le navigateur.</p>` : ''}
       </div>
     </div>
-  </div>`, espace, 'parcours');
+  </div>${STYLE_HEATMAP}`, espace, 'parcours', null, SCRIPT_HEATMAP);
 }
 
 // ---------- Membre : étape 1 ----------
@@ -1237,4 +1299,4 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
-module.exports = { barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+module.exports = { blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };

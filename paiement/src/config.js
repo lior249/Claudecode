@@ -56,6 +56,8 @@ function chargerConfig({ strict = true } = {}) {
         wistiaGoat: lire('WISTIA_GOAT', ''), // vidéo de félicitations GOAT (fenêtre « Ce qu'il te reste à faire »)
         // Paiement par carte : lien de l'offre Whop cachée (même prix). Proposé à côté du mobile money après validation.
         lienCarte: lire('LIEN_CARTE_ELITE', 'https://whop.com/overmaxx/legroupe-secret-accompagnement-prive/'),
+        // La formation sur Whop (lien https de Whop : s'ouvre dans l'application Whop si elle est installée).
+        lienFormation: lire('LIEN_FORMATION_WHOP', lire('LIEN_CARTE_ELITE', 'https://whop.com/overmaxx/legroupe-secret-accompagnement-prive/')),
         tallyFormId: lire('TALLY_FORM_ID', ''),
         graceJours: 0, // Elite : retrait immédiat à la fin
         base: '/coaching/elite',

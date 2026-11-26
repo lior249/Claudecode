@@ -4,7 +4,7 @@
 // son résultat), la chaîne 🔥, ceux qu'il suit, la tâche du moment ; puis le tableau de bord des revenus.
 // Et la page Communauté : suivis (10 places), concurrents (3), invitations, suggestions.
 const { echapper } = require('./pages');
-const { page, remarque, listeRemarques, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce, barreMiseEnForme, texteSimple, zoneImages } = require('./pages-parcours');
+const { blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, page, remarque, listeRemarques, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce, barreMiseEnForme, texteSimple, zoneImages } = require('./pages-parcours');
 const { ICONE } = require('./pages');
 const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
@@ -173,9 +173,9 @@ const SCRIPT_ROUE = `(function () {
   centrer(auj, false); dessiner();
 })();`;
 
-const SCRIPT_CARROUSEL = `(function () {
-  var c = document.querySelector('.pf-carrousel'); if (!c) return;
-  var points = document.querySelectorAll('.pf-points i'), n = c.children.length, touche = 0;
+// Chaque carrousel de la page (cartes du profil, « Je suis ») défile seul toutes les 3 s, sauf si on vient d'y toucher.
+const SCRIPT_CARROUSEL = `document.querySelectorAll('.pf-carrousel').forEach(function (c) {
+  var points = c.parentNode.querySelectorAll('.pf-points i'), n = c.children.length, touche = 0;
   function index() { return Math.round(c.scrollLeft / c.clientWidth); }
   function marquer() { var k = index(); Array.prototype.forEach.call(points, function (p, i) { p.className = i === k ? 'actif' : ''; }); }
   c.addEventListener('scroll', function () { requestAnimationFrame(marquer); }, { passive: true });
@@ -183,7 +183,7 @@ const SCRIPT_CARROUSEL = `(function () {
   if (n > 1 && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
     setInterval(function () { if (Date.now() - touche < 6000 || document.hidden) return; c.scrollTo({ left: ((index() + 1) % n) * c.clientWidth, behavior: 'smooth' }); }, 3000);
   }
-})();`;
+});`;
 // Compte à rebours de la tâche du moment (chaque seconde) : jaune dans le dernier quart, rouge en retard.
 const SCRIPT_REBOURS = `(function () {
   var els = document.querySelectorAll('.rebours[data-fin]'); if (!els.length) return;
@@ -242,7 +242,7 @@ function barreObjectif(objectif, total) {
     <span class="haut"><span>Prochain objectif</span><b>${dollars(objectif.montant, { centimes: false })}</b></span>
     <span class="barre"><i style="width:${pct}%"></i></span><span class="bas">${dollars(total)} · ${pct} %</span></a>`;
 }
-function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, nbSuivis, nbConcurrents, invitations, notifications, rappel,
+function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, concurrents = [], activite = {}, aujourdhui, nbSuivis, nbConcurrents, invitations, notifications, rappel,
   rang, totalClasses, revenusMois, objectif, seances = [], remarquesNouvelles = 0, annonce }) {
   const nom = prenom || p.pseudo || 'Membre';
   const roue = jours.map((d) => `<button type="button" class="roue-jour${d.aujourdhui ? ' aujourdhui' : ''}${d.futur ? ' futur' : ''}" data-jour="${d.j}" data-e="${d.e}" aria-label="${echapper(jourLisible(d.j))}">
@@ -268,7 +268,7 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
         <a class="pf-icone pf-doublon" href="/remarques" aria-label="Remarques du coach${remarquesNouvelles ? ` : ${remarquesNouvelles} nouvelle(s)` : ''}">${ICONES.bulle}${compteur(remarquesNouvelles)}</a>
       </div>
       <div class="pf-groupe">
-        <a class="pf-chaine" href="/parcours/etape-4" aria-label="Chaîne de ${chaine} jours">${FLAMME(flamme)}${chaine}</a>
+        <button class="pf-chaine" type="button" data-ouvrir="regularite-fenetre" aria-label="Chaîne de ${chaine} jours : voir ma régularité" style="cursor:pointer;font-family:inherit">${FLAMME(flamme)}${chaine}</button>
         <a class="pf-icone" href="/reglages" aria-label="Réglages">${ICONES.reglages}</a>
       </div>
     </div>
@@ -287,11 +287,18 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
     <div class="roue-cadre"><div class="roue" role="listbox" aria-label="Jours">${roue}</div><button type="button" class="roue-retour" hidden>Revenir à aujourd'hui</button></div>
     ${jours.map((d, i) => panneauJour(d, i, tache)).join('')}
     <div class="pf-cartes">
-      <a class="pf-carte pf-suivis" href="/communaute">
-        <div class="pf-ronds">${suivis.slice(0, 3).map(rond).join('') || '<span>+</span>'}</div>
-        <h3>Je suis</h3><p class="vert">${nbSuivis} / 10${nbConcurrents ? ` · ${nbConcurrents} concurrent${nbConcurrents > 1 ? 's' : ''}` : ''}</p>
-        ${invitations ? `<p>${invitations} invitation${invitations > 1 ? 's' : ''} à défier</p>` : ''}
-      </a>
+      <div class="pf-carte pf-carrousel-cadre">
+        <div class="pf-carrousel" aria-roledescription="carrousel" aria-label="Je suis">
+          <a class="pf-slide pf-suivis" href="/communaute">
+            <div class="pf-ronds">${concurrents.slice(0, 3).map(rond).join('') || '<span>⚔</span>'}</div>
+            <h3>Mes concurrents</h3><p class="vert">${nbConcurrents} / 3</p>
+            ${invitations ? `<p>${invitations} invitation${invitations > 1 ? 's' : ''} à défier</p>` : `<p>${nbConcurrents ? 'Le premier à l\'objectif gagne.' : 'Défie un profil proche du tien.'}</p>`}</a>
+          <a class="pf-slide pf-suivis" href="/communaute">
+            <div class="pf-ronds">${suivis.slice(0, 3).map(rond).join('') || '<span>+</span>'}</div>
+            <h3>Mes suivis</h3><p class="vert">${nbSuivis} / 10</p><p>${suivis.length ? 'Leurs résultats arrivent chez toi.' : 'Suis ceux qui t\'inspirent.'}</p></a>
+        </div>
+        <div class="pf-points" aria-hidden="true"><i class="actif"></i><i></i></div>
+      </div>
       <div class="pf-carte pf-carrousel-cadre">
         <div class="pf-carrousel" aria-roledescription="carrousel">${slides.join('')}</div>
         <div class="pf-points" aria-hidden="true">${slides.map((x, i) => `<i${i ? '' : ' class="actif"'}></i>`).join('')}</div>
@@ -300,7 +307,16 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
     <a class="bouton secondaire" href="/parcours" style="margin:4px 0 18px">Mon parcours</a>
     ${seances.length ? `<h2 class="section">Mes prochains coachings</h2><div class="carte">${seances.slice(0, 3).map((x) => `<div class="pf-seance"><b data-quand="${echapper(x.debut)}">${echapper(x.date)} à ${echapper(x.heure)} GMT</b><span>${echapper(x.type)}</span></div>`).join('')}
       <a class="bouton secondaire" href="/coaching" style="margin-top:10px">Mes coachings</a></div>` : ''}
-  </div>`, espace, 'profil', null, `${SCRIPT_ROUE}${SCRIPT_CARROUSEL}${SCRIPT_QUAND}${SCRIPT_REBOURS}`);
+  </div>
+  ${STYLE_HEATMAP}<dialog class="fenetre" id="regularite-fenetre" aria-labelledby="regularite-titre">
+    <button class="fermer" type="button" aria-label="Fermer" data-fermer>×</button>
+    <h2 id="regularite-titre">${FLAMME(flamme)} Ma régularité</h2>
+    <p class="doux petit" style="margin:0 0 14px">${flamme ? `${chaine} jours d'affilée : ne casse pas ta chaîne !` : 'Chaque jour, les tâches faites : plus c\'est vert, plus tu as avancé.'}</p>
+    ${blocHeatmap(activite, aujourdhui, { id: 'regularite-profil' })}</dialog>`, espace, 'profil', null, `${SCRIPT_ROUE}${SCRIPT_CARROUSEL}${SCRIPT_QUAND}${SCRIPT_REBOURS}${SCRIPT_HEATMAP}
+(function () { var d = document.getElementById('regularite-fenetre'); if (!d || !d.showModal) return;
+  document.querySelectorAll('[data-ouvrir="regularite-fenetre"]').forEach(function (b) { b.onclick = function () { d.showModal(); }; });
+  d.querySelector('[data-fermer]').onclick = function () { d.close(); };
+  d.addEventListener('click', function (e) { if (e.target === d) d.close(); }); })();`);
 }
 
 // Revenus : le tableau de bord TikTok (ouvert depuis le carrousel de Mon profil).
