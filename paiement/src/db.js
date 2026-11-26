@@ -668,6 +668,44 @@ function migrerV28(db) {
   db.exec('PRAGMA user_version = 28');
 }
 
+// v29 : ressources (niches, méthodes pour 10K abonnés, tutoriels), likes ; proposées par les élèves, validées par le coach.
+// Étape 3 : l'élève choisit sa niche, sa méthode 10K et son pays cible (visibles par le coach seulement).
+function migrerV29(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 29) return;
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS ressources (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    type          TEXT NOT NULL,            -- niche, methode, tutoriel
+    titre         TEXT,                     -- facultatif pour une méthode
+    description   TEXT,                     -- sujet de la niche, explication
+    categorie     TEXT,                     -- niche : L1, L2, L1L2 ; méthode : video, carrousel, cta ; tutoriel : montage, ciblage, scripting, astuce, autre
+    pour          TEXT,                     -- méthode : L1, L2, L1L2 (choisi par le coach)
+    pays          TEXT,                     -- JSON : pays recommandés (niche)
+    rpm_min       REAL,
+    rpm_max       REAL,
+    exemples      TEXT,                     -- JSON : liens de comptes exemples
+    contre_exemples TEXT,                   -- JSON
+    sources       TEXT,                     -- JSON : comptes sources (niche L1)
+    lien          TEXT,                     -- tutoriel : vidéo, page…
+    auteur        TEXT,                     -- discord_id de l'élève, NULL = le coach
+    etat          TEXT NOT NULL DEFAULT 'public', -- public, attente, refuse
+    motif         TEXT,
+    cree_le       TEXT NOT NULL,
+    maj_le        TEXT,
+    decide_le     TEXT
+  );
+  CREATE INDEX IF NOT EXISTS ressources_type ON ressources(type, etat);
+  CREATE TABLE IF NOT EXISTS ressources_likes (
+    ressource_id  INTEGER NOT NULL,
+    discord_id    TEXT NOT NULL,
+    cree_le       TEXT NOT NULL,
+    PRIMARY KEY (ressource_id, discord_id)
+  );`);
+  const c = colonnes(db, 'parcours');
+  for (const [n, t] of [['niche_id', 'INTEGER'], ['methode_id', 'INTEGER'], ['pays_cible', 'TEXT']]) if (!c.includes(n)) db.exec(`ALTER TABLE parcours ADD COLUMN ${n} ${t}`);
+  db.exec('PRAGMA user_version = 29');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -705,6 +743,7 @@ function ouvrirBase(fichier) {
   migrerV26(db);
   migrerV27(db);
   migrerV28(db);
+  migrerV29(db);
   return db;
 }
 

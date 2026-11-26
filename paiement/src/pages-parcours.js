@@ -529,7 +529,22 @@ function pageEtape2(config, { espace, parcours: p, tache, entree, libres, messag
 }
 
 // ---------- Membre : étape 3 ----------
-function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarquesDe, coachings, maxMo }) {
+// Étape 3 : niche, méthode 10K et pays cible (visibles par le coach seulement).
+function blocStrategie({ strategie: st = {}, niches = [], methodes = [], pays = [], drapeaux = {}, message }) {
+  const opt = (liste, choisi, nom) => liste.map((r) => `<option value="${r.id}"${choisi && choisi.id === r.id ? ' selected' : ''}>${echapper(nom(r))}${r.etat === 'attente' ? ' (en attente du coach)' : ''}</option>`).join('');
+  const nomMethode = (r) => r.titre || `Méthode ${({ video: 'vidéo', carrousel: 'carrousel', cta: 'CTA' })[r.categorie] || ''}${r.pour ? ` · ${r.pour === 'L1L2' ? 'L1 et L2' : r.pour}` : ''}`;
+  return `<form class="carte" id="strategie" method="post" action="/parcours/etape-3/strategie" style="display:grid;gap:12px">
+    <div class="envoi-tete"><h2>Ma stratégie</h2>${st.complete ? `<span class="etat" data-etat="valide">${ICONE.ok}Choisie</span>` : '<span class="etat" data-etat="corriger">À choisir</span>'}</div>
+    ${message ? `<p class="message-ok" style="margin:0">${echapper(message)}</p>` : ''}
+    <p class="doux petit" style="margin:0">Seul ton coach voit tes choix. Ils se changent à tout moment ; regarde les <a href="/ressources">Ressources</a> pour comparer.</p>
+    <div class="champ"><label for="niche">Ma niche</label><select id="niche" name="niche" required><option value="">Choisis ta niche</option>${opt(niches, st.niche, (r) => r.titre)}</select>
+      <small><a href="/ressources/nouvelle?type=niche&amp;retour=etape-3">+ Ajouter ma niche</a> : elle sera relue par le coach.</small></div>
+    <div class="champ"><label for="methode">Ma méthode pour 10K abonnés</label><select id="methode" name="methode" required><option value="">Choisis ta méthode</option>${opt(methodes, st.methode, nomMethode)}</select></div>
+    <div class="champ"><label for="pays-cible">Le pays que je vise</label><select id="pays-cible" name="pays" required><option value="">Choisis un pays</option>
+      ${pays.map((x) => `<option value="${echapper(x)}"${st.pays === x ? ' selected' : ''}>${drapeaux[x] || ''} ${echapper(x)}</option>`).join('')}</select></div>
+    <button class="bouton" type="submit" style="margin:0">Enregistrer ma stratégie</button></form>`;
+}
+function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarquesDe, coachings, maxMo, strategie = null }) {
   const fini = p.etape > 3;
   const valides = soumissions.filter((s) => s.etat === 'valide').length;
   const bloc = (n) => {
@@ -551,6 +566,7 @@ function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarques
   return page('Étape 3 · Validation du contenu', `
   ${enTete(3, 'Validation du contenu', fini ? null : tache && tache.delai)}
   ${blocVideo(config.offres.elite.wistiaEtape3 || '', 'Étape 3 : tes 3 vidéos')}
+  ${strategie ? blocStrategie(strategie) : ''}
   <div class="carte">
     <div class="envoi-tete"><h2>Tes 3 vidéos, avant de publier</h2><span class="etat" data-etat="${valides === 3 ? 'valide' : 'attente'}">${valides} / 3 validées</span></div>
     <p class="doux" style="margin:8px 0 0">${fini ? 'Tes 3 vidéos sont validées : tu es autorisé à publier.' : 'Ne publie rien pour l\'instant. Quand tes 3 vidéos auront la coche verte, tu seras autorisé à publier.'}</p>
@@ -683,7 +699,7 @@ const STYLE_TRAITER = `<style>
   .tr-tag { font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; border:1px solid var(--bord-fort); color:#ddd; }
   .tr-tag[data-cat="etape-1"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="etape-2"] { color:#c8f23a; border-color:#4a5a15; }
   .tr-tag[data-cat="etape-3"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="etape-4"] { color:#7ee0b0; border-color:#1f5a3d; } .tr-tag[data-cat="videos"] { color:#ff9ad5; border-color:#6b1f4a; }
-  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; }
+  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; } .tr-tag[data-cat="ressources"] { color:#9ec5ff; border-color:#284a7a; }
   .tr-tag[data-cat="candidatures"] { color:#d4b3ff; border-color:#4b2b7a; } .tr-tag[data-cat="acces"] { color:#fff; } .tr-tag[data-cat="retards"] { color:#ffcf6b; border-color:#6b4a0e; }
   .tr-ouvrir { flex:none; width:auto !important; margin:0 !important; min-height:40px; padding:8px 16px; }
   .tr-carte .choix-acces { flex:none; } .tr-carte .choix-acces .bouton { min-height:40px; padding:8px 14px; }
@@ -694,7 +710,7 @@ const STYLE_TRAITER = `<style>
 
 // À traiter : une seule file, toutes les catégories mélangées (le plus ancien d'abord), avec une étiquette sous chaque carte.
 // Les filtres en haut, rangés par nombre (ceux qui restent le plus d'abord) : un clic n'affiche que cette catégorie.
-function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {}, messagesRecus = [], notifications = [] }) {
+function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {}, messagesRecus = [], notifications = [], ressources = [] }) {
   const nom = (p) => (p && (p.nom || p.pseudo)) || '?';
   const items = [];
   const ajouter = (cat, x) => items.push({ cat, ...x });
@@ -716,6 +732,10 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   for (const c of candidatures) {
     ajouter('candidatures', { qui: c.nom, pseudo: c.pseudo, quand: c.maj_le, quoi: c.statut === 'video' ? 'Vidéo de présentation reçue' : 'Formulaire de candidature à examiner', lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
   }
+  for (const r of ressources) {
+    ajouter('ressources', { qui: r.nom || 'Un élève', quand: r.cree_le, lien: `/ressources/${r.id}`, bouton: 'Relire',
+      quoi: `Propose ${r.type === 'niche' ? 'la niche' : 'la méthode'} « ${r.titre} »` });
+  }
   for (const m of messagesRecus) {
     ajouter('messages', { qui: m.nom, pseudo: m.parcours && m.parcours.pseudo, quand: m.cree_le, lien: `/admin/messages-recus/${m.id}`, bouton: m.lu_le ? 'Répondre' : 'Lire',
       quoi: `${m.sujet ? `${m.sujet} : ` : ''}${m.texte.length > 140 ? `${m.texte.slice(0, 140)}…` : m.texte}` });
@@ -736,7 +756,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   items.sort((x, y) => String(x.quand || '').localeCompare(String(y.quand || '')));
   const tous = [...items, ...retards, ...notifs];
   const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
-    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['retards', 'En retard'], ['notifications', 'Notifications']];
+    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
   const nb = (c) => tous.filter((x) => x.cat === c).length;
   const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
   const libelle = Object.fromEntries(CATS);
@@ -782,7 +802,7 @@ function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, m
       </form>`;
   return page(`${titre} de ${p.pseudo || ''}`, `
   <a class="retour" href="/admin/a-traiter"><span aria-hidden="true">‹</span> À traiter</a>
-  <div class="titre-page"><div><p class="etiquette">${echapper(p.nom || p.pseudo || '')} · étape ${s.etape}</p><h1>${echapper(titre)}</h1></div>${etatPuce(s.etat)}</div>
+  <div class="titre-page"><div><p class="etiquette"><a href="/admin/membres/${encodeURIComponent(p.discord_id)}" style="color:inherit">${echapper(p.nom || p.pseudo || '')}</a> · étape ${s.etape}</p><h1>${echapper(titre)}</h1></div>${etatPuce(s.etat)}</div>
   ${message ? `<p class="erreur-form">${echapper(message)}</p>` : ''}
   <div class="colonnes-2">
     <div>
@@ -794,7 +814,7 @@ function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, m
     </div>
     <div>
       ${decision}
-      <div class="carte"><h2>${echapper(p.pseudo || p.discord_id)}</h2><p class="doux petit" style="margin:0">Étape ${p.etape}${p.niche ? ` · ${echapper(p.niche)}` : ''}${p.compte_tiktok ? ` · ${lienTikTok(p.compte_tiktok)}` : ''}</p>
+      <div class="carte"><h2><a href="/admin/membres/${encodeURIComponent(p.discord_id)}" style="color:inherit">${echapper(p.pseudo || p.discord_id)}</a></h2><p class="doux petit" style="margin:0">Étape ${p.etape}${p.niche ? ` · ${echapper(p.niche)}` : ''}${p.compte_tiktok ? ` · ${lienTikTok(p.compte_tiktok)}` : ''}</p>
         <a class="bouton secondaire" href="/admin/membres/${encodeURIComponent(p.discord_id)}">Voir sa fiche</a></div>
     </div>
   </div>`, espace, 'traiter');
@@ -820,7 +840,13 @@ function formHeures(p, { titre = 'Choisis tes 3 heures' } = {}) {
 // ---------- Étape 4 : publier (le lien), les résultats de chaque vidéo, l'update du compte ----------
 function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publications, videos = [], aFaire = [], updateDuJour, stats, message }) {
   const etatVideo = (v) => (v.res_etat ? etatPuce(v.res_etat) : v.pret ? '<span class="etat" data-etat="corriger">Résultats à donner</span>' : '<span class="etat" data-etat="attente">Résultats dans 24 h</span>');
-  const corps = !p.heure_creation ? `<div class="carte">${formHeures(p)}</div>` : `
+  // Le lien du compte TikTok d'abord : obligatoire pour l'étape 4.
+  const formCompte = `<form class="carte" id="compte" method="post" action="/parcours/etape-4/compte" style="display:grid;gap:12px">
+    <h2 style="margin:0">Le lien de ton compte TikTok</h2>
+    <p class="doux" style="margin:0">Il le faut pour commencer à publier : c'est le compte que ton coach suit.</p>
+    <div class="champ"><label for="compte-tiktok">Lien de ton profil</label><input id="compte-tiktok" name="compte" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" required placeholder="https://www.tiktok.com/@ton.compte"></div>
+    <button class="bouton" type="submit" style="margin:0">Enregistrer</button></form>`;
+  const corps = !p.compte_tiktok ? formCompte : !p.heure_creation ? `<div class="carte">${formHeures(p)}</div>` : `
   <div class="carte">
     <div class="envoi-tete"><h2>Aujourd'hui</h2>${publications.length ? `<span class="etat" data-etat="valide">${ICONE.ok}${publications.length} vidéo(s) déclarée(s)</span>` : '<span class="etat" data-etat="attente">À déclarer</span>'}</div>
     <p class="doux" style="margin:8px 0 12px">Au moins une vidéo par jour. Après avoir publié, colle son lien : c'est tout.</p>
@@ -921,7 +947,7 @@ function pageResultatCoach(config, { espace, video: v, parcours: p, message }) {
       <div class="carte"><h2>Captures (${(v.captures || []).length})</h2><div class="captures-cr">${(v.captures || []).map((c, i) => `<figure><a href="/fichiers/images/${echapper(c)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(c)}" alt="Capture ${i + 1}"></a><figcaption>Capture ${i + 1}</figcaption></figure>`).join('')}</div></div>
     </div>
     <div>${decision}
-      ${p ? `<div class="carte"><h2>${echapper(p.pseudo || p.discord_id)}</h2><p class="doux petit" style="margin:0">${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : ''}</p>
+      ${p ? `<div class="carte"><h2><a href="/admin/membres/${encodeURIComponent(p.discord_id)}" style="color:inherit">${echapper(p.pseudo || p.discord_id)}</a></h2><p class="doux petit" style="margin:0">${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : ''}</p>
         <a class="bouton secondaire" href="/admin/membres/${encodeURIComponent(p.discord_id)}">Voir sa fiche</a></div>` : ''}</div>
   </div>`, espace, 'traiter');
 }
@@ -969,7 +995,7 @@ function pageCompteRenduCoach(config, { espace, cr, parcours: p, message }) {
     </div>
     <div>
       ${decision}
-      <div class="carte"><h2>${echapper(p.pseudo || p.discord_id)}</h2><p class="doux petit" style="margin:0">${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : ''}${p.niche ? ` · ${echapper(p.niche)}` : ''}</p>
+      <div class="carte"><h2><a href="/admin/membres/${encodeURIComponent(p.discord_id)}" style="color:inherit">${echapper(p.pseudo || p.discord_id)}</a></h2><p class="doux petit" style="margin:0">${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : ''}${p.niche ? ` · ${echapper(p.niche)}` : ''}</p>
         <a class="bouton secondaire" href="/admin/membres/${encodeURIComponent(p.discord_id)}">Voir sa fiche</a></div>
     </div>
   </div>`, espace, 'traiter');
@@ -1164,7 +1190,7 @@ function blocTableau(tableau, { titre = 'Récompenses estimées' } = {}) {
 
 // ---------- Mon profil : le tableau de bord en haut, puis les objectifs et les statistiques ----------
 // (page prévue pour le futur classement : rien de privé dessus, pas de remarques du coach).
-function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses = [], vueCoach, vuePublique, avatar, relation, chaine = 0 }) {
+function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses = [], vueCoach, vuePublique, avatar, relation, chaine = 0, strategie = null }) {
   const trophees = recompenses.filter((r) => r.confirme_le);
   const nom = p.pseudo || p.nom || 'Membre';
   return page(vueCoach || vuePublique ? `Profil de ${nom}` : 'Mon profil', `<style>
@@ -1179,9 +1205,14 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   ${vueCoach ? `<a class="retour" href="/admin/membres/${encodeURIComponent(p.discord_id)}"><span aria-hidden="true">‹</span> Sa fiche</a>` : ''}
   ${vuePublique ? '<a class="retour" href="/classement"><span aria-hidden="true">‹</span> Classement</a>' : ''}
   <div class="profil-tete"><div class="avatar" aria-hidden="true">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : echapper(nom.charAt(0).toUpperCase())}</div>
-    <div><h1>${echapper(nom)}</h1><p>${p.compte_tiktok ? `${lienTikTok(p.compte_tiktok)}${p.niche ? ` · ${echapper(p.niche)}` : ''}` : echapper(p.niche || 'Overmaxx Elite')}</p>
+    <div><h1>${echapper(nom)}</h1><p>${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : 'Overmaxx Elite'}</p>
       <div class="badges"><span>${p.etape >= 5 ? 'GOAT' : `Étape ${p.etape}`}</span><span>Jour ${jourDe(p)} sur 90</span>
         ${trophees.map((r) => pastilleRole(r.role)).join('')}${pastilleRole('elite')}${chaine >= 3 ? `<span style="border-color:#ff9a3c;color:#ff9a3c">🔥 ${chaine} jours d'affilée</span>` : ''}</div></div></div>
+  ${vueCoach && strategie ? `<div class="carte" style="max-width:640px"><div class="envoi-tete"><h2>Sa stratégie</h2><span class="doux petit">🔒 visible par toi seul</span></div>
+    <dl class="details" style="margin-top:8px">
+      <div><dt>Niche</dt><dd>${strategie.niche ? `<a href="/ressources/${strategie.niche.id}">${echapper(strategie.niche.titre)}</a>${strategie.niche.etat === 'attente' ? ' <span class="doux">(proposée, à relire)</span>' : ''}` : '<span class="doux">pas encore choisie</span>'}</dd></div>
+      <div><dt>Méthode 10K</dt><dd>${strategie.methode ? `<a href="/ressources/${strategie.methode.id}">${echapper(strategie.methode.titre || `Méthode ${strategie.methode.categorie}`)}</a>` : '<span class="doux">pas encore choisie</span>'}</dd></div>
+      <div><dt>Pays visé</dt><dd>${strategie.pays ? echapper(strategie.pays) : '<span class="doux">pas encore choisi</span>'}</dd></div></dl></div>` : ''}
   ${vueCoach || (espace && espace.estAdmin) ? `<a class="bouton" href="/admin/membres/${encodeURIComponent(p.discord_id)}#remarque" style="width:auto;display:inline-block;margin:-4px 0 18px;padding-left:22px;padding-right:22px">✉️ Envoyer un message</a>` : ''}
   ${relation ? `${relation.message ? `<p class="message-ok">${echapper(relation.message)}</p>` : ''}${relation.erreur ? `<p class="erreur-form">${echapper(relation.erreur)}</p>` : ''}
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 18px">

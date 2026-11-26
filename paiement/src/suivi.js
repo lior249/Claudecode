@@ -362,6 +362,9 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
 
     // La tâche du moment à l'étape 4 (Mon parcours, rappels de Bob).
     tache(p) {
+      if (!p.compte_tiktok) {
+        return { cle: 'tiktok', titre: 'Ajoute le lien de ton compte TikTok', texte: 'Il le faut pour commencer l\'étape 4 : c\'est le compte que ton coach suit.', lien: '/parcours/etape-4#compte', bouton: 'Ajouter mon compte' };
+      }
       if (!p.heure_creation) {
         return { cle: 'heures', titre: 'Choisis tes 3 heures', texte: 'Création, publication et compte rendu : Bob te le rappellera chaque jour à ces heures.',
           lien: '/parcours/etape-4', bouton: 'Choisir mes heures', delai: { fin: new Date(new Date(p.etape_depuis).getTime() + 12 * 3600 * 1000).toISOString(), duree: 12 * 3600 * 1000 } };

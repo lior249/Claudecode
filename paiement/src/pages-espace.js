@@ -68,7 +68,8 @@ function navEspace(espace = {}) {
       { cle: 'traiter', libelle: 'À traiter', lien: '/admin/a-traiter', icone: 'traiter', badge: espace.aTraiterParcours || null },
       { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
       { cle: 'eleves', libelle: 'Élèves Elite', lien: '/admin/eleves', icone: 'eleves' },
-      { cle: 'planifier', libelle: 'Planifier', lien: '/admin/planifier', icone: 'annonces' });
+      { cle: 'planifier', libelle: 'Planifier', lien: '/admin/planifier', icone: 'annonces' },
+      { cle: 'ressources', libelle: 'Ressources', lien: '/ressources', icone: 'ressources' });
   }
   // Le coach (admin) ne réserve pas de séance : pas de « Mes coachings » pour lui.
   if (!espace.estAdmin) {
@@ -76,7 +77,8 @@ function navEspace(espace = {}) {
     // Élèves : le minimum. Fiche (photo), remarques (bulle), notifications (cloche), « Je suis » et réglages sont sur Mon profil.
     if (espace.parcours) {
       nav.push({ cle: 'profil', libelle: 'Mon profil', lien: '/profil', icone: 'profil' },
-        { cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' });
+        { cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' },
+        { cle: 'ressources', libelle: 'Ressources', lien: '/ressources', icone: 'ressources' });
     }
     nav.push({ cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
   }

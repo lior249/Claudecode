@@ -20,6 +20,8 @@ const { creerAccesManuels } = require('./acces-manuels');
 const { creerCommunaute } = require('./communaute');
 const { creerNotifsAdmin } = require('./admin-notifs');
 const { creerMessages } = require('./messages');
+const { creerRessources } = require('./ressources');
+const RS = require('./pages-ressources');
 const { lienCompte } = require('./tiktok');
 const PF = require('./pages-profil');
 const { roleLePlusHaut } = require('./pages-classement');
@@ -55,6 +57,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // Espace notifications du coach : journal des messages de Bob et rappels.
   const notifsAdmin = (bob && bob.notifsAdmin) || creerNotifsAdmin({ db: commandes.db });
   const messages = creerMessages({ db: commandes.db, parcours });
+  const ressources = creerRessources({ db: commandes.db });
   // Notifie chaque destinataire d'un message du coach, l'un après l'autre, et note s'il a été délivré (👍) ou non (👎).
   function diffuser(envoi, remarques, options = {}) {
     const envoyer = bob && bob.parcours && bob.parcours.message;
@@ -76,7 +79,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
     const aTraiterParcours = estAdmin
-      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + aTraiter : 0;
+      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + ressources.enAttente().length + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
     const c = !estAdmin && session ? compteursMembre(session.id) : { notifs: 0, remarques: 0 };
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
@@ -1006,9 +1009,19 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const reserves = coaching.creneauxFixes(x.session.id).length
       || coaching.occurrences(lundiCourant, coaching.ajouterJours(lundiCourant, 6), { discordId: x.session.id }).filter((o) => o.type === 'semaine').length;
     res.send(V.pageEtape3(config, { ...commun, soumissions: parcours.soumissions(x.session.id, 3), remarquesDe,
-      coachings: { reserves, min: config.coaching.minParSemaine, max: config.coaching.maxParSemaine || 7 } }));
+      coachings: { reserves, min: config.coaching.minParSemaine, max: config.coaching.maxParSemaine || 7 },
+      strategie: { strategie: parcours.strategie(x.session.id), niches: ressources.liste('niche', { pour: x.session.id }).filter((r) => r.etat !== 'refuse'),
+        methodes: ressources.liste('methode', { pour: x.session.id }).filter((r) => r.etat !== 'refuse'), pays: ressources.PAYS, drapeaux: ressources.DRAPEAUX,
+        message: { strategie: 'Stratégie enregistrée.', niche: 'Ta niche est envoyée au coach, et déjà choisie. Choisis ta méthode et ton pays.' }[req.query.fait] || req.query.erreur || null } }));
   });
 
+  app.post('/parcours/etape-3/strategie', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-3');
+    if (!x) return;
+    if (x.p.etape < 3) return res.redirect(303, '/parcours');
+    const r = parcours.choisirStrategie(x.session.id, { niche: req.body.niche, methode: req.body.methode, pays: req.body.pays });
+    res.redirect(303, r.erreur ? `/parcours/etape-3?erreur=${encodeURIComponent(r.erreur)}#strategie` : '/parcours/etape-3?fait=strategie#strategie');
+  });
   // Envoi en deux temps : les informations (note et retour de l'IA à l'étape 1), puis la vidéo.
   app.post('/api/parcours/envoi', json, (req, res) => {
     const m = membreApi(req);
@@ -1073,6 +1086,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
 
   // ---- Étape 4 : publication et suivi ----
   const MESSAGES_ETAPE4 = {
+    compte: 'Compte TikTok enregistré. Choisis maintenant tes 3 heures.',
     heures: 'Tes heures sont enregistrées. Bob te les rappellera chaque jour.',
     publication: 'Vidéo déclarée. Dans 24 h, tu donneras ses résultats.',
     'compte-rendu': 'Update du compte envoyé. Ton coach le regarde, Bob te prévient de sa décision.',
@@ -1095,10 +1109,22 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
     res.redirect(303, '/parcours/etape-4?ok=heures');
   });
+  // Le lien du compte TikTok : demandé au passage à l'étape 4.
+  app.post('/parcours/etape-4/compte', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-4');
+    if (!x) return;
+    if (x.p.etape < 4) { res.redirect(303, '/parcours'); return; }
+    const { lienCompte } = require('./tiktok');
+    const l = lienCompte(req.body.compte);
+    if (!l) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: 'Colle le lien de ton profil TikTok, par exemple https://www.tiktok.com/@ton.compte.' })); return; }
+    parcours.majCompte(x.session.id, { compte: l });
+    res.redirect(303, '/parcours/etape-4?ok=compte');
+  });
   app.post('/parcours/etape-4/publication', formulaire, (req, res) => {
     const x = membreParcours(req, res, '/parcours/etape-4');
     if (!x) return;
     if (x.p.etape < 4) { res.redirect(303, '/parcours'); return; }
+    if (!x.p.compte_tiktok) { res.redirect(303, '/parcours/etape-4#compte'); return; }
     const liens = String(req.body.liens || '').split(/\s+/).filter(Boolean);
     const r = suivi.declarer(x.session.id, { liens, capture: imageDe(req.body.capture, x.session.id) });
     if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
@@ -1517,6 +1543,103 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     return res.redirect(303, '/admin/a-traiter');
   });
 
+
+  // ================= Ressources (élèves Elite et coach) =================
+  // Qui regarde : le coach, ou un élève de l'accompagnement (sinon la page explique pourquoi).
+  function lecteurRessources(req, res, retour) {
+    const session = connecte(req, res, retour, 'Ressources');
+    if (!session) return null;
+    if (estLeCoach(session)) return { session, coach: true, espace: espaceDe(session) };
+    const x = membreParcours(req, res, retour, { sinistreOk: true });
+    return x ? { ...x, coach: false } : null;
+  }
+  const nomAuteur = (id) => (id ? (qProfils.get.get(id) || {}).prenom || (parcours.get(id) || {}).pseudo || 'un élève' : null);
+  app.get('/ressources', (req, res) => {
+    const type = ['niche', 'methode', 'tutoriel'].includes(req.query.type) ? req.query.type : 'niche';
+    const x = lecteurRessources(req, res, `/ressources?type=${type}`);
+    if (!x) return;
+    res.send(RS.pageRessources(config, { espace: x.espace, type, coach: x.coach, liste: ressources.liste(type, { pour: x.session.id, coach: x.coach }),
+      aimees: ressources.aimees(x.session.id), message: { propose: 'Proposition envoyée : le coach la relit avant de la rendre visible.', ajoute: 'Ressource publiée.' }[req.query.fait] || null }));
+  });
+  app.get('/ressources/nouvelle', (req, res) => {
+    const type = ['niche', 'methode', 'tutoriel'].includes(req.query.type) ? req.query.type : 'niche';
+    const x = lecteurRessources(req, res, `/ressources/nouvelle?type=${type}`);
+    if (!x) return;
+    if (!x.coach && type === 'tutoriel') return res.redirect(303, '/ressources?type=tutoriel');
+    res.send(RS.pageFormRessource(config, { espace: x.espace, type, coach: x.coach }));
+  });
+  app.post('/ressources/nouvelle', formulaire, (req, res) => {
+    const type = ['niche', 'methode', 'tutoriel'].includes(req.body.type) ? req.body.type : 'niche';
+    const x = lecteurRessources(req, res, `/ressources/nouvelle?type=${type}`);
+    if (!x) return;
+    const r = ressources.creer(type, req.body, { auteur: x.coach ? null : x.session.id });
+    if (r.erreur) return res.status(400).send(RS.pageFormRessource(config, { espace: x.espace, type, coach: x.coach, erreur: r.erreur, valeurs: req.body }));
+    if (!x.coach) prevenir('ressourceProposee', r.ressource, x.p);
+    // « Ajouter ma niche » depuis l'étape 3 : on y revient, la niche déjà choisie.
+    if (!x.coach && type === 'niche' && req.query.retour === 'etape-3') { parcours.choisirStrategie(x.session.id, { niche: r.ressource.id }); return res.redirect(303, '/parcours/etape-3?fait=niche'); }
+    return res.redirect(303, `/ressources?type=${type}&fait=${x.coach ? 'ajoute' : 'propose'}`);
+  });
+  const ressourceDe = (req, res, x) => {
+    const r = ressources.une(req.params.id);
+    // Une proposition n'est visible que par son auteur et le coach.
+    if (!r || (r.etat !== 'public' && !x.coach && r.auteur !== x.session.id)) {
+      res.status(404).send(P.pageMessage(config, 'Introuvable', 'Cette ressource n\'existe pas.', { lien: '/ressources', texteLien: 'Ressources' }));
+      return null;
+    }
+    return r;
+  };
+  app.get('/ressources/:id', (req, res) => {
+    const x = lecteurRessources(req, res, `/ressources/${encodeURIComponent(req.params.id)}`);
+    if (!x) return;
+    const r = ressourceDe(req, res, x);
+    if (!r) return;
+    res.send(RS.pageRessource(config, { espace: x.espace, r, coach: x.coach, aime: ressources.aimees(x.session.id).has(r.id),
+      peutModifier: ressources.peutModifier(r, { discordId: x.session.id, coach: x.coach }), auteur: nomAuteur(r.auteur),
+      message: { remarque: 'Remarque envoyée au coach.', modifie: 'Modifications enregistrées.', valide: 'Validée : visible par tous les élèves.', refuse: 'Refusée : l\'élève est prévenu.' }[req.query.fait] || null,
+      erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.post('/ressources/:id/aimer', formulaire, (req, res) => {
+    const x = lecteurRessources(req, res, `/ressources/${encodeURIComponent(req.params.id)}`);
+    if (!x) return;
+    ressources.basculerLike(req.params.id, x.session.id);
+    res.redirect(303, `/ressources/${encodeURIComponent(req.params.id)}`);
+  });
+  app.get('/ressources/:id/modifier', (req, res) => {
+    const x = lecteurRessources(req, res, `/ressources/${encodeURIComponent(req.params.id)}/modifier`);
+    if (!x) return;
+    const r = ressourceDe(req, res, x);
+    if (!r) return;
+    if (!ressources.peutModifier(r, { discordId: x.session.id, coach: x.coach })) return res.redirect(303, `/ressources/${r.id}`);
+    res.send(RS.pageFormRessource(config, { espace: x.espace, type: r.type, r, coach: x.coach }));
+  });
+  app.post('/ressources/:id/modifier', formulaire, (req, res) => {
+    const x = lecteurRessources(req, res, `/ressources/${encodeURIComponent(req.params.id)}/modifier`);
+    if (!x) return;
+    const r = ressourceDe(req, res, x);
+    if (!r) return;
+    const m = ressources.modifier(r.id, req.body, { discordId: x.session.id, coach: x.coach });
+    if (m.erreur) return res.status(400).send(RS.pageFormRessource(config, { espace: x.espace, type: r.type, r, coach: x.coach, erreur: m.erreur, valeurs: req.body }));
+    return res.redirect(303, `/ressources/${r.id}?fait=modifie`);
+  });
+  // Une remarque d'élève sur une ressource : un message au coach (À traiter), avec le nom de la ressource.
+  app.post('/ressources/:id/remarque', formulaire, (req, res) => {
+    const x = lecteurRessources(req, res, `/ressources/${encodeURIComponent(req.params.id)}`);
+    if (!x || x.coach) return x ? res.redirect(303, `/ressources/${req.params.id}`) : undefined;
+    const r = ressourceDe(req, res, x);
+    if (!r) return;
+    const m = messages.ecrireAuCoach(x.session.id, { texte: req.body.texte, sujet: `Ressource : ${RS.titreDe(r)} (/ressources/${r.id})` });
+    if (m.erreur) return res.redirect(303, `/ressources/${r.id}?erreur=${encodeURIComponent(m.erreur)}`);
+    prevenir('messageAuCoach', m.message, x.p);
+    return res.redirect(303, `/ressources/${r.id}?fait=remarque`);
+  });
+  app.post('/admin/ressources/:id/decision', formulaire, (req, res) => {
+    if (!estAdmin(req, res, `/ressources/${encodeURIComponent(req.params.id)}`)) return;
+    const r = ressources.decider(req.params.id, String(req.body.decision || ''), req.body.motif);
+    if (r.erreur) return res.redirect(303, `/ressources/${encodeURIComponent(req.params.id)}?erreur=${encodeURIComponent(r.erreur)}`);
+    if (r.ressource.auteur) prevenir('ressourceDecidee', r.ressource, parcours.get(r.ressource.auteur), RS.titreDe(r.ressource));
+    return res.redirect(303, `/ressources/${r.ressource.id}?fait=${r.ressource.etat === 'public' ? 'valide' : 'refuse'}`);
+  });
+
   // Données de la fiche (membre et coach).
   const donneesFiche = (id) => ({ stats: suivi.stats(id), recompenses: suivi.recompenses(id), sinistre: sinistres.enCours(id),
     historique: sinistres.historique(id), joursAbsence: sinistres.joursAbsence(id) });
@@ -1548,6 +1671,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter(), candidatures: demandes,
       comptesRendus: suivi.enAttente(), resultats: suivi.resultatsEnAttente(), fichesSinistre: sinistres.fichesATraiter(), roles: suivi.aConfirmer(),
       acces: acces.enAttente(), accesRefuses: acces.refuses(), nomsOffres: Object.fromEntries(Object.values(config.offres).map((o) => [o.id, o.nom])),
+      ressources: ressources.enAttente().map((r) => ({ ...r, nom: nomAuteur(r.auteur), titre: RS.titreDe(r) })),
       messagesRecus: messages.recusATraiter().map((m) => ({ ...m, nom: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id })),
       // Toutes les notifications non lues du coach (sauf les messages d'élèves, déjà dans la liste).
       notifications: notifsAdmin.nonLuesListe(100).filter((n) => !String(n.lien || '').startsWith('/admin/messages-recus/')) }));
@@ -1704,7 +1828,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, `/admin/membres/${encodeURIComponent(req.params.id)}/profil`)) return;
     const p = ficheDe(req, res);
     if (!p) return;
-    res.send(V.pageProfil(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, ...donneesProfil(p) }));
+    res.send(V.pageProfil(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, ...donneesProfil(p), strategie: parcours.strategie(p.discord_id) }));
   });
   app.post('/admin/membres/:id/recompense', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/membres')) return;

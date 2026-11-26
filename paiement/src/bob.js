@@ -1057,6 +1057,17 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await notifier.admin(avecBoutons(`✉️ **Message de ${nom}**${m.sujet ? ` (${m.sujet})` : ''}\n${String(m.texte === '(image)' ? '(image)' : m.texte).slice(0, 1500)}`,
         [{ label: 'Lire et répondre', url: lienCoach(`/admin/messages-recus/${m.id}`) }]));
     },
+    async ressourceProposee(r, p) {
+      const nom = (p && (p.pseudo || p.nom)) || r.auteur;
+      await notifier.admin(avecBoutons(`📚 **${nom} propose ${r.type === 'niche' ? 'une niche' : 'une méthode'}** : ${r.titre || 'sans nom'}.`,
+        [{ label: 'Relire', url: lienCoach(`/ressources/${r.id}`) }]));
+    },
+    async ressourceDecidee(r, p, titre) {
+      if (!p) return;
+      const ok = r.etat === 'public';
+      await notifier.membre(p.discord_id, avecBoutons(ok ? `📚 **Ta proposition « ${titre} » est validée.** Elle est visible par tous les élèves.`
+        : `📚 **Ta proposition « ${titre} » est à corriger.** ${r.motif || ''}`, [{ label: ok ? 'La voir' : 'La corriger', url: lienPerso(p.discord_id, p.pseudo, `/ressources/${r.id}`) }]));
+    },
     async remarqueModifiee(p) {
       if (!p) return;
       await notifier.membre(p.discord_id, avecBoutons('**Ton coach a modifié une remarque.** Reviens la lire.',

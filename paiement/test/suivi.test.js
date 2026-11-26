@@ -56,7 +56,14 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     m.parcours.assurer(E1, { pseudo: 'awa_27' });
     m.parcours.changerEtape(E1, 4);
 
-    // Les 3 heures d'abord (délai de 12 h).
+    // Le lien du compte TikTok d'abord : obligatoire à l'étape 4 (plus à l'étape 3).
+    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Ajoute le lien de ton compte TikTok/);
+    assert.strictEqual((await m.poster('/parcours/etape-4/publication', { liens: 'https://www.tiktok.com/@awa/video/1' }, { cookie: membre })).headers.get('location'), '/parcours/etape-4#compte');
+    assert.strictEqual((await m.poster('/parcours/etape-4/compte', { compte: 'pas un lien !' }, { cookie: membre })).status, 400);
+    assert.strictEqual((await m.poster('/parcours/etape-4/compte', { compte: 'https://www.tiktok.com/@awa?lang=fr' }, { cookie: membre })).headers.get('location'), '/parcours/etape-4?ok=compte');
+    assert.strictEqual(m.parcours.get(E1).compte_tiktok, 'https://www.tiktok.com/@awa');
+
+    // Puis les 3 heures (délai de 12 h).
     assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Choisis tes 3 heures/);
     assert.match(await (await m.get('/parcours/etape-4', { cookie: membre })).text(), /Création de ta vidéo/);
     assert.strictEqual((await m.poster('/parcours/etape-4/heures', { creation: '9h', publication: '10:00', compte_rendu: '10:00', fuseau: 'Africa/Lome' }, { cookie: membre })).status, 400);
@@ -190,6 +197,7 @@ test('rappels quotidiens à l\'heure du membre (création, publication, compte r
   try {
     m.parcours.assurer(E1, { pseudo: 'awa_27' });
     m.parcours.changerEtape(E1, 4);
+    m.parcours.majCompte(E1, { compte: '@awa_27' });
     const vers = () => dms.filter(([id]) => id === E1);
     now = new Date('2026-12-01T13:00:00Z'); await bob.relancerParcours();
     assert.strictEqual(vers().length, 0, 'pas avant 6 h');

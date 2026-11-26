@@ -266,6 +266,30 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       q.compte.run(c, net(niche, p.niche), net(pays, p.pays), iso(), discordId);
       return q.get.get(discordId);
     },
+    // Étape 3 : l'élève choisit sa niche (une niche publique, ou la sienne proposée au coach), sa méthode 10K et son pays cible.
+    // Visible par le coach seulement (jamais dans le classement ni par les autres élèves).
+    choisirStrategie(discordId, { niche, methode, pays } = {}) {
+      const p = q.get.get(discordId);
+      if (!p) return { erreur: 'Membre introuvable.' };
+      const ressource = (id, type) => (id === undefined || id === '' ? undefined
+        : db.prepare("SELECT * FROM ressources WHERE id = ? AND type = ? AND (etat = 'public' OR (auteur = ? AND etat != 'refuse'))").get(Number(id), type, discordId) || null);
+      const n = ressource(niche, 'niche'); const m = ressource(methode, 'methode');
+      if (n === null) return { erreur: 'Choisis une niche de la liste.' };
+      if (m === null) return { erreur: 'Choisis une méthode de la liste.' };
+      const PAYS = require('./ressources').PAYS;
+      if (pays !== undefined && pays !== '' && !PAYS.includes(pays)) return { erreur: 'Choisis un pays de la liste.' };
+      db.prepare(`UPDATE parcours SET niche_id = COALESCE(?, niche_id), niche = COALESCE(?, niche), methode_id = COALESCE(?, methode_id),
+        pays_cible = COALESCE(?, pays_cible), maj_le = ? WHERE discord_id = ?`)
+        .run(n ? n.id : null, n ? n.titre : null, m ? m.id : null, pays || null, iso(), discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    strategie(discordId) {
+      const p = q.get.get(discordId);
+      if (!p) return null;
+      const r = (id) => (id ? db.prepare('SELECT id, type, titre, categorie, pour, etat FROM ressources WHERE id = ?').get(id) || null : null);
+      const niche = r(p.niche_id); const methode = r(p.methode_id);
+      return { niche, methode, pays: p.pays_cible || null, complete: Boolean(niche && methode && p.pays_cible) };
+    },
     // Ce qui n'a pas été validé sur la plateforme, étape par étape (tableau des élèves).
     manquants(discordId) {
       const p = q.get.get(discordId);
@@ -275,14 +299,16 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       const entreeFaite = Boolean(entree && new Date(`${entree.date}T${entree.heure}:00.000Z`) < maintenant());
       const r = {
         1: [...['L1', 'L2'].filter((e) => etat(e) !== 'valide').map((e) => `Exercice ${e} pas validé`), ...(p.niveau ? [] : ['Profil type (L1 ou L2) pas choisi'])],
-        2: [...(entreeFaite ? [] : ['Coaching d\'entrée pas fait']), ...(p.compte_tiktok ? [] : ['Compte TikTok pas renseigné'])],
-        3: ['V1', 'V2', 'V3'].filter((e) => etat(e) !== 'valide').map((e) => `Vidéo ${e.slice(1)} pas validée`),
+        2: entreeFaite ? [] : ['Coaching d\'entrée pas fait'],
+        3: [...(p.niche_id && p.methode_id && p.pays_cible ? [] : ['Niche, méthode 10K ou pays pas choisis']),
+          ...['V1', 'V2', 'V3'].filter((e) => etat(e) !== 'valide').map((e) => `Vidéo ${e.slice(1)} pas validée`),
+          ...(p.compte_tiktok ? [] : ['Compte TikTok pas renseigné'])],
       };
       for (const k of [1, 2, 3]) if (p.etape > k) r[k] = []; // étapes déjà franchies
       return r;
     },
     // Le coach déplace un élève (tableau des élèves) : vers l'avant, les étapes sautées sont marquées « passées par le coach »
-    // (leurs envois non validés sont laissés de côté). Le compte TikTok est obligatoire à partir de l'étape 3.
+    // (leurs envois non validés sont laissés de côté). Le compte TikTok est obligatoire à partir de l'étape 4.
     // GOAT ne se donne jamais à la main : il se gagne avec des résultats suivis sur la plateforme.
     forcerEtape(discordId, cible, { compte, niche, pays, niveau } = {}) {
       const p = q.get.get(discordId);
@@ -295,7 +321,7 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       for (const [k, v] of Object.entries({ compte, niche, pays })) if (typeof v === 'string' && v.trim()) champs[k] = v;
       if (Object.keys(champs).length) api.majCompte(discordId, champs);
       const apres = q.get.get(discordId);
-      if (n >= 3 && !apres.compte_tiktok) return { erreur: 'Renseigne son compte TikTok : il le faut à partir de l\'étape 3.' };
+      if (n >= 4 && !apres.compte_tiktok) return { erreur: 'Renseigne son compte TikTok : il le faut à partir de l\'étape 4.' };
       if (['L1', 'L2'].includes(niveau) && !apres.niveau) q.niveau.run(niveau, iso(), discordId);
       if (n === p.etape) return { parcours: q.get.get(discordId), forcees: [] };
       const forcees = [];
@@ -365,6 +391,9 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
         if (aCorriger.length) {
           const s = aCorriger[0];
           return { cle: `correction-${s.emplacement}-${s.decide_le}`, titre: `Corrige ta vidéo ${s.emplacement.slice(1)}`, texte: 'Ton coach demande des modifications : lis sa remarque et renvoie la nouvelle version.', lien: '/parcours/etape-3', bouton: 'Ouvrir l\'étape 3', delai: { fin: s.corriger_avant, duree: DELAIS.correction } };
+        }
+        if (!(p.niche_id && p.methode_id && p.pays_cible)) {
+          return { cle: 'strategie', titre: 'Choisis ta niche, ta méthode et ton pays', texte: 'Ta niche, ta méthode pour atteindre 10K abonnés et le pays que tu vises : seul ton coach les voit.', lien: '/parcours/etape-3#strategie', bouton: 'Choisir', delai: fin(DELAIS.etape3) };
         }
         const manquantes = ['V1', 'V2', 'V3'].filter((e) => ['vide', 'brouillon'].includes(etatDe(e)));
         return manquantes.length

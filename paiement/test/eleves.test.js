@@ -1,7 +1,7 @@
 'use strict';
 
 // Tableau des élèves Elite (Kanban) : faire passer un élève d'une étape à l'autre, avec confirmation de ce qui n'a pas
-// été validé, compte TikTok obligatoire à partir de l'étape 3, jamais GOAT à la main ; ajouter un élève déjà accompagné.
+// été validé, compte TikTok obligatoire à partir de l'étape 4, jamais GOAT à la main ; ajouter un élève déjà accompagné.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -34,12 +34,12 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
     m.db.prepare("UPDATE soumissions SET etat = 'attente', envoye_le = ? WHERE id = ?").run(new Date().toISOString(), r.soumission.id);
     const manque = m.parcours.manquants(E1);
     assert.deepStrictEqual(manque[1], ['Exercice L1 pas validé', 'Exercice L2 pas validé', 'Profil type (L1 ou L2) pas choisi']);
-    assert.deepStrictEqual(manque[2], ['Coaching d\'entrée pas fait', 'Compte TikTok pas renseigné']);
-    assert.deepStrictEqual(manque[3], ['Vidéo 1 pas validée', 'Vidéo 2 pas validée', 'Vidéo 3 pas validée']);
+    assert.deepStrictEqual(manque[2], ['Coaching d\'entrée pas fait']);
+    assert.deepStrictEqual(manque[3], ['Niche, méthode 10K ou pays pas choisis', 'Vidéo 1 pas validée', 'Vidéo 2 pas validée', 'Vidéo 3 pas validée', 'Compte TikTok pas renseigné']);
     assert.match(await (await m.get('/admin/a-traiter', { cookie: coach })).text(), /Exercice L1/);
 
     const deplacer = (corps) => fetch(`${m.base}/admin/eleves/${E1}/etape`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: coach }, body: JSON.stringify(corps) });
-    // GOAT : jamais à la main. Étape 3 ou 4 : compte TikTok obligatoire.
+    // GOAT : jamais à la main. Étape 4 : compte TikTok obligatoire.
     const goat = await deplacer({ etape: 5 });
     assert.strictEqual(goat.status, 400);
     assert.match((await goat.json()).erreur, /GOAT se gagne/);

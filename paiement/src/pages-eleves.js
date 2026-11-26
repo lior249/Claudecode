@@ -57,8 +57,8 @@ const STYLE_KANBAN = `<style>
   .champs-compte { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; } .champs-compte .large { grid-column:1 / -1; } .champs-compte .champ { margin:0; } .champs-compte input, .champs-compte select { margin:0; }
 </style>`;
 
-// Infos à renseigner : le niveau après l'étape 1 ; le compte TikTok, la niche et le pays à partir de l'étape 3.
-const manqueInfos = (e) => (e.etape >= 2 && !e.niveau) || (e.etape >= 3 && (!e.compte || !e.niche || !e.pays));
+// Infos à renseigner : le niveau après l'étape 1 ; la niche et le pays à partir de l'étape 3 ; le compte TikTok à partir de l'étape 4.
+const manqueInfos = (e) => (e.etape >= 2 && !e.niveau) || (e.etape >= 3 && (!e.niche || !e.pays)) || (e.etape >= 4 && !e.compte);
 function carte(e) {
   const goat = e.etape >= 5;
   return `<article class="eleve" data-id="${echapper(e.id)}" draggable="${goat ? 'false' : 'true'}">
