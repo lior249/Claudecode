@@ -367,6 +367,15 @@ function creerCoaching({ db, config, maintenant = () => new Date() }) {
     },
 
     // ---------- Coachings en réserve ----------
+    // Validation des coachings : libérer un créneau (séance faite en avance ou annulée, d'accord des deux), créditer une réserve.
+    liberer(discordId, date, heure, justification) {
+      const o = occurrences(date, date, { discordId }).find((x) => x.heure === heure);
+      if (!o) return { erreur: 'Séance introuvable.' };
+      transaction(() => retirerSeance(discordId, o, String(justification || 'Validée par le coach et l\'élève').slice(0, 500)));
+      return { ok: true };
+    },
+    crediterReserve(discordId) { return crediter(discordId, +1); },
+    maintenant: () => maintenant(),
     reserves(discordId) { const p = q.profil.get(discordId); return (p && p.reserves) || 0; },
     utiliserReserve(discordId, date, heure) {
       if (api.reserves(discordId) < 1) return { erreur: 'Tu n\'as pas de coaching en réserve.' };

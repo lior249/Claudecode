@@ -21,6 +21,7 @@ const { creerCommunaute } = require('./communaute');
 const { creerNotifsAdmin } = require('./admin-notifs');
 const { creerMessages } = require('./messages');
 const { creerRessources } = require('./ressources');
+const { creerValidations, RAISONS: RAISONS_VALID } = require('./validations-coaching');
 const RS = require('./pages-ressources');
 const { lienCompte } = require('./tiktok');
 const PF = require('./pages-profil');
@@ -58,6 +59,18 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const notifsAdmin = (bob && bob.notifsAdmin) || creerNotifsAdmin({ db: commandes.db });
   const messages = creerMessages({ db: commandes.db, parcours });
   const ressources = creerRessources({ db: commandes.db });
+  const validations = creerValidations({ db: commandes.db, coaching, maintenant: coaching.maintenant || (() => new Date()) });
+  // Qui est l'élève d'une séance (pour les messages).
+  const eleveDe = (id) => parcours.get(id) || { discord_id: id, pseudo: ((coaching.profil(id) || {}).pseudo) || null, nom: null };
+  // Toutes les minutes (server.js) : les séances finies depuis 5 minutes → « Valider ce coaching », au coach et à l'élève.
+  async function verifierCoachings() {
+    for (const v of validations.echues()) {
+      const p = eleveDe(v.discord_id);
+      const quand = `${v.date.split('-').reverse().join('/')} à ${v.heure} GMT`;
+      prevenir('messageEleve', p, `**Valide ton coaching du ${quand}.** Seulement s'il a vraiment eu lieu ; sinon, conteste-le.`, '/coaching#a-confirmer');
+      prevenir('activiteEleve', p, `: **valider le coaching du ${quand}** (s'il a bien eu lieu).`, '/admin/a-traiter?filtre=coachings');
+    }
+  }
   // Notifie chaque destinataire d'un message du coach, l'un après l'autre, et note s'il a été délivré (👍) ou non (👎).
   function diffuser(envoi, remarques, options = {}) {
     const envoyer = bob && bob.parcours && bob.parcours.message;
@@ -79,7 +92,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
     const aTraiterParcours = estAdmin
-      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + ressources.enAttente().length + (() => { const v = parcours.aValider(); return v.positionnements.length + v.comptes.length + v.demandes.length; })() + aTraiter : 0;
+      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + ressources.enAttente().length + validations.pourCoach().length + (() => { const v = parcours.aValider(); return v.positionnements.length + v.comptes.length + v.demandes.length; })() + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
     const c = !estAdmin && session ? compteursMembre(session.id) : { notifs: 0, remarques: 0 };
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
@@ -744,7 +757,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       const messages = { 1: 'Tes créneaux fixes sont enregistrés. Bob t\'a envoyé le récapitulatif.', semaine: 'Ta semaine est réservée. Bob t\'a envoyé le récapitulatif.',
         report: 'Séance reportée. Ton coach est prévenu.', reserve: 'Coaching en réserve réservé. Ton coach est prévenu.',
         reprogramme: 'Séance reprogrammée. Ton coach est prévenu.', garde: 'Gardé en réserve : utilise-le quand tu veux.' };
-      const message = messages[req.query.ok] || (req.query.annule ? 'Séance annulée. Ton coach est prévenu.' : null);
+      const message = messages[req.query.ok] || (req.query.annule ? 'Séance annulée. Ton coach est prévenu.' : null)
+        || ({ valide: 'Merci, c\'est confirmé.', envoye: 'Envoyé : ton coach va traiter ta demande.' })[req.query.fait] || (req.query.erreur ? String(req.query.erreur).slice(0, 200) : null);
       const mode = req.query.mode === 'semaine' ? 'semaine' : 'fixe';
       const cetteSemaine = coaching.lundiDe(new Date());
       const lundis = [cetteSemaine, coaching.ajouterJours(cetteSemaine, 7)];
@@ -753,7 +767,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       return res.send(C.pageCoaching(config, {
         session, coaching, message, mode, lundis, grille: coaching.grille(id), semaine: mode === 'semaine' ? coaching.grilleSemaine(id, lundi) : null,
         seances: coaching.prochainesSeances(id, 14), touchees: coaching.toucheesAChoisir(id), reserves: coaching.reserves(id),
-        libres: coaching.creneauxLibres(14), aDesFixes: coaching.creneauxFixes(id).length > 0, espace: espaceDe(session),
+        libres: coaching.creneauxLibres(14), aDesFixes: coaching.creneauxFixes(id).length > 0, espace: espaceDe(session), validations: validations.pourEleve(id),
       }));
     } catch (err) {
       console.error('[coaching]', err.message);
@@ -761,6 +775,20 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     }
   });
 
+  // L'élève répond : valider / contester une séance passée, approuver / refuser une séance faite en avance.
+  app.post('/coaching/validations/:id', formulaire, (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    if (!session) return res.redirect(303, '/coaching');
+    const oui = req.body.reponse === 'oui';
+    const r = validations.repondre(req.params.id, session.id, oui, req.body.texte);
+    if (r.erreur) return res.redirect(303, `/coaching?erreur=${encodeURIComponent(r.erreur)}#a-confirmer`);
+    const v = r.validation; const p = eleveDe(session.id);
+    const quand = `${v.date.split('-').reverse().join('/')} à ${v.heure} GMT`;
+    if (v.statut === 'conteste') prevenir('activiteEleve', p, `**conteste le coaching du ${quand}** :\n${v.reponse}`, '/admin/a-traiter?filtre=coachings');
+    else if (v.statut === 'refuse') prevenir('activiteEleve', p, `**refuse** la validation en avance du coaching du ${quand} :\n${v.reponse}`, '/admin/a-traiter?filtre=coachings');
+    else if (v.type === 'avance') prevenir('activiteEleve', p, `a **approuvé** : le coaching du ${quand} est retiré, le créneau est libre.`, `/admin?semaine=${coaching.lundiDe(new Date(`${v.date}T12:00:00Z`))}`);
+    return res.redirect(303, `/coaching?fait=${v.statut === 'conteste' || v.statut === 'refuse' ? 'envoye' : 'valide'}`);
+  });
   async function sessionCoaching(req, res) {
     const session = lireSession(req, config.secretApp);
     if (!session) { res.status(401).json({ erreur: 'Reconnecte-toi.' }); return null; }
@@ -1741,6 +1769,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       acces: acces.enAttente(), accesRefuses: acces.refuses(), nomsOffres: Object.fromEntries(Object.values(config.offres).map((o) => [o.id, o.nom])),
       ressources: ressources.enAttente().map((r) => ({ ...r, nom: nomAuteur(r.auteur), titre: RS.titreDe(r) })),
       aValider: parcours.aValider(),
+      coachingsAValider: validations.pourCoach().map((v) => ({ ...v, nom: (qProfils.get.get(v.discord_id) || {}).prenom || eleveDe(v.discord_id).pseudo || v.discord_id })),
       messagesRecus: messages.recusATraiter().map((m) => ({ ...m, nom: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id })),
       // Toutes les notifications non lues du coach (sauf les messages d'élèves, déjà dans la liste).
       notifications: notifsAdmin.nonLuesListe(100).filter((n) => !String(n.lien || '').startsWith('/admin/messages-recus/')),
@@ -2105,6 +2134,29 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     res.send(C.pageCreneau(config, { espace: espaceDe(lireSession(req, config.secretApp)), ...c, id: c.o.discordId, membre, libres: coaching.creneauxLibres(14),
       message: req.query.fait ? 'Demande envoyée : l\'élève la voit dans ses Remarques, et Bob l\'a prévenu.' : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
+  // Valider en avance (fait en avance, annulé car non nécessaire…) : l'élève approuve, le créneau se libère.
+  app.post('/admin/creneau/avance', formulaire, (req, res) => {
+    const date = String(req.body.date || ''); const heure = String(req.body.heure || '');
+    const retour = `/admin/creneau?date=${encodeURIComponent(date)}&heure=${encodeURIComponent(heure)}`;
+    if (!estAdmin(req, res, retour)) return;
+    const c = creneauReserve(date, heure);
+    if (!c) return res.redirect(303, retour);
+    const r = validations.avance(c.o.discordId, date, heure, { raison: req.body.raison, texte: req.body.texte });
+    if (r.erreur) return res.redirect(303, `${retour}&erreur=${encodeURIComponent(r.erreur)}`);
+    prevenir('messageEleve', eleveDe(c.o.discordId), `**${RAISONS_VALID[r.validation.raison]}** (coaching du ${date.split('-').reverse().join('/')} à ${heure} GMT)${r.validation.texte ? ` : ${r.validation.texte}` : ''}.\nApprouve ou refuse.`, '/coaching#a-confirmer');
+    return res.redirect(303, `${retour}&fait=1`);
+  });
+  // Le coach : confirmer une séance passée, ou traiter une contestation (coaching en réserve, ou classer).
+  app.post('/admin/validations/:id', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const d = String(req.body.decision || '');
+    const r = d === 'valider' ? validations.validerCoach(req.params.id) : validations.traiter(req.params.id, d);
+    if (r.erreur) return res.redirect(303, `/admin/a-traiter?filtre=coachings&erreur=${encodeURIComponent(r.erreur)}`);
+    const v = r.validation; const quand = `${v.date.split('-').reverse().join('/')} à ${v.heure} GMT`;
+    if (v.statut === 'reporte') prevenir('messageEleve', eleveDe(v.discord_id), `**Ta contestation est acceptée** : tu as un coaching en réserve pour remplacer celui du ${quand}. Reprogramme-le dans Mes coachings.`, '/coaching');
+    if (v.statut === 'classe' && v.type === 'apres') prevenir('messageEleve', eleveDe(v.discord_id), `Ton coach a traité ta contestation du coaching du ${quand} : elle est classée. Écris-lui si tu as une question.`, '/remarques');
+    return res.redirect(303, '/admin/a-traiter?filtre=coachings');
+  });
   app.post('/admin/creneau/demande', formulaire, (req, res) => {
     const date = String(req.body.date || ''); const heure = String(req.body.heure || '');
     const retour = `/admin/creneau?date=${encodeURIComponent(date)}&heure=${encodeURIComponent(heure)}`;
@@ -2374,6 +2426,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
 
   app.get('/sante', (req, res) => res.json({ ok: true }));
 
+  app.locals.verifierCoachings = verifierCoachings;
+  app.locals.validations = validations;
   return app;
 }
 

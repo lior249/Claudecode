@@ -859,7 +859,7 @@ const STYLE_TRAITER = `<style>
   .tr-sep { font-size:14px; color:var(--doux); margin:18px 0 6px; text-transform:uppercase; letter-spacing:.06em; }
   .tr-tag[data-cat="etape-1"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="etape-2"] { color:#c8f23a; border-color:#4a5a15; }
   .tr-tag[data-cat="etape-3"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="etape-4"] { color:#7ee0b0; border-color:#1f5a3d; } .tr-tag[data-cat="videos"] { color:#ff9ad5; border-color:#6b1f4a; }
-  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; } .tr-tag[data-cat="ressources"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="avis"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="positionnement"] { color:#c8f23a; border-color:#4a5a15; }
+  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; } .tr-tag[data-cat="ressources"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="avis"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="positionnement"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="coachings"] { color:#9ec5ff; border-color:#284a7a; }
   .tr-tag[data-cat="candidatures"] { color:#d4b3ff; border-color:#4b2b7a; } .tr-tag[data-cat="acces"] { color:#fff; } .tr-tag[data-cat="retards"] { color:#ffcf6b; border-color:#6b4a0e; }
   .tr-ouvrir { flex:none; width:auto !important; margin:0 !important; min-height:40px; padding:8px 16px; }
   .tr-carte .choix-acces { flex:none; } .tr-carte .choix-acces .bouton { min-height:40px; padding:8px 14px; }
@@ -870,7 +870,7 @@ const STYLE_TRAITER = `<style>
 
 // À traiter : une seule file, toutes les catégories mélangées (le plus ancien d'abord), avec une étiquette sous chaque carte.
 // Les filtres en haut, rangés par nombre (ceux qui restent le plus d'abord) : un clic n'affiche que cette catégorie.
-function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {}, messagesRecus = [], notifications = [], ressources = [], dejaTraites = [], aValider = { positionnements: [], comptes: [], demandes: [] } }) {
+function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {}, messagesRecus = [], notifications = [], ressources = [], dejaTraites = [], aValider = { positionnements: [], comptes: [], demandes: [] }, coachingsAValider = [] }) {
   const nom = (p) => (p && (p.nom || p.pseudo)) || '?';
   const items = [];
   const ajouter = (cat, x) => items.push({ cat, ...x });
@@ -897,6 +897,14 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   for (const p of aValider.positionnements) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.positionnement_le, quoi: `Positionnement à valider : ${p.niche || '—'} · ${p.pays_cible || '—'}`, lien: fiche(p, 'positionnement'), bouton: 'Voir' });
   for (const p of aValider.comptes) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.compte_envoye_le, quoi: `Compte TikTok à valider : ${p.compte_tiktok}`, lien: fiche(p, 'compte'), bouton: 'Voir' });
   for (const p of aValider.demandes) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.compte_demande_le, quoi: `Demande de changement de compte : ${p.compte_demande}`, lien: fiche(p, 'compte'), bouton: 'Décider' });
+  const RAISONS = { fait_avance: 'fait en avance', non_necessaire: 'annulé car non nécessaire', live_groupe: 'remplacé par un live de groupe', autre: 'autre raison' };
+  for (const v of coachingsAValider) {
+    const quand = `${v.date.split('-').reverse().join('/')} à ${v.heure} GMT`;
+    const form = (boutons) => `<form method="post" action="/admin/validations/${v.id}" class="choix-acces">${boutons.map(([d, t, c]) => `<button class="bouton ${c}" type="submit" name="decision" value="${d}">${t}</button>`).join('')}</form>`;
+    if (v.statut === 'attente') ajouter('coachings', { qui: v.nom, ficheId: v.discord_id, quand: `${v.date}T${v.heure}:00.000Z`, quoi: `Coaching du ${quand} : a-t-il bien eu lieu ?${v.eleve_ok_le ? ' (l\'élève l\'a validé)' : ''}`, actions: form([['valider', 'Valider ce coaching', 'vert']]) });
+    else if (v.statut === 'conteste') ajouter('coachings', { qui: v.nom, ficheId: v.discord_id, quand: v.decide_le || v.cree_le, quoi: `Conteste le coaching du ${quand} : « ${v.reponse} »`, actions: form([['classer', 'Classer', 'secondaire'], ['reserve', 'Donner un coaching en réserve', 'vert']]) });
+    else ajouter('coachings', { qui: v.nom, ficheId: v.discord_id, quand: v.decide_le || v.cree_le, quoi: `Refuse la validation en avance (${RAISONS[v.raison] || ''}) du coaching du ${quand} : « ${v.reponse} »`, actions: form([['classer', 'Garder la séance', 'secondaire']]) });
+  }
   for (const r of ressources) {
     ajouter('ressources', { qui: r.nom || 'Un élève', ficheId: r.auteur, quand: r.cree_le, lien: `/ressources/${r.id}`, bouton: 'Relire',
       quoi: `Propose ${{ niche: 'la niche', methode: 'la méthode', tutoriel: 'le tutoriel' }[r.type]} « ${r.titre} »`,
@@ -925,7 +933,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   const faits = dejaTraites.map((n) => ({ ...n, fait: true }));
   const tous = [...items, ...notifs, ...retards, ...faits];
   const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['avis', 'Vidéos à relire'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
-    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['positionnement', 'Positionnement et compte'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
+    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['coachings', 'Coachings à valider'], ['positionnement', 'Positionnement et compte'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
   const nb = (c) => tous.filter((x) => x.cat === c).length;
   const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
   const libelle = Object.fromEntries(CATS);

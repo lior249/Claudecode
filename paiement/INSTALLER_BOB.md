@@ -604,3 +604,15 @@ ou sur **overmaxx.online/admin/candidatures**.
   - « À la une » remplace « À traiter » : les meilleurs résultats de vidéos validés des 7 derniers jours.
   - Le Classement est accessible depuis ton profil.
 - **Notifications (coach)** : les 5 premières, puis « Afficher plus ». Les non lues restent en haut ; une notification ouverte descend en bas.
+
+## Validation des coachings
+
+- **Après chaque coaching**, 5 minutes après la fin des 30 minutes, toi et l'élève recevez « **Valider ce coaching** ».
+  - Toi : dans À traiter, filtre « Coachings à valider ».
+  - L'élève : dans Mes coachings, carte « À confirmer ». Il valide seulement si le coaching a vraiment eu lieu ; sinon, il **conteste** en expliquant (« j'ai attendu pendant tout le coaching »).
+- **Contestation** : tu la traites dans À traiter.
+  - « Donner un coaching en réserve » : il le reprogramme dans Mes coachings.
+  - Ou « Classer ».
+- **Coaching fait en avance** (ou annulé car non nécessaire, remplacé par un live de groupe, autre raison) : ouvre le créneau dans le Calendrier, puis « **Valider ce coaching en avance** ».
+  - L'élève approuve : la séance disparaît du programme et le créneau se libère.
+  - Ou il refuse en disant pourquoi : tu es prévenu, la séance reste.

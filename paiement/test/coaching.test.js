@@ -257,3 +257,51 @@ test('coach : un créneau réservé s\'ouvre sur sa page ; demande à l\'élève
     assert.ok(m.coaching.prochainesSeances('A', 14).some((s) => s.date === seance.date), 'rien n\'est annulé tout seul');
   } finally { await m.fermer(); }
 });
+
+test('validation des coachings : après la séance (coach et élève, contestation → réserve) ; en avance (l\'élève approuve, le créneau se libère)', async () => {
+  let now = new Date('2026-11-30T09:00:00Z'); // lundi
+  const appels = [];
+  const bob = { parcours: new Proxy({}, { get: (o, nom) => async (...a) => { appels.push([nom, ...a]); return true; } }) };
+  const m = await monter({ maintenant: () => now, bob, oauth: fauxOAuth({ A: [ROLES.elite] }) });
+  try {
+    m.parcours.assurer('A', { pseudo: 'awa_27' });
+    m.db.prepare("UPDATE parcours SET fin_le = '2027-03-01T00:00:00.000Z' WHERE discord_id = 'A'").run();
+    m.coaching.enregistrer('A', [0, 1, 2, 3].map((jour) => ({ jour, heure: '15:00' })), 240, 'awa_27');
+    const valid = m.validations;
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const eleve = { cookie: cookieSession('A', 'awa_27') };
+    // Pas avant la fin + 5 minutes.
+    now = new Date('2026-11-30T15:34:00Z');
+    assert.strictEqual(valid.echues().length, 0);
+    now = new Date('2026-11-30T15:36:00Z');
+    await m.verifierCoachings();
+    assert.ok(appels.some(([n, , t]) => n === 'messageEleve' && /Valide ton coaching du 30\/11\/2026 à 15:00 GMT/.test(t)), 'l\'élève est prévenu');
+    assert.ok(appels.some(([n, , t]) => n === 'activiteEleve' && /valider le coaching/.test(t)), 'le coach aussi');
+    assert.strictEqual(valid.echues().length, 0, 'une seule fois');
+    const page = await (await m.get('/coaching', eleve)).text();
+    assert.match(page, /À confirmer[\s\S]*seulement s'il a vraiment eu lieu[\s\S]*Valider ce coaching[\s\S]*Contester/);
+    const id = valid.pourEleve('A')[0].id;
+    // L'élève conteste ; le coach donne un coaching en réserve.
+    assert.match((await m.poster(`/coaching/validations/${id}`, { reponse: 'non', texte: '' }, eleve)).headers.get('location'), /erreur=/);
+    await m.poster(`/coaching/validations/${id}`, { reponse: 'non', texte: 'J\'ai attendu pendant tout le coaching.' }, eleve);
+    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /data-filtre="coachings"[\s\S]*Conteste le coaching du 30\/11\/2026[\s\S]*Donner un coaching en réserve/);
+    const avant = m.coaching.reserves('A');
+    await m.poster(`/admin/validations/${id}`, { decision: 'reserve' }, coach);
+    assert.strictEqual(m.coaching.reserves('A'), avant + 1);
+    // En avance : le coach déclare celle de mardi faite en avance ; l'élève approuve → plus au programme.
+    const mardi = { date: '2026-12-01', heure: '15:00' };
+    assert.match(await (await m.get(`/admin/creneau?date=${mardi.date}&heure=15:00`, coach)).text(), /Valider ce coaching en avance[\s\S]*Ce coaching a été fait en avance[\s\S]*annulé car non nécessaire/);
+    await m.poster('/admin/creneau/avance', { ...mardi, raison: 'fait_avance' }, coach);
+    assert.ok(appels.some(([n, , t]) => n === 'messageEleve' && /fait en avance/.test(t)));
+    const av = valid.pourEleve('A')[0];
+    assert.strictEqual(av.type, 'avance');
+    await m.poster(`/coaching/validations/${av.id}`, { reponse: 'oui' }, eleve);
+    assert.ok(!m.coaching.occurrences(mardi.date, mardi.date, { discordId: 'A' }).length, 'le créneau est libéré');
+    // Refus : il dit pourquoi, le coach est prévenu.
+    await m.poster('/admin/creneau/avance', { date: '2026-12-02', heure: '15:00', raison: 'non_necessaire' }, coach);
+    const r = valid.pourEleve('A')[0];
+    await m.poster(`/coaching/validations/${r.id}`, { reponse: 'non', texte: 'J\'en ai besoin cette semaine.' }, eleve);
+    assert.ok(appels.some(([n, , t]) => n === 'activiteEleve' && /refuse/.test(t)));
+    assert.ok(m.coaching.occurrences('2026-12-02', '2026-12-02', { discordId: 'A' }).length, 'refusé : la séance reste');
+  } finally { await m.fermer(); }
+});

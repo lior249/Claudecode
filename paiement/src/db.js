@@ -754,6 +754,31 @@ function migrerV34(db) {
   db.exec('PRAGMA user_version = 34');
 }
 
+// v35 : validation des coachings. Après la séance (5 min après la fin), le coach et l'élève confirment qu'elle a eu lieu ;
+// l'élève peut contester (le coach reporte ou classe). Fait en avance ou annulé : le coach le déclare, l'élève approuve.
+function migrerV35(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 35) return;
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS validations_coaching (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_id    TEXT NOT NULL,
+    date          TEXT NOT NULL,
+    heure         TEXT NOT NULL,
+    type          TEXT NOT NULL,      -- apres (séance passée), avance (déclarée par le coach avant l'heure)
+    raison        TEXT,               -- avance : fait_avance, non_necessaire, live_groupe, autre
+    texte         TEXT,               -- précision du coach
+    statut        TEXT NOT NULL,      -- attente, valide, conteste, refuse, reporte, classe
+    coach_ok_le   TEXT,
+    eleve_ok_le   TEXT,
+    reponse       TEXT,               -- contestation ou refus de l'élève
+    cree_le       TEXT NOT NULL,
+    decide_le     TEXT,
+    UNIQUE (discord_id, date, heure)
+  );
+  CREATE INDEX IF NOT EXISTS validations_statut ON validations_coaching(statut);`);
+  db.exec('PRAGMA user_version = 35');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -797,6 +822,7 @@ function ouvrirBase(fichier) {
   migrerV32(db);
   migrerV33(db);
   migrerV34(db);
+  migrerV35(db);
   return db;
 }
 

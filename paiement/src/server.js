@@ -58,5 +58,7 @@ async function tourSynchro() {
 }
 setTimeout(tourSynchro, 5000);
 setInterval(tourSynchro, 60 * 1000);
+// Coachings finis depuis 5 minutes : « Valider ce coaching » au coach et à l'élève.
+setInterval(() => { app.locals.verifierCoachings().catch((err) => console.error('[coaching] validations :', err.message)); }, 60 * 1000);
 
 bob.demarrer().catch((err) => console.error('[bob] démarrage impossible :', err.message));

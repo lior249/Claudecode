@@ -90,8 +90,30 @@ var OVX = (function () {
 })();`;
 
 // ---------- Page du membre ----------
+// Coachings à confirmer par l'élève : séance passée (« valide seulement s'il a vraiment eu lieu, sinon conteste »)
+// ou séance déclarée faite en avance / annulée par le coach (approuver ou refuser).
+const RAISONS_VALID = { fait_avance: 'Ce coaching a été fait en avance', non_necessaire: 'Ce coaching a été annulé car non nécessaire', live_groupe: 'Ce coaching est remplacé par un live de groupe', autre: 'Autre raison' };
+function blocValidations(liste) {
+  if (!liste.length) return '';
+  const quand = (v) => `<b data-quand="${echapper(`${v.date}T${v.heure}:00.000Z`)}">${echapper(v.date.split('-').reverse().join('/'))} à ${echapper(v.heure)} GMT</b>`;
+  return `<div class="carte" id="a-confirmer" style="border-color:#ff8a00"><h2 style="margin:0 0 8px">À confirmer</h2>${liste.map((v) => v.type === 'avance' ? `
+    <div class="seance" style="display:block"><p style="margin:0">Ton coaching du ${quand(v)} : <b>${echapper(RAISONS_VALID[v.raison] || 'Validé par ton coach')}</b>${v.texte ? ` (${echapper(v.texte)})` : ''}.</p>
+      <p class="doux petit" style="margin:4px 0 8px">Si tu approuves, il disparaît de ton programme et le créneau se libère.</p>
+      <form method="post" action="/coaching/validations/${v.id}" style="display:grid;gap:8px">
+        <div class="deux-boutons"><button class="bouton vert" type="submit" name="reponse" value="oui" style="margin:0">Approuver</button>
+          <button class="bouton secondaire" type="button" style="margin:0" onclick="this.closest('form').querySelector('.refus').hidden=false;this.hidden=true">Refuser</button></div>
+        <div class="refus" hidden style="display:grid;gap:8px"><textarea name="texte" placeholder="Pourquoi tu refuses ?"></textarea><button class="bouton secondaire" type="submit" name="reponse" value="non" style="margin:0">Envoyer mon refus</button></div>
+      </form></div>` : `
+    <div class="seance" style="display:block"><p style="margin:0">Ton coaching du ${quand(v)} a-t-il bien eu lieu ?</p>
+      <p class="doux petit" style="margin:4px 0 8px">Valide <b>seulement s'il a vraiment eu lieu</b>. Sinon, conteste : ton coach traitera ta demande.</p>
+      <form method="post" action="/coaching/validations/${v.id}" style="display:grid;gap:8px">
+        <div class="deux-boutons"><button class="bouton vert" type="submit" name="reponse" value="oui" style="margin:0">Valider ce coaching</button>
+          <button class="bouton secondaire" type="button" style="margin:0" onclick="this.closest('form').querySelector('.refus').hidden=false;this.hidden=true">Contester</button></div>
+        <div class="refus" hidden style="display:grid;gap:8px"><textarea name="texte" placeholder="Ex. J'ai attendu pendant tout le coaching."></textarea><button class="bouton secondaire" type="submit" name="reponse" value="non" style="margin:0">Envoyer ma contestation</button></div>
+      </form></div>`).join('')}</div>`;
+}
 function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semaine, lundis = [], seances = [], touchees = [], reserves = 0, libres = [],
-  aDesFixes = false, message, interdit, versParcours, espace = { session } }) {
+  aDesFixes = false, message, interdit, versParcours, espace = { session }, validations = [] }) {
   if (interdit) {
     return pageEspace('Coaching privé', `
     <h1>Coaching privé</h1>
@@ -383,6 +405,7 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
   <h1 style="font-size:21px;margin:0 0 2px">Mes coachings</h1>
   <p class="doux petit" style="margin-bottom:10px">${echapper(session.pseudo || '')} · ${min} à ${max} par semaine, 1 par jour · heures à ton heure (<span data-fuseau>GMT</span>)</p>
   ${message ? `<p class="ok petit" style="margin-bottom:10px">${echapper(message)}</p>` : ''}
+  ${blocValidations(validations)}
   ${blocTouchees}
   <div class="colonnes">
     <div>
@@ -446,7 +469,14 @@ function pageCreneau(config, { espace, date, heure, jourNom, membre, id, libres 
       ${Object.entries(parJour).map(([d, hs]) => `<optgroup label="${echapper(d.split('-').reverse().join('/'))}">${hs.map((h) => `<option value="${echapper(`${d} ${h}`)}">${echapper(d.slice(8, 10))}/${echapper(d.slice(5, 7))} à ${echapper(h)} GMT</option>`).join('')}</optgroup>`).join('')}</select></div>
     <label style="display:flex;gap:10px;align-items:center;font-weight:600;margin:0"><input type="radio" name="demande" value="annuler" style="width:auto;margin:0"> Peux-tu l'annuler ? Je ne suis pas disponible à cette heure.</label>
     <div class="champ"><label for="mot">Un mot en plus (facultatif)</label><textarea id="mot" name="texte" maxlength="1000" placeholder="ex. J'ai un live à cette heure-là, désolé !"></textarea></div>
-    <button class="bouton" type="submit" style="margin:0">Envoyer la demande</button></form>`, espace, 'calendrier');
+    <button class="bouton" type="submit" style="margin:0">Envoyer la demande</button></form>
+  <details class="carte" style="max-width:640px"><summary style="cursor:pointer;font-weight:700">Valider ce coaching en avance</summary>
+    <form method="post" action="/admin/creneau/avance" style="display:grid;gap:10px;margin-top:10px">
+      <input type="hidden" name="date" value="${echapper(date)}"><input type="hidden" name="heure" value="${echapper(heure)}">
+      <p class="doux petit" style="margin:0">L'élève reçoit la demande et l'approuve (le créneau se libère) ou la refuse, en disant pourquoi.</p>
+      ${Object.entries(RAISONS_VALID).map(([k, l], i) => `<label style="display:flex;gap:10px;align-items:center;font-weight:600;margin:0"><input type="radio" name="raison" value="${k}"${i ? '' : ' checked'} style="width:auto;margin:0"> ${echapper(l)}</label>`).join('')}
+      <textarea name="texte" maxlength="500" placeholder="Précision (obligatoire pour « Autre raison »)"></textarea>
+      <button class="bouton vert" type="submit" style="margin:0">Envoyer à l'élève pour approbation</button></form></details>`, espace, 'calendrier');
 }
 function pageAdmin(config, { lundi, jours, cases, annulations, touchees = [], dispoProchaine, lundiProchain, aujourdhui, coaching, espace, message }) {
   const membres = {};
