@@ -1674,7 +1674,19 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       ressources: ressources.enAttente().map((r) => ({ ...r, nom: nomAuteur(r.auteur), titre: RS.titreDe(r) })),
       messagesRecus: messages.recusATraiter().map((m) => ({ ...m, nom: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id })),
       // Toutes les notifications non lues du coach (sauf les messages d'élèves, déjà dans la liste).
-      notifications: notifsAdmin.nonLuesListe(100).filter((n) => !String(n.lien || '').startsWith('/admin/messages-recus/')) }));
+      notifications: notifsAdmin.nonLuesListe(100).filter((n) => !String(n.lien || '').startsWith('/admin/messages-recus/')),
+      // Déjà traité (7 derniers jours) : notifications lues et messages d'élèves traités, les plus récents d'abord.
+      dejaTraites: [
+        ...notifsAdmin.luesRecentes(20).map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le, quoi: n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte,
+          lien: n.lien ? `/admin/notifications/${n.id}/ouvrir` : null, bouton: n.lien ? 'Rouvrir' : null })),
+        ...messages.traitesRecents(10).map((m) => ({ cat: 'messages', qui: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id, ficheId: m.discord_id,
+          quand: m.traite_le, quoi: m.texte.length > 140 ? `${m.texte.slice(0, 140)}…` : m.texte, lien: `/admin/messages-recus/${m.id}`, bouton: 'Revoir' })),
+      ].sort((x, y) => String(y.quand).localeCompare(String(x.quand))).slice(0, 25) }));
+  });
+  // Le membre cité dans une notification : sa fiche s'il est dans l'accompagnement, sinon la liste des élèves.
+  app.get('/admin/qui/:id', (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    res.redirect(302, parcours.get(String(req.params.id)) ? `/admin/membres/${encodeURIComponent(req.params.id)}` : '/admin/eleves');
   });
   // Ouvrir une notification depuis À traiter : marquée lue, puis sa page (ou la liste des notifications).
   app.get('/admin/notifications/:id/ouvrir', (req, res) => {
@@ -1953,6 +1965,48 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       imprevu: `Imprévu signalé. ${Number(req.query.n) || 0} membre(s) prévenu(s) par Bob.` }[req.query.fait] || null;
     res.send(C.pageAdmin(config, { ...donneesAdmin(String(req.query.semaine || '')), message: fait, espace: espaceDe(session) }));
     return undefined;
+  });
+
+  // Un créneau réservé (coach) : infos, fiche, message, et une demande de déplacement ou d'annulation à l'élève.
+  function creneauReserve(date, heure) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || !coaching.creneaux.includes(String(heure))) return null;
+    const o = coaching.occurrences(date, date).find((x) => x.heure === heure);
+    if (!o) return null;
+    return { o, date, heure, jourNom: coaching.JOURS[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7] };
+  }
+  app.get('/admin/creneau', (req, res) => {
+    if (!estAdmin(req, res, `/admin/creneau?date=${encodeURIComponent(String(req.query.date || ''))}&heure=${encodeURIComponent(String(req.query.heure || ''))}`)) return;
+    const c = creneauReserve(String(req.query.date || ''), String(req.query.heure || ''));
+    if (!c) return res.status(404).send(P.pageMessage(config, 'Créneau libre', 'Personne n\'a réservé ce créneau (ou la séance a été déplacée).', { lien: `/admin?semaine=${encodeURIComponent(String(req.query.date || ''))}`, texteLien: 'Calendrier' }));
+    const membre = { ...infoMembre(c.o.discordId), type: C.NOMS_TYPES[c.o.type] || c.o.type,
+      etat: c.o.touchee ? (c.o.touchee.type === 'imprevu' ? 'Annulée (imprévu)' : 'Annulée (tu es absent)') : 'Prévue' };
+    res.send(C.pageCreneau(config, { espace: espaceDe(lireSession(req, config.secretApp)), ...c, id: c.o.discordId, membre, libres: coaching.creneauxLibres(14),
+      message: req.query.fait ? 'Demande envoyée : l\'élève la voit dans ses Remarques, et Bob l\'a prévenu.' : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.post('/admin/creneau/demande', formulaire, (req, res) => {
+    const date = String(req.body.date || ''); const heure = String(req.body.heure || '');
+    const retour = `/admin/creneau?date=${encodeURIComponent(date)}&heure=${encodeURIComponent(heure)}`;
+    if (!estAdmin(req, res, retour)) return;
+    const c = creneauReserve(date, heure);
+    if (!c) return res.redirect(303, retour);
+    const id = c.o.discordId;
+    // L'heure à l'heure de l'élève (son fuseau), sinon en GMT.
+    const fuseau = (coaching.profil(id) || {}).fuseau || (parcours.get(id) || {}).fuseau;
+    const aSonHeure = (d, h) => {
+      const t = new Date(`${d}T${h}:00Z`);
+      try { if (fuseau) return t.toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: fuseau }).replace(':', ' h '); } catch { /* fuseau inconnu */ }
+      return `${t.toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} à ${h} GMT`;
+    };
+    const quand = aSonHeure(date, heure);
+    const vers = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(String(req.body.vers || '')) ? String(req.body.vers).split(' ') : null;
+    const demande = req.body.demande === 'annuler'
+      ? `Je ne suis pas disponible à cette heure-là. **Peux-tu annuler ce coaching ?** (Mes coachings → Annuler ou reporter.)`
+      : `**Peux-tu le déplacer${vers ? ` au ${aSonHeure(vers[0], vers[1])}` : ' à une autre heure'} ?** (Mes coachings → Annuler ou reporter.)`;
+    const mot = String(req.body.texte || '').trim().slice(0, 1000);
+    const r = messages.envoyer({ titre: `Ton coaching du ${quand}`, texte: `${demande}${mot ? `\n${mot}` : ''}`, ids: [id] });
+    if (r.erreur) return res.redirect(303, `${retour}&erreur=${encodeURIComponent(r.erreur)}`);
+    diffuser(r.envoi, r.remarques);
+    return res.redirect(303, `${retour}&fait=1`);
   });
 
   function estAdmin(req, res, retour) {

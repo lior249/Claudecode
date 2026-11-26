@@ -161,7 +161,7 @@ test('pages coaching et admin : connexion, Elite seulement, GOAT exclu, admin', 
     assert.strictEqual((await m.get('/admin', { cookie: cookieSession('E1') })).status, 403);
     const admin = await (await m.get('/admin', { cookie: cookieSession(ADMIN) })).text();
     assert.match(admin, /Calendrier des coachings/);
-    assert.match(admin, /data-cle=/);
+    assert.match(admin, /href="\/admin\/creneau\?date=/);
   } finally { await m.fermer(); }
 });
 

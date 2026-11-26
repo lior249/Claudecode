@@ -424,6 +424,30 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
 }
 
 // ---------- Coach : calendrier de la semaine ----------
+// Coach : un créneau réservé. Les infos de l'élève, sa fiche, un message, et une demande : déplacer ou annuler ce coaching.
+function pageCreneau(config, { espace, date, heure, jourNom, membre, id, libres = [], message, erreur }) {
+  const parJour = {};
+  for (const l of libres) (parJour[l.date] = parJour[l.date] || []).push(l.heure);
+  const lignes = [['Élève', membre.nom], ['Discord', membre.pseudo], ['Type', membre.type], ['Créneaux fixes', membre.creneaux], ['Son heure', membre.fuseau], ['État', membre.etat]];
+  return pageEspace('Créneau', `${STYLE_COACHING}
+  <a class="retour" href="/admin?semaine=${echapper(date)}#creneau-${echapper(date)}-${echapper(heure.replace(':', ''))}"><span aria-hidden="true">‹</span> Calendrier</a>
+  <div class="titre-page"><div><p class="etiquette">Coaching réservé</p><h1>${echapper(jourNom)} ${echapper(date.slice(8, 10))}/${echapper(date.slice(5, 7))} · ${echapper(heure)} GMT</h1></div></div>
+  ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <div class="carte" style="max-width:640px"><dl class="details">${lignes.map(([a, b]) => `<div><dt>${a}</dt><dd>${echapper(b || '—')}</dd></div>`).join('')}</dl>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      ${membre.fiche ? `<a class="bouton" href="${echapper(membre.fiche)}" style="width:auto;margin:0;padding-left:20px;padding-right:20px">Voir sa fiche</a>
+      <a class="bouton secondaire" href="${echapper(membre.fiche)}#remarque" style="width:auto;margin:0;padding-left:20px;padding-right:20px">✉️ Message</a>` : ''}</div></div>
+  <form class="carte" method="post" action="/admin/creneau/demande" style="display:grid;gap:12px;max-width:640px">
+    <input type="hidden" name="date" value="${echapper(date)}"><input type="hidden" name="heure" value="${echapper(heure)}"><input type="hidden" name="id" value="${echapper(id)}">
+    <h2 style="margin:0">Demander à l'élève</h2>
+    <p class="doux petit" style="margin:0">Rien ne change tout seul : l'élève reçoit ta demande (Remarques et notification), puis déplace ou annule lui-même depuis Mes coachings.</p>
+    <label style="display:flex;gap:10px;align-items:center;font-weight:600;margin:0"><input type="radio" name="demande" value="deplacer" checked style="width:auto;margin:0"> Peux-tu le déplacer ?</label>
+    <div class="champ" style="margin-left:28px"><label for="vers">Vers (heure GMT)</label><select id="vers" name="vers"><option value="">Une autre heure, au choix de l'élève</option>
+      ${Object.entries(parJour).map(([d, hs]) => `<optgroup label="${echapper(d.split('-').reverse().join('/'))}">${hs.map((h) => `<option value="${echapper(`${d} ${h}`)}">${echapper(d.slice(8, 10))}/${echapper(d.slice(5, 7))} à ${echapper(h)} GMT</option>`).join('')}</optgroup>`).join('')}</select></div>
+    <label style="display:flex;gap:10px;align-items:center;font-weight:600;margin:0"><input type="radio" name="demande" value="annuler" style="width:auto;margin:0"> Peux-tu l'annuler ? Je ne suis pas disponible à cette heure.</label>
+    <div class="champ"><label for="mot">Un mot en plus (facultatif)</label><textarea id="mot" name="texte" maxlength="1000" placeholder="ex. J'ai un live à cette heure-là, désolé !"></textarea></div>
+    <button class="bouton" type="submit" style="margin:0">Envoyer la demande</button></form>`, espace, 'calendrier');
+}
 function pageAdmin(config, { lundi, jours, cases, annulations, touchees = [], dispoProchaine, lundiProchain, aujourdhui, coaching, espace, message }) {
   const membres = {};
   for (const c of cases) if (c.membre) membres[c.cle] = c.membre;
@@ -448,9 +472,10 @@ function pageAdmin(config, { lundi, jours, cases, annulations, touchees = [], di
       jours.map((j) => {
         const c = cases.find((x) => x.date === j.date && x.heure === h);
         const classe = c.membre ? (c.touchee ? 'touchee' : 'moi') : c.absence ? 'absent' : 'libre';
-        return `<button type="button" class="case ${classe}"${c.membre
-          ? ` data-cle="${echapper(c.cle)}" data-quand="${echapper(j.nom)} ${echapper(c.date)} ${echapper(c.heure)} GMT" aria-label="${echapper(c.membre.court)}"`
-          : ` disabled aria-label="${c.absence ? (c.absence.type === 'imprevu' ? 'Imprévu' : 'Absent') : 'Libre'}"`}>${c.membre ? `<span class="c-court">${echapper(c.membre.court.slice(0, 3))}</span><span class="c-long">${echapper(c.membre.court)}</span>` : ''}</button>`;
+        if (c.membre) {
+          return `<a class="case ${classe}" id="creneau-${echapper(c.date)}-${echapper(c.heure.replace(':', ''))}" href="/admin/creneau?date=${encodeURIComponent(c.date)}&amp;heure=${encodeURIComponent(c.heure)}" aria-label="${echapper(c.membre.court)}, ${echapper(j.nom)} ${echapper(c.heure)}" style="text-decoration:none;display:grid;place-items:center"><span class="c-court">${echapper(c.membre.court.slice(0, 3))}</span><span class="c-long">${echapper(c.membre.court)}</span></a>`;
+        }
+        return `<button type="button" class="case ${classe}" disabled aria-label="${c.absence ? (c.absence.type === 'imprevu' ? 'Imprévu' : 'Absent') : 'Libre'}"></button>`;
       }).join('')}`).join('')}</div>`;
   const lignesAnnul = annulations.length
     ? annulations.map((a) => `<div class="seance"><div><b>${echapper(a.date)} ${echapper(a.heure)}</b> · ${echapper(a.nom)}<br><span class="doux petit">${echapper(a.justification)}</span></div></div>`).join('')
@@ -577,4 +602,4 @@ function pageImprevu(config, { espace, date, seances, nomDe = (id) => id, erreur
   `, espace, 'calendrier');
 }
 
-module.exports = { pageCoaching, pageAdmin, pageDisponibilites, pageImprevu, NOMS_TYPES };
+module.exports = { pageCreneau, pageCoaching, pageAdmin, pageDisponibilites, pageImprevu, NOMS_TYPES };

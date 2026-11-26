@@ -231,3 +231,29 @@ test('Bob : demande des disponibilités le dimanche, messages des séances annul
     assert.ok(dms.some(([id, t]) => id === 'A' && /Rappel : ta séance de coaching privé est \*\*mercredi 2 décembre à 16:00\*\*/.test(t)));
   } finally { await m.fermer(); }
 });
+
+test('coach : un créneau réservé s\'ouvre sur sa page ; demande à l\'élève de le déplacer ou de l\'annuler', async () => {
+  const envois = [];
+  const m = await monter({ bob: { parcours: { message: async (e, p) => { envois.push([e.titre, e.texte, p.discord_id]); return true; } } } });
+  try {
+    m.parcours.assurer('A', { pseudo: 'awa_27' });
+    assert.ok(m.coaching.enregistrer('A', [0, 1, 2, 3].map((jour) => ({ jour, heure: '15:00' })), 240, 'awa_27').ok);
+    const seance = m.coaching.prochainesSeances('A', 14)[0];
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const lundi = m.coaching.lundiDe(new Date(`${seance.date}T12:00:00Z`));
+    const cal = await (await m.get(`/admin?semaine=${lundi}`, coach)).text();
+    assert.ok(cal.includes(`href="/admin/creneau?date=${seance.date}&amp;heure=15%3A00"`), 'case réservée = lien vers le créneau');
+    const page = await (await m.get(`/admin/creneau?date=${seance.date}&heure=15:00`, coach)).text();
+    assert.match(page, /awa_27[\s\S]*Voir sa fiche[\s\S]*Demander à l'élève[\s\S]*Peux-tu le déplacer[\s\S]*Peux-tu l'annuler/);
+    assert.strictEqual((await m.get(`/admin/creneau?date=${seance.date}&heure=15:00`, { cookie: cookieSession('A', 'awa_27') })).status, 403);
+    assert.strictEqual((await m.get(`/admin/creneau?date=${seance.date}&heure=16:00`, coach)).status, 404);
+    const r = await m.poster('/admin/creneau/demande', { date: seance.date, heure: '15:00', demande: 'annuler', texte: 'J\'ai un live.' }, coach);
+    assert.match(r.headers.get('location'), /fait=1/);
+    await new Promise((x) => setTimeout(x, 20));
+    assert.strictEqual(envois.length, 1);
+    assert.match(envois[0][0], /^Ton coaching du /);
+    assert.match(envois[0][1], /Peux-tu annuler ce coaching[\s\S]*J'ai un live\./);
+    assert.strictEqual(envois[0][2], 'A');
+    assert.ok(m.coaching.prochainesSeances('A', 14).some((s) => s.date === seance.date), 'rien n\'est annulé tout seul');
+  } finally { await m.fermer(); }
+});

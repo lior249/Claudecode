@@ -44,6 +44,7 @@ function creerNotifsAdmin({ db, maintenant = () => new Date() }) {
     liste: db.prepare('SELECT * FROM notifications_admin ORDER BY id DESC LIMIT ?'),
     nonLues: db.prepare('SELECT COUNT(*) n FROM notifications_admin WHERE lu_le IS NULL'),
     toutLu: db.prepare('UPDATE notifications_admin SET lu_le = ? WHERE lu_le IS NULL'),
+    luesRecentes: db.prepare('SELECT * FROM notifications_admin WHERE lu_le IS NOT NULL AND cree_le >= ? ORDER BY id DESC LIMIT ?'),
     nonLuesListe: db.prepare('SELECT * FROM notifications_admin WHERE lu_le IS NULL ORDER BY id DESC LIMIT ?'),
     une: db.prepare('SELECT * FROM notifications_admin WHERE id = ?'),
     lire: db.prepare('UPDATE notifications_admin SET lu_le = COALESCE(lu_le, ?) WHERE id = ?'),
@@ -69,12 +70,16 @@ function creerNotifsAdmin({ db, maintenant = () => new Date() }) {
     noter(contenu) {
       const texte = texteDe(contenu);
       if (!texte) return;
-      q.ajouter.run(texte, lienDe(contenu), iso());
+      // Sans bouton : la notification ouvre la fiche du membre cité (<@id>), s'il y en a un.
+      const brut = typeof contenu === 'string' ? contenu : (contenu && contenu.content) || '';
+      const cite = brut.match(/<@!?(\d{5,25})>/);
+      q.ajouter.run(texte, lienDe(contenu) || (cite ? `/admin/qui/${cite[1]}` : null), iso());
       q.purger.run(new Date(maintenant().getTime() - 90 * 86400000).toISOString()); // 90 jours gardés
     },
     liste(n = 100) { return q.liste.all(n); },
     nonLues() { return q.nonLues.get().n; },
     toutLu() { q.toutLu.run(iso()); },
+    luesRecentes(n = 20) { return q.luesRecentes.all(new Date(maintenant().getTime() - 7 * 86400000).toISOString(), n); },
     nonLuesListe(n = 100) { return q.nonLuesListe.all(n); },
     // Ouvre une notification : marquée lue ; renvoie la page à ouvrir.
     lire(id) { const x = q.une.get(Number(id)); if (x) q.lire.run(iso(), x.id); return x || null; },

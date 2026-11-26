@@ -28,7 +28,9 @@ const STYLE = `<style>
 
 const nomCategorie = (type, c) => ((TYPES[type].categories.find(([k]) => k === c) || [])[1]) || '';
 const nomPour = (c) => ((POUR.find(([k]) => k === c) || [])[1]) || '';
-const rpm = (r) => (r.rpm_min === null && r.rpm_max === null ? '' : `RPM ${r.rpm_min !== null ? `$${r.rpm_min}` : '?'} – ${r.rpm_max !== null ? `$${r.rpm_max}` : '?'}`);
+const usd = (n) => (n === null || n === undefined ? '?' : `$${Number(n).toFixed(2)}`);
+const plageRpm = (r) => (r.rpm_min === null && r.rpm_max === null ? '' : `${usd(r.rpm_min)} – ${usd(r.rpm_max)}`);
+const rpm = (r) => (plageRpm(r) ? `RPM ${plageRpm(r)}` : '');
 const drapeaux = (pays) => pays.map((p) => DRAPEAUX[p] || '').join(' ');
 const titreDe = (r) => r.titre || `Méthode ${nomCategorie('methode', r.categorie).toLowerCase()}${r.pour ? ` · ${nomPour(r.pour)}` : ''}`;
 const etatPuce = (r) => (r.etat === 'attente' ? '<span class="rs-puce orange">En attente du coach</span>' : r.etat === 'refuse' ? '<span class="rs-puce rouge">Refusée : à corriger</span>' : '');
@@ -64,7 +66,7 @@ function pageRessource(config, { espace, r, aime, coach, peutModifier, auteur, m
     `<div><dt>${r.type === 'niche' ? 'Type de contenu' : 'Type'}</dt><dd>${echapper(nomCategorie(r.type, r.categorie))}</dd></div>`,
     r.type === 'methode' ? `<div><dt>Meilleure pour</dt><dd>${r.pour ? echapper(nomPour(r.pour)) : '<span class="doux">Pas encore décidé par le coach</span>'}</dd></div>` : '',
     r.type === 'niche' && r.pays.length ? `<div><dt>Pays recommandés</dt><dd>${r.pays.map((p) => `${DRAPEAUX[p] || ''} ${echapper(p)}`).join(' · ')}</dd></div>` : '',
-    r.type === 'niche' && rpm(r) ? `<div><dt>RPM</dt><dd>${echapper(rpm(r))}</dd></div>` : '',
+    r.type === 'niche' && rpm(r) ? `<div><dt>RPM</dt><dd>${echapper(plageRpm(r))}</dd></div>` : '',
     r.lien ? `<div><dt>Lien</dt><dd class="rs-champ-liens"><a href="${echapper(r.lien)}" target="_blank" rel="noopener">${echapper(r.lien)}</a></dd></div>` : '',
     liensListe('Comptes exemples', r.exemples),
     r.type === 'niche' ? liensListe('Contre-exemples (à ne pas faire)', r.contre_exemples) : '',

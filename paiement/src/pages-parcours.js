@@ -697,6 +697,9 @@ const STYLE_TRAITER = `<style>
   .tr-corps { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; } .tr-corps b { font-size:15px; overflow-wrap:anywhere; } .tr-corps p { margin:2px 0 0; font-size:14px; }
   .tr-bas { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:6px; }
   .tr-tag { font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; border:1px solid var(--bord-fort); color:#ddd; }
+  .tr-carte.a-traiter { background:rgba(255,138,0,.13); border-color:rgba(255,138,0,.55); }
+  .tr-carte.fait { background:#000; border-color:#1d1d1d; opacity:.85; }
+  .tr-sep { font-size:14px; color:var(--doux); margin:18px 0 6px; text-transform:uppercase; letter-spacing:.06em; }
   .tr-tag[data-cat="etape-1"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="etape-2"] { color:#c8f23a; border-color:#4a5a15; }
   .tr-tag[data-cat="etape-3"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="etape-4"] { color:#7ee0b0; border-color:#1f5a3d; } .tr-tag[data-cat="videos"] { color:#ff9ad5; border-color:#6b1f4a; }
   .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; } .tr-tag[data-cat="ressources"] { color:#9ec5ff; border-color:#284a7a; }
@@ -710,34 +713,34 @@ const STYLE_TRAITER = `<style>
 
 // À traiter : une seule file, toutes les catégories mélangées (le plus ancien d'abord), avec une étiquette sous chaque carte.
 // Les filtres en haut, rangés par nombre (ceux qui restent le plus d'abord) : un clic n'affiche que cette catégorie.
-function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {}, messagesRecus = [], notifications = [], ressources = [] }) {
+function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], resultats = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {}, messagesRecus = [], notifications = [], ressources = [], dejaTraites = [] }) {
   const nom = (p) => (p && (p.nom || p.pseudo)) || '?';
   const items = [];
   const ajouter = (cat, x) => items.push({ cat, ...x });
   for (const s of a.envois) {
-    ajouter(s.etape === 1 ? 'etape-1' : 'etape-3', { qui: nom(s.parcours), pseudo: s.parcours && s.parcours.pseudo, quand: s.envoye_le,
+    ajouter(s.etape === 1 ? 'etape-1' : 'etape-3', { qui: nom(s.parcours), ficheId: s.parcours && s.parcours.discord_id, pseudo: s.parcours && s.parcours.pseudo, quand: s.envoye_le,
       quoi: s.etape === 1 ? `Exercice ${s.emplacement} · note de l'IA ${s.note} / 100` : `Vidéo ${s.emplacement.slice(1)} à valider`, lien: `/admin/envois/${s.id}` });
   }
   for (const x of a.etape2) {
-    ajouter('etape-2', { qui: nom(x.parcours), pseudo: x.parcours.pseudo, quand: `${x.entree.date}T${x.entree.heure}:00.000Z`,
+    ajouter('etape-2', { qui: nom(x.parcours), ficheId: x.parcours && x.parcours.discord_id, pseudo: x.parcours.pseudo, quand: `${x.entree.date}T${x.entree.heure}:00.000Z`,
       quoi: `Coaching d'entrée fait (${x.entree.date} à ${x.entree.heure} GMT) : ouvre son étape 3`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}` });
   }
-  for (const cr of comptesRendus) ajouter('etape-4', { qui: nom(cr.parcours), pseudo: cr.parcours && cr.parcours.pseudo, quand: cr.envoye_le, quoi: `Update du compte du ${jourLisible(cr.jour)}`, lien: `/admin/comptes-rendus/${cr.id}` });
+  for (const cr of comptesRendus) ajouter('etape-4', { qui: nom(cr.parcours), ficheId: cr.parcours && cr.parcours.discord_id, pseudo: cr.parcours && cr.parcours.pseudo, quand: cr.envoye_le, quoi: `Update du compte du ${jourLisible(cr.jour)}`, lien: `/admin/comptes-rendus/${cr.id}` });
   for (const v of resultats) {
-    ajouter('videos', { qui: nom(v.parcours), pseudo: v.parcours && v.parcours.pseudo, quand: v.res_envoye_le, lien: `/admin/resultats/${v.id}`,
+    ajouter('videos', { qui: nom(v.parcours), ficheId: v.parcours && v.parcours.discord_id, pseudo: v.parcours && v.parcours.pseudo, quand: v.res_envoye_le, lien: `/admin/resultats/${v.id}`,
       quoi: `Résultats de la vidéo du ${jourLisible(v.jour)} : ${Number(v.res_vues || 0).toLocaleString('fr-FR')} vues · $${Number(v.res_revenus || 0).toFixed(2)}${v.ok_vues !== null && v.ok_vues !== undefined ? ' (mise à jour)' : ''}` });
   }
-  for (const r of roles) ajouter('roles', { qui: nom(r.parcours), pseudo: r.parcours && r.parcours.pseudo, quand: r.atteint_le, quoi: `Rôle ${nomRole(r.role)} à confirmer (${(ROLES[r.role] || {}).seuil || ''})`, lien: `/admin/membres/${encodeURIComponent(r.discord_id)}` });
-  for (const x of fichesSinistre) ajouter('sinistres', { qui: nom(x.parcours), pseudo: x.parcours && x.parcours.pseudo, quand: x.fiche_le, quoi: `Fiche de sinistre (${x.numero} / 3)`, lien: `/admin/membres/${encodeURIComponent(x.discord_id)}` });
+  for (const r of roles) ajouter('roles', { qui: nom(r.parcours), ficheId: r.parcours && r.parcours.discord_id, pseudo: r.parcours && r.parcours.pseudo, quand: r.atteint_le, quoi: `Rôle ${nomRole(r.role)} à confirmer (${(ROLES[r.role] || {}).seuil || ''})`, lien: `/admin/membres/${encodeURIComponent(r.discord_id)}` });
+  for (const x of fichesSinistre) ajouter('sinistres', { qui: nom(x.parcours), ficheId: x.parcours && x.parcours.discord_id, pseudo: x.parcours && x.parcours.pseudo, quand: x.fiche_le, quoi: `Fiche de sinistre (${x.numero} / 3)`, lien: `/admin/membres/${encodeURIComponent(x.discord_id)}` });
   for (const c of candidatures) {
     ajouter('candidatures', { qui: c.nom, pseudo: c.pseudo, quand: c.maj_le, quoi: c.statut === 'video' ? 'Vidéo de présentation reçue' : 'Formulaire de candidature à examiner', lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
   }
   for (const r of ressources) {
-    ajouter('ressources', { qui: r.nom || 'Un élève', quand: r.cree_le, lien: `/ressources/${r.id}`, bouton: 'Relire',
+    ajouter('ressources', { qui: r.nom || 'Un élève', ficheId: r.auteur, quand: r.cree_le, lien: `/ressources/${r.id}`, bouton: 'Relire',
       quoi: `Propose ${r.type === 'niche' ? 'la niche' : 'la méthode'} « ${r.titre} »` });
   }
   for (const m of messagesRecus) {
-    ajouter('messages', { qui: m.nom, pseudo: m.parcours && m.parcours.pseudo, quand: m.cree_le, lien: `/admin/messages-recus/${m.id}`, bouton: m.lu_le ? 'Répondre' : 'Lire',
+    ajouter('messages', { qui: m.nom, ficheId: m.discord_id, pseudo: m.parcours && m.parcours.pseudo, quand: m.cree_le, lien: `/admin/messages-recus/${m.id}`, bouton: m.lu_le ? 'Répondre' : 'Lire',
       quoi: `${m.sujet ? `${m.sujet} : ` : ''}${m.texte.length > 140 ? `${m.texte.slice(0, 140)}…` : m.texte}` });
   }
   const decision = (x, libelles) => `<form method="post" action="/admin/acces/${encodeURIComponent(x.programme)}/${encodeURIComponent(x.discord_id)}" class="choix-acces">
@@ -748,26 +751,30 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
       actions: decision(x, [['non', x.ancien ? 'Retirer' : 'Non', 'secondaire'], ['oui', x.ancien ? 'Garder' : 'Oui', 'vert']]) });
   }
   // Pour information : en retard (Bob les relance déjà), après le reste.
-  const retards = a.retards.map((x) => ({ cat: 'retards', qui: nom(x.parcours), pseudo: x.parcours.pseudo, quand: x.tache.delai && x.tache.delai.fin,
+  const retards = a.retards.map((x) => ({ cat: 'retards', qui: nom(x.parcours), ficheId: x.parcours && x.parcours.discord_id, pseudo: x.parcours.pseudo, quand: x.tache.delai && x.tache.delai.fin,
     quoi: `Étape ${x.parcours.etape} : ${x.tache.titre}`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, bouton: 'Voir sa fiche' }));
   // Notifications non lues (pour information) : la plus récente d'abord ; l'ouvrir la marque lue.
   const notifs = notifications.map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le,
     quoi: n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte, lien: `/admin/notifications/${n.id}/ouvrir`, bouton: n.lien ? 'Ouvrir' : 'Marquer comme lue' }));
   items.sort((x, y) => String(x.quand || '').localeCompare(String(y.quand || '')));
-  const tous = [...items, ...retards, ...notifs];
+  // À traiter (fond orange) d'abord ; puis, pour mémoire, ce qui est déjà traité ou lu (fond noir, comme une notification lue).
+  for (const x of [...items, ...notifs]) x.aTraiter = true;
+  const faits = dejaTraites.map((n) => ({ ...n, fait: true }));
+  const tous = [...items, ...notifs, ...retards, ...faits];
   const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
     ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
   const nb = (c) => tous.filter((x) => x.cat === c).length;
   const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
   const libelle = Object.fromEntries(CATS);
-  const carte = (x) => `<div class="tr-carte" data-cat="${x.cat}">
-    <div class="tr-corps"><b>${echapper(x.qui)}</b>${x.pseudo ? `<span class="doux petit">${echapper(x.pseudo)}</span>` : ''}<p>${echapper(x.quoi)}</p>
+  const carte = (x) => `<div class="tr-carte${x.aTraiter ? ' a-traiter' : ''}${x.fait ? ' fait' : ''}" data-cat="${x.cat}">
+    <div class="tr-corps">${x.ficheId ? `<a href="/admin/membres/${encodeURIComponent(x.ficheId)}" style="color:#fff"><b>${echapper(x.qui)}</b></a>` : `<b>${echapper(x.qui)}</b>`}${x.pseudo ? `<span class="doux petit">${echapper(x.pseudo)}</span>` : ''}<p>${echapper(x.quoi)}</p>
       <span class="tr-bas"><span class="tr-tag" data-cat="${x.cat}">${echapper(libelle[x.cat])}</span>${x.quand ? `<span class="doux petit">${echapper(formatDate(x.quand))}</span>` : ''}</span></div>
-    ${x.actions || `<a class="bouton${x.bouton ? ' secondaire' : ''} tr-ouvrir" href="${echapper(x.lien)}">${echapper(x.bouton || 'Ouvrir')}</a>`}</div>`;
+    ${x.actions || (x.lien ? `<a class="bouton${x.bouton || x.fait ? ' secondaire' : ''} tr-ouvrir" href="${echapper(x.lien)}">${echapper(x.bouton || 'Ouvrir')}</a>` : '')}</div>`;
   return page('À traiter', `${STYLE_TRAITER}
   <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>À traiter</h1></div><span class="doux petit">${items.length} en attente de ta décision</span></div>
   <nav class="puces-traiter" aria-label="Filtres"><a href="#" data-filtre="" aria-pressed="true">Tout<b>${items.length}</b></a>${filtres.map((x) => `<a href="#" data-filtre="${x.c}"${x.n ? '' : ' data-vide'}>${echapper(x.l)}<b>${x.n}</b></a>`).join('')}</nav>
-  <div class="tr-file">${tous.map(carte).join('') || '<p class="vide-traiter">Rien à traiter. Bravo !</p>'}</div>
+  ${items.length + notifs.length ? '' : '<p class="vide-traiter">Rien à traiter. Bravo !</p>'}
+  <div class="tr-file">${tous.map((x, i) => `${x.fait && !(tous[i - 1] || {}).fait ? '<h2 class="tr-sep" data-cat="__">Déjà traité</h2>' : ''}${carte(x)}`).join('')}</div>
   ${accesRefuses.length ? `<details class="carte" style="margin-top:18px"><summary>Accès au site refusés (${accesRefuses.length})</summary><div style="display:grid;gap:8px;margin-top:10px">
     ${accesRefuses.map((x) => `<div class="tr-carte"><div class="tr-corps"><b>${echapper(x.pseudo || x.discord_id)}</b><span class="doux petit">Rôle ${echapper(nomsOffres[x.programme] || x.programme)} · refusé le ${echapper(formatDate(x.decide_le))}</span></div>
       ${decision(x, [['oui', 'Donner l\'accès', 'secondaire']])}</div>`).join('')}</div></details>` : ''}
@@ -777,6 +784,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
       e.preventDefault(); var f = p.getAttribute('data-filtre');
       puces.forEach(function (x) { x.setAttribute('aria-pressed', x === p ? 'true' : 'false'); });
       cartes.forEach(function (c) { c.hidden = Boolean(f) && c.getAttribute('data-cat') !== f; });
+      document.querySelectorAll('.tr-sep').forEach(function (h) { h.hidden = Boolean(f); });
     }); });
     var demande = new URLSearchParams(location.search).get('filtre');
     if (demande) { var p = document.querySelector('[data-filtre="' + demande.replace(/[^a-z0-9-]/g, '') + '"]'); if (p) p.click(); }

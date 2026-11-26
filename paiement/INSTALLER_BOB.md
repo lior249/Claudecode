@@ -480,3 +480,22 @@ ou sur **overmaxx.online/admin/candidatures**.
 - **Fiche d'un élève** : « Envoyer un message » à lui seul. Le bouton existe aussi sur son profil.
 - **Écrire au coach** : l'élève écrit depuis ses Remarques. Le message arrive dans À traiter (Messages) ; tu y réponds, ou tu le marques traité.
 - **À traiter** affiche aussi tes notifications non lues (filtre Notifications). Seule une notification que tu ouvres devient lue : rien ne se marque lu en bloc.
+
+## Ressources, stratégie de l'étape 3, créneaux
+
+- **Ressources** (menu) : trois onglets.
+  - **Niches** : nom, sujet, L1 ou L2, pays recommandés, RPM, exemples, contre-exemples, comptes sources.
+  - **Méthodes 10K** : nom facultatif ; type vidéo, carrousel ou CTA ; « meilleure pour L1 / L2 », que toi seul choisis.
+  - **Tutoriels** : montage, ciblage, scripting, astuce ou autre.
+- **Ce que font les élèves avec les ressources** :
+  - ils les aiment ♥ ;
+  - ils proposent une niche ou une méthode : elle arrive dans À traiter (filtre Ressources), tu valides ou refuses avec un motif ;
+  - ils peuvent modifier leur proposition tant qu'elle n'est pas validée (toi, toujours) ;
+  - ils t'envoient une remarque sur une ressource.
+- **Étape 3** : l'élève choisit sa niche (ou ajoute la sienne), sa méthode 10K et son pays parmi les 8. Tu les vois seul, sur son profil (« Sa stratégie »), jamais dans le classement.
+- **Étape 4** : le lien du compte TikTok est demandé en premier. Sans lui, pas de publication.
+- **Calendrier** : touche un créneau réservé pour ouvrir sa page. Tu y trouves sa fiche, un message, et « Demander à l'élève ».
+  - La demande : le déplacer vers une heure libre, ou l'annuler (tu n'es pas disponible).
+  - Rien ne change tout seul : l'élève reçoit la demande et agit depuis Mes coachings.
+- **Notifications** : « Coaching réservé » ouvre le créneau, un message ouvre le message, une notification sur un élève ouvre sa fiche.
+- **À traiter** : en orange, ce qui attend ta décision ; en noir, sous « Déjà traité », ce que tu as déjà lu ou traité (7 derniers jours).

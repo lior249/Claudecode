@@ -211,7 +211,10 @@ test('élève → coach : message direct, rangé dans À traiter avec les notifi
     await m.poster('/admin/messages-recus/1/repondre', { titre: 'Ta question', texte: 'Coupe les 2 premières secondes.' }, coach);
     await attendre();
     assert.deepStrictEqual(envois, [['Ta question', 'A']]);
-    assert.doesNotMatch(await (await m.get('/admin/a-traiter', coach)).text(), /Comment garder mes viewers/, 'répondu : plus à traiter');
+    const apres = await (await m.get('/admin/a-traiter', coach)).text();
+    assert.match(apres, /Déjà traité[\s\S]*class="tr-carte fait" data-cat="messages"[\s\S]*Comment garder mes viewers/, 'répondu : en noir, dans « Déjà traité »');
+    assert.doesNotMatch(apres.split('Déjà traité')[0], /Comment garder mes viewers/);
+    assert.match(traiter, /class="tr-carte a-traiter" data-cat="messages"/, 'à traiter : fond orange');
     assert.match(await (await m.get('/remarques', eleve)).text(), /Coupe les 2 premières secondes[\s\S]*|répondu/);
   } finally { await m.fermer(); }
 });

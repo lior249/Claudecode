@@ -1078,7 +1078,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         [{ label: n <= 3 ? `Ouvrir l'étape ${n}` : 'Mon parcours', url: lienPerso(p.discord_id, p.pseudo, n <= 3 ? `/parcours/etape-${n}` : '/parcours') }]));
     },
     async entreeReservee(p, seance) {
-      await notifier.admin(`**${p.nom || p.pseudo || p.discord_id}** (<@${p.discord_id}>) a réservé son **coaching d'entrée** : ${seance.date} à ${seance.heure} GMT.`);
+      await notifier.admin(avecBoutons(`**${p.nom || p.pseudo || p.discord_id}** (<@${p.discord_id}>) a réservé son **coaching d'entrée** : ${seance.date} à ${seance.heure} GMT.`,
+        [{ label: 'Voir le créneau', url: lienCoach(`/admin/creneau?date=${seance.date}&heure=${encodeURIComponent(seance.heure)}`) }]));
     },
 
     // ---- Étape 4 ----
@@ -1249,14 +1250,16 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         [{ label: 'Mes coachings', url: lienPerso(id, null, '/coaching') }]));
       if (seances.length) {
         await notifier.admin(avecBoutons(`**Coaching réservé** : ${nomCoaching(id)} (<@${id}>) a réservé ${seances.length} séance(s) :\n${seances.map((s) => `- ${s.date.split('-').reverse().join('/')} à ${s.heure} GMT`).join('\n')}`,
-          [{ label: 'Ouvrir le calendrier', url: lienCoach(`/admin?semaine=${lundiDe(new Date(`${seances[0].date}T12:00:00Z`))}`) }]));
+          [{ label: 'Voir le créneau', url: lienCoach(`/admin/creneau?date=${seances[0].date}&heure=${encodeURIComponent(seances[0].heure)}`) }]));
       }
     },
     async report(id, avant, apres, justification) {
-      await notifier.admin(`**Séance reportée** : ${nomCoaching(id)} (<@${id}>), du ${avant.date} ${avant.heure} GMT au **${apres.date} ${apres.heure} GMT**.\nJustification : ${justification}`);
+      await notifier.admin(avecBoutons(`**Séance reportée** : ${nomCoaching(id)} (<@${id}>), du ${avant.date} ${avant.heure} GMT au **${apres.date} ${apres.heure} GMT**.\nJustification : ${justification}`,
+        [{ label: 'Voir le créneau', url: lienCoach(`/admin/creneau?date=${apres.date}&heure=${encodeURIComponent(apres.heure)}`) }]));
     },
     async reserveUtilisee(id, seance) {
-      await notifier.admin(`**Coaching en réserve utilisé** : ${nomCoaching(id)} (<@${id}>), le **${seance.date} à ${seance.heure} GMT**.`);
+      await notifier.admin(avecBoutons(`**Coaching en réserve utilisé** : ${nomCoaching(id)} (<@${id}>), le **${seance.date} à ${seance.heure} GMT**.`,
+        [{ label: 'Voir le créneau', url: lienCoach(`/admin/creneau?date=${seance.date}&heure=${encodeURIComponent(seance.heure)}`) }]));
     },
   };
   const nomCoaching = (id) => { const p = parcours && parcours.get(id); return (p && (p.nom || p.pseudo)) || ((coaching && coaching.profil(id)) || {}).pseudo || `<@${id}>`; };
@@ -1726,7 +1729,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
 
     async candidature(champs, note) {
       const lignes = champs.map((c) => `**${c.label}** : ${c.valeur}`).join('\n').slice(0, 1800);
-      await notifier.admin(`**Nouvelle candidature Elite**${note ? `\n⚠️ ${note}` : ''}\n${lignes}\n\nSi tu retiens ce profil : contacte-le, puis tape \`/lien-elite\` pour lui créer son lien de paiement.`);
+      await notifier.admin(avecBoutons(`**Nouvelle candidature Elite**${note ? `\n⚠️ ${note}` : ''}\n${lignes}\n\nSi tu retiens ce profil : contacte-le, puis tape \`/lien-elite\` pour lui créer son lien de paiement.`,
+        [{ label: 'Voir les candidatures', url: lienCoach('/admin/a-traiter?filtre=candidatures') }]));
     },
   };
 }
