@@ -132,9 +132,7 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     await attendre();
     assert.ok(dms.some(([id, t]) => id === E1 && /résultats de ta vidéo du .* sont validés/.test(t)));
     const st = m.suivi.stats(E1);
-    assert.strictEqual(st.revenusTotal, 1600);
-    assert.deepStrictEqual(m.suivi.gains(E1, { valides: true }).map((g) => [g.jour, g.gain]), [[hier, 1600]]);
-    assert.deepStrictEqual(st.objectifs.map((o) => o.atteint), [true, true, true, true]);
+    assert.strictEqual(st.revenusTotal, 0, 'les revenus viennent des updates du compte, pas des vidéos');
 
     // Update du compte du jour : capture des 28 derniers jours, vues et revenus ; il sert pour GOAT (28 jours).
     const aujourdhui = m.suivi.aujourdhui(m.parcours.get(E1));
@@ -142,7 +140,7 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     const sansRevenus = await m.poster(`/parcours/compte-rendu/${aujourdhui}`, { vues_28j: '54000', capture: img.nom }, { cookie: membre });
     assert.strictEqual(sansRevenus.status, 400);
     assert.match(await sansRevenus.text(), /revenus sur les 28 derniers jours/);
-    const up = await m.poster(`/parcours/compte-rendu/${aujourdhui}`, { vues_28j: '54000', revenus_28j: '1 200,00', capture: img.nom, question: 'Comment garder mes viewers après 10 s ?' }, { cookie: membre });
+    const up = await m.poster(`/parcours/compte-rendu/${aujourdhui}`, { vues_28j: '54000', revenus_28j: '1 600,00', capture: img.nom, question: 'Comment garder mes viewers après 10 s ?' }, { cookie: membre });
     assert.strictEqual(up.headers.get('location'), '/parcours/etape-4?ok=compte-rendu');
     await attendre();
     assert.ok(dms.some(([id, t]) => id === ADMIN && /update du compte/.test(t)));
@@ -152,14 +150,18 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     await m.poster(`/admin/comptes-rendus/${cr.id}/decision`, { decision: 'valider' }, { cookie: coach });
     await attendre();
     assert.ok(dms.some(([id, t]) => id === E1 && /update du compte du .* est validé/.test(t)));
-    assert.strictEqual(m.suivi.stats(E1).revenus28, 1200);
+    assert.strictEqual(m.suivi.stats(E1).revenus28, 1600);
     assert.strictEqual(m.suivi.stats(E1).vues, 54000);
+    // La première update compte entièrement : c'est la base du cumul.
+    assert.strictEqual(m.suivi.stats(E1).revenusTotal, 1600);
+    assert.deepStrictEqual(m.suivi.gains(E1, { valides: true }).map((g) => [g.jour, g.gain]), [[aujourdhui, 1600]]);
+    assert.deepStrictEqual(m.suivi.stats(E1).objectifs.map((o) => o.atteint), [true, true, true, true]);
     assert.strictEqual((await m.get('/fiche', { cookie: membre })).status, 200);
 
     // Mes revenus : le tableau de bord (revenus des vidéos jour par jour), visible par le membre et par le coach.
     const profil = await (await m.get('/revenus', { cookie: membre })).text();
     assert.match(profil, /Récompenses estimées/);
-    assert.ok(profil.includes(`&quot;j&quot;:&quot;${hier}&quot;`), 'données du tableau de bord');
+    assert.ok(profil.includes(`&quot;j&quot;:&quot;${aujourdhui}&quot;`), 'données du tableau de bord');
     assert.strictEqual((await m.get(`/admin/membres/${E1}/profil`, { cookie: coach })).status, 200);
     assert.strictEqual((await m.get(`/admin/membres/${E1}/profil`, { cookie: membre })).status, 403);
     const alertes = dms.filter(([id, , c]) => id === ADMIN && idsBoutons(c).length);
@@ -340,5 +342,27 @@ test('sinistrés : les jours où le membre attend son coach ne comptent pas', as
     for (const j of [1, 4, 8, 12]) { now = new Date(Date.parse('2026-12-01T10:00:00Z') + j * JOUR); await bob.surveillerAbsences(); }
     assert.strictEqual(dms.filter(([id]) => id === E1).length, 0);
     assert.strictEqual(m.parcours.get(E1).sinistres, 0);
+  } finally { await m.fermer(); }
+});
+
+test('revenus cumulés : la première update sert de base, puis la fenêtre de 28 jours glisse', async () => {
+  const m = await monter();
+  try {
+    m.parcours.assurer('R', { pseudo: 'r' });
+    m.db.prepare("UPDATE parcours SET etape = 4 WHERE discord_id = 'R'").run();
+    const j = (n) => new Date(Date.parse('2026-01-01T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+    const up = (n, revenus, vues, etat = 'valide') => m.db.prepare('INSERT INTO comptes_rendus (discord_id, jour, etat, vues_28j, revenus_28j, envoye_le, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run('R', j(n), etat, vues, revenus, new Date().toISOString(), new Date().toISOString());
+    up(0, 100, 1000);   // base : 100
+    up(10, 150, 1500);  // la fenêtre monte de 50 : 150
+    up(28, 80, 900);    // le jour 0 est sorti : 80 + 100 = 180
+    up(40, 90, 800);    // 90 + cumul au jour 12 (150) = 240
+    up(41, 10, 10, 'attente');
+    assert.deepStrictEqual(m.suivi.cumul('R', { valides: true }).map((x) => x.revenus), [100, 150, 180, 240]);
+    assert.deepStrictEqual(m.suivi.cumul('R', { valides: true }).map((x) => x.vues), [1000, 1500, 1900, 2300]);
+    assert.strictEqual(m.suivi.stats('R').revenusTotal, 240);
+    assert.deepStrictEqual(m.suivi.gains('R', { valides: true }).map((g) => g.gain), [100, 50, 30, 60]);
+    assert.strictEqual(m.suivi.gains('R').pop().gain, 0, 'jamais de gain négatif');
+    assert.deepStrictEqual(m.suivi.periode('R', j(20)), { revenus: 90, vues: 800, updates: 2 });
   } finally { await m.fermer(); }
 });

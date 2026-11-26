@@ -34,7 +34,6 @@ function creerCommunaute({ db, parcours, suivi, maintenant = () => new Date() })
     finir: db.prepare("UPDATE concurrences SET statut = 'fini', gagnant = ?, fini_le = ? WHERE id = ? AND statut = 'accepte'"),
     joursCr: db.prepare("SELECT jour FROM comptes_rendus WHERE discord_id = ? AND envoye_le IS NOT NULL ORDER BY jour DESC"),
     finies: db.prepare("SELECT * FROM concurrences WHERE statut = 'fini' AND (de = ? OR vers = ?) AND fini_le >= ?"),
-    videosPeriode: db.prepare('SELECT ok_vues, ok_revenus FROM publications WHERE discord_id = ? AND jour >= ? AND ok_vues IS NOT NULL'),
     videosValidees: db.prepare("SELECT * FROM publications WHERE discord_id = ? AND res_etat = 'valide' AND res_decide_le >= ? ORDER BY res_decide_le DESC LIMIT 10"),
   };
   const iso = () => maintenant().toISOString();
@@ -54,12 +53,11 @@ function creerCommunaute({ db, parcours, suivi, maintenant = () => new Date() })
   }
   const flamme = (n) => n >= CHAINE_MIN;
 
-  // Revenus et vues sur une période (comptes rendus envoyés, hors à corriger).
+  // Revenus et vues gagnés sur une période, d'après le cumul des updates du compte validées.
   function periode(id, jours) {
     const p = parcours.get(id);
-    const depuis = decaler(aujourdhuiDe(p), -(jours - 1));
-    const v = q.videosPeriode.all(id, depuis);
-    return { revenus: Math.round(v.reduce((t, x) => t + (x.ok_revenus || 0), 0) * 100) / 100, vues: v.reduce((t, x) => t + (x.ok_vues || 0), 0), comptesRendus: v.length };
+    const r = suivi.periode(id, decaler(aujourdhuiDe(p), -(jours - 1)));
+    return { revenus: r.revenus, vues: r.vues, comptesRendus: r.updates };
   }
 
   const concurrentsDe = (id) => q.actives.all(id, id).map((c) => ({ ...c, autre: c.de === id ? c.vers : c.de }));

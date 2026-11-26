@@ -112,6 +112,7 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     pubDecision: db.prepare('UPDATE publications SET res_etat = ?, res_decide_le = ?, ok_vues = CASE WHEN ? THEN res_vues ELSE ok_vues END, ok_revenus = CASE WHEN ? THEN res_revenus ELSE ok_revenus END WHERE id = ?'),
     pubsAttente: db.prepare("SELECT * FROM publications WHERE res_etat = 'attente' ORDER BY res_envoye_le"),
     revenusVideos: db.prepare('SELECT COALESCE(SUM(ok_revenus), 0) r, COALESCE(SUM(ok_vues), 0) v FROM publications WHERE discord_id = ?'),
+    updatesMembre: db.prepare("SELECT jour, etat, vues_28j, revenus_28j FROM comptes_rendus WHERE discord_id = ? AND revenus_28j IS NOT NULL AND etat IN ('valide', 'attente') ORDER BY jour"),
     dernierUpdate: db.prepare("SELECT * FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide' AND revenus_28j IS NOT NULL ORDER BY jour DESC LIMIT 1"),
     updateEnregistrer: db.prepare(`INSERT INTO comptes_rendus (discord_id, jour, etat, vues_28j, revenus_28j, capture_revenus, question, envoye_le, cree_le)
       VALUES (?, ?, 'attente', ?, ?, ?, ?, ?, ?)
@@ -251,25 +252,47 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     },
     enAttente() { return q.crAttente.all().map((cr) => ({ ...cr, parcours: parcours.get(cr.discord_id) })); },
 
-    // Gains jour par jour, d'après le total du tableau de bord TikTok de chaque compte rendu
-    // (validés seulement pour les objectifs ; validés et en attente pour le tableau de bord).
-    gains(discordId, { valides = false } = {}) {
-      const parJour = new Map();
-      for (const v of q.pubsMembre.all(discordId).reverse()) {
-        const ok = v.ok_revenus !== null && v.ok_revenus !== undefined;
-        const enAttente = v.res_etat === 'attente' && v.res_revenus !== null;
-        if (!ok && (valides || !enAttente)) continue;
-        const montant = valides || !enAttente ? v.ok_revenus : v.res_revenus;
-        const j = parJour.get(v.jour) || { jour: v.jour, gain: 0, etat: 'valide' };
-        j.gain = Math.round((j.gain + (montant || 0)) * 100) / 100;
-        if (!valides && enAttente) j.etat = 'attente';
-        parJour.set(v.jour, j);
+    // Cumul des revenus et des vues, reconstruit à partir des updates du compte (valeurs des 28 derniers jours, plus fiables
+    // que la somme des vidéos). La première update compte entièrement : c'est la base. Ensuite, chaque jour,
+    //   cumul(t) = valeur 28 jours(t) + cumul(t − 28)   (ce qui est sorti de la fenêtre a déjà été compté),
+    // et, tant qu'on n'a pas 28 jours de recul, au moins le cumul précédent + la hausse de la fenêtre. Jamais en baisse.
+    // valides : seulement les updates validées (objectifs, rôles) ; sinon aussi celles en attente (tableau de bord).
+    cumul(discordId, { valides = false } = {}) {
+      const lignes = q.updatesMembre.all(discordId).filter((u) => !valides || u.etat === 'valide');
+      const serie = [];
+      const avant = (jour) => { let r = null; for (const x of serie) { if (x.jour <= jour) r = x; else break; } return r; };
+      const arrondi = (n) => Math.round(n * 100) / 100;
+      for (const u of lignes) {
+        const R = Number(u.revenus_28j) || 0; const V = Number(u.vues_28j) || 0;
+        const prec = serie[serie.length - 1];
+        let revenus = R; let vues = V;
+        if (prec) {
+          const base = avant(decalerJour(u.jour, -FENETRE_GOAT_JOURS));
+          revenus = Math.max(prec.revenus, prec.revenus + Math.max(0, R - prec.R), R + (base ? base.revenus : 0));
+          vues = Math.max(prec.vues, prec.vues + Math.max(0, V - prec.V), V + (base ? base.vues : 0));
+        }
+        serie.push({ jour: u.jour, etat: u.etat, R, V, revenus: arrondi(revenus), vues: Math.round(vues) });
       }
-      let mois = null; let cumul = 0;
-      return [...parJour.values()].sort((a, b) => a.jour.localeCompare(b.jour)).map((j) => {
-        if (j.jour.slice(0, 7) !== mois) { mois = j.jour.slice(0, 7); cumul = 0; }
-        cumul = Math.round((cumul + j.gain) * 100) / 100;
-        return { ...j, total: cumul };
+      return serie;
+    },
+    // Revenus et vues gagnés depuis un jour (inclus), d'après le cumul des updates validées.
+    periode(discordId, depuis) {
+      const serie = api.cumul(discordId, { valides: true });
+      if (!serie.length) return { revenus: 0, vues: 0, updates: 0 };
+      const dernier = serie[serie.length - 1];
+      const base = serie.filter((x) => x.jour < depuis).pop();
+      return { revenus: Math.round((dernier.revenus - (base ? base.revenus : 0)) * 100) / 100, vues: dernier.vues - (base ? base.vues : 0),
+        updates: serie.filter((x) => x.jour >= depuis).length };
+    },
+    // Gains jour par jour (différence de cumul d'une update à l'autre), total du mois.
+    gains(discordId, { valides = false } = {}) {
+      let mois = null; let cumulMois = 0; let precedent = 0;
+      return api.cumul(discordId, { valides }).map((x) => {
+        const gain = Math.round((x.revenus - precedent) * 100) / 100;
+        precedent = x.revenus;
+        if (x.jour.slice(0, 7) !== mois) { mois = x.jour.slice(0, 7); cumulMois = 0; }
+        cumulMois = Math.round((cumulMois + gain) * 100) / 100;
+        return { jour: x.jour, gain, total: cumulMois, etat: x.etat, cumul: x.revenus };
       });
     },
     // Données du tableau de bord (page Mon profil) : j = jour, g = gain, t = total du mois, e = état.
@@ -298,11 +321,13 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       const joursDepuis = debut ? Math.max(1, Math.round((Date.parse(`${aujourdhui}T12:00:00Z`) - Date.parse(`${debut}T12:00:00Z`)) / JOUR) + 1) : 0;
       const arrondi = (n) => Math.round(n * 100) / 100;
       const videos = q.revenusVideos.get(discordId);
-      const total = arrondi(videos.r);
-      void FENETRE_GOAT_JOURS;
+      const serie = api.cumul(discordId, { valides: true });
+      const fin = serie[serie.length - 1];
+      const total = fin ? fin.revenus : 0;
       return {
         abonnes: null,
         vues: dernier ? dernier.vues_28j : null,
+        vuesTotal: fin ? fin.vues : 0,
         vuesVideos: videos.v,
         paysPrincipal: paysPrincipal ? paysPrincipal[0] : null,
         revenusTotal: total,

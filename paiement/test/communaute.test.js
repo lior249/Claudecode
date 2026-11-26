@@ -67,9 +67,14 @@ test('suivre (10 places), défier (3 concurrents), résultats envoyés à ceux q
     // Pas encore à l'étape 4 : pas de concurrence.
     assert.match((await m.poster('/communaute/defier', { id: 'E5' }, cookie('N'))).headers.get('location') || '', /erreur|parcours/);
 
-    // Le coach valide les résultats d'une vidéo de E11 qui le font dépasser 1 000 $ : ceux qui le suivent sont prévenus, il gagne la concurrence.
+    // Le coach valide les résultats d'une vidéo de E11 : ceux qui le suivent sont prévenus. Puis son update du compte
+    // (1 089 $ sur 28 jours) le fait dépasser 1 000 $ au total : il gagne la concurrence.
     const videoId = compteRendu(m, 'E11', jourIl(1), { etat: 'attente', total: 1089, vues: 45000 });
     await m.poster(`/admin/resultats/${videoId}/decision`, { decision: 'valider' }, { cookie: cookieSession(ADMIN, 'coach') });
+    assert.ok(!appels.some(([nom]) => nom === 'concurrenceGagnee'), 'pas encore : l\'update n\'est pas validée');
+    const upId = m.db.prepare("SELECT id FROM comptes_rendus WHERE discord_id = 'E11' AND etat = 'attente'").get().id;
+    await m.poster(`/admin/comptes-rendus/${upId}/decision`, { decision: 'valider' }, { cookie: cookieSession(ADMIN, 'coach') });
+    assert.strictEqual(m.suivi.stats('E11').revenusTotal, 1089);
     const partage = appels.find(([nom]) => nom === 'resultatPartage');
     assert.ok(partage, 'résultat partagé');
     assert.strictEqual(partage[1].nom, 'p_E11', 'jamais le nom complet');

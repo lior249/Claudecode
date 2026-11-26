@@ -1553,7 +1553,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const p = parcours.get(cr.discord_id);
     prevenir('compteRenduDecide', r.compteRendu, p, decision);
     if (r.nouvelles.length) prevenir('recompensesAtteintes', p, r.nouvelles);
-
+    // Les revenus viennent des updates du compte : une update validée peut faire gagner une concurrence.
+    if (decision === 'valider') for (const c of communaute.verifierConcurrences(cr.discord_id)) prevenir('concurrenceGagnee', c, membreVu(cr.discord_id), membreVu(c.autre));
     res.redirect(303, '/admin/a-traiter#etape-4');
   });
   function envoiDe(req, res) {
