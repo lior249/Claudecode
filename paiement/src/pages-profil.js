@@ -446,7 +446,7 @@ const SCRIPT_ANNONCE = `(function () {
     if (img.complete) calc(); else img.onload = calc;
   }).observe(apercus, { childList: true });
 })();`;
-function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, message, erreur, maintenant = new Date().toISOString() }) {
+function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, message, erreur, test, maintenant = new Date().toISOString() }) {
   const fin7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
   const enCours = (a) => (a.fin_le ? a.fin_le > maintenant : a.cree_le > new Date(Date.now() - 7 * 864e5).toISOString());
   return page('Événements', `
@@ -454,6 +454,13 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, message, er
   <p class="doux" style="max-width:640px;margin:0 0 12px">Chaque événement s'affiche dans la bannière en haut des pages des élèves (plusieurs : elles défilent).
     Image au format <b>16:5</b> (par exemple 1600 × 500 px), sans texte : le titre s'écrit à gauche, sur la couleur dominante.</p>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <form class="carte" method="post" action="/admin/notifications/test" style="display:grid;gap:10px;max-width:640px">
+    <h2 style="margin:0">Tester une notification</h2>
+    <p class="doux petit" style="margin:0">Envoyée à ce seul compte : dans l'application ou par Bob, et rangée dans ses notifications (pastille rouge sur sa cloche).</p>
+    ${test ? `<p class="message-ok" style="margin:0">${echapper(test)}</p>` : ''}
+    <div style="display:flex;gap:8px"><input name="pseudo" placeholder="Pseudo Discord, ex. @ton_compte_test" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="41" required>
+      <button class="bouton secondaire" type="submit" style="margin:0;width:auto;white-space:nowrap">Envoyer un test</button></div>
+  </form>
   <form id="form-annonce" class="carte" method="post" action="/admin/annonces" data-n="${nbEleves}" style="display:grid;gap:12px;max-width:640px">
     <div class="champ"><label for="titre">Titre</label><input id="titre" name="titre" maxlength="120" required placeholder="ex. Live de groupe ce soir à 21 h"></div>
     <div class="champ"><label for="texte">Message</label><textarea id="texte" name="texte" maxlength="1800" required placeholder="Colle ton texte ici."></textarea></div>

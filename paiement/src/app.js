@@ -1223,6 +1223,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, '/admin/annonces')) return;
     res.send(PF.pageAnnonces(config, { espace: espaceDe(lireSession(req, config.secretApp)), nbEleves: parcours.tous().length,
       annonces: commandes.db.prepare('SELECT * FROM annonces ORDER BY id DESC LIMIT 30').all(),
+      test: req.query.test ? String(req.query.test).slice(0, 200) : null,
       message: req.query.fait ? (Number(req.query.n) ? `Événement publié et envoyé à ${Number(req.query.n)} élève(s).` : 'Événement publié dans la bannière.') : null, maintenant: new Date().toISOString(),
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
@@ -1249,6 +1250,24 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     } else commandes.db.prepare('UPDATE annonces SET envoyes = 0 WHERE id = ?').run(a.id);
     lien = null;
     return res.redirect(303, `/admin/annonces?fait=1&n=${ids.length}`);
+  });
+  // Test : une notification envoyée à un seul compte (pseudo Discord), pour voir comment elle s'affiche.
+  app.post('/admin/notifications/test', formulaire, async (req, res) => {
+    if (!estAdmin(req, res, '/admin/annonces')) return;
+    const pseudo = String(req.body.pseudo || '').trim().replace(/^@/, '').slice(0, 40);
+    const retour = (t, ok) => res.redirect(303, `/admin/annonces?${ok ? 'test' : 'erreur'}=${encodeURIComponent(t)}`);
+    if (!pseudo) return retour('Écris le pseudo Discord du compte de test.');
+    if (!bob || !bob.idDepuisPseudo || !bob.notifier) return retour('Bob est indisponible : réessaie dans un instant.');
+    try {
+      const id = await bob.idDepuisPseudo(pseudo);
+      if (!id) return retour(`@${pseudo} n'est pas sur le serveur Overmaxx.`);
+      const ok = await bob.notifier.membre(id, { content: '🔔 **Notification test d\'Overmaxx**\nSi tu lis ce message, les notifications marchent. Ouvre ton profil : la cloche affiche une pastille rouge.',
+        components: bob.boutonsLien ? bob.boutonsLien([{ label: 'Ouvrir mon profil', url: bob.lienPerso(id, pseudo, '/profil') }]) : undefined });
+      return retour(ok ? `Notification test envoyée à @${pseudo}.` : `Notification rangée pour @${pseudo}, mais ni l'application ni Bob n'ont pu la lui envoyer.`, ok);
+    } catch (err) {
+      console.error('[notif test]', err.message);
+      return retour('Envoi impossible : réessaie.');
+    }
   });
   app.post('/admin/annonces/:id/retirer', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/annonces')) return;

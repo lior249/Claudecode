@@ -116,3 +116,21 @@ test('élève : pastilles rouges (9+) sur la cloche et la bulle, remises à zér
     assert.doesNotMatch(apres, /class="compteur"/);
   } finally { await m.fermer(); }
 });
+
+test('notification test : envoyée à un seul compte par son pseudo, rangée dans ses notifications', async () => {
+  const envois = [];
+  const m = await monter({ bob: {
+    idDepuisPseudo: async (p) => (p === 'nofloh24' ? 'T1' : null),
+    notifier: { membre: async (id, c) => { envois.push([id, c]); return true; } },
+    boutonsLien: () => [], lienPerso: () => 'http://x',
+  } });
+  try {
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const r = await m.poster('/admin/notifications/test', { pseudo: '@nofloh24' }, coach);
+    assert.match(decodeURIComponent(r.headers.get('location')), /test=Notification test envoyée à @nofloh24/);
+    assert.deepStrictEqual(envois.map(([id]) => id), ['T1']);
+    assert.match(envois[0][1].content, /Notification test d'Overmaxx/);
+    assert.match(decodeURIComponent((await m.poster('/admin/notifications/test', { pseudo: 'inconnu' }, coach)).headers.get('location')), /pas sur le serveur/);
+    assert.match(await (await m.get(r.headers.get('location'), coach)).text(), /Notification test envoyée à @nofloh24/);
+  } finally { await m.fermer(); }
+});

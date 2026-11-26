@@ -1485,6 +1485,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   return {
     notifier,
     notifsAdmin,
+    // Pour le test de notification de l'admin : boutons-liens et lien personnel.
+    boutonsLien: (boutons) => avecBoutons('', boutons).components,
+    lienPerso,
     rappelsAdmin,
     cycle,
     surInteraction,
