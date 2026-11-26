@@ -85,72 +85,58 @@ function vueListe(eleves) {
     <span class="ls-col"><b>${e.videos}</b><small>posts</small></span>
     <span class="ls-col"><b>${e.chaine >= 3 ? `🔥 ${e.chaine}` : e.chaine}</b><small>${e.joursCr} j suivis</small></span>
     <span class="ls-col"><b>${e.etape >= 5 ? 'GOAT' : `Étape ${e.etape}`}</b>${e.sinistre ? '<small class="rouge">sinistré</small>' : ''}</span></a>`).join('');
-  // Filtres : une fenêtre où l'on coche les critères (l'ordre des coches = la priorité) et le sens de chacun, puis « Appliquer ».
-  const lignesFiltres = CRITERES.map(([c, l]) => `<div class="ft-ligne" data-critere="${c}">
-      <label class="ft-coche"><input type="checkbox" value="${c}"><span>${l}</span><em class="ft-rang"></em></label>
-      <div class="ft-sens" role="group" aria-label="Ordre : ${l}">
-        <button type="button" data-sens="desc" aria-pressed="true">↓ Décroissant</button><button type="button" data-sens="asc" aria-pressed="false">↑ Croissant</button></div></div>`).join('');
-  return `${STYLE_ROLES}<div class="ls-barre"><button type="button" class="bouton secondaire ls-ouvrir" style="margin:0;width:auto">Filtres<span class="ls-nb" hidden></span></button>
+  // Filtres légers : le bouton « Filtres » ouvre les pastilles des critères (l'ordre des clics = la priorité),
+  // un seul ordre pour tous (décroissant ou croissant), puis « Appliquer ». Rien ne bouge avant.
+  return `${STYLE_ROLES}<div class="ls-barre"><button type="button" class="bouton secondaire ls-ouvrir" aria-expanded="false" style="margin:0;width:auto">Filtres<span class="ls-nb" hidden></span></button>
     <span class="doux petit ls-resume">Ordre alphabétique</span></div>
+  <div class="ls-panneau" hidden>
+    <div class="ls-tris" role="group" aria-label="Critères">${CRITERES.map(([c, l]) => `<button type="button" data-tri="${c}" aria-pressed="false">${l}<i></i></button>`).join('')}</div>
+    <div class="ls-pied"><div class="ft-sens" role="group" aria-label="Ordre"><button type="button" data-sens="desc" aria-pressed="true">↓ Décroissant</button><button type="button" data-sens="asc" aria-pressed="false">↑ Croissant</button></div>
+      <button type="button" class="ls-raz">Effacer</button><button type="button" class="bouton ls-appliquer" style="margin:0;width:auto;min-height:38px;padding:8px 18px">Appliquer</button></div>
+  </div>
   <div class="ls-liste">${lignes || '<p class="vide-traiter">Aucun élève.</p>'}</div>
-  <dialog class="fenetre" id="dlg-filtres" aria-labelledby="ft-titre">
-    <button class="fermer" type="button" aria-label="Fermer" data-fermer>×</button>
-    <h2 id="ft-titre">Filtres</h2>
-    <p class="doux petit" style="margin:0 0 10px">Coche un ou plusieurs critères et choisis l'ordre de chacun. Le premier coché compte d'abord.</p>
-    <div class="ft-liste">${lignesFiltres}</div>
-    <div class="deux-boutons" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
-      <button type="button" class="bouton secondaire ft-effacer" style="margin:0">Effacer</button><button type="button" class="bouton ft-appliquer" style="margin:0">Appliquer</button></div>
-  </dialog>
   <script>(function () {
-    var liste = document.querySelector('.ls-liste'), dlg = document.getElementById('dlg-filtres'), appliques = [], brouillon = [];
-    var NOMS = ${JSON.stringify(Object.fromEntries(CRITERES))};
+    var liste = document.querySelector('.ls-liste'), panneau = document.querySelector('.ls-panneau'), ouvrir = document.querySelector('.ls-ouvrir');
+    var appliques = [], sensApplique = 'desc', choix = [], sens = 'desc';
     function trier() {
       var l = Array.prototype.slice.call(liste.querySelectorAll('.ls-ligne'));
       l.sort(function (a, b) {
         for (var i = 0; i < appliques.length; i++) {
-          var c = appliques[i].c, x = a.getAttribute('data-' + c), y = b.getAttribute('data-' + c);
+          var c = appliques[i], x = a.getAttribute('data-' + c), y = b.getAttribute('data-' + c);
           var d = c === 'entree' ? x.localeCompare(y) : (+x) - (+y);
-          if (d) return appliques[i].sens === 'desc' ? -d : d;
+          if (d) return sensApplique === 'desc' ? -d : d;
         }
         return a.getAttribute('data-nom').localeCompare(b.getAttribute('data-nom'), 'fr');
       });
       l.forEach(function (x) { liste.appendChild(x); });
-      var nb = document.querySelector('.ls-nb');
-      nb.hidden = !appliques.length; nb.textContent = appliques.length;
+      var nb = document.querySelector('.ls-nb'); nb.hidden = !appliques.length; nb.textContent = appliques.length;
       document.querySelector('.ls-resume').textContent = appliques.length
-        ? appliques.length + ' filtre' + (appliques.length > 1 ? 's' : '') + ' appliqué' + (appliques.length > 1 ? 's' : '') : 'Ordre alphabétique';
+        ? appliques.length + ' filtre' + (appliques.length > 1 ? 's' : '') + ' · ' + (sensApplique === 'desc' ? 'décroissant ↓' : 'croissant ↑') : 'Ordre alphabétique';
     }
-    // La fenêtre reflète le brouillon (rien ne bouge dans la liste avant « Appliquer »).
     function dessiner() {
-      dlg.querySelectorAll('.ft-ligne').forEach(function (ligne) {
-        var c = ligne.getAttribute('data-critere'), k = -1;
-        brouillon.forEach(function (t, i) { if (t.c === c) k = i; });
-        ligne.querySelector('input').checked = k >= 0;
-        ligne.classList.toggle('actif', k >= 0);
-        ligne.querySelector('.ft-rang').textContent = k >= 0 && brouillon.length > 1 ? (k + 1) : '';
-        var sens = k >= 0 ? brouillon[k].sens : (ligne.getAttribute('data-sens') || 'desc');
-        ligne.querySelectorAll('[data-sens]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-sens') === sens ? 'true' : 'false'); });
+      panneau.querySelectorAll('[data-tri]').forEach(function (b) {
+        var k = choix.indexOf(b.getAttribute('data-tri'));
+        b.setAttribute('aria-pressed', k >= 0 ? 'true' : 'false');
+        b.querySelector('i').textContent = k >= 0 && choix.length > 1 ? ' ' + (k + 1) : '';
       });
+      panneau.querySelectorAll('[data-sens]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-sens') === sens ? 'true' : 'false'); });
     }
-    dlg.querySelectorAll('.ft-ligne').forEach(function (ligne) {
-      var c = ligne.getAttribute('data-critere');
-      ligne.querySelector('input').addEventListener('change', function (e) {
-        if (e.target.checked) brouillon.push({ c: c, sens: ligne.getAttribute('data-sens') || 'desc' });
-        else brouillon = brouillon.filter(function (t) { return t.c !== c; });
-        dessiner();
-      });
-      ligne.querySelectorAll('[data-sens]').forEach(function (b) { b.addEventListener('click', function () {
-        var s = b.getAttribute('data-sens'); ligne.setAttribute('data-sens', s);
-        var t = brouillon.filter(function (x) { return x.c === c; })[0];
-        if (t) t.sens = s; else brouillon.push({ c: c, sens: s }); // choisir un ordre coche aussi le critère
-        dessiner();
-      }); });
+    ouvrir.addEventListener('click', function () {
+      var montrer = panneau.hidden;
+      if (montrer) { choix = appliques.slice(); sens = sensApplique; dessiner(); }
+      panneau.hidden = !montrer; ouvrir.setAttribute('aria-expanded', montrer ? 'true' : 'false');
     });
-    document.querySelector('.ls-ouvrir').addEventListener('click', function () { brouillon = appliques.map(function (t) { return { c: t.c, sens: t.sens }; }); dessiner(); dlg.showModal(); });
-    dlg.querySelector('.ft-effacer').addEventListener('click', function () { brouillon = []; dessiner(); });
-    dlg.querySelector('.ft-appliquer').addEventListener('click', function () { appliques = brouillon.slice(); trier(); dlg.close(); });
-    dlg.querySelector('[data-fermer]').addEventListener('click', function () { dlg.close(); });
-    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+    panneau.querySelectorAll('[data-tri]').forEach(function (b) { b.addEventListener('click', function () {
+      var c = b.getAttribute('data-tri'), k = choix.indexOf(c);
+      if (k >= 0) choix.splice(k, 1); else choix.push(c);
+      dessiner();
+    }); });
+    panneau.querySelectorAll('[data-sens]').forEach(function (b) { b.addEventListener('click', function () { sens = b.getAttribute('data-sens'); dessiner(); }); });
+    panneau.querySelector('.ls-raz').addEventListener('click', function () { choix = []; dessiner(); });
+    panneau.querySelector('.ls-appliquer').addEventListener('click', function () {
+      appliques = choix.slice(); sensApplique = sens; trier();
+      panneau.hidden = true; ouvrir.setAttribute('aria-expanded', 'false');
+    });
   })();</script>`;
 }
 const STYLE_LISTE = `<style>
@@ -159,17 +145,13 @@ const STYLE_LISTE = `<style>
   .vues a[aria-current] { background:#fff; color:#000; }
   .ls-barre { display:flex; align-items:center; gap:12px; margin:0 0 12px; }
   .ls-nb { display:inline-grid; place-items:center; min-width:20px; height:20px; margin-left:8px; padding:0 6px; border-radius:999px; background:#fff; color:#000; font-size:12px; font-weight:800; }
-  .ft-liste { display:grid; gap:8px; }
-  .ft-ligne { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 12px; border-radius:14px; border:1px solid var(--bord-fort); }
-  .ft-ligne.actif { border-color:#fff; background:#161616; }
-  .ft-coche { display:flex; align-items:center; gap:10px; font-weight:700; cursor:pointer; margin:0; }
-  .ft-coche input { width:18px; height:18px; margin:0; accent-color:#fff; }
-  .ft-rang { font-style:normal; display:inline-grid; place-items:center; min-width:20px; height:20px; border-radius:999px; background:#fff; color:#000; font-size:11px; }
-  .ft-rang:empty { display:none; }
+  .ls-panneau { margin:0 0 12px; padding:12px; border-radius:16px; background:var(--surface); border:1px solid var(--bord); }
+  .ls-panneau[hidden] { display:none; }
+  .ls-pied { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; }
   .ft-sens { display:inline-grid; grid-template-columns:1fr 1fr; gap:3px; padding:3px; border-radius:999px; background:#0d0d0d; border:1px solid var(--bord); }
-  .ft-sens button { padding:6px 10px; border:0; border-radius:999px; background:transparent; color:var(--doux); font:600 12.5px var(--police); cursor:pointer; white-space:nowrap; }
-  .ft-sens button[aria-pressed="true"] { background:#c8f23a; color:#000; }
-  .ft-ligne:not(.actif) .ft-sens button[aria-pressed="true"] { background:#2a2a2a; color:#fff; }
+  .ft-sens button { padding:6px 11px; border:0; border-radius:999px; background:transparent; color:var(--doux); font:600 12.5px var(--police); cursor:pointer; white-space:nowrap; }
+  .ft-sens button[aria-pressed="true"] { background:#fff; color:#000; }
+  .ls-pied .ls-raz { margin-left:auto; padding:8px 13px; border-radius:999px; border:1px dashed var(--bord-fort); background:transparent; color:var(--doux); font:600 13px var(--police); cursor:pointer; }
   .ls-tris { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
   .ls-tris button { padding:8px 13px; border-radius:999px; border:1px solid var(--bord-fort); background:transparent; color:#fff; font:600 13px var(--police); cursor:pointer; }
   .ls-tris button[aria-pressed="true"] { background:#fff; color:#000; border-color:#fff; } .ls-tris i { font-style:normal; }
