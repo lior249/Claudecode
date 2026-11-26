@@ -354,6 +354,19 @@ Menu Gestion → **Événements** (`/admin/annonces`). Le logo du haut des pages
 - **Afficher jusqu'au** (7 jours par défaut) ; **Retirer de la bannière** à tout moment.
 - **Envoyer aussi une notification** (coché par défaut) : tous les élèves Elite la reçoivent (application ou Bob, image jointe sur Discord).
 
+## Espace du coach épuré
+
+- **Menu** : Mon profil (`/coach`), À traiter, Calendrier, Élèves Elite, Planifier, Classement, Notifications.
+  **Barre du bas** (téléphone) : Profil, À traiter (pastille), Calendrier, Planifier, Classement.
+  Candidatures, Membres, Pages du site et Site public ne sont plus dans le menu (les candidatures sont dans À traiter).
+- **À traiter** : une seule file, tout mélangé, le plus ancien d'abord, avec une étiquette sous chaque carte (Étape 1, Comptes rendus,
+  Candidatures, Accès au site…). Les filtres en haut sont rangés par nombre ; un clic n'affiche que cette catégorie.
+- **Élèves Elite** : vue **Kanban** ou **Liste**. En liste, tri par arrivée, rang, revenus, posts, régularité, étape ;
+  un clic : décroissant, deux : croissant, trois : retiré ; plusieurs critères à la fois (le premier choisi compte d'abord).
+- **Planifier** : **Événement** (bannière), **Remarque** à un élève, **Message à tous** (notification simple, sans bannière,
+  avec le test de notification).
+- **Mon profil (coach)** : pièce dorée, nombre d'élèves, revenus générés par tes élèves, à traiter, raccourcis, meilleurs élèves.
+
 ## Mon profil épuré (élèves)
 
 - **Menu** des élèves : Mon profil, Mon parcours, Mes coachings, Classement (« Site public » seulement pour le coach).

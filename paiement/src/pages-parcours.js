@@ -628,69 +628,80 @@ const STYLE_TRAITER = `<style>
   .carte-traiter .bouton { margin-top:auto; min-height:42px; }
   .carte-traiter .espace-bouton { flex:1; min-height:8px; }
   .vide-traiter { color:var(--gris); font-size:13px; margin:0; padding:14px 16px; border:1px dashed var(--bord); border-radius:14px; }
+  .puces-traiter a[aria-pressed="true"] { background:#fff; color:#000; border-color:#fff; } .puces-traiter a[aria-pressed="true"] b { background:#000; color:#fff; }
+  .tr-file { display:grid; gap:8px; max-width:820px; }
+  .tr-carte { display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:16px; background:var(--surface); border:1px solid var(--bord); }
+  .tr-carte[hidden] { display:none; }
+  .tr-corps { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; } .tr-corps b { font-size:15px; overflow-wrap:anywhere; } .tr-corps p { margin:2px 0 0; font-size:14px; }
+  .tr-bas { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:6px; }
+  .tr-tag { font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; border:1px solid var(--bord-fort); color:#ddd; }
+  .tr-tag[data-cat="etape-1"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="etape-2"] { color:#c8f23a; border-color:#4a5a15; }
+  .tr-tag[data-cat="etape-3"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="etape-4"] { color:#7ee0b0; border-color:#1f5a3d; }
+  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; }
+  .tr-tag[data-cat="candidatures"] { color:#d4b3ff; border-color:#4b2b7a; } .tr-tag[data-cat="acces"] { color:#fff; } .tr-tag[data-cat="retards"] { color:#ffcf6b; border-color:#6b4a0e; }
+  .tr-ouvrir { flex:none; width:auto !important; margin:0 !important; min-height:40px; padding:8px 16px; }
+  .tr-carte .choix-acces { flex:none; } .tr-carte .choix-acces .bouton { min-height:40px; padding:8px 14px; }
+  @media (max-width: 520px) { .tr-carte { flex-direction:column; align-items:stretch; } .tr-ouvrir { width:100% !important; } }
   .choix-acces { display:flex; gap:8px; margin:0; }
   .choix-acces .bouton { flex:1; margin:0; min-height:42px; padding-left:10px; padding-right:10px; }
 </style>`;
 
+// À traiter : une seule file, toutes les catégories mélangées (le plus ancien d'abord), avec une étiquette sous chaque carte.
+// Les filtres en haut, rangés par nombre (ceux qui restent le plus d'abord) : un clic n'affiche que cette catégorie.
 function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = [], fichesSinistre = [], roles = [], acces = [], accesRefuses = [], nomsOffres = {} }) {
   const nom = (p) => (p && (p.nom || p.pseudo)) || '?';
-  const carte = ({ qui, pseudo, quoi, quand, lien, bouton = 'Ouvrir', retard }) => `<div class="carte-traiter">
-    <span class="qui">${echapper(qui)}</span>${pseudo ? `<span class="pseudo">${echapper(pseudo)}</span>` : ''}
-    <span class="quoi">${echapper(quoi)}</span>${quand ? `<span class="quand">${echapper(quand)}</span>` : ''}
-    ${retard ? '<span><span class="etat" data-etat="corriger">En retard</span></span>' : ''}
-    <span class="espace-bouton"></span><a class="bouton${bouton === 'Ouvrir' ? '' : ' secondaire'}" href="${echapper(lien)}">${echapper(bouton)}</a></div>`;
-  const grille = (cartes) => (cartes.length ? `<div class="cartes-traiter">${cartes.join('')}</div>` : '<p class="vide-traiter">Rien à traiter.</p>');
-  const envoi = (s) => carte({ qui: nom(s.parcours), pseudo: s.parcours && s.parcours.pseudo,
-    quoi: s.etape === 1 ? `Exercice ${s.emplacement} · note de l'IA ${s.note} / 100` : `Vidéo ${s.emplacement.slice(1)}`,
-    quand: `Envoyé le ${formatDate(s.envoye_le)}`, lien: `/admin/envois/${s.id}` });
-  const etape1 = a.envois.filter((s) => s.etape === 1).map(envoi);
-  const etape2 = a.etape2.map((x) => carte({ qui: nom(x.parcours), pseudo: x.parcours.pseudo, quoi: 'Coaching d\'entrée fait : ouvre son étape 3',
-    quand: `Coaching du ${x.entree.date} à ${x.entree.heure} GMT`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}` }));
-  const etape3 = a.envois.filter((s) => s.etape === 3).map(envoi);
-  const etape4 = comptesRendus.map((cr) => carte({ qui: nom(cr.parcours), pseudo: cr.parcours && cr.parcours.pseudo, quoi: `Compte rendu du ${jourLisible(cr.jour)}`,
-    quand: `Envoyé le ${formatDate(cr.envoye_le)}`, lien: `/admin/comptes-rendus/${cr.id}` }));
-  const sinistres = fichesSinistre.map((s) => carte({ qui: nom(s.parcours), pseudo: s.parcours && s.parcours.pseudo, quoi: `Fiche de sinistre (${s.numero} / 3)`,
-    quand: `Remplie le ${formatDate(s.fiche_le)}`, lien: `/admin/membres/${encodeURIComponent(s.discord_id)}` }));
-  const recompenses = roles.map((r) => carte({ qui: nom(r.parcours), pseudo: r.parcours && r.parcours.pseudo, quoi: `Rôle ${nomRole(r.role)} à confirmer (${(ROLES[r.role] || {}).seuil || ''})`,
-    quand: `Seuil atteint le ${formatDate(r.atteint_le)}`, lien: `/admin/membres/${encodeURIComponent(r.discord_id)}` }));
-  const cand = (c, quoi) => carte({ qui: c.nom, pseudo: c.pseudo, quoi, quand: `Le ${formatDate(c.maj_le)}`, lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
-  const videosCand = candidatures.filter((c) => c.statut === 'video').map((c) => cand(c, 'Vidéo de présentation reçue'));
-  const nouvellesCand = candidatures.filter((c) => c.statut === 'examen').map((c) => cand(c, 'Formulaire de candidature à examiner'));
-  // Rôles donnés à la main : Oui (accès au site) ou Non, comme dans le message de Bob.
+  const items = [];
+  const ajouter = (cat, x) => items.push({ cat, ...x });
+  for (const s of a.envois) {
+    ajouter(s.etape === 1 ? 'etape-1' : 'etape-3', { qui: nom(s.parcours), pseudo: s.parcours && s.parcours.pseudo, quand: s.envoye_le,
+      quoi: s.etape === 1 ? `Exercice ${s.emplacement} · note de l'IA ${s.note} / 100` : `Vidéo ${s.emplacement.slice(1)} à valider`, lien: `/admin/envois/${s.id}` });
+  }
+  for (const x of a.etape2) {
+    ajouter('etape-2', { qui: nom(x.parcours), pseudo: x.parcours.pseudo, quand: `${x.entree.date}T${x.entree.heure}:00.000Z`,
+      quoi: `Coaching d'entrée fait (${x.entree.date} à ${x.entree.heure} GMT) : ouvre son étape 3`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}` });
+  }
+  for (const cr of comptesRendus) ajouter('etape-4', { qui: nom(cr.parcours), pseudo: cr.parcours && cr.parcours.pseudo, quand: cr.envoye_le, quoi: `Compte rendu du ${jourLisible(cr.jour)}`, lien: `/admin/comptes-rendus/${cr.id}` });
+  for (const r of roles) ajouter('roles', { qui: nom(r.parcours), pseudo: r.parcours && r.parcours.pseudo, quand: r.atteint_le, quoi: `Rôle ${nomRole(r.role)} à confirmer (${(ROLES[r.role] || {}).seuil || ''})`, lien: `/admin/membres/${encodeURIComponent(r.discord_id)}` });
+  for (const x of fichesSinistre) ajouter('sinistres', { qui: nom(x.parcours), pseudo: x.parcours && x.parcours.pseudo, quand: x.fiche_le, quoi: `Fiche de sinistre (${x.numero} / 3)`, lien: `/admin/membres/${encodeURIComponent(x.discord_id)}` });
+  for (const c of candidatures) {
+    ajouter('candidatures', { qui: c.nom, pseudo: c.pseudo, quand: c.maj_le, quoi: c.statut === 'video' ? 'Vidéo de présentation reçue' : 'Formulaire de candidature à examiner', lien: `/admin/candidatures/${c.id}`, bouton: 'Inspecter' });
+  }
   const decision = (x, libelles) => `<form method="post" action="/admin/acces/${encodeURIComponent(x.programme)}/${encodeURIComponent(x.discord_id)}" class="choix-acces">
       ${libelles.map(([valeur, texte, classe]) => `<button class="bouton ${classe}" type="submit" name="decision" value="${valeur}">${echapper(texte)}</button>`).join('')}</form>`;
-  const offre = (x) => nomsOffres[x.programme] || x.programme;
-  const accesCartes = acces.map((x) => `<div class="carte-traiter">
-    <span class="qui">${echapper(x.pseudo || x.discord_id)}</span><span class="pseudo">Rôle ${echapper(offre(x))}${x.donne_par ? ` · donné par ${echapper(x.donne_par)}` : ''}</span>
-    <span class="quoi">${x.ancien ? 'A déjà accès au site (avant la validation) : il le garde en attendant ta réponse.' : 'N\'a pas payé sur le site.'}</span>
-    <span class="quand">Repéré le ${echapper(formatDate(x.demande_le))}</span>
-    <span class="espace-bouton"></span>${decision(x, [['non', x.ancien ? 'Retirer' : 'Non', 'secondaire'], ['oui', x.ancien ? 'Garder' : 'Oui', 'vert']])}</div>`);
-  const refusesCartes = accesRefuses.map((x) => `<div class="carte-traiter">
-    <span class="qui">${echapper(x.pseudo || x.discord_id)}</span><span class="pseudo">Rôle ${echapper(offre(x))}</span>
-    <span class="quand">Refusé le ${echapper(formatDate(x.decide_le))}</span>
-    <span class="espace-bouton"></span>${decision(x, [['oui', 'Donner l\'accès', 'secondaire']])}</div>`);
-  const retards = a.retards.map((x) => carte({ qui: nom(x.parcours), pseudo: x.parcours.pseudo, quoi: `Étape ${x.parcours.etape} : ${x.tache.titre}`,
-    lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, bouton: 'Voir sa fiche', retard: true }));
-  const sections = [
-    { id: 'etape-1', puce: 'Étape 1', titre: 'Étape 1 · Exercices à valider', aide: 'Exercices L1 et L2 : tes remarques, puis Valider.', n: etape1.length, corps: grille(etape1) },
-    { id: 'etape-2', puce: 'Étape 2', titre: 'Étape 2 · Étape 3 à ouvrir', aide: 'Coaching d\'entrée fait : note son compte, sa niche et son pays, puis ouvre son étape 3.', n: etape2.length, corps: grille(etape2) },
-    { id: 'etape-3', puce: 'Étape 3', titre: 'Étape 3 · Vidéos à valider', aide: 'Ses 3 vidéos avant publication : Demander des modifications ou Valider.', n: etape3.length, corps: grille(etape3) },
-    { id: 'etape-4', puce: 'Étape 4', titre: 'Étape 4 · Comptes rendus', aide: 'Les résultats de ses vidéos : Demander des modifications ou Valider. Les revenus validés font avancer ses objectifs.', n: etape4.length, corps: grille(etape4) },
-    { id: 'roles', puce: 'Rôles', titre: 'GOAT et rôles de revenus à confirmer', aide: 'Seuil atteint d\'après ses comptes rendus validés : confirme, et Bob donne le rôle.', n: recompenses.length, corps: grille(recompenses) },
-    { id: 'sinistres', puce: 'Sinistrés', titre: 'Fiches de sinistre', aide: 'Lis sa fiche : Demander des précisions ou Réhabiliter.', n: sinistres.length, corps: grille(sinistres) },
-    { id: 'acces', puce: 'Accès au site', titre: 'Rôles donnés à la main', aide: 'Ils ont le rôle sur Discord sans avoir payé sur le site. Oui : il a accès au site. Non : pas d\'accès au site, son rôle Discord reste.',
-      n: accesCartes.length, corps: grille(accesCartes) + (refusesCartes.length ? `<h3 class="sous">Refusés (${refusesCartes.length})</h3><div class="cartes-traiter">${refusesCartes.join('')}</div>` : '') },
-    { id: 'demandes', puce: 'Demandes d\'intégration', titre: 'Demandes d\'intégration', aide: 'Les candidats retenus qui ont envoyé leur vidéo passent avant les nouvelles candidatures.',
-      n: videosCand.length + nouvellesCand.length,
-      corps: `<h3 class="sous">Vidéos de présentation (${videosCand.length})</h3>${grille(videosCand)}<h3 class="sous">Nouvelles candidatures (${nouvellesCand.length})</h3>${grille(nouvellesCand)}` },
-  ];
-  if (retards.length) sections.push({ id: 'retards', puce: 'En retard', titre: 'En retard', aide: 'Pour information : Bob les relance déjà toutes les 12 heures.', n: retards.length, corps: grille(retards) });
-  const total = sections.filter((x) => x.id !== 'retards').reduce((t, x) => t + x.n, 0);
+  for (const x of acces) {
+    ajouter('acces', { qui: x.pseudo || x.discord_id, pseudo: `Rôle ${nomsOffres[x.programme] || x.programme}${x.donne_par ? ` · donné par ${x.donne_par}` : ''}`, quand: x.demande_le,
+      quoi: x.ancien ? 'A déjà accès au site (avant la validation) : il le garde en attendant ta réponse.' : 'Rôle donné à la main, sans paiement sur le site : lui ouvrir le site ?',
+      actions: decision(x, [['non', x.ancien ? 'Retirer' : 'Non', 'secondaire'], ['oui', x.ancien ? 'Garder' : 'Oui', 'vert']]) });
+  }
+  // Pour information : en retard (Bob les relance déjà), après le reste.
+  const retards = a.retards.map((x) => ({ cat: 'retards', qui: nom(x.parcours), pseudo: x.parcours.pseudo, quand: x.tache.delai && x.tache.delai.fin,
+    quoi: `Étape ${x.parcours.etape} : ${x.tache.titre}`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, bouton: 'Voir sa fiche' }));
+  items.sort((x, y) => String(x.quand || '').localeCompare(String(y.quand || '')));
+  const tous = [...items, ...retards];
+  const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['etape-4', 'Comptes rendus'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
+    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['retards', 'En retard']];
+  const nb = (c) => tous.filter((x) => x.cat === c).length;
+  const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
+  const libelle = Object.fromEntries(CATS);
+  const carte = (x) => `<div class="tr-carte" data-cat="${x.cat}">
+    <div class="tr-corps"><b>${echapper(x.qui)}</b>${x.pseudo ? `<span class="doux petit">${echapper(x.pseudo)}</span>` : ''}<p>${echapper(x.quoi)}</p>
+      <span class="tr-bas"><span class="tr-tag" data-cat="${x.cat}">${echapper(libelle[x.cat])}</span>${x.quand ? `<span class="doux petit">${echapper(formatDate(x.quand))}</span>` : ''}</span></div>
+    ${x.actions || `<a class="bouton${x.bouton ? ' secondaire' : ''} tr-ouvrir" href="${echapper(x.lien)}">${echapper(x.bouton || 'Ouvrir')}</a>`}</div>`;
   return page('À traiter', `${STYLE_TRAITER}
-  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>À traiter</h1></div><span class="doux petit">${total} en attente de ta décision</span></div>
-  <nav class="puces-traiter" aria-label="Catégories">${sections.map((x) => `<a href="#${x.id}"${x.n ? '' : ' data-vide'}>${echapper(x.puce)}<b>${x.n}</b></a>`).join('')}</nav>
-  ${sections.map((x) => `<section class="section-traiter" id="${x.id}"><div class="tete"><h2>${echapper(x.titre)}</h2><span class="doux petit">${x.n} à traiter</span></div>
-    <p>${echapper(x.aide)}</p>${x.corps}</section>`).join('')}`, espace, 'traiter');
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>À traiter</h1></div><span class="doux petit">${items.length} en attente de ta décision</span></div>
+  <nav class="puces-traiter" aria-label="Filtres"><a href="#" data-filtre="" aria-pressed="true">Tout<b>${items.length}</b></a>${filtres.map((x) => `<a href="#" data-filtre="${x.c}"${x.n ? '' : ' data-vide'}>${echapper(x.l)}<b>${x.n}</b></a>`).join('')}</nav>
+  <div class="tr-file">${tous.map(carte).join('') || '<p class="vide-traiter">Rien à traiter. Bravo !</p>'}</div>
+  ${accesRefuses.length ? `<details class="carte" style="margin-top:18px"><summary>Accès au site refusés (${accesRefuses.length})</summary><div style="display:grid;gap:8px;margin-top:10px">
+    ${accesRefuses.map((x) => `<div class="tr-carte"><div class="tr-corps"><b>${echapper(x.pseudo || x.discord_id)}</b><span class="doux petit">Rôle ${echapper(nomsOffres[x.programme] || x.programme)} · refusé le ${echapper(formatDate(x.decide_le))}</span></div>
+      ${decision(x, [['oui', 'Donner l\'accès', 'secondaire']])}</div>`).join('')}</div></details>` : ''}
+  <script>(function () {
+    var puces = document.querySelectorAll('[data-filtre]'), cartes = document.querySelectorAll('.tr-file .tr-carte');
+    puces.forEach(function (p) { p.addEventListener('click', function (e) {
+      e.preventDefault(); var f = p.getAttribute('data-filtre');
+      puces.forEach(function (x) { x.setAttribute('aria-pressed', x === p ? 'true' : 'false'); });
+      cartes.forEach(function (c) { c.hidden = Boolean(f) && c.getAttribute('data-cat') !== f; });
+    }); });
+  })();</script>`, espace, 'traiter');
 }
 
 // ---------- Coach : valider un envoi ----------

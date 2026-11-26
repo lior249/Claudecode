@@ -1,5 +1,7 @@
 'use strict';
 
+const { pastilleRole, STYLE_ROLES } = require('./roles');
+
 // Tableau des élèves Elite (Kanban) : une colonne par étape (1 à 4), et GOAT en lecture seule.
 // Le coach glisse un élève vers une autre étape (ou touche « Déplacer » sur téléphone) ; vers l'avant, il confirme
 // en voyant tout ce qui n'a pas été validé sur la plateforme. Le compte TikTok est demandé à partir de l'étape 3.
@@ -72,7 +74,63 @@ function carte(e) {
   </article>`;
 }
 
-function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur }) {
+// Vue liste : une ligne par élève, triable par plusieurs critères à la fois (dans l'ordre où on les choisit), croissant ou décroissant.
+const CRITERES = [['entree', 'Arrivée'], ['rang', 'Rang'], ['revenus', 'Revenus'], ['videos', 'Posts'], ['regularite', 'Régularité'], ['etape', 'Étape']];
+function vueListe(eleves) {
+  const lignes = eleves.map((e) => `<a class="ls-ligne" href="/admin/membres/${encodeURIComponent(e.id)}" data-entree="${echapper(e.entree)}" data-rang="${e.rang}" data-revenus="${e.revenus}"
+      data-videos="${e.videos}" data-regularite="${e.chaine * 1000 + e.joursCr}" data-etape="${e.etape}" data-nom="${echapper(e.nom)}">
+    <span class="ls-nom"><b>${echapper(e.nom)}</b><small>${e.pseudo ? `@${echapper(e.pseudo)} · ` : ''}arrivé le ${echapper(e.entree.split('-').reverse().join('/'))}</small></span>
+    <span class="ls-col">${pastilleRole(e.role)}</span>
+    <span class="ls-col"><b>$${Math.round(e.revenus).toLocaleString('en-US')}</b><small>revenus</small></span>
+    <span class="ls-col"><b>${e.videos}</b><small>posts</small></span>
+    <span class="ls-col"><b>${e.chaine >= 3 ? `🔥 ${e.chaine}` : e.chaine}</b><small>${e.joursCr} j suivis</small></span>
+    <span class="ls-col"><b>${e.etape >= 5 ? 'GOAT' : `Étape ${e.etape}`}</b>${e.sinistre ? '<small class="rouge">sinistré</small>' : ''}</span></a>`).join('');
+  return `${STYLE_ROLES}<div class="ls-tris" role="group" aria-label="Trier">${CRITERES.map(([c, l]) => `<button type="button" data-tri="${c}">${l}<i></i></button>`).join('')}
+    <button type="button" class="ls-raz">Effacer</button></div>
+  <p class="doux petit" style="margin:0 0 10px">Touche un critère : ↓ décroissant, encore : ↑ croissant, encore : enlevé. Plusieurs à la fois : le premier choisi compte d'abord.</p>
+  <div class="ls-liste">${lignes || '<p class="vide-traiter">Aucun élève.</p>'}</div>
+  <script>(function () {
+    var liste = document.querySelector('.ls-liste'), choix = [];
+    function trier() {
+      var l = Array.prototype.slice.call(liste.querySelectorAll('.ls-ligne'));
+      l.sort(function (a, b) {
+        for (var i = 0; i < choix.length; i++) {
+          var c = choix[i].c, x = a.getAttribute('data-' + c), y = b.getAttribute('data-' + c);
+          var d = c === 'entree' ? x.localeCompare(y) : (+x) - (+y);
+          if (d) return choix[i].sens === 'desc' ? -d : d;
+        }
+        return a.getAttribute('data-nom').localeCompare(b.getAttribute('data-nom'), 'fr');
+      });
+      l.forEach(function (x) { liste.appendChild(x); });
+      document.querySelectorAll('[data-tri]').forEach(function (b) {
+        var k = -1; choix.forEach(function (t, i) { if (t.c === b.getAttribute('data-tri')) k = i; });
+        b.setAttribute('aria-pressed', k >= 0 ? 'true' : 'false');
+        b.querySelector('i').textContent = k >= 0 ? (choix[k].sens === 'desc' ? ' ↓' : ' ↑') + (choix.length > 1 ? ' ' + (k + 1) : '') : '';
+      });
+    }
+    document.querySelectorAll('[data-tri]').forEach(function (b) { b.addEventListener('click', function () {
+      var c = b.getAttribute('data-tri'), t = choix.filter(function (x) { return x.c === c; })[0];
+      if (!t) choix.push({ c: c, sens: 'desc' }); else if (t.sens === 'desc') t.sens = 'asc'; else choix = choix.filter(function (x) { return x !== t; });
+      trier();
+    }); });
+    document.querySelector('.ls-raz').addEventListener('click', function () { choix = []; trier(); });
+  })();</script>`;
+}
+const STYLE_LISTE = `<style>
+  .vues { display:inline-grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; border-radius:999px; background:var(--surface-2,#151515); margin:0 0 14px; }
+  .vues a { padding:8px 18px; border-radius:999px; color:var(--doux); font-weight:700; font-size:14px; text-decoration:none; text-align:center; }
+  .vues a[aria-current] { background:#fff; color:#000; }
+  .ls-tris { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+  .ls-tris button { padding:8px 13px; border-radius:999px; border:1px solid var(--bord-fort); background:transparent; color:#fff; font:600 13px var(--police); cursor:pointer; }
+  .ls-tris button[aria-pressed="true"] { background:#fff; color:#000; border-color:#fff; } .ls-tris i { font-style:normal; }
+  .ls-tris .ls-raz { color:var(--doux); border-style:dashed; }
+  .ls-liste { display:grid; gap:6px; }
+  .ls-ligne { display:grid; grid-template-columns:minmax(0, 2fr) repeat(5, minmax(0, 1fr)); gap:10px; align-items:center; padding:12px 14px; border-radius:14px; background:var(--surface); border:1px solid var(--bord); color:#fff; text-decoration:none; }
+  .ls-nom { display:flex; flex-direction:column; min-width:0; } .ls-nom b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .ls-nom small { color:var(--doux); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ls-col { display:flex; flex-direction:column; align-items:flex-start; font-size:13.5px; } .ls-col small { color:var(--doux); font-size:11.5px; } .ls-col .rouge { color:#ff8f8f; }
+  @media (max-width: 720px) { .ls-ligne { grid-template-columns:1fr 1fr 1fr; } .ls-nom { grid-column:1 / -1; } }
+</style>`;
+function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur, vue = 'kanban' }) {
   const parColonne = (n) => eleves.filter((e) => (n === 5 ? e.etape >= 5 : e.etape === n));
   const donnees = {};
   for (const e of eleves) donnees[e.id] = { nom: e.nom, etape: e.etape, compte: e.compte || '', niche: e.niche || '', pays: e.pays || '', niveau: e.niveau || '', entree: e.entree || '', manquants: e.manquants };
@@ -182,9 +240,10 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur 
   <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Élèves Elite</h1></div><span class="doux petit">${eleves.length} élève(s)</span></div>
   ${message ? `<p class="message-ok" style="color:var(--ok);font-weight:600">${echapper(message)}</p>` : ''}
   ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
-  <p class="doux" style="margin:0 0 12px">Glisse un élève vers une autre étape (ou touche <b>Déplacer</b>). Tu peux le faire passer de l'étape 1 à l'étape 4 ;
+  ${STYLE_LISTE}<nav class="vues" aria-label="Vue"><a href="/admin/eleves"${vue === 'kanban' ? ' aria-current="page"' : ''}>Kanban</a><a href="/admin/eleves?vue=liste"${vue === 'liste' ? ' aria-current="page"' : ''}>Liste</a></nav>
+  ${vue === 'liste' ? vueListe(eleves) : `<p class="doux" style="margin:0 0 12px">Glisse un élève vers une autre étape (ou touche <b>Déplacer</b>). Tu peux le faire passer de l'étape 1 à l'étape 4 ;
     GOAT se gagne seulement avec les résultats suivis sur la plateforme.</p>
-  <div class="kanban">${colonnes}</div>
+  <div class="kanban">${colonnes}</div>`}
   <form class="carte ajout" method="post" action="/admin/eleves/ajouter" style="margin-top:16px">
     <div class="champ"><label for="a-pseudo">Ajouter un élève déjà accompagné (pseudo Discord)</label><input id="a-pseudo" name="pseudo" placeholder="ex. awa_27" required autocapitalize="none" autocorrect="off" spellcheck="false"></div>
     <div class="champ"><label for="a-entree">Entrée dans l'accompagnement</label><input id="a-entree" name="entree" type="date"></div>

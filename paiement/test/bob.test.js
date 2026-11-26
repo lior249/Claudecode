@@ -452,7 +452,10 @@ test('espace de gestion : barre latérale (admin), page Membres réservée à l\
     assert.match(page, /<th>Paiement<\/th>/, 'une seule liste, le moyen de paiement en colonne');
     assert.match(page, /awa@example\.com/);
     assert.match(page, /class="sidebar"/);
-    assert.match(page, /href="\/admin\/candidatures"/);
+    // Menu du coach épuré : Mon profil, À traiter, Calendrier, Élèves Elite, Planifier (les candidatures sont dans À traiter).
+    assert.match(page, /href="\/coach"[\s\S]*href="\/admin\/a-traiter"[\s\S]*href="\/admin"[\s\S]*href="\/admin\/eleves"[\s\S]*href="\/admin\/planifier"/);
+    assert.doesNotMatch(page, /class="sb-lien[^"]*" href="\/admin\/(candidatures|membres|pages)"/);
+    assert.match(page, /class="barre-bas"[^>]*repeat\(5/, 'barre du bas du coach : 5 boutons');
     assert.strictEqual((await m.get('/admin/membres', { cookie: cookieSession('E1') })).status, 403);
     // Un membre Elite n'a pas les liens de gestion dans sa barre.
     const coaching = await (await m.get('/coaching', { cookie: cookieSession('E1', 'awa') })).text();
@@ -769,7 +772,7 @@ test('rôle donné à la main : Bob demande au coach Oui ou Non ; Oui ouvre le s
     assert.match(versAdmin()[1][1], /pseudo_M2[\s\S]*Overmaxx Community[\s\S]*Si c'est un paiement par carte sur Whop, réponds Oui/);
     const admin = { cookie: cookieSession(ADMIN, 'coach') };
     let page = await (await m.get('/admin/a-traiter', admin)).text();
-    assert.match(page, /Rôles donnés à la main[\s\S]*pseudo_M2/);
+    assert.match(page, /pseudo_M2[\s\S]*Rôle donné à la main[\s\S]*data-cat="acces">Accès au site/);
     assert.match(page, /action="\/admin\/acces\/community\/M2"/);
     const rep = await m.poster('/admin/acces/community/M2', { decision: 'non' }, admin);
     assert.strictEqual(rep.status, 303);
@@ -795,7 +798,7 @@ test('rôle donné à la main : Bob demande au coach Oui ou Non ; Oui ouvre le s
     assert.ok(!m.parcours.tous().some((p) => p.discord_id === 'L1'), 'hors du tableau des élèves et du classement');
     assert.ok(m.parcours.get('L1'), 'rien n\'est effacé');
     page = await (await m.get('/admin/a-traiter', admin)).text();
-    assert.match(page, /Refusés \(2\)[\s\S]*pseudo_L1/);
+    assert.match(page, /Accès au site refusés \(2\)[\s\S]*pseudo_L1/);
     await m.poster('/admin/acces/elite/L1', { decision: 'oui' }, admin);
     assert.strictEqual((await m.get('/parcours', eleve)).status, 200, 'accès rouvert, parcours retrouvé');
 

@@ -64,13 +64,11 @@ function navEspace(espace = {}) {
   const nav = [];
   if (espace.estAdmin) {
     nav.push({ section: 'Gestion' },
-      { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
+      { cle: 'coach', libelle: 'Mon profil', lien: '/coach', icone: 'profil' },
       { cle: 'traiter', libelle: 'À traiter', lien: '/admin/a-traiter', icone: 'traiter', badge: espace.aTraiterParcours || null },
-      { cle: 'candidatures', libelle: 'Candidatures', lien: '/admin/candidatures', icone: 'candidatures', badge: espace.aTraiter || null },
+      { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
       { cle: 'eleves', libelle: 'Élèves Elite', lien: '/admin/eleves', icone: 'eleves' },
-      { cle: 'membres', libelle: 'Membres', lien: '/admin/membres', icone: 'membres' },
-      { cle: 'annonces', libelle: 'Événements', lien: '/admin/annonces', icone: 'annonces' },
-      { cle: 'pages', libelle: 'Pages du site', lien: '/admin/pages', icone: 'pages' });
+      { cle: 'planifier', libelle: 'Planifier', lien: '/admin/planifier', icone: 'annonces' });
   }
   // Le coach (admin) ne réserve pas de séance : pas de « Mes coachings » pour lui.
   if (!espace.estAdmin) {
@@ -84,7 +82,6 @@ function navEspace(espace = {}) {
   }
   nav.push({ cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' });
   if (!espace.parcours || espace.estAdmin) nav.push({ cle: 'notifications', libelle: 'Notifications', lien: '/notifications', icone: 'notifications', badge: espace.notifsNonLues || null });
-  if (espace.estAdmin) nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/', icone: 'site', externe: true });
   return nav;
 }
 
@@ -93,7 +90,14 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
   return gabaritEspace(titre, `${STYLE_GRILLE}${STYLE_BUREAU}${contenu}`, {
     ...options, nav: navEspace(espace), actif, jetonApp: espace && espace.jetonApp, evenements: (espace && espace.evenements) || [],
     // Élèves de l'accompagnement : la barre du bas sur téléphone.
-    barreBas: espace && espace.parcours && !espace.estAdmin ? [
+    // Le coach : Profil, À traiter, Calendrier, Planifier, Classement.
+    barreBas: espace && espace.estAdmin ? [
+      { cle: 'coach', libelle: 'Profil', lien: '/coach', icone: 'profil' },
+      { cle: 'traiter', libelle: 'À traiter', lien: '/admin/a-traiter', icone: 'traiter', badge: espace.aTraiterParcours || 0 },
+      { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
+      { cle: 'planifier', libelle: 'Planifier', lien: '/admin/planifier', icone: 'annonces' },
+      { cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' }]
+      : espace && espace.parcours ? [
       { cle: 'profil', libelle: 'Profil', lien: '/profil', icone: 'profil' },
       { cle: 'remarques', libelle: 'Remarques', lien: '/remarques', icone: 'remarques', badge: espace.remarquesNouvelles || 0 },
       { cle: 'notifications', libelle: 'Mes rappels', lien: '/notifications', icone: 'notifications', badge: espace.notifsNonLues || 0 },

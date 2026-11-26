@@ -446,46 +446,107 @@ const SCRIPT_ANNONCE = `(function () {
     if (img.complete) calc(); else img.onload = calc;
   }).observe(apercus, { childList: true });
 })();`;
-function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, message, erreur, test, maintenant = new Date().toISOString() }) {
+// Planifier (coach) : trois onglets. Événement (bannière, notification facultative), Remarque à un élève, Message à tous les élèves.
+const STYLE_PLANIFIER = `<style>
+  .pl-onglets { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; padding:4px; border-radius:999px; background:var(--surface-2,#151515); margin:0 0 16px; max-width:640px; }
+  .pl-onglets a { padding:10px 6px; border-radius:999px; color:var(--doux); font-weight:700; font-size:13.5px; text-decoration:none; text-align:center; }
+  .pl-onglets a[aria-current] { background:#fff; color:#000; }
+</style>`;
+const dateCourte = (iso) => new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = [], onglet = 'evenement', message, erreur, test, maintenant = new Date().toISOString() }) {
   const fin7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
-  const enCours = (a) => (a.fin_le ? a.fin_le > maintenant : a.cree_le > new Date(Date.now() - 7 * 864e5).toISOString());
-  return page('Événements', `
-  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Événements et annonces</h1></div><span class="doux petit">${nbEleves} élève(s) Elite</span></div>
-  <p class="doux" style="max-width:640px;margin:0 0 12px">Chaque événement s'affiche dans la bannière en haut des pages des élèves (plusieurs : elles défilent).
-    Image au format <b>16:5</b> (par exemple 1600 × 500 px), sans texte : le titre s'écrit à gauche, sur la couleur dominante.</p>
-  ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
-  <form class="carte" method="post" action="/admin/notifications/test" style="display:grid;gap:10px;max-width:640px">
-    <h2 style="margin:0">Tester une notification</h2>
-    <p class="doux petit" style="margin:0">Envoyée à ce seul compte : dans l'application ou par Bob, et rangée dans ses notifications (pastille rouge sur sa cloche).</p>
-    ${test ? `<p class="message-ok" style="margin:0">${echapper(test)}</p>` : ''}
-    <div style="display:flex;gap:8px"><input name="pseudo" placeholder="Pseudo Discord, ex. @ton_compte_test" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="41" required>
-      <button class="bouton secondaire" type="submit" style="margin:0;width:auto;white-space:nowrap">Envoyer un test</button></div>
-  </form>
-  <form id="form-annonce" class="carte" method="post" action="/admin/annonces" data-n="${nbEleves}" style="display:grid;gap:12px;max-width:640px">
-    <div class="champ"><label for="titre">Titre</label><input id="titre" name="titre" maxlength="120" required placeholder="ex. Live de groupe ce soir à 21 h"></div>
-    <div class="champ"><label for="texte">Message</label><textarea id="texte" name="texte" maxlength="1800" required placeholder="Colle ton texte ici."></textarea></div>
-    <button id="ajouter-lien" class="bouton secondaire" type="button" style="margin:0;width:auto;justify-self:start">+ Ajouter un lien</button>
+  const estMessage = (a) => a.fin_le && a.fin_le === a.cree_le; // message seul : jamais dans la bannière
+  const enCours = (a) => !estMessage(a) && (a.fin_le ? a.fin_le > maintenant : a.cree_le > new Date(Date.now() - 7 * 864e5).toISOString());
+  const recu = (a) => (a.notifier === 0 ? 'sans notification' : a.envoyes === null ? 'envoi en cours…' : `reçu par ${a.envoyes} / ${a.destinataires}`);
+  const onglets = `<nav class="pl-onglets" aria-label="Planifier">${[['evenement', 'Événement'], ['remarque', 'Remarque'], ['message', 'Message à tous']]
+    .map(([c, l]) => `<a href="/admin/planifier${c === 'evenement' ? '' : `?onglet=${c}`}"${onglet === c ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const lien = `<button id="ajouter-lien" class="bouton secondaire" type="button" style="margin:0;width:auto;justify-self:start">+ Ajouter un lien</button>
     <div id="zone-lien" class="champ" hidden><label for="lien">Lien</label>
       <div style="display:flex;gap:8px"><input id="lien" name="lien" inputmode="url" placeholder="https://… ou une page du site : /parcours/etape-4">
       <button id="retirer-lien" class="bouton secondaire" type="button" style="margin:0;width:auto">Retirer</button></div>
-      <small>Une page du site (/parcours, /coaching…) ouvre l'espace de chaque élève, déjà connecté.</small></div>
-    <div data-images="/admin/images" data-une>
-      <label class="fichier">${ICONE.plus}<span><b>Ajouter une image</b><br>Format 16:5, sans texte (facultatif)</span><input type="file" accept="image/*" hidden></label>
-      <input type="hidden" name="images" value=""><div class="apercus" style="margin-top:8px"></div></div>
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:end">
-      <div class="champ"><label for="couleur">Couleur dominante</label><input id="couleur" name="couleur" type="color" value="#1a1a1a" style="width:64px;height:44px;padding:2px"></div>
-      <div class="champ"><label for="fin">Afficher jusqu'au</label><input id="fin" name="fin" type="date" value="${fin7}"></div>
-    </div>
-    <small class="doux" style="margin-top:-6px">La couleur se règle toute seule d'après le côté gauche de l'image ; tu peux la changer.</small>
-    <label style="display:flex;gap:10px;align-items:center;font-weight:600"><input type="checkbox" name="notifier" value="1" checked style="width:auto;margin:0"> Envoyer aussi une notification à tous les élèves</label>
-    <button class="bouton" type="submit" style="margin:0">Publier</button>
-  </form>
-  <h2 style="font-size:16px;margin:22px 0 10px">Événements publiés</h2>
-  <div style="display:grid;gap:8px;max-width:640px">${annonces.map((a) => `<div class="carte" style="margin:0"><b>${echapper(a.titre)}</b>
-    <p class="doux petit" style="margin:4px 0 0">${echapper(new Date(a.cree_le).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }))} GMT ·
-    ${enCours(a) ? 'dans la bannière' : 'terminé'} · ${a.notifier === 0 ? 'sans notification' : a.envoyes === null ? 'envoi en cours…' : `reçu par ${a.envoyes} / ${a.destinataires}`}${a.lien ? ` · lien : ${echapper(a.lien)}` : ''}${a.image ? ' · avec image' : ''}</p>
-    ${enCours(a) ? `<form method="post" action="/admin/annonces/${a.id}/retirer" style="margin:8px 0 0"><button class="bouton secondaire" type="submit" style="margin:0;width:auto">Retirer de la bannière</button></form>` : ''}</div>`).join('') || '<p class="vide-traiter">Aucun événement pour le moment.</p>'}</div>`,
-  espace, 'annonces', null, SCRIPT_ANNONCE);
+      <small>Une page du site (/parcours, /coaching…) ouvre l'espace de chaque élève, déjà connecté.</small></div>`;
+  let corps;
+  if (onglet === 'remarque') {
+    corps = `<form class="carte" method="post" action="/admin/planifier/remarque" style="display:grid;gap:12px;max-width:640px">
+      <p class="doux petit" style="margin:0">Elle s'affiche dans ses Remarques du coach (pastille rouge sur sa bulle), et Bob le prévient.</p>
+      <div class="champ"><label for="eleve">Élève</label><select id="eleve" name="eleve" required><option value="">Choisis un élève</option>
+        ${eleves.map((e) => `<option value="${echapper(e.id)}">${echapper(e.nom)}${e.pseudo ? ` (@${echapper(e.pseudo)})` : ''} · étape ${e.etape >= 5 ? 'GOAT' : e.etape}</option>`).join('')}</select></div>
+      <div class="champ"><label for="texte">Remarque</label><textarea id="texte" name="texte" maxlength="2000" required placeholder="Ce qui va, ce qu'il doit changer…"></textarea></div>
+      <div data-images="/admin/images"><label class="fichier">${ICONE.plus}<span><b>Joindre des images</b><br>Captures, exemples… (facultatif)</span><input type="file" accept="image/*" multiple hidden></label>
+        <input type="hidden" name="images" value=""><div class="apercus" style="margin-top:8px"></div></div>
+      <button class="bouton" type="submit" style="margin:0">Envoyer la remarque</button></form>`;
+  } else if (onglet === 'message') {
+    const messages = annonces.filter(estMessage);
+    corps = `<form id="form-annonce" class="carte" method="post" action="/admin/planifier/message" data-n="${nbEleves}" style="display:grid;gap:12px;max-width:640px">
+      <p class="doux petit" style="margin:0">Une simple notification à tous les élèves Elite (application ou Bob), sans bannière.</p>
+      <div class="champ"><label for="titre">Titre</label><input id="titre" name="titre" maxlength="120" required placeholder="ex. Pense à ton compte rendu"></div>
+      <div class="champ"><label for="texte">Message</label><textarea id="texte" name="texte" maxlength="1800" required placeholder="Colle ton texte ici."></textarea></div>
+      ${lien}<input type="hidden" name="notifier" value="1">
+      <button class="bouton" type="submit" style="margin:0">Envoyer à tous les élèves</button></form>
+    <form class="carte" method="post" action="/admin/notifications/test" style="display:grid;gap:10px;max-width:640px">
+      <h2 style="margin:0">Tester une notification</h2>
+      <p class="doux petit" style="margin:0">Envoyée à ce seul compte : dans l'application ou par Bob, et rangée dans ses notifications (pastille rouge sur sa cloche).</p>
+      ${test ? `<p class="message-ok" style="margin:0">${echapper(test)}</p>` : ''}
+      <div style="display:flex;gap:8px"><input name="pseudo" placeholder="Pseudo Discord, ex. @ton_compte_test" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="41" required>
+        <button class="bouton secondaire" type="submit" style="margin:0;width:auto;white-space:nowrap">Envoyer un test</button></div></form>
+    <h2 style="font-size:16px;margin:22px 0 10px">Messages envoyés</h2>
+    <div style="display:grid;gap:8px;max-width:640px">${messages.map((a) => `<div class="carte" style="margin:0"><b>${echapper(a.titre)}</b>
+      <p class="doux petit" style="margin:4px 0 0">${echapper(dateCourte(a.cree_le))} GMT · ${recu(a)}</p></div>`).join('') || '<p class="vide-traiter">Aucun message pour le moment.</p>'}</div>`;
+  } else {
+    const evenements = annonces.filter((a) => !estMessage(a));
+    corps = `<p class="doux" style="max-width:640px;margin:0 0 12px">Chaque événement s'affiche dans la bannière en haut des pages des élèves (plusieurs : elles défilent).
+      Image au format <b>16:5</b> (par exemple 1600 × 500 px), sans texte : le titre s'écrit à gauche, sur la couleur dominante.</p>
+    <form id="form-annonce" class="carte" method="post" action="/admin/annonces" data-n="${nbEleves}" style="display:grid;gap:12px;max-width:640px">
+      <div class="champ"><label for="titre">Titre</label><input id="titre" name="titre" maxlength="120" required placeholder="ex. Live de groupe ce soir à 21 h"></div>
+      <div class="champ"><label for="texte">Message</label><textarea id="texte" name="texte" maxlength="1800" required placeholder="Colle ton texte ici."></textarea></div>
+      ${lien}
+      <div data-images="/admin/images" data-une>
+        <label class="fichier">${ICONE.plus}<span><b>Ajouter une image</b><br>Format 16:5, sans texte (facultatif)</span><input type="file" accept="image/*" hidden></label>
+        <input type="hidden" name="images" value=""><div class="apercus" style="margin-top:8px"></div></div>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:end">
+        <div class="champ"><label for="couleur">Couleur dominante</label><input id="couleur" name="couleur" type="color" value="#1a1a1a" style="width:64px;height:44px;padding:2px"></div>
+        <div class="champ"><label for="fin">Afficher jusqu'au</label><input id="fin" name="fin" type="date" value="${fin7}"></div>
+      </div>
+      <small class="doux" style="margin-top:-6px">La couleur se règle toute seule d'après le côté gauche de l'image ; tu peux la changer.</small>
+      <label style="display:flex;gap:10px;align-items:center;font-weight:600"><input type="checkbox" name="notifier" value="1" checked style="width:auto;margin:0"> Envoyer aussi une notification à tous les élèves</label>
+      <button class="bouton" type="submit" style="margin:0">Publier</button></form>
+    <h2 style="font-size:16px;margin:22px 0 10px">Événements publiés</h2>
+    <div style="display:grid;gap:8px;max-width:640px">${evenements.map((a) => `<div class="carte" style="margin:0"><b>${echapper(a.titre)}</b>
+      <p class="doux petit" style="margin:4px 0 0">${echapper(dateCourte(a.cree_le))} GMT ·
+      ${enCours(a) ? 'dans la bannière' : 'terminé'} · ${recu(a)}${a.lien ? ` · lien : ${echapper(a.lien)}` : ''}${a.image ? ' · avec image' : ''}</p>
+      ${enCours(a) ? `<form method="post" action="/admin/annonces/${a.id}/retirer" style="margin:8px 0 0"><button class="bouton secondaire" type="submit" style="margin:0;width:auto">Retirer de la bannière</button></form>` : ''}</div>`).join('') || '<p class="vide-traiter">Aucun événement pour le moment.</p>'}</div>`;
+  }
+  return page('Planifier', `${STYLE_PLANIFIER}
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Planifier</h1></div><span class="doux petit">${nbEleves} élève(s) Elite</span></div>
+  ${onglets}
+  ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  ${corps}`, espace, 'planifier', null, SCRIPT_ANNONCE);
 }
 
-module.exports = { carteAnnonce, pageAnnonces, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
+// Profil du coach : sa pièce dorée, ses chiffres, les raccourcis et ses meilleurs élèves.
+function pageCoach(config, { espace, pseudo, avatar, nbEleves, revenusEleves, aTraiter, seancesAujourdhui, top = [] }) {
+  const nom = pseudo || 'Coach';
+  return page('Mon profil', `${STYLE_PROFIL}${STYLE_ROLES}
+  <div class="pf">
+    <div class="pf-identite" style="margin-top:6px">
+      <span class="pf-avatar piece" style="--piece:#f5c518"><span class="face">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</span></span>
+      <h1>${echapper(nom)}</h1><p>Coach Overmaxx</p>
+    </div>
+    <div class="pf-chiffres">
+      <div><b>${ICONES.jours}${nbEleves}</b><small>Élèves</small></div><span class="sep"></span>
+      <div><b>${ICONES.revenus}${dollars(revenusEleves || 0, { centimes: false })}</b><small>Générés</small></div><span class="sep"></span>
+      <div><b>${aTraiter}</b><small>À traiter</small></div>
+    </div>
+    <div class="pf-cartes" style="grid-template-columns:1fr 1fr">
+      <a class="pf-carte" href="/admin/a-traiter"><h3>À traiter</h3><p class="vert">${aTraiter} en attente</p><p>Exercices, vidéos, comptes rendus, candidatures…</p></a>
+      <a class="pf-carte" href="/admin"><h3>Calendrier</h3><p class="vert">${seancesAujourdhui} séance(s) aujourd'hui</p><p>Tes coachings et tes disponibilités.</p></a>
+      <a class="pf-carte" href="/admin/eleves"><h3>Élèves Elite</h3><p class="vert">${nbEleves} élève(s)</p><p>Kanban ou liste triable.</p></a>
+      <a class="pf-carte" href="/admin/planifier"><h3>Planifier</h3><p class="vert">Événement, remarque, message</p><p>Pour un élève ou pour tous.</p></a>
+    </div>
+    <h2 class="section">Meilleurs élèves</h2>
+    <div class="cm-liste">${top.map((m, i) => `<a class="cm-ligne" href="/classement/${encodeURIComponent(m.id)}" style="color:#fff;text-decoration:none"><span class="rond">${i + 1}</span>
+      <div class="qui"><b>${echapper(m.nom)}</b><small>${dollars(m.revenus, { centimes: false })} · ${vuesCourtes(m.vues)} vues</small></div></a>`).join('') || '<p class="vide-traiter">Pas encore de résultats.</p>'}</div>
+  </div>${STYLE_COMMU}`, espace, 'coach');
+}
+
+module.exports = { carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };

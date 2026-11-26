@@ -1225,13 +1225,60 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     };
   }
   // ---- Annonces du coach à tous les élèves Elite ----
-  app.get('/admin/annonces', (req, res) => {
-    if (!estAdmin(req, res, '/admin/annonces')) return;
-    res.send(PF.pageAnnonces(config, { espace: espaceDe(lireSession(req, config.secretApp)), nbEleves: parcours.tous().length,
+  // Planifier : événement (bannière), remarque à un élève, message à tous. /admin/annonces reste une autre adresse.
+  const pagePlanifier = (req, res) => {
+    if (!estAdmin(req, res, '/admin/planifier')) return;
+    const onglet = ['remarque', 'message'].includes(req.query.onglet) ? req.query.onglet : 'evenement';
+    const qp = (id) => qProfils.get.get(id) || {};
+    res.send(PF.pageAnnonces(config, { espace: espaceDe(lireSession(req, config.secretApp)), nbEleves: parcours.tous().length, onglet,
+      eleves: parcours.tous().map((p) => ({ id: p.discord_id, nom: qp(p.discord_id).prenom || p.pseudo || p.discord_id, pseudo: p.pseudo, etape: p.etape })).sort((x, y) => x.nom.localeCompare(y.nom, 'fr')),
       annonces: commandes.db.prepare('SELECT * FROM annonces ORDER BY id DESC LIMIT 30').all(),
       test: req.query.test ? String(req.query.test).slice(0, 200) : null,
-      message: req.query.fait ? (Number(req.query.n) ? `Événement publié et envoyé à ${Number(req.query.n)} élève(s).` : 'Événement publié dans la bannière.') : null, maintenant: new Date().toISOString(),
+      message: req.query.fait === 'remarque' ? 'Remarque envoyée : Bob l\'a prévenu.' : req.query.fait === 'message' ? `Message envoyé à ${Number(req.query.n) || 0} élève(s).`
+        : req.query.fait ? (Number(req.query.n) ? `Événement publié et envoyé à ${Number(req.query.n)} élève(s).` : 'Événement publié dans la bannière.') : null, maintenant: new Date().toISOString(),
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  };
+  app.get('/admin/planifier', pagePlanifier);
+  app.get('/admin/annonces', pagePlanifier);
+  app.post('/admin/planifier/remarque', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/planifier?onglet=remarque')) return;
+    const p = parcours.get(String(req.body.eleve || ''));
+    if (!p || p.retire_le) return res.redirect(303, `/admin/planifier?onglet=remarque&erreur=${encodeURIComponent('Choisis un élève.')}`);
+    const r = parcours.ajouterRemarque(p.discord_id, { texte: req.body.texte, images: imagesDe(req.body) });
+    if (r.erreur) return res.redirect(303, `/admin/planifier?onglet=remarque&erreur=${encodeURIComponent(r.erreur)}`);
+    prevenir('remarque', p);
+    return res.redirect(303, '/admin/planifier?onglet=remarque&fait=remarque');
+  });
+  // Message à tous : une notification simple, jamais dans la bannière (fin = création).
+  app.post('/admin/planifier/message', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/planifier?onglet=message')) return;
+    const titre = String(req.body.titre || '').trim().slice(0, 120);
+    const texte = String(req.body.texte || '').trim().slice(0, 1800);
+    const lien = String(req.body.lien || '').trim().slice(0, 400) || null;
+    const erreur = (t) => res.redirect(303, `/admin/planifier?onglet=message&erreur=${encodeURIComponent(t)}`);
+    if (!titre || !texte) return erreur('Écris un titre et un message.');
+    if (lien && !/^https:\/\/\S+$/.test(lien) && !/^\/(?![/\\])\S*$/.test(lien)) return erreur('Le lien doit commencer par https:// ou être une page du site (/…).');
+    const ids = parcours.tous().map((p) => p.discord_id);
+    const now = new Date().toISOString();
+    const r = commandes.db.prepare('INSERT INTO annonces (titre, texte, lien, destinataires, cree_le, fin_le, notifier) VALUES (?, ?, ?, ?, ?, ?, 1)').run(titre, texte, lien, ids.length, now, now);
+    const a = commandes.db.prepare('SELECT * FROM annonces WHERE id = ?').get(Number(r.lastInsertRowid));
+    if (bob && bob.parcours && bob.parcours.annonce) {
+      bob.parcours.annonce(a, ids, null).then((n) => commandes.db.prepare('UPDATE annonces SET envoyes = ? WHERE id = ?').run(n, a.id))
+        .catch((err) => console.error('[bob] message :', err.message));
+    } else commandes.db.prepare('UPDATE annonces SET envoyes = 0 WHERE id = ?').run(a.id);
+    return res.redirect(303, `/admin/planifier?onglet=message&fait=message&n=${ids.length}`);
+  });
+  // Profil du coach.
+  app.get('/coach', (req, res) => {
+    if (!estAdmin(req, res, '/coach')) return;
+    const session = lireSession(req, config.secretApp);
+    const liste = classement();
+    const espace = espaceDe(session);
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    let seances = 0;
+    try { seances = coaching.occurrences(aujourdhui, aujourdhui).filter((o) => !o.touchee).length; } catch { seances = 0; }
+    res.send(PF.pageCoach(config, { espace, pseudo: session.pseudo, avatar: (qProfils.get.get(session.id) || {}).avatar, nbEleves: parcours.tous().length,
+      revenusEleves: liste.reduce((t, m) => t + m.revenus, 0), aTraiter: espace.aTraiterParcours, seancesAujourdhui: seances, top: liste.filter((m) => m.revenus > 0).slice(0, 5) }));
   });
   app.post('/admin/annonces', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/annonces')) return;
@@ -1261,7 +1308,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.post('/admin/notifications/test', formulaire, async (req, res) => {
     if (!estAdmin(req, res, '/admin/annonces')) return;
     const pseudo = String(req.body.pseudo || '').trim().replace(/^@/, '').slice(0, 40);
-    const retour = (t, ok) => res.redirect(303, `/admin/annonces?${ok ? 'test' : 'erreur'}=${encodeURIComponent(t)}`);
+    const retour = (t, ok) => res.redirect(303, `/admin/planifier?onglet=message&${ok ? 'test' : 'erreur'}=${encodeURIComponent(t)}`);
     if (!pseudo) return retour('Écris le pseudo Discord du compte de test.');
     if (!bob || !bob.idDepuisPseudo || !bob.notifier) return retour('Bob est indisponible : réessaie dans un instant.');
     try {
@@ -1596,13 +1643,17 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       sinistre: Boolean(p.sinistre_depuis), sinistres: p.sinistres || 0, retard: retards.has(p.discord_id), aTraiter: compte[p.discord_id] || 0,
       forcees: JSON.parse(p.etapes_forcees || '[]'), tache: p.etape <= 4 ? (parcours.tache(p.discord_id) || {}).titre : null,
       manquants: parcours.manquants(p.discord_id), entree: (p.entree_le || '').slice(0, 10),
+      // Vue liste : revenus, vidéos, régularité (chaîne et jours avec un compte rendu), rang.
+      ...(() => { const st = suivi.stats(p.discord_id) || {}; const r = roleLePlusHaut(suivi.recompenses(p.discord_id));
+        return { revenus: st.revenusTotal || 0, videos: st.videosPubliees || 0, joursCr: commandes.db.prepare('SELECT COUNT(*) n FROM comptes_rendus WHERE discord_id = ? AND envoye_le IS NOT NULL').get(p.discord_id).n,
+          chaine: communaute.chaine(p.discord_id), role: p.sinistre_depuis ? 'sinistre' : r || 'elite', rang: ['elite', 'goat', '1500', '5000', '10000'].indexOf(r || 'elite') }; })(),
     })).sort((x, y) => x.nom.localeCompare(y.nom, 'fr'));
   }
   app.get('/admin/eleves', (req, res) => {
     if (!estAdmin(req, res, '/admin/eleves')) return;
     const fait = req.query.fait === 'ajoute' ? 'Élève ajouté à l\'étape 1 : glisse-le à son étape.' : req.query.fait === 'infos' ? 'Infos enregistrées.'
       : /^[1-4]$/.test(String(req.query.fait || '')) ? `Élève placé à l'étape ${req.query.fait}. Bob l'a prévenu.` : null;
-    res.send(K.pageEleves(config, { espace: espaceDe(lireSession(req, config.secretApp)), eleves: donneesEleves(),
+    res.send(K.pageEleves(config, { espace: espaceDe(lireSession(req, config.secretApp)), eleves: donneesEleves(), vue: req.query.vue === 'liste' ? 'liste' : 'kanban',
       sansDiscord: db.prepare("SELECT nom, email FROM membres WHERE programme = 'elite' AND statut = 'actif' AND discord_id IS NULL ORDER BY nom").all(),
       message: fait, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });

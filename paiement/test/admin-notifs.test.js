@@ -137,3 +137,24 @@ test('notification test : envoyée à un seul compte par son pseudo, rangée dan
     assert.match(await (await m.get(r.headers.get('location'), coach)).text(), /Notification test envoyée à @nofloh24/);
   } finally { await m.fermer(); }
 });
+
+test('coach : Planifier (remarque à un élève, message à tous), profil coach, vue liste des élèves', async () => {
+  const envois = []; const remarques = [];
+  const m = await monter({ bob: { parcours: { annonce: async (a, ids) => { envois.push([a, ids]); return ids.length; }, remarque: async (p) => { remarques.push(p.discord_id); } } } });
+  try {
+    for (const id of ['A', 'B']) m.parcours.assurer(id, { pseudo: `p_${id}` });
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    assert.match(await (await m.get('/admin/planifier?onglet=remarque', coach)).text(), /<option value="A">p_A/);
+    const r = await m.poster('/admin/planifier/remarque', { eleve: 'A', texte: 'Ta dernière vidéo est très bonne.' }, coach);
+    assert.strictEqual(r.headers.get('location'), '/admin/planifier?onglet=remarque&fait=remarque');
+    assert.deepStrictEqual(remarques, ['A']);
+    assert.match(await (await m.get('/remarques', { cookie: cookieSession('A', 'p_A') })).text(), /Ta dernière vidéo est très bonne/);
+    const msg = await m.poster('/admin/planifier/message', { titre: 'Pense au compte rendu', texte: 'Ce soir avant 21 h.' }, coach);
+    assert.strictEqual(msg.headers.get('location'), '/admin/planifier?onglet=message&fait=message&n=2');
+    assert.strictEqual(envois.length, 1);
+    assert.doesNotMatch(await (await m.get('/profil', { cookie: cookieSession('A', 'p_A') })).text(), /Pense au compte rendu/, 'un message ne va pas dans la bannière');
+    assert.match(await (await m.get('/coach', coach)).text(), /Coach Overmaxx[\s\S]*Élèves/);
+    const liste = await (await m.get('/admin/eleves?vue=liste', coach)).text();
+    assert.match(liste, /data-tri="revenus"[\s\S]*class="ls-ligne"/);
+  } finally { await m.fermer(); }
+});

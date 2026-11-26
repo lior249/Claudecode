@@ -72,9 +72,13 @@ test('parcours Elite : étape 1 (exercices), étape 2 (coaching d\'entrée), ét
     const aTraiter = await (await m.get('/admin/a-traiter', { cookie: coach })).text();
     assert.match(aTraiter, /Exercice L1/);
     assert.match(aTraiter, /Exercice L2/);
-    // Catégories dans l'ordre : les membres (étapes 1 à 4), puis les demandes d'intégration (vidéos avant nouvelles candidatures).
-    const ordre = ['id="etape-1"', 'id="etape-2"', 'id="etape-3"', 'id="etape-4"', 'id="demandes"', 'Vidéos de présentation', 'Kodjo Agbeko', 'Nouvelles candidatures', 'Esi Amegah'].map((x) => aTraiter.indexOf(x));
-    assert.ok(ordre.every((i, k) => i > 0 && (k === 0 || i > ordre[k - 1])), `ordre des catégories : ${ordre}`);
+    // Une seule file mélangée (étiquette sous chaque carte), filtres rangés par nombre ; les candidatures y sont aussi.
+    assert.match(aTraiter, /data-filtre=""[^>]*>Tout/);
+    assert.match(aTraiter, /data-cat="etape-1">Étape 1</);
+    assert.match(aTraiter, /Kodjo Agbeko[\s\S]*Vidéo de présentation reçue/);
+    assert.match(aTraiter, /Esi Amegah[\s\S]*Formulaire de candidature à examiner/);
+    const filtres = [...aTraiter.matchAll(/data-filtre="([\w-]+)"[^>]*>[^<]*<b>(\d+)<\/b>/g)].map((x) => Number(x[2]));
+    assert.deepStrictEqual(filtres, [...filtres].sort((x, y) => y - x), 'filtres rangés par nombre');
     assert.match(aTraiter, /href="\/admin\/candidatures\/\d+">Inspecter/);
     assert.match(await (await m.get(`/admin/envois/${l2.id}`, { cookie: coach })).text(), /Proposé : L2/);
     assert.strictEqual((await m.get(`/admin/envois/${l1.id}`, { cookie: membre })).status, 403);
