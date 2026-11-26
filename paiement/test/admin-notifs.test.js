@@ -155,7 +155,8 @@ test('coach : Planifier (remarque à un élève, message à tous), profil coach,
     assert.doesNotMatch(await (await m.get('/profil', { cookie: cookieSession('A', 'p_A') })).text(), /Pense au compte rendu/, 'un message ne va pas dans la bannière');
     assert.match(await (await m.get('/coach', coach)).text(), /Coach Overmaxx[\s\S]*Élèves/);
     const liste = await (await m.get('/admin/eleves?vue=liste', coach)).text();
-    assert.match(liste, /data-tri="revenus"[\s\S]*class="ls-ligne"/);
+    assert.match(liste, /class="bouton secondaire ls-ouvrir"[^>]*>Filtres[\s\S]*class="ls-ligne"[\s\S]*id="dlg-filtres"[\s\S]*data-critere="revenus"[\s\S]*↓ Décroissant[\s\S]*↑ Croissant[\s\S]*Appliquer/);
+    assert.doesNotMatch(await (await m.get('/admin/eleves', coach)).text(), /déjà accompagné/, 'plus de formulaire d\'ajout');
   } finally { await m.fermer(); }
 });
 
