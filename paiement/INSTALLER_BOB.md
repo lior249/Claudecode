@@ -479,4 +479,4 @@ ou sur **overmaxx.online/admin/candidatures**.
 - **Accusés sous chaque message** : 👎 non délivré, 👍 délivré, 👁️ lu. Touche un nombre pour voir qui. « Relancer » renvoie le message à ceux qui ne l'ont pas lu.
 - **Fiche d'un élève** : « Envoyer un message » à lui seul. Le bouton existe aussi sur son profil.
 - **Écrire au coach** : l'élève écrit depuis ses Remarques. Le message arrive dans À traiter (Messages) ; tu y réponds, ou tu le marques traité.
-- **À traiter** affiche aussi tes notifications non lues (filtre Notifications). En ouvrir une la marque lue.
+- **À traiter** affiche aussi tes notifications non lues (filtre Notifications). Seule une notification que tu ouvres devient lue : rien ne se marque lu en bloc.

@@ -732,7 +732,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
     quoi: `Étape ${x.parcours.etape} : ${x.tache.titre}`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, bouton: 'Voir sa fiche' }));
   // Notifications non lues (pour information) : la plus récente d'abord ; l'ouvrir la marque lue.
   const notifs = notifications.map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le,
-    quoi: n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte, lien: `/admin/notifications/${n.id}/ouvrir`, bouton: 'Ouvrir' }));
+    quoi: n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte, lien: `/admin/notifications/${n.id}/ouvrir`, bouton: n.lien ? 'Ouvrir' : 'Marquer comme lue' }));
   items.sort((x, y) => String(x.quand || '').localeCompare(String(y.quand || '')));
   const tous = [...items, ...retards, ...notifs];
   const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
@@ -748,7 +748,6 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>À traiter</h1></div><span class="doux petit">${items.length} en attente de ta décision</span></div>
   <nav class="puces-traiter" aria-label="Filtres"><a href="#" data-filtre="" aria-pressed="true">Tout<b>${items.length}</b></a>${filtres.map((x) => `<a href="#" data-filtre="${x.c}"${x.n ? '' : ' data-vide'}>${echapper(x.l)}<b>${x.n}</b></a>`).join('')}</nav>
   <div class="tr-file">${tous.map(carte).join('') || '<p class="vide-traiter">Rien à traiter. Bravo !</p>'}</div>
-  ${notifs.length ? `<form method="post" action="/admin/notifications/tout-lu" style="margin-top:12px"><button class="bouton secondaire" type="submit" style="margin:0;width:auto">Marquer les ${notifs.length} notification(s) comme lues</button></form>` : ''}
   ${accesRefuses.length ? `<details class="carte" style="margin-top:18px"><summary>Accès au site refusés (${accesRefuses.length})</summary><div style="display:grid;gap:8px;margin-top:10px">
     ${accesRefuses.map((x) => `<div class="tr-carte"><div class="tr-corps"><b>${echapper(x.pseudo || x.discord_id)}</b><span class="doux petit">Rôle ${echapper(nomsOffres[x.programme] || x.programme)} · refusé le ${echapper(formatDate(x.decide_le))}</span></div>
       ${decision(x, [['oui', 'Donner l\'accès', 'secondaire']])}</div>`).join('')}</div></details>` : ''}
@@ -759,6 +758,8 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
       puces.forEach(function (x) { x.setAttribute('aria-pressed', x === p ? 'true' : 'false'); });
       cartes.forEach(function (c) { c.hidden = Boolean(f) && c.getAttribute('data-cat') !== f; });
     }); });
+    var demande = new URLSearchParams(location.search).get('filtre');
+    if (demande) { var p = document.querySelector('[data-filtre="' + demande.replace(/[^a-z0-9-]/g, '') + '"]'); if (p) p.click(); }
   })();</script>`, espace, 'traiter');
 }
 

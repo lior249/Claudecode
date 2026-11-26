@@ -236,9 +236,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (session.id === config.discord.adminId && onglet !== 'reglages') {
       const espace = espaceDe(session);
       const notifications = onglet === 'notifications' ? notifsAdmin.liste() : [];
+      // Le coach lit chaque notification une à une : seule l'ouverture d'une notification la marque lue.
       const nonLues = notifsAdmin.nonLues();
-      if (onglet === 'notifications') { notifsAdmin.toutLu(); espace.notifsNonLues = 0; }
-      return res.send(N.pageNotificationsAdmin(config, { espace, onglet, notifications, nonLues: onglet === 'notifications' ? 0 : nonLues,
+      return res.send(N.pageNotificationsAdmin(config, { espace, onglet, notifications, nonLues,
         rappels: notifsAdmin.rappels(), modeles: notifsAdmin.MODELES, JOURS: notifsAdmin.JOURS,
         message: { ajoute: 'Rappel ajouté : Bob te l\'enverra à l\'heure choisie.', supprime: 'Rappel supprimé.' }[req.query.fait],
         erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
@@ -1556,13 +1556,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.get('/admin/notifications/:id/ouvrir', (req, res) => {
     if (!estAdmin(req, res, '/admin/a-traiter')) return;
     const n = notifsAdmin.lire(req.params.id);
-    const lien = n && n.lien && /^\/(?![/\\])/.test(n.lien) ? n.lien : n && n.lien && /^https:\/\//.test(n.lien) ? n.lien : '/notifications?onglet=notifications';
+    const lien = n && n.lien && /^\/(?![/\\])/.test(n.lien) ? n.lien : n && n.lien && /^https:\/\//.test(n.lien) ? n.lien : '/admin/a-traiter?filtre=notifications';
     res.redirect(302, lien);
-  });
-  app.post('/admin/notifications/tout-lu', formulaire, (req, res) => {
-    if (!estAdmin(req, res, '/admin/a-traiter')) return;
-    notifsAdmin.toutLu();
-    res.redirect(303, '/admin/a-traiter');
   });
   // Rôle donné à la main : Oui (accès au site) ou Non. Même décision que les boutons de Bob.
   app.post('/admin/acces/:programme/:id', formulaire, async (req, res) => {

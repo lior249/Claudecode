@@ -49,7 +49,10 @@ test('notifications du coach : 2 onglets, rappels envoyés à l\'heure, réserva
     const page = await (await m.get('/notifications', admin)).text();
     assert.match(page, /aria-current="page">Notifications/);
     assert.match(page, /Coaching réservé[\s\S]*Ouvrir/);
-    assert.strictEqual(bob.notifsAdmin.nonLues(), 0);
+    assert.strictEqual(bob.notifsAdmin.nonLues(), 3, 'ouvrir la page ne marque rien comme lu');
+    const id = bob.notifsAdmin.nonLuesListe()[0].id;
+    await m.get(`/admin/notifications/${id}/ouvrir`, admin);
+    assert.strictEqual(bob.notifsAdmin.nonLues(), 2, 'seule celle ouverte devient lue');
     // Les réglages de l'application restent accessibles.
     assert.match(await (await m.get('/notifications?onglet=reglages', admin)).text(), /Notifications/);
   } finally { await m.fermer(); }
