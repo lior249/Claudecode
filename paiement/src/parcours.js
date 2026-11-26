@@ -1,5 +1,7 @@
 'use strict';
 
+const { lienCompte } = require('./tiktok');
+
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -241,7 +243,7 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       if (!p) return null;
       const net = (v, ancien) => (v === undefined ? ancien : String(v).trim().slice(0, 120) || null);
       let c = net(compte, p.compte_tiktok);
-      if (c && !c.startsWith('@')) c = `@${c}`;
+      if (c && compte !== undefined) { const l = lienCompte(c); if (l) c = l; } // lien du profil TikTok
       q.compte.run(c, net(niche, p.niche), net(pays, p.pays), iso(), discordId);
       return q.get.get(discordId);
     },

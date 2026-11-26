@@ -54,7 +54,7 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
     assert.deepStrictEqual((await ok.json()).forcees, [1, 2, 3]);
     let p = m.parcours.get(E1);
     assert.strictEqual(p.etape, 4);
-    assert.strictEqual(p.compte_tiktok, '@voyage.douce');
+    assert.strictEqual(p.compte_tiktok, 'https://www.tiktok.com/@voyage.douce');
     assert.strictEqual(p.niveau, 'L2');
     assert.ok(p.etape1_le && p.etape2_le && p.etape3_le);
     assert.deepStrictEqual(JSON.parse(p.etapes_forcees), [1, 2, 3]);
@@ -82,7 +82,7 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
       body: JSON.stringify({ compte: 'awa.voyage', niche: 'Voyages pas chers', pays: 'France', niveau: 'L1', entree: '2026-10-01' }) });
     assert.strictEqual(infos.status, 200);
     p = m.parcours.get(E1);
-    assert.deepStrictEqual([p.compte_tiktok, p.niche, p.pays, p.niveau, p.entree_le.slice(0, 10)], ['@awa.voyage', 'Voyages pas chers', 'France', 'L1', '2026-10-01']);
+    assert.deepStrictEqual([p.compte_tiktok, p.niche, p.pays, p.niveau, p.entree_le.slice(0, 10)], ['https://www.tiktok.com/@awa.voyage', 'Voyages pas chers', 'France', 'L1', '2026-10-01']);
 
     // Ajouter un élève déjà accompagné, avec sa date d'entrée.
     const inconnu = await m.poster('/admin/eleves/ajouter', { pseudo: 'personne' }, { cookie: coach });

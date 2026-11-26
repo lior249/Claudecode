@@ -1237,7 +1237,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         let contenu = null;
         if (r.type === 'creation') contenu = avecBoutons('**C\'est l\'heure de créer ta vidéo du jour.** Le montage prend 1 h maximum.', [{ label: 'Étape 4', url: lien('/parcours/etape-4') }]);
         if (r.type === 'publication' && !suivi.publications(p.discord_id, r.jour).length) {
-          contenu = avecBoutons('**C\'est l\'heure de publier.** Une fois ta vidéo en ligne, déclare-la : son lien et la capture de ton compte.', [{ label: 'Déclarer ma vidéo', url: lien('/parcours/etape-4') }]);
+          contenu = avecBoutons('**C\'est l\'heure de publier.** Une fois ta vidéo en ligne, colle son lien sur le site, c\'est tout.', [{ label: 'Déclarer ma vidéo', url: lien('/parcours/etape-4') }]);
         }
         if (r.type === 'compte-rendu') {
           // Les comptes rendus en retard ou à corriger, listés chaque jour à son heure de compte rendu.

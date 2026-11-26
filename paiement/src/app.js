@@ -19,6 +19,7 @@ const { creerSinistres } = require('./sinistres');
 const { creerAccesManuels } = require('./acces-manuels');
 const { creerCommunaute } = require('./communaute');
 const { creerNotifsAdmin } = require('./admin-notifs');
+const { lienCompte } = require('./tiktok');
 const PF = require('./pages-profil');
 const { roleLePlusHaut } = require('./pages-classement');
 const { verifierReponses } = require('./formulaires');
@@ -191,8 +192,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     }
     const p = parcours.get(m.id);
     const moi = parcours.get(session.id);
+    const concurrence = moi ? communaute.concurrents(session.id).find((c) => c.autre === m.id) : null;
     const relation = moi && !moi.retire_le && session.id !== m.id ? {
-      suit: communaute.suit(session.id, m.id), concurrent: communaute.concurrents(session.id).some((c) => c.autre === m.id),
+      suit: communaute.suit(session.id, m.id), concurrent: Boolean(concurrence), concurrenceId: concurrence && concurrence.id,
       peutDefier: communaute.peutConcourir(session.id) && communaute.peutConcourir(m.id),
       message: { suivi: 'Tu le suis : tu recevras ses nouveaux résultats.', retire: 'Tu ne le suis plus.', defi: 'Invitation envoyée : Bob le prévient.' }[req.query.fait],
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null } : null;
@@ -1184,9 +1186,55 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       jourDepuis: Math.max(1, Math.floor((Date.now() - new Date(p.entree_le)) / 864e5) + 1), jours, chaine, flamme: communaute.flamme(chaine),
       derniers7: [7, 6, 5, 4, 3, 2, 1].map((k) => envoyes.has(decaler(aujourdhui, -k))), tache,
       suivis: suivis.map((s) => membreVu(s.suivi)), nbSuivis: suivis.length, nbConcurrents: communaute.concurrents(id).length,
-      invitations: communaute.invitationsRecues(id).length, tableau: suivi.tableau(id), notifications: communaute.invitationsRecues(id).length > 0,
+      invitations: communaute.invitationsRecues(id).length, notifications: communaute.invitationsRecues(id).length > 0,
+      ...carrousel(p, aujourdhui), seances: coaching.prochainesSeances(id, 14).filter((x) => !x.touchee)
+        .map((x) => ({ date: x.date, heure: x.heure, debut: new Date(x.debut).toISOString(), type: C.NOMS_TYPES[x.type] || 'Coaching' })),
     };
   }
+  // Le carrousel de Mon profil : place au classement, revenus du mois, prochain objectif.
+  function carrousel(p, aujourdhui) {
+    const liste = classement();
+    const moi = liste.find((x) => x.id === p.discord_id);
+    const mois = aujourdhui.slice(0, 7);
+    const stats = suivi.stats(p.discord_id) || {};
+    return {
+      rang: moi && moi.revenus > 0 ? moi.rang : null, totalClasses: liste.length,
+      revenusMois: Math.round(suivi.gains(p.discord_id).filter((g) => g.jour.slice(0, 7) === mois).reduce((t, g) => t + g.gain, 0) * 100) / 100,
+      objectif: (stats.objectifs || []).find((o) => !o.atteint) || null,
+    };
+  }
+  app.get('/revenus', (req, res) => {
+    const x = membreParcours(req, res, '/revenus', { sinistreOk: true });
+    if (!x) return;
+    res.send(PF.pageRevenus(config, { espace: x.espace, tableau: suivi.tableau(x.p.discord_id), stats: suivi.stats(x.p.discord_id) }));
+  });
+  // Réglages : prénom, pays, lien du compte TikTok ; liens vers notifications et coachings.
+  app.get('/reglages', (req, res) => {
+    const session = connecte(req, res, '/reglages', 'Réglages');
+    if (!session) return;
+    const profil = qProfils.get.get(session.id) || {};
+    const p = parcours.get(session.id);
+    res.send(PF.pageReglages(config, { espace: espaceDe(session), prenom: profil.prenom, pays: profil.pays, parcours: Boolean(p && !p.retire_le), compteTikTok: p && p.compte_tiktok,
+      message: { profil: 'Profil enregistré.', tiktok: 'Lien du compte enregistré.' }[req.query.fait], erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.post('/reglages/profil', formulaire, (req, res) => {
+    const session = connecte(req, res, '/reglages', 'Réglages');
+    if (!session) return;
+    const ancien = qProfils.get.get(session.id) || {};
+    qProfils.infos.run(session.id, String(req.body.prenom || '').trim().slice(0, 40) || ancien.prenom || null,
+      String(req.body.pays || '').trim().slice(0, 60) || ancien.pays || null, null, new Date().toISOString());
+    res.redirect(303, '/reglages?fait=profil');
+  });
+  app.post('/reglages/tiktok', formulaire, (req, res) => {
+    const session = connecte(req, res, '/reglages', 'Réglages');
+    if (!session) return;
+    const p = parcours.get(session.id);
+    const brut = String(req.body.compte || '').trim();
+    if (!p || p.retire_le) return res.redirect(303, '/reglages');
+    if (!brut || lienCompte(brut) === undefined) return res.redirect(303, `/reglages?erreur=${encodeURIComponent('Colle le lien de ton profil TikTok (https://www.tiktok.com/@ton.compte).')}`);
+    parcours.majCompte(session.id, { compte: brut });
+    return res.redirect(303, '/reglages?fait=tiktok');
+  });
   app.get('/profil', (req, res) => {
     const x = membreParcours(req, res, '/profil', { sinistreOk: true });
     if (!x) return;
@@ -1206,7 +1254,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       envoyees: communaute.invitationsEnvoyees(id).map((c) => ({ ...c, membre: membreVu(c.vers) })),
       enVogue: communaute.enVogue(id).map((v) => ({ ...v, membre: membreVu(v.parcours.discord_id) })),
       proches: communaute.proches(id).map((v) => ({ ...v, membre: membreVu(v.parcours.discord_id) })),
-      peutConcourir: communaute.peutConcourir(id), places: suivis.length + communaute.invitationsEnvoyees(id).filter((c) => !communaute.suit(id, c.vers)).length,
+      peutConcourir: communaute.peutConcourir(id), fil: communaute.fil(id).map((n) => ({ ...n, membre: membreVu(n.auteur) })), places: suivis.length + communaute.invitationsEnvoyees(id).filter((c) => !communaute.suit(id, c.vers)).length,
       message: { suivi: 'Tu le suis : tu recevras ses nouveaux résultats.', retire: 'Tu ne le suis plus.', defi: 'Invitation envoyée : Bob le prévient.', accepte: 'Concurrence lancée !', refuse: 'Invitation refusée.', abandon: 'Concurrence arrêtée.' }[req.query.fait],
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });

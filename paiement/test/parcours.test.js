@@ -105,7 +105,7 @@ test('parcours Elite : étape 1 (exercices), étape 2 (coaching d\'entrée), ét
     await m.poster(`/admin/membres/${E1}/compte`, { compte: 'voyage.douce', niche: 'Voyages pas chers', pays: 'France', ouvrir: '3' }, { cookie: coach });
     p = parcours.get(E1);
     assert.strictEqual(p.etape, 3);
-    assert.strictEqual(p.compte_tiktok, '@voyage.douce');
+    assert.strictEqual(p.compte_tiktok, 'https://www.tiktok.com/@voyage.douce');
     await attendre();
     assert.ok(dms.some(([id, t]) => id === E1 && /Étape 3 ouverte/.test(t)));
 

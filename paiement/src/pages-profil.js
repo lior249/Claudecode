@@ -4,7 +4,7 @@
 // son résultat), la chaîne 🔥, ceux qu'il suit, la tâche du moment ; puis le tableau de bord des revenus.
 // Et la page Communauté : suivis (10 places), concurrents (3), invitations, suggestions.
 const { echapper } = require('./pages');
-const { page, remarque, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire } = require('./pages-parcours');
+const { page, remarque, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise } = require('./pages-parcours');
 const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
 const { vuesCourtes } = require('./pages-classement');
@@ -26,6 +26,8 @@ const ICONES = {
   revenus: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M14.8 9.3c-.5-.9-1.6-1.4-2.8-1.4-1.6 0-2.8.8-2.8 2 0 2.7 5.8 1.4 5.8 4.2 0 1.2-1.3 2-3 2-1.3 0-2.4-.5-3-1.5M12 6.3v1.6M12 16.1v1.6"/></svg>',
   rang: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 2 3.3-.2.8 3.2 2.6 2-1.4 3 .5 3.3-3.1 1-1.7 2.9L12 19l-3.6 1.2-1.7-2.9-3.1-1 .5-3.3-1.4-3 2.6-2 .8-3.2 3.3.2z"/><path d="M9 12l2 2 4-4"/></svg>',
   jours: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M8.5 3v4M15.5 3v4M8 14h3M8 17h6"/></svg>',
+  bulle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-4 3.5v-3.5a2 2 0 0 1-1.5-2z"/><path d="M8.5 9h7M8.5 12.2h4.5"/></svg>',
+  reglages: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>',
   fleche: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
 };
 
@@ -85,6 +87,24 @@ const STYLE_PROFIL = `<style>
   .pf-tache .pastille svg { width:30px; height:30px; fill:none; stroke:#111; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
   .pf-tache h3 { margin:0; font-size:16px; } .pf-tache p { margin:3px 0 0; font-size:13px; color:var(--doux); }
   .pf h2.section { font-size:15px; text-transform:uppercase; letter-spacing:.1em; color:var(--doux); margin:6px 0 10px; }
+  .pf-groupe { display:flex; align-items:center; gap:6px; }
+  .pf-avatar { display:block; text-decoration:none; color:#fff; }
+  .pf-frise { display:block; text-decoration:none; color:inherit; margin:0 0 6px; } .pf-frise .etapes { margin-bottom:8px; }
+  .pf-carrousel-cadre { padding:0; display:flex; flex-direction:column; }
+  .pf-carrousel { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; flex:1; border-radius:20px; }
+  .pf-carrousel::-webkit-scrollbar { display:none; }
+  .pf-slide { position:relative; flex:0 0 100%; scroll-snap-align:start; padding:14px 14px 4px; color:#fff; text-decoration:none; overflow:hidden; min-height:96px; }
+  .pf-slide h3 { margin:0; font-size:15.5px; } .pf-slide p { margin:4px 0 0; font-size:12.5px; color:var(--doux); }
+  .pf-slide .gros { font-size:22px; color:#fff; } .pf-slide .lien { display:block; margin-top:8px; font-size:12.5px; color:var(--lime); font-weight:600; }
+  .pf-slide.pf-feu { background:radial-gradient(120% 120% at 100% 100%, #3a2205 0%, transparent 60%); }
+  .pf-slide.pf-feu { padding-right:58px; } .pf-slide.pf-feu .grande.flamme { width:54px; height:54px; right:4px; bottom:2px; }
+  .pf-rang { background:radial-gradient(120% 120% at 100% 100%, #2a2508 0%, transparent 60%); }
+  .pf-revenus, .pf-objectif { background:radial-gradient(120% 120% at 100% 100%, #13240a 0%, transparent 60%); }
+  .pf-points { display:flex; justify-content:center; gap:5px; padding:6px 0 9px; } .pf-points i { width:6px; height:6px; border-radius:50%; background:#3a3a3a; transition:width .2s; }
+  .pf-points i.actif { width:16px; border-radius:3px; background:var(--lime); }
+  .cm-barre { height:6px; border-radius:999px; background:#222; margin-top:8px; overflow:hidden; } .cm-barre i { display:block; height:100%; background:#c8f23a; }
+  .pf-seance { display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-top:1px solid var(--bord); } .pf-seance:first-child { border-top:0; padding-top:0; }
+  .pf-seance span { color:var(--doux); font-size:13px; }
   @media (prefers-reduced-motion: reduce) { .roue { scroll-behavior:auto; } }
 </style>`;
 
@@ -121,6 +141,23 @@ const SCRIPT_ROUE = `(function () {
   centrer(auj, false); dessiner();
 })();`;
 
+const SCRIPT_CARROUSEL = `(function () {
+  var c = document.querySelector('.pf-carrousel'); if (!c) return;
+  var points = document.querySelectorAll('.pf-points i'), n = c.children.length, touche = 0;
+  function index() { return Math.round(c.scrollLeft / c.clientWidth); }
+  function marquer() { var k = index(); Array.prototype.forEach.call(points, function (p, i) { p.className = i === k ? 'actif' : ''; }); }
+  c.addEventListener('scroll', function () { requestAnimationFrame(marquer); }, { passive: true });
+  ['touchstart', 'pointerdown', 'wheel'].forEach(function (e) { c.addEventListener(e, function () { touche = Date.now(); }, { passive: true }); });
+  if (n > 1 && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+    setInterval(function () { if (Date.now() - touche < 6000 || document.hidden) return; c.scrollTo({ left: ((index() + 1) % n) * c.clientWidth, behavior: 'smooth' }); }, 3000);
+  }
+})();`;
+const SCRIPT_QUAND = `document.querySelectorAll('[data-quand]').forEach(function (el) {
+  var d = new Date(el.getAttribute('data-quand')); if (isNaN(d)) return;
+  var t = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  el.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+});`;
+
 const rond = (x) => `<span>${x.avatar ? `<img src="${echapper(x.avatar)}" alt="" referrerpolicy="no-referrer">` : echapper((x.nom || '?').charAt(0).toUpperCase())}</span>`;
 
 function panneauJour(d, i, tache) {
@@ -142,19 +179,36 @@ function panneauJour(d, i, tache) {
   return `<section class="jour-panneau" data-jour="${d.j}"${d.aujourdhui ? '' : ' hidden'}><h2>${echapper(titre)}</h2>${corps}${d.futur ? '' : encourage}</section>`;
 }
 
-function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, nbSuivis, nbConcurrents, invitations, tableau, notifications, rappel }) {
+function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, nbSuivis, nbConcurrents, invitations, notifications, rappel,
+  rang, totalClasses, revenusMois, objectif, seances = [], remarquesNouvelles = 0 }) {
   const nom = prenom || p.pseudo || 'Membre';
   const roue = jours.map((d) => `<button type="button" class="roue-jour${d.aujourdhui ? ' aujourdhui' : ''}${d.futur ? ' futur' : ''}" data-jour="${d.j}" data-e="${d.e}" aria-label="${echapper(jourLisible(d.j))}">
       <span class="pts"><i></i></span><small>${JOURS_COURTS[new Date(`${d.j}T12:00:00Z`).getUTCDay()]}</small><b>${Number(d.j.slice(8))}</b></button>`).join('');
+  // Le carrousel : chaîne, classement, revenus du mois, prochain objectif (défile tout seul toutes les 3 secondes).
+  const slides = [
+    `<a class="pf-slide pf-feu" href="/parcours/etape-4"><h3>${flamme ? 'Ne casse pas ta chaîne !' : chaine ? 'Ta chaîne démarre' : 'Allume ta flamme'}</h3>
+      <p>${flamme ? `${chaine} jours d'affilée avec un compte rendu.` : `Envoie ton compte rendu 3 jours d'affilée${chaine ? ` (${chaine} / 3)` : ''}.`}</p>
+      <div class="points">${derniers7.map((x) => `<i${x ? ' class="ok"' : ''}></i>`).join('')}</div>${FLAMME(flamme).replace('class="flamme', 'class="grande flamme')}</a>`,
+    `<a class="pf-slide pf-rang" href="/classement"><h3>Classement</h3><p>${rang ? `Tu es <b class="gros">${rang}<sup>e</sup></b> sur ${totalClasses}` : 'Envoie tes premiers résultats pour entrer au classement.'}</p><span class="lien">Voir le classement ›</span></a>`,
+    `<a class="pf-slide pf-revenus" href="/revenus"><h3>Mes revenus</h3><p><b class="gros">${dollars(revenusMois || 0)}</b> ce mois-ci</p><span class="lien">Mon tableau de bord ›</span></a>`,
+    objectif ? `<a class="pf-slide pf-objectif" href="/revenus"><h3>Prochain objectif : ${dollars(objectif.montant, { centimes: false })}</h3><p>Encore ${dollars(Math.max(0, objectif.montant - (stats.revenusTotal || 0)))} à gagner.</p>
+      <div class="cm-barre"><i style="width:${Math.min(100, Math.round(((stats.revenusTotal || 0) / objectif.montant) * 100))}%"></i></div></a>` : '',
+  ].filter(Boolean);
   return page('Mon profil', `${STYLE_PROFIL}${STYLE_ROLES}
   ${fenetreAFaire(rappel)}
   <div class="pf">
     <div class="pf-haut">
-      <a class="pf-icone" href="/notifications" aria-label="Notifications">${ICONES.cloche}${notifications ? '<span class="point"></span>' : ''}</a>
-      <a class="pf-chaine" href="#chaine" aria-label="Chaîne de ${chaine} jours">${FLAMME(flamme)}${chaine}</a>
+      <div class="pf-groupe">
+        <a class="pf-icone" href="/notifications" aria-label="Notifications et rappels">${ICONES.cloche}${notifications ? '<span class="point"></span>' : ''}</a>
+        <a class="pf-icone" href="/remarques" aria-label="Remarques du coach">${ICONES.bulle}${remarquesNouvelles ? '<span class="point"></span>' : ''}</a>
+      </div>
+      <div class="pf-groupe">
+        <a class="pf-chaine" href="/parcours/etape-4" aria-label="Chaîne de ${chaine} jours">${FLAMME(flamme)}${chaine}</a>
+        <a class="pf-icone" href="/reglages" aria-label="Réglages">${ICONES.reglages}</a>
+      </div>
     </div>
     <div class="pf-identite">
-      <div class="pf-avatar">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</div>
+      <a class="pf-avatar" href="/fiche" aria-label="Ma fiche">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</a>
       <h1>${echapper(nom)}</h1><p>@${echapper(p.pseudo || '')}</p>
     </div>
     <div class="pf-chiffres">
@@ -162,6 +216,7 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
       <div><b>${pastilleRole(role)}</b><small>Rang</small></div><span class="sep"></span>
       <div><b>${ICONES.jours}${jourDepuis}</b><small>Jours</small></div>
     </div>
+    <a class="pf-frise" href="/parcours" aria-label="Mon parcours">${frise(Math.min(p.etape, 5))}</a>
     <div class="roue-cadre"><div class="roue" role="listbox" aria-label="Jours">${roue}</div><button type="button" class="roue-retour" hidden>Revenir à aujourd'hui</button></div>
     ${jours.map((d, i) => panneauJour(d, i, tache)).join('')}
     <div class="pf-cartes">
@@ -170,18 +225,50 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
         <h3>Je suis</h3><p class="vert">${nbSuivis} / 10${nbConcurrents ? ` · ${nbConcurrents} concurrent${nbConcurrents > 1 ? 's' : ''}` : ''}</p>
         ${invitations ? `<p>${invitations} invitation${invitations > 1 ? 's' : ''} à défier</p>` : ''}
       </a>
-      <a class="pf-carte pf-feu" id="chaine" href="/parcours/etape-4">
-        <h3>${flamme ? 'Ne casse pas ta chaîne !' : chaine ? 'Ta chaîne démarre' : 'Allume ta flamme'}</h3>
-        <p>${flamme ? `${chaine} jours d'affilée avec un compte rendu.` : `Envoie ton compte rendu ${3} jours d'affilée${chaine ? ` (${chaine} / 3)` : ''}.`}</p>
-        <div class="points">${derniers7.map((x) => `<i${x ? ' class="ok"' : ''}></i>`).join('')}</div>
-        ${FLAMME(flamme).replace('class="flamme', 'class="grande flamme')}
-      </a>
+      <div class="pf-carte pf-carrousel-cadre">
+        <div class="pf-carrousel" aria-roledescription="carrousel">${slides.join('')}</div>
+        <div class="pf-points" aria-hidden="true">${slides.map((x, i) => `<i${i ? '' : ' class="actif"'}></i>`).join('')}</div>
+      </div>
     </div>
-    ${tache ? `<a class="pf-tache" href="${echapper(tache.lien || '/parcours')}"><span class="pastille">${ICONES.fleche}</span>
-      <span><h3>${echapper(tache.titre)}</h3><p>${echapper(tache.texte || 'Ta tâche la plus importante du moment.')}</p></span></a>` : ''}
-    <h2 class="section">Mes revenus</h2>
-    ${blocTableau(tableau)}
-  </div>`, espace, 'profil', null, `${SCRIPT_TABLEAU}${SCRIPT_ROUE}`);
+    <a class="bouton secondaire" href="/parcours" style="margin:4px 0 18px">Mon parcours</a>
+    ${seances.length ? `<h2 class="section">Mes prochains coachings</h2><div class="carte">${seances.slice(0, 3).map((x) => `<div class="pf-seance"><b data-quand="${echapper(x.debut)}">${echapper(x.date)} à ${echapper(x.heure)} GMT</b><span>${echapper(x.type)}</span></div>`).join('')}
+      <a class="bouton secondaire" href="/coaching" style="margin-top:10px">Mes coachings</a></div>` : ''}
+  </div>`, espace, 'profil', null, `${SCRIPT_ROUE}${SCRIPT_CARROUSEL}${SCRIPT_QUAND}`);
+}
+
+// Revenus : le tableau de bord TikTok (ouvert depuis le carrousel de Mon profil).
+function pageRevenus(config, { espace, tableau, stats }) {
+  return page('Mes revenus', `<a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
+  <div class="titre-page"><div><p class="etiquette">Mon profil</p><h1>Mes revenus</h1></div><span class="doux petit">Total validé : ${dollars((stats || {}).revenusTotal || 0)}</span></div>
+  ${blocTableau(tableau)}`, espace, 'profil', null, SCRIPT_TABLEAU);
+}
+
+// Réglages : prénom et pays, lien du compte TikTok, notifications, compte.
+function pageReglages(config, { espace, prenom, pays, compteTikTok, parcours: aUnParcours, message, erreur }) {
+  return page('Réglages', `<a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
+  <div class="titre-page"><div><p class="etiquette">Mon compte</p><h1>Réglages</h1></div></div>
+  ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <div style="display:grid;gap:4px;max-width:620px">
+    <form class="carte" method="post" action="/reglages/profil" style="display:grid;gap:12px">
+      <h2 style="margin:0">Mon profil</h2>
+      <div class="champ"><label for="prenom">Prénom (affiché au classement)</label><input id="prenom" name="prenom" maxlength="40" value="${echapper(prenom || '')}"></div>
+      <div class="champ"><label for="pays">Pays</label><input id="pays" name="pays" maxlength="60" value="${echapper(pays || '')}"></div>
+      <button class="bouton" type="submit" style="margin:0">Enregistrer</button>
+    </form>
+    ${aUnParcours ? `<form class="carte" method="post" action="/reglages/tiktok" style="display:grid;gap:12px">
+      <h2 style="margin:0">Mon compte TikTok</h2>
+      <div class="champ"><label for="compte">Lien de mon compte</label><input id="compte" name="compte" inputmode="url" value="${echapper(compteTikTok || '')}" placeholder="https://www.tiktok.com/@ton.compte">
+        <small>Sur TikTok : ton profil › Partager le profil › Copier le lien.</small></div>
+      <button class="bouton" type="submit" style="margin:0">Enregistrer</button>
+    </form>` : ''}
+    <div class="carte"><h2 style="margin:0 0 6px">Notifications et application</h2><p class="doux petit" style="margin:0 0 4px">Bob ou l'application, tes appareils, installer l'application.</p>
+      <a class="bouton secondaire" href="/notifications">Régler mes notifications</a></div>
+    <div class="carte"><h2 style="margin:0 0 6px">Coachings</h2><p class="doux petit" style="margin:0 0 4px">Tes créneaux et ton rappel avant chaque séance.</p>
+      <a class="bouton secondaire" href="/coaching">Mes coachings</a></div>
+    <div class="carte"><h2 style="margin:0 0 10px">Mon compte</h2>
+      <a class="bouton secondaire" href="/deconnexion" style="margin:0">Se déconnecter</a>
+      <a class="bouton secondaire" href="/deconnexion?autre=1">Changer de compte</a></div>
+  </div>`, espace, 'profil');
 }
 
 // ---------- Communauté : je suis, mes concurrents, invitations, suggestions ----------
@@ -193,37 +280,59 @@ const STYLE_COMMU = `<style>
   .cm-ligne .qui { flex:1; min-width:0; } .cm-ligne .qui b { display:block; overflow-wrap:anywhere; } .cm-ligne .qui small { color:var(--doux); font-size:12.5px; }
   .cm-ligne form { margin:0; display:flex; gap:6px; } .cm-ligne .bouton { margin:0; min-height:36px; padding:6px 14px; font-size:13px; width:auto; }
   .cm-barre { height:6px; border-radius:999px; background:#222; margin-top:6px; overflow:hidden; } .cm-barre i { display:block; height:100%; background:#c8f23a; }
+  .cm-tuiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(98px, 1fr)); gap:8px; }
+  .cm-tuile { aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:8px; border-radius:18px; background:var(--surface); border:1px solid var(--bord); color:#fff; text-decoration:none; text-align:center; min-width:0; }
+  .cm-tuile .rond { width:44px; height:44px; border-radius:50%; background:#2a2a2a; display:grid; place-items:center; font-weight:700; overflow:hidden; } .cm-tuile .rond img { width:100%; height:100%; object-fit:cover; }
+  .cm-tuile b { font-size:13px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .cm-tuile small { font-size:11px; color:var(--doux); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cm-tuile .cm-barre { width:80%; margin-top:2px; }
+  .cm-tuile.vide { border-style:dashed; color:var(--doux); } .cm-tuile.vide .rond { background:transparent; border:1px dashed #444; font-size:20px; }
+  .cm-fil { display:grid; gap:6px; max-height:420px; overflow:auto; }
+  .cm-nouvelle { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:14px; background:var(--surface); border:1px solid var(--bord); }
+  .cm-nouvelle .rond { width:34px; height:34px; border-radius:50%; background:#2a2a2a; display:grid; place-items:center; font-weight:700; overflow:hidden; flex:none; } .cm-nouvelle .rond img { width:100%; height:100%; object-fit:cover; }
+  .cm-nouvelle p { flex:1; margin:0; font-size:13.5px; } .cm-nouvelle small { color:var(--doux); font-size:11.5px; flex:none; }
   .cm-section { margin-top:22px; } .cm-section h2 { margin:0 0 4px; font-size:17px; } .cm-section > p { margin:0 0 10px; color:var(--doux); font-size:13px; }
 </style>`;
 const ligne = (x, actions, sous) => `<div class="cm-ligne"><span class="rond">${x.avatar ? `<img src="${echapper(x.avatar)}" alt="" referrerpolicy="no-referrer">` : echapper((x.nom || '?').charAt(0).toUpperCase())}</span>
   <div class="qui"><a href="/classement/${encodeURIComponent(x.id)}" style="text-decoration:none"><b>${echapper(x.nom)}</b></a><small>${sous || ''}</small></div>${actions || ''}</div>`;
 const bouton = (action, texte, champs = {}, classe = 'secondaire') => `<form method="post" action="${action}">${Object.entries(champs).map(([k, v]) => `<input type="hidden" name="${k}" value="${echapper(v)}">`).join('')}<button class="bouton ${classe}" type="submit">${echapper(texte)}</button></form>`;
 
-function pageCommunaute(config, { espace, suivis, concurrents, recues, envoyees, enVogue, proches, peutConcourir, places, message, erreur }) {
-  const flammeTxt = (n) => (n >= 3 ? ` · 🔥 ${n}` : '');
-  return page('Communauté', `${STYLE_COMMU}
+const tuile = (x, sous, barre) => `<a class="cm-tuile" href="/classement/${encodeURIComponent(x.id)}"><span class="rond">${x.avatar ? `<img src="${echapper(x.avatar)}" alt="" referrerpolicy="no-referrer">` : echapper((x.nom || '?').charAt(0).toUpperCase())}</span>
+  <b>${echapper(x.nom)}</b><small>${sous || ''}</small>${barre !== undefined ? `<span class="cm-barre"><i style="width:${barre}%"></i></span>` : ''}</a>`;
+const tuileVide = (texte, lien) => `<a class="cm-tuile vide" href="${lien}"><span class="rond">+</span><b>${echapper(texte)}</b></a>`;
+function phrase(n) {
+  const v = n.type === 'gain' ? `a gagné <b>${dollars(n.valeur)}</b>` : n.type === 'vues' ? `a fait <b>${vuesCourtes(n.valeur)} vues</b>` : n.type === 'gagne' ? `a gagné votre concurrence (${dollars(n.valeur, { centimes: false })})` : 'a posté un nouveau résultat';
+  return `${n.concurrent ? 'Ton concurrent ' : ''}<b>${echapper(n.membre.nom)}</b> ${v}`;
+}
+function pageCommunaute(config, { espace, suivis, concurrents, recues, envoyees, enVogue, proches, peutConcourir, places, fil = [], message, erreur }) {
+  const flammeTxt = (n) => (n >= 3 ? `🔥 ${n}` : '');
+  const autres = suivis.filter((x) => x.type !== 'concurrent');
+  const quand = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  return page('Je suis', `${STYLE_COMMU}
   <a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
-  <div class="titre-page"><div><p class="etiquette">Communauté</p><h1>Ceux qui te motivent</h1></div><span class="doux petit">${places} / 10 places</span></div>
+  <div class="titre-page"><div><p class="etiquette">Communauté</p><h1>Je suis</h1></div><span class="doux petit">${places} / 10 places</span></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
-  <a class="bouton secondaire" href="/classement" style="max-width:420px">Trouver des membres dans le classement</a>
-  <p class="doux petit" style="margin:6px 0 0">Ouvre le profil d'un membre du classement, puis Suivre ou Défier.</p>
   ${recues.length ? `<section class="cm-section"><h2>Invitations à concourir</h2><p>Le premier qui atteint l'objectif gagne. Un concurrent prend une de tes 10 places.</p>
     <div class="cm-liste">${recues.map((c) => ligne(c.membre, `${bouton(`/communaute/concurrences/${c.id}`, 'Refuser', { reponse: 'non' })}${bouton(`/communaute/concurrences/${c.id}`, 'Accepter', { reponse: 'oui' }, 'vert')}`,
     `Premier à ${dollars(c.objectif, { centimes: false })}`)).join('')}</div></section>` : ''}
   <section class="cm-section"><h2>Mes concurrents (${concurrents.length} / 3)</h2>
-    <p>${peutConcourir ? 'Vous recevez les résultats l\'un de l\'autre. Le premier à l\'objectif gagne.' : 'La concurrence se débloque à l\'étape 4, après ton premier compte rendu.'}</p>
-    <div class="cm-liste">${concurrents.map((c) => `${ligne(c.membre, bouton(`/communaute/concurrences/${c.id}/abandon`, 'Abandonner'),
-    `Objectif ${dollars(c.objectif, { centimes: false })} · toi ${dollars(c.moi, { centimes: false })} · lui ${dollars(c.lui, { centimes: false })}`)}`).join('') || '<p class="vide-traiter">Aucun concurrent pour le moment.</p>'}
-    ${envoyees.map((c) => ligne(c.membre, bouton(`/communaute/concurrences/${c.id}/abandon`, 'Annuler'), 'Invitation envoyée, en attente')).join('')}</div></section>
-  ${proches.length ? `<section class="cm-section"><h2>Profils proches du tien</h2><p>Mêmes revenus et mêmes vues que toi ces 10 derniers jours : défie-le.</p>
+    ${peutConcourir ? '' : '<p>La concurrence se débloque à l\'étape 4, après ton premier compte rendu.</p>'}
+    <div class="cm-tuiles">${concurrents.map((c) => tuile(c.membre, `toi ${dollars(c.moi, { centimes: false })} · ${dollars(c.lui, { centimes: false })}`, Math.min(100, Math.round((Math.max(c.moi, c.lui) / c.objectif) * 100)))).join('')}
+      ${envoyees.map((c) => tuile(c.membre, 'invitation envoyée')).join('')}
+      ${peutConcourir && concurrents.length + envoyees.length < 3 ? tuileVide('Défier', '#proches') : ''}</div></section>
+  <section class="cm-section"><h2>Mes suivis (${autres.length})</h2>
+    <div class="cm-tuiles">${autres.map((s) => tuile(s.membre, flammeTxt(s.membre.chaine) || (s.membre.role ? echapper(nomRole(s.membre.role)) : 'Elite'))).join('')}
+      ${places < 10 ? tuileVide('Suivre', '#recommandes') : ''}</div>
+    <p class="doux petit" style="margin:8px 0 0">Touche un membre pour voir son profil, le défier ou ne plus le suivre.</p></section>
+  <section class="cm-section"><h2>Leurs dernières nouvelles</h2>
+    <div class="cm-fil">${fil.map((n, i) => `<div class="cm-nouvelle" style="opacity:${Math.max(0.35, 1 - i * 0.13).toFixed(2)}"><span class="rond">${n.membre.avatar ? `<img src="${echapper(n.membre.avatar)}" alt="" referrerpolicy="no-referrer">` : echapper((n.membre.nom || '?').charAt(0).toUpperCase())}</span>
+      <p>${phrase(n)}</p><small>${echapper(quand(n.quand))}</small></div>`).join('') || '<p class="vide-traiter">Suis des membres pour voir leurs résultats ici.</p>'}</div></section>
+  ${proches.length ? `<section class="cm-section" id="proches"><h2>Profils proches du tien</h2><p>Mêmes revenus et mêmes vues que toi ces 10 derniers jours : défie-le.</p>
     <div class="cm-liste">${proches.map((x) => ligne(x.membre, bouton('/communaute/defier', 'Défier', { id: x.membre.id }, 'vert'),
     `${dollars(x.revenus, { centimes: false })} · ${vuesCourtes(x.vues)} vues en 10 jours`)).join('')}</div></section>` : ''}
-  <section class="cm-section"><h2>Je suis (${suivis.length})</h2><p>Tu reçois leurs nouveaux résultats : l'argent gagné, sinon les vues.</p>
-    <div class="cm-liste">${suivis.map((s) => ligne(s.membre, s.type === 'concurrent' ? '<span class="doux petit">Concurrent</span>' : bouton('/communaute/ne-plus-suivre', 'Ne plus suivre', { id: s.membre.id }),
-    `${s.membre.role ? echapper(nomRole(s.membre.role)) : 'Elite'}${flammeTxt(s.membre.chaine)}`)).join('') || '<p class="vide-traiter">Tu ne suis personne pour le moment.</p>'}</div></section>
-  <section class="cm-section"><h2>Recommandés</h2><p>En vogue : les meilleurs résultats de la semaine. Places prises ? Retire quelqu'un qui ne poste plus, puis suis-les.</p>
+  <section class="cm-section" id="recommandes"><h2>Recommandés</h2><p>Les meilleurs résultats de la semaine. Places prises ? Retire quelqu'un qui ne poste plus (depuis son profil).</p>
     <div class="cm-liste">${enVogue.map((x) => ligne(x.membre, places >= 10 ? '' : bouton('/communaute/suivre', 'Suivre', { id: x.membre.id }, 'vert'),
-    `${dollars(x.revenus, { centimes: false })} · ${vuesCourtes(x.vues)} vues cette semaine${flammeTxt(x.chaine)}`)).join('') || '<p class="vide-traiter">Pas encore de résultats cette semaine.</p>'}</div></section>`, espace, 'communaute');
+    `${dollars(x.revenus, { centimes: false })} · ${vuesCourtes(x.vues)} vues cette semaine${x.chaine >= 3 ? ` · 🔥 ${x.chaine}` : ''}`)).join('') || '<p class="vide-traiter">Pas encore de résultats cette semaine.</p>'}</div>
+    <a class="bouton secondaire" href="/classement" style="max-width:420px;margin-top:12px">Trouver des membres dans le classement</a></section>`, espace, 'profil');
 }
 
 // ---------- Remarques du coach ----------
@@ -232,4 +341,4 @@ function pageRemarques(config, { espace, remarques }) {
   <div style="display:grid;gap:10px">${remarques.map(remarque).join('') || '<p class="vide-traiter">Pas encore de remarque.</p>'}</div>`, espace, 'remarques');
 }
 
-module.exports = { pageMonProfil, pageCommunaute, pageRemarques, FLAMME };
+module.exports = { pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };

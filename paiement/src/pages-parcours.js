@@ -5,6 +5,9 @@
 const { ICONE, echapper, formatDate, blocVideo } = require('./pages');
 const { jourLisible, moisLisible } = require('./suivi');
 const { pageEspace } = require('./pages-espace');
+const { aliasCompte } = require('./tiktok');
+// Le compte TikTok : son @alias, qui ouvre le profil.
+const lienTikTok = (l) => (/^https:\/\//.test(l || '') ? `<a href="${echapper(l)}" target="_blank" rel="noopener">${echapper(aliasCompte(l))}</a>` : echapper(l || ''));
 
 const ETAPES = [
   { n: 1, titre: 'Prise en main', court: 'Prise en main' },
@@ -536,13 +539,13 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
       </dl></div>
       ${vueCoach ? `<form class="carte" method="post" action="${base}/compte" style="display:grid;gap:10px">
         <h2 style="margin:0">Compte TikTok</h2>
-        <div class="champ"><label for="compte">Compte</label><input id="compte" name="compte" value="${echapper(p.compte_tiktok || '')}" placeholder="@compte"></div>
+        <div class="champ"><label for="compte">Lien du compte TikTok</label><input id="compte" name="compte" value="${echapper(p.compte_tiktok || '')}" placeholder="https://www.tiktok.com/@compte"></div>
         <div class="champ"><label for="niche">Niche</label><input id="niche" name="niche" value="${echapper(p.niche || '')}"></div>
         <div class="champ"><label for="pays">Pays cible</label><input id="pays" name="pays" value="${echapper(p.pays || '')}"></div>
         ${p.etape === 2 ? '<button class="bouton" type="submit" name="ouvrir" value="3" style="margin-top:0">Enregistrer et ouvrir l\'étape 3</button>' : ''}
         <button class="bouton${p.etape === 2 ? ' secondaire' : ''}" type="submit" style="margin-top:0">Enregistrer</button></form>`
     : `<div class="carte"><h2>Compte TikTok</h2><dl class="details">
-        <div><dt>Compte</dt><dd>${echapper(p.compte_tiktok || 'à l\'étape 2')}</dd></div>
+        <div><dt>Compte</dt><dd>${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : 'à l\'étape 2'}</dd></div>
         <div><dt>Niche</dt><dd>${echapper(p.niche || '—')}</dd></div>
         <div><dt>Pays cible</dt><dd>${echapper(p.pays || '—')}</dd></div></dl></div>`}
       <div class="carte"><h2>Parcours</h2><dl class="details">${dates.map(([t, le]) => `<div><dt>${echapper(t)}</dt><dd>${echapper(le)}</dd></div>`).join('')}</dl>
@@ -706,7 +709,7 @@ function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, m
     </div>
     <div>
       ${decision}
-      <div class="carte"><h2>${echapper(p.pseudo || p.discord_id)}</h2><p class="doux petit" style="margin:0">Étape ${p.etape}${p.niche ? ` · ${echapper(p.niche)}` : ''}${p.compte_tiktok ? ` · ${echapper(p.compte_tiktok)}` : ''}</p>
+      <div class="carte"><h2>${echapper(p.pseudo || p.discord_id)}</h2><p class="doux petit" style="margin:0">Étape ${p.etape}${p.niche ? ` · ${echapper(p.niche)}` : ''}${p.compte_tiktok ? ` · ${lienTikTok(p.compte_tiktok)}` : ''}</p>
         <a class="bouton secondaire" href="/admin/membres/${encodeURIComponent(p.discord_id)}">Voir sa fiche</a></div>
     </div>
   </div>`, espace, 'traiter');
@@ -733,13 +736,11 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
   const corps = !p.heure_creation ? `<div class="carte">${formHeures(p)}</div>` : `
   <div class="carte">
     <div class="envoi-tete"><h2>Aujourd'hui</h2>${publications.length ? `<span class="etat" data-etat="valide">${ICONE.ok}${publications.length} vidéo(s) déclarée(s)</span>` : '<span class="etat" data-etat="attente">À déclarer</span>'}</div>
-    <p class="doux" style="margin:8px 0 12px">Au moins une vidéo par jour. Après avoir publié, colle son lien et ajoute la capture de ton compte.</p>
+    <p class="doux" style="margin:8px 0 12px">Au moins une vidéo par jour. Après avoir publié, colle son lien : c'est tout.</p>
     ${publications.length ? `<ul class="liste" style="margin-bottom:12px">${publications.map((x, i) => `<li>${ICONE.ok}<span>Vidéo ${i + 1} : <a href="${echapper(x.lien)}" target="_blank" rel="noopener">${echapper(x.lien)}</a></span></li>`).join('')}</ul>` : ''}
     <form method="post" action="/parcours/etape-4/publication" style="display:grid;gap:12px">
       <div class="champ"><label for="liens">${publications.length ? 'Une autre vidéo publiée aujourd\'hui ?' : 'Lien de ta vidéo TikTok'}</label>
         <textarea id="liens" name="liens" placeholder="https://www.tiktok.com/@ton.compte/video/…" style="min-height:70px"></textarea><small>Un lien par ligne si tu en as publié plusieurs.</small></div>
-      ${capture ? '<p class="doux petit" style="margin:0">Capture du compte reçue pour aujourd\'hui. Tu peux la remplacer :</p>' : ''}
-      ${zoneCapture('capture', capture ? 'Remplacer la capture du compte' : 'Capture de ton compte', 'Ton profil TikTok tel qu\'il est maintenant : on y voit tes vidéos publiées.', '')}
       <button class="bouton" type="submit" style="margin-top:0">Déclarer</button>
     </form>
   </div>
@@ -867,7 +868,7 @@ function pageCompteRenduCoach(config, { espace, cr, parcours: p, capture, messag
     </div>
     <div>
       ${decision}
-      <div class="carte"><h2>${echapper(p.pseudo || p.discord_id)}</h2><p class="doux petit" style="margin:0">${p.compte_tiktok ? echapper(p.compte_tiktok) : ''}${p.niche ? ` · ${echapper(p.niche)}` : ''}</p>
+      <div class="carte"><h2>${echapper(p.pseudo || p.discord_id)}</h2><p class="doux petit" style="margin:0">${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : ''}${p.niche ? ` · ${echapper(p.niche)}` : ''}</p>
         <a class="bouton secondaire" href="/admin/membres/${encodeURIComponent(p.discord_id)}">Voir sa fiche</a></div>
     </div>
   </div>`, espace, 'traiter');
@@ -1077,12 +1078,13 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   ${vueCoach ? `<a class="retour" href="/admin/membres/${encodeURIComponent(p.discord_id)}"><span aria-hidden="true">‹</span> Sa fiche</a>` : ''}
   ${vuePublique ? '<a class="retour" href="/classement"><span aria-hidden="true">‹</span> Classement</a>' : ''}
   <div class="profil-tete"><div class="avatar" aria-hidden="true">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : echapper(nom.charAt(0).toUpperCase())}</div>
-    <div><h1>${echapper(nom)}</h1><p>${echapper([p.compte_tiktok, p.niche].filter(Boolean).join(' · ') || 'Overmaxx Elite')}</p>
+    <div><h1>${echapper(nom)}</h1><p>${p.compte_tiktok ? `${lienTikTok(p.compte_tiktok)}${p.niche ? ` · ${echapper(p.niche)}` : ''}` : echapper(p.niche || 'Overmaxx Elite')}</p>
       <div class="badges"><span>${p.etape >= 5 ? 'GOAT' : `Étape ${p.etape}`}</span><span>Jour ${jourDe(p)} sur 90</span>
         ${trophees.map((r) => pastilleRole(r.role)).join('')}${pastilleRole('elite')}${chaine >= 3 ? `<span style="border-color:#ff9a3c;color:#ff9a3c">🔥 ${chaine} jours d'affilée</span>` : ''}</div></div></div>
   ${relation ? `${relation.message ? `<p class="message-ok">${echapper(relation.message)}</p>` : ''}${relation.erreur ? `<p class="erreur-form">${echapper(relation.erreur)}</p>` : ''}
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 18px">
-    ${relation.concurrent ? '<span class="bouton secondaire" style="width:auto;margin:0;pointer-events:none">Ton concurrent</span>'
+    ${relation.concurrent ? `<form method="post" action="/communaute/concurrences/${relation.concurrenceId}/abandon" style="margin:0"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
+      <button class="bouton secondaire" type="submit" style="width:auto;margin:0;padding-left:22px;padding-right:22px">Ton concurrent · abandonner</button></form>`
     : `<form method="post" action="/communaute/${relation.suit ? 'ne-plus-suivre' : 'suivre'}" style="margin:0"><input type="hidden" name="id" value="${echapper(p.discord_id)}"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
       <button class="bouton${relation.suit ? ' secondaire' : ''}" type="submit" style="width:auto;margin:0;padding-left:22px;padding-right:22px">${relation.suit ? 'Ne plus suivre' : 'Suivre'}</button></form>`}
     ${relation.peutDefier && !relation.concurrent ? `<form method="post" action="/communaute/defier" style="margin:0"><input type="hidden" name="id" value="${echapper(p.discord_id)}"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">

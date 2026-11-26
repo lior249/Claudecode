@@ -80,13 +80,17 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     // Déclaration du jour : liens TikTok + capture du membre lui-même.
     const lien1 = 'https://www.tiktok.com/@awa/video/7400000000000000001';
     const lien2 = 'https://www.tiktok.com/@awa/video/7400000000000000002';
-    assert.strictEqual((await m.poster('/parcours/etape-4/publication', { liens: lien1, capture: img2.nom }, { cookie: membre })).status, 400, 'capture d\'un autre membre refusée');
+    void img2;
     const pasTiktok = await m.poster('/parcours/etape-4/publication', { liens: 'https://youtube.com/watch?v=1', capture: img.nom }, { cookie: membre });
     assert.strictEqual(pasTiktok.status, 400);
     assert.match(await pasTiktok.text(), /pas un lien TikTok/);
     const decl = await m.poster('/parcours/etape-4/publication', { liens: `${lien1}\n${lien2}`, capture: img.nom }, { cookie: membre });
     assert.strictEqual(decl.headers.get('location'), '/parcours/etape-4?ok=publication');
     assert.match(await (await m.get('/parcours/etape-4', { cookie: membre })).text(), /2 vidéo\(s\) déclarée\(s\)/);
+    // Une vidéo ne se déclare qu'une fois (même avec des ?paramètres en plus dans le lien).
+    const double = await m.poster('/parcours/etape-4/publication', { liens: `${lien1}?is_from_webapp=1` }, { cookie: membre });
+    assert.strictEqual(double.status, 400);
+    assert.match(await double.text(), /déjà été postée/);
     assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Ta vidéo du jour est déclarée/);
 
     // Le lendemain : compte rendu de la veille.
@@ -156,7 +160,7 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     assert.strictEqual((await m.get('/fiche', { cookie: membre })).status, 200);
 
     // Mon profil : le tableau de bord (données jour par jour), visible par le membre et par le coach.
-    const profil = await (await m.get('/profil', { cookie: membre })).text();
+    const profil = await (await m.get('/revenus', { cookie: membre })).text(); // le tableau de bord, ouvert depuis Mon profil
     assert.match(profil, /Récompenses estimées/);
     assert.ok(profil.includes(`&quot;j&quot;:&quot;${hier}&quot;`), 'données du tableau de bord');
     assert.strictEqual((await m.get(`/admin/membres/${E1}/profil`, { cookie: coach })).status, 200);

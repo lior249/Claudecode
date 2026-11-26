@@ -33,6 +33,8 @@ function creerCommunaute({ db, parcours, suivi, maintenant = () => new Date() })
     decider: db.prepare('UPDATE concurrences SET statut = ?, decide_le = ? WHERE id = ? AND statut = ?'),
     finir: db.prepare("UPDATE concurrences SET statut = 'fini', gagnant = ?, fini_le = ? WHERE id = ? AND statut = 'accepte'"),
     joursCr: db.prepare("SELECT jour FROM comptes_rendus WHERE discord_id = ? AND envoye_le IS NOT NULL ORDER BY jour DESC"),
+    crValides: db.prepare("SELECT jour, decide_le FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide' AND decide_le >= ? ORDER BY decide_le DESC LIMIT 10"),
+    finies: db.prepare("SELECT * FROM concurrences WHERE statut = 'fini' AND (de = ? OR vers = ?) AND fini_le >= ?"),
     crPeriode: db.prepare("SELECT jour, vues_jour, etat FROM comptes_rendus WHERE discord_id = ? AND envoye_le IS NOT NULL AND jour >= ? AND etat != 'corriger'"),
   };
   const iso = () => maintenant().toISOString();
@@ -156,6 +158,16 @@ function creerCommunaute({ db, parcours, suivi, maintenant = () => new Date() })
         .sort((a, b) => Math.abs(a.revenus - moi.revenus) - Math.abs(b.revenus - moi.revenus)).slice(0, n);
     },
 
+    // Le fil « Leurs dernières nouvelles » : résultats validés de ceux que je suis (21 jours), concurrences gagnées.
+    fil(id, n = 30) {
+      const depuis = new Date(maintenant().getTime() - 21 * JOUR).toISOString();
+      const items = [];
+      for (const s of q.suivis.all(id)) {
+        for (const cr of q.crValides.all(s.suivi, depuis)) items.push({ auteur: s.suivi, concurrent: s.type === 'concurrent', quand: cr.decide_le, ...api.nouvelle(s.suivi, cr.jour) });
+      }
+      for (const c of q.finies.all(id, id, depuis)) items.push({ auteur: c.gagnant, concurrent: true, quand: c.fini_le, type: 'gagne', valeur: c.objectif });
+      return items.sort((a, b) => String(b.quand).localeCompare(String(a.quand))).slice(0, n);
+    },
     // Message pour ceux qui le suivent, après un compte rendu validé : l'argent d'abord, sinon les vues, sinon « a posté ».
     nouvelle(id, jour) {
       const g = suivi.gains(id).find((x) => x.jour === jour);

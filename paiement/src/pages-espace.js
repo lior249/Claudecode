@@ -74,18 +74,16 @@ function navEspace(espace = {}) {
   // Le coach (admin) ne réserve pas de séance : pas de « Mes coachings » pour lui.
   if (!espace.estAdmin) {
     nav.push({ section: espace.parcours ? 'Mon accompagnement' : 'Mon espace' });
+    // Élèves : le minimum. Fiche (photo), remarques (bulle), notifications (cloche), « Je suis » et réglages sont sur Mon profil.
     if (espace.parcours) {
       nav.push({ cle: 'profil', libelle: 'Mon profil', lien: '/profil', icone: 'profil' },
-        { cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' },
-        { cle: 'communaute', libelle: 'Communauté', lien: '/communaute', icone: 'communaute' },
-        { cle: 'remarques', libelle: 'Remarques du coach', lien: '/remarques', icone: 'remarques' },
-        { cle: 'fiche', libelle: 'Ma fiche', lien: '/fiche', icone: 'fiche' });
+        { cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' });
     }
     nav.push({ cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
   }
-  nav.push({ cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' },
-    { cle: 'notifications', libelle: 'Notifications', lien: '/notifications', icone: 'notifications', badge: espace.notifsNonLues || null });
-  nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/', icone: 'site', externe: true });
+  nav.push({ cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' });
+  if (!espace.parcours || espace.estAdmin) nav.push({ cle: 'notifications', libelle: 'Notifications', lien: '/notifications', icone: 'notifications', badge: espace.notifsNonLues || null });
+  if (espace.estAdmin) nav.push({ section: 'Overmaxx' }, { cle: 'site', libelle: 'Site public', lien: '/', icone: 'site', externe: true });
   return nav;
 }
 

@@ -335,6 +335,17 @@ retire-les à la main.
 - Sur téléphone, **barre du bas** : Classement · Remarques · Mes rappels · Profil. La vibration de la roue marche sur Android ;
   Apple ne la permet pas aux sites (iPhone).
 
+## Mon profil épuré (élèves)
+
+- **Menu** des élèves : Mon profil, Mon parcours, Mes coachings, Classement (« Site public » seulement pour le coach).
+- **Mon profil** : cloche (notifications) et bulle (remarques du coach) à gauche ; flamme et roue dentée (Réglages) à droite ;
+  la photo ouvre la fiche ; la frise des étapes ouvre Mon parcours ; carrousel (chaîne, place au classement, revenus du mois,
+  prochain objectif), qui défile seul toutes les 3 secondes ou au doigt ; « Je suis » ouvre la page des suivis et concurrents
+  (carrés, puis leurs dernières nouvelles) ; les prochains coachings en bas. Le tableau de bord des revenus est sur `/revenus`.
+- **Réglages** (`/reglages`) : prénom, pays, **lien du compte TikTok**, notifications, coachings, se déconnecter.
+- **Compte TikTok** : on enregistre le lien du profil (un @alias est transformé en lien).
+- **Étape 4** : déclarer une vidéo = coller son lien (plus de capture du compte). Une vidéo déjà déclarée est refusée.
+
 ## Notifications du coach : Notifications et Mes rappels
 
 - **Notifications** (menu Gestion) : chaque message que Bob t'envoie y est aussi rangé, avec « Ouvrir » vers la bonne page.

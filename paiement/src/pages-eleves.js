@@ -97,7 +97,7 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur 
       html += blocs.length
         ? '<div class="manquants"><p>Ces étapes n\\'ont pas été validées sur la plateforme :</p>' + blocs.join('') + '<p style="margin:0">Es-tu sûr de le faire passer à l\\'étape ' + cible + ' malgré tout ?</p></div>'
         : '<p class="doux" style="margin:0 0 10px">Tout a été validé jusqu\\'ici.</p>';
-      if (cible >= 3 && !e.compte) html += '<div class="champs-compte"><div class="champ large"><label for="f-compte">Son compte TikTok (obligatoire)</label><input id="f-compte" name="compte" placeholder="@compte" required></div>'
+      if (cible >= 3 && !e.compte) html += '<div class="champs-compte"><div class="champ large"><label for="f-compte">Lien de son compte TikTok (obligatoire)</label><input id="f-compte" name="compte" placeholder="https://www.tiktok.com/@compte" required></div>'
         + '<div class="champ"><label for="f-niche">Niche</label><input id="f-niche" name="niche"></div><div class="champ"><label for="f-pays">Pays cible</label><input id="f-pays" name="pays"></div></div>';
       if (e.etape <= 1 && !e.niveau) html += '<div class="champs-compte"><div class="champ large"><label for="f-niveau">Son niveau</label><select id="f-niveau" name="niveau"><option value="L2">L2</option><option value="L1">L1</option></select></div></div>';
       html += '<p class="doux petit" style="margin:0">Bob le prévient : « Étape ' + cible + ' ouverte ».</p>';
@@ -195,7 +195,7 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur 
   <dialog id="dlg-infos" class="fenetre">
     <h2 style="margin:0 0 10px">Infos de <span id="i-nom"></span></h2>
     <div class="champs-compte">
-      <div class="champ large"><label for="i-compte">Compte TikTok</label><input id="i-compte" name="compte" placeholder="@compte"></div>
+      <div class="champ large"><label for="i-compte">Lien du compte TikTok</label><input id="i-compte" name="compte" placeholder="https://www.tiktok.com/@compte"></div>
       <div class="champ"><label for="i-niche">Niche</label><input id="i-niche" name="niche"></div>
       <div class="champ"><label for="i-pays">Pays cible</label><input id="i-pays" name="pays"></div>
       <div class="champ"><label for="i-niveau">Niveau</label><select id="i-niveau" name="niveau"><option value="">—</option><option value="L1">L1</option><option value="L2">L2</option></select></div>

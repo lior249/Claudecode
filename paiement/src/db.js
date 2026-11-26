@@ -558,6 +558,13 @@ function migrerV21(db) {
   PRAGMA user_version = 21;`);
 }
 
+// v22 : le compte TikTok est le lien de son profil (les anciens @alias deviennent des liens).
+function migrerV22(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 22) return;
+  db.exec(`UPDATE parcours SET compte_tiktok = 'https://www.tiktok.com/' || compte_tiktok WHERE compte_tiktok LIKE '@%';
+  PRAGMA user_version = 22;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -588,6 +595,7 @@ function ouvrirBase(fichier) {
   migrerV19(db);
   migrerV20(db);
   migrerV21(db);
+  migrerV22(db);
   return db;
 }
 

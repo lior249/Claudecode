@@ -1,8 +1,10 @@
 'use strict';
 
+const { lienVideo } = require('./tiktok');
+
 // Étape 4 de l'accompagnement Elite : publication et suivi quotidien (docs/ACCOMPAGNEMENT-ELITE.md).
 //  - le membre choisit 3 heures fixes (création, publication, compte rendu), dans son fuseau horaire ;
-//  - chaque jour, il déclare ses vidéos publiées (liens + capture du compte) : au moins une par jour ;
+//  - chaque jour, il déclare ses vidéos publiées (leur lien, une seule fois par vidéo) : au moins une par jour ;
 //  - le lendemain, il envoie le compte rendu de ce jour-là (statistiques, revenus, capture des revenus, question) ;
 //  - le coach valide ou demande des modifications ; les revenus validés font avancer les objectifs,
 //    GOAT (1 000 € sur 28 jours) et les rôles de revenus (1 500, 5 000, 10 000 € au total), confirmés par le coach.
@@ -65,6 +67,7 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
   const q = {
     heures: db.prepare('UPDATE parcours SET fuseau = ?, heure_creation = ?, heure_publication = ?, heure_compte_rendu = ?, maj_le = ? WHERE discord_id = ?'),
     publier: db.prepare('INSERT OR IGNORE INTO publications (discord_id, jour, lien, cree_le) VALUES (?, ?, ?, ?)'),
+    lienConnu: db.prepare('SELECT 1 FROM publications WHERE lien = ?'),
     publicationsJour: db.prepare('SELECT * FROM publications WHERE discord_id = ? AND jour = ? ORDER BY id'),
     joursPublies: db.prepare('SELECT jour, COUNT(*) n FROM publications WHERE discord_id = ? GROUP BY jour ORDER BY jour'),
     capture: db.prepare('INSERT INTO captures_jour (discord_id, jour, image, cree_le) VALUES (?, ?, ?, ?) ON CONFLICT(discord_id, jour) DO UPDATE SET image = excluded.image'),
@@ -114,18 +117,23 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       return { parcours: parcours.get(discordId) };
     },
 
-    // Déclaration des vidéos publiées aujourd'hui : liens TikTok + capture du compte (une par jour).
+    // Déclaration des vidéos publiées aujourd'hui : leurs liens TikTok (un lien déjà déclaré est refusé).
     declarer(discordId, { liens = [], capture }) {
       const p = parcours.get(discordId);
       if (!p || p.etape < 4) return { erreur: 'Tu n\'es pas encore autorisé à publier.' };
       if (!p.heure_publication) return { erreur: 'Choisis d\'abord tes heures.' };
-      const propres = [...new Set(liens.map((l) => String(l).trim()).filter(Boolean))];
-      if (!propres.length) return { erreur: 'Colle le lien de ta vidéo TikTok.' };
-      for (const l of propres) if (!/^https:\/\/([a-z0-9-]+\.)*tiktok\.com\/\S+$/i.test(l) || l.length > 400) return { erreur: `Ce lien n'est pas un lien TikTok : ${l.slice(0, 80)}` };
+      const bruts = liens.map((l) => String(l).trim()).filter(Boolean);
+      if (!bruts.length) return { erreur: 'Colle le lien de ta vidéo TikTok.' };
+      const propres = [];
+      for (const l of bruts) {
+        const v = lienVideo(l);
+        if (!v) return { erreur: `Ce lien n'est pas un lien TikTok : ${l.slice(0, 80)}` };
+        // Chaque vidéo une seule fois : un lien déjà déclaré (par lui ou par un autre) est refusé.
+        if (q.lienConnu.get(v)) return { erreur: 'Cette vidéo a déjà été postée : colle le lien d\'une nouvelle vidéo.' };
+        if (!propres.includes(v)) propres.push(v);
+      }
       const jour = api.aujourdhui(p);
-      const deja = q.captureJour.get(discordId, jour);
-      if (!capture && !deja) return { erreur: 'Ajoute la capture de ton compte : elle prouve tes publications du jour.' };
-      if (capture) q.capture.run(discordId, jour, capture, iso());
+      if (capture) q.capture.run(discordId, jour, capture, iso()); // la capture du compte n'est plus demandée
       for (const l of propres.slice(0, 20)) q.publier.run(discordId, jour, l, iso());
       return { jour, publications: q.publicationsJour.all(discordId, jour) };
     },
@@ -278,7 +286,7 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
           lien: `/parcours/compte-rendu/${x.jour}`, bouton: 'Faire mon compte rendu' };
       }
       if (!q.publicationsJour.all(p.discord_id, api.aujourdhui(p)).length) {
-        return { cle: 'publier', titre: 'Publie ta vidéo du jour', texte: 'Au moins une vidéo par jour, puis déclare-la ici avec son lien et la capture de ton compte.',
+        return { cle: 'publier', titre: 'Publie ta vidéo du jour', texte: 'Au moins une vidéo par jour, puis colle son lien ici.',
           lien: '/parcours/etape-4', bouton: 'Déclarer ma vidéo' };
       }
       return { cle: 'ok', titre: 'Ta vidéo du jour est déclarée', texte: 'Demain, à ton heure de compte rendu, tu enverras ses résultats.', lien: '/parcours/etape-4', bouton: 'Ouvrir l\'étape 4' };
