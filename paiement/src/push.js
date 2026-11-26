@@ -73,9 +73,10 @@ function creerPush({ db, config, maintenant = () => new Date(), envoyerPush = (.
     },
 
     // Envoie à tous ses appareils. Renvoie le nombre d'appareils atteints.
-    async envoyer(discordId, { titre, corps, url, tag }) {
+    async envoyer(discordId, { titre, corps, url, tag, compte }) {
       const k = cles();
-      const charge = JSON.stringify({ titre: String(titre || 'Overmaxx').slice(0, 100), corps: String(corps || '').slice(0, 300), url: url || '/app', tag: tag || undefined });
+      const charge = JSON.stringify({ titre: String(titre || 'Overmaxx').slice(0, 100), corps: String(corps || '').slice(0, 300), url: url || '/app', tag: tag || undefined,
+        compte: Number.isInteger(compte) && compte >= 0 ? compte : undefined });
       let n = 0;
       for (const s of q.abonnements.all(discordId)) {
         try {

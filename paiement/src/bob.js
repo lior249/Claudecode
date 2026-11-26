@@ -175,7 +175,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     && contenu.components.some((r) => (r.components || []).some((b) => b.data && b.data.custom_id)));
   async function parApplication(discordId, contenu) {
     if (!push || !discordId || aDesBoutonsAction(contenu) || push.canal(discordId) !== 'app') return false;
-    try { return (await push.envoyer(discordId, versPush(contenu))) > 0; } catch (err) { console.warn('[push]', err.message); return false; }
+    let compte;
+    try { compte = discordId === config.discord.adminId ? notifsAdmin.nonLues() : notifsAdmin.nonLuesMembre(discordId); } catch { compte = undefined; }
+    try { return (await push.envoyer(discordId, { ...versPush(contenu), compte })) > 0; } catch (err) { console.warn('[push]', err.message); return false; }
   }
   const notifier = {
     // Selon son choix : l'application, ou Bob. Si aucun appareil ne répond, Bob prend le relais.

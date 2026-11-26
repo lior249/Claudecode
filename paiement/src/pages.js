@@ -292,6 +292,9 @@ const STYLE_ESPACE = `
   .barre-bas svg { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
   .barre-bas a.actif { color:#c8f23a; } .barre-bas a.actif::before { content:""; position:absolute; top:-9px; width:34px; height:3px; border-radius:0 0 3px 3px; background:#c8f23a; }
   .avec-barre-bas main.espace-contenu { padding-bottom:110px; }
+  .barre-bas .icone-bb { position:relative; display:inline-flex; }
+  .barre-bas .compteur-bb { position:absolute; top:-8px; right:-15px; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#ff3b30; color:#fff;
+    font:800 10.5px/17px var(--police); text-align:center; border:2px solid #0a0a0a; box-sizing:content-box; }
   @media (min-width: 960px) { .barre-bas { display:none; } .avec-barre-bas main.espace-contenu { padding-bottom:64px; } }
   .sidebar { position:fixed; z-index:30; top:0; bottom:0; left:-290px; width:264px; display:flex; flex-direction:column; gap:6px;
     padding:18px 12px 14px; background:#0a0a0a; border-right:1px solid #1c1c1c; transition:left .22s ease; overflow-y:auto; }
@@ -363,7 +366,10 @@ function banniereEvenements(evts = []) {
       ['touchstart', 'pointerdown', 'wheel'].forEach(function (e) { c.addEventListener(e, function () { touche = Date.now(); }, { passive: true }); });
       setInterval(function () { if (Date.now() - touche < 6000 || document.hidden) return; c.scrollTo({ left: ((k() + 1) % n) * c.clientWidth, behavior: 'smooth' }); }, 4000); })();</script>` : ''}</section>`;
 }
-function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp, barreBas, evenements = [] } = {}) {
+function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp, barreBas, evenements = [], pastilleApp = null } = {}) {
+  // Nombre sur l'icône de l'application (écran d'accueil) : notifications non lues + nouvelles remarques.
+  const scriptPastille = pastilleApp === null ? '' : `;(function () { try { var n = ${Number(pastilleApp) || 0};
+    if (n && navigator.setAppBadge) navigator.setAppBadge(n).catch(function () {}); else if (!n && navigator.clearAppBadge) navigator.clearAppBadge().catch(function () {}); } catch (e) {} })();`;
   const liens = nav.map((n) => (n.section
     ? `<p class="sb-section">${echapper(n.section)}</p>`
     : `<a class="sb-lien${n.cle === actif ? ' actif' : ''}" href="${echapper(n.lien)}"${n.externe ? ' target="_blank" rel="noopener"' : ''}>${ICONES_NAV[n.icone] || ''}<span>${echapper(n.libelle)}</span>${n.badge ? `<span class="sb-badge">${echapper(n.badge)}</span>` : ''}</a>`)).join('');
@@ -384,8 +390,8 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonA
     <header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label></header>
     <main class="espace-contenu">${banniereEvenements(evenements)}${contenu}</main>
   </div>
-  ${barreBas ? `<nav class="barre-bas" aria-label="Navigation rapide">${barreBas.map((n) => `<a href="${echapper(n.lien)}"${n.cle === actif ? ' class="actif" aria-current="page"' : ''}>${ICONES_NAV[n.icone] || ''}<span>${echapper(n.libelle)}</span></a>`).join('')}</nav>` : ''}
-</div>`, { script, entete: false, brut: true, jetonApp });
+  ${barreBas ? `<nav class="barre-bas" aria-label="Navigation rapide">${barreBas.map((n) => `<a href="${echapper(n.lien)}"${n.cle === actif ? ' class="actif" aria-current="page"' : ''}${n.badge ? ` aria-label="${echapper(n.libelle)} : ${n.badge} nouveau(x)"` : ''}><span class="icone-bb">${ICONES_NAV[n.icone] || ''}${n.badge ? `<span class="compteur-bb">${n.badge > 9 ? '9+' : n.badge}</span>` : ''}</span><span>${echapper(n.libelle)}</span></a>`).join('')}</nav>` : ''}
+</div>`, { script: `${script || ''}${scriptPastille}`, entete: false, brut: true, jetonApp });
 }
 
 function formatPrix(prix, devise) {

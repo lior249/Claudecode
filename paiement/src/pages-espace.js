@@ -94,11 +94,13 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
     ...options, nav: navEspace(espace), actif, jetonApp: espace && espace.jetonApp, evenements: (espace && espace.evenements) || [],
     // Élèves de l'accompagnement : la barre du bas sur téléphone.
     barreBas: espace && espace.parcours && !espace.estAdmin ? [
-      { cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' },
-      { cle: 'remarques', libelle: 'Remarques', lien: '/remarques', icone: 'remarques' },
-      { cle: 'notifications', libelle: 'Mes rappels', lien: '/notifications', icone: 'notifications' },
-      { cle: 'profil', libelle: 'Profil', lien: '/profil', icone: 'profil' }] : null,
+      { cle: 'profil', libelle: 'Profil', lien: '/profil', icone: 'profil' },
+      { cle: 'remarques', libelle: 'Remarques', lien: '/remarques', icone: 'remarques', badge: espace.remarquesNouvelles || 0 },
+      { cle: 'notifications', libelle: 'Mes rappels', lien: '/notifications', icone: 'notifications', badge: espace.notifsNonLues || 0 },
+      { cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' }] : null,
     compte: session ? { pseudo: session.pseudo || 'Membre', role: espace.estAdmin ? 'Coach' : 'Membre Elite' } : null,
+    // Le nombre sur l'icône de l'application installée (comme TikTok).
+    pastilleApp: session ? (espace.notifsNonLues || 0) + (espace.remarquesNouvelles || 0) : null,
   });
 }
 

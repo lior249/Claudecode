@@ -9,6 +9,10 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { corps: e.data ? e.data.text() : '' }; }
+  // Le nombre sur l'icône de l'application (là où le téléphone le permet).
+  if (typeof d.compte === 'number' && self.navigator && self.navigator.setAppBadge) {
+    (d.compte ? self.navigator.setAppBadge(d.compte) : self.navigator.clearAppBadge()).catch(function () {});
+  }
   e.waitUntil(self.registration.showNotification(d.titre || 'Overmaxx', {
     body: d.corps || '',
     icon: '/static/icones/globe-192.png',

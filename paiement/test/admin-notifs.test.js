@@ -110,6 +110,9 @@ test('élève : pastilles rouges (9+) sur la cloche et la bulle, remises à zér
     assert.match(profil, /aria-label="Notifications : 12 non lue\(s\)">[\s\S]*?<span class="compteur">9\+<\/span>/);
     assert.match(profil, /aria-label="Remarques du coach : 1 nouvelle\(s\)">[\s\S]*?<span class="compteur">1<\/span>/);
     assert.match(profil, /class="pf-avatar piece" style="--piece:#5b6cff"/, 'pièce bleue : Elite');
+    assert.match(profil, /aria-label="Remarques : 1 nouveau\(x\)">[\s\S]*?compteur-bb">1</, 'barre du bas : remarques');
+    assert.match(profil, /aria-label="Mes rappels : 12 nouveau\(x\)">[\s\S]*?compteur-bb">9\+</, 'barre du bas : rappels');
+    assert.match(profil, /var n = 13;[\s\S]*setAppBadge\(n\)/, 'nombre sur l\'icône de l\'application');
     assert.match(await (await m.get('/notifications', a)).text(), /Message 11[\s\S]*Message 0/);
     await m.get('/remarques', a);
     const apres = await (await m.get('/profil', a)).text();

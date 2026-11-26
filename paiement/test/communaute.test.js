@@ -80,7 +80,7 @@ test('suivre (10 places), défier (3 concurrents), résultats envoyés à ceux q
     const profil = await (await m.get('/profil', cookie('E0'))).text();
     assert.match(profil, /class="roue-jour aujourdhui"/);
     assert.match(profil, /Je suis[\s\S]*10 \/ 10/);
-    assert.match(profil, /class="barre-bas"[\s\S]*Classement[\s\S]*Remarques[\s\S]*Mes rappels[\s\S]*Profil/);
+    assert.match(profil, /class="barre-bas"[\s\S]*Profil[\s\S]*Remarques[\s\S]*Mes rappels[\s\S]*Classement/);
     assert.doesNotMatch(profil, /Nom-complet/);
     assert.strictEqual((await m.get('/remarques', cookie('E0'))).status, 200);
   } finally { await m.fermer(); }

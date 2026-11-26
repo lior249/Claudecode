@@ -65,9 +65,15 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const aTraiterParcours = estAdmin
       ? parcours.aTraiter().total + suivi.enAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
+    const c = !estAdmin && session ? compteursMembre(session.id) : { notifs: 0, remarques: 0 };
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
-      notifsNonLues: estAdmin ? notifsAdmin.nonLues() : 0, evenements: session ? evenementsEnCours() : [] };
+      notifsNonLues: estAdmin ? notifsAdmin.nonLues() : c.notifs, remarquesNouvelles: c.remarques, evenements: session ? evenementsEnCours() : [] };
   };
+  // Notifications non lues et nouvelles remarques du coach d'un membre (pastilles rouges, nombre sur l'icône de l'application).
+  function compteursMembre(id) {
+    const vues = (commandes.db.prepare('SELECT remarques_vues_le FROM profils_membres WHERE discord_id = ?').get(id) || {}).remarques_vues_le || '';
+    return { notifs: notifsAdmin.nonLuesMembre(id), remarques: commandes.db.prepare('SELECT COUNT(*) n FROM remarques WHERE discord_id = ? AND cree_le > ?').get(id, vues).n };
+  }
   // Événements en cours : jusqu'à leur date de fin (sinon 7 jours après leur création).
   const evenementsEnCours = () => {
     const now = new Date().toISOString();
@@ -1373,7 +1379,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!x) return;
     commandes.db.prepare(`INSERT INTO profils_membres (discord_id, remarques_vues_le, maj_le) VALUES (?, ?, ?)
       ON CONFLICT(discord_id) DO UPDATE SET remarques_vues_le = excluded.remarques_vues_le`).run(x.p.discord_id, new Date().toISOString(), new Date().toISOString());
-    res.send(PF.pageRemarques(config, { espace: x.espace, remarques: parcours.remarques(x.p.discord_id) }));
+    res.send(PF.pageRemarques(config, { espace: { ...x.espace, remarquesNouvelles: 0 }, remarques: parcours.remarques(x.p.discord_id) }));
   });
 
   // Données de la fiche (membre et coach).
