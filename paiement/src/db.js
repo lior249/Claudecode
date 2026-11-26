@@ -745,6 +745,15 @@ function migrerV33(db) {
   db.exec('PRAGMA user_version = 33');
 }
 
+// v34 : la dernière réponse du service de notification (Apple, Google…) pour chaque appareil, pour le diagnostic.
+function migrerV34(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 34) return;
+  const c = colonnes(db, 'abonnements_push');
+  if (!c.includes('dernier_resultat')) db.exec('ALTER TABLE abonnements_push ADD COLUMN dernier_resultat TEXT');
+  if (!c.includes('dernier_le')) db.exec('ALTER TABLE abonnements_push ADD COLUMN dernier_le TEXT');
+  db.exec('PRAGMA user_version = 34');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -787,6 +796,7 @@ function ouvrirBase(fichier) {
   migrerV31(db);
   migrerV32(db);
   migrerV33(db);
+  migrerV34(db);
   return db;
 }
 

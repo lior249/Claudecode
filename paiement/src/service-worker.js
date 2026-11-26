@@ -13,6 +13,11 @@ self.addEventListener('push', (e) => {
   if (typeof d.compte === 'number' && self.navigator && self.navigator.setAppBadge) {
     (d.compte ? self.navigator.setAppBadge(d.compte) : self.navigator.clearAppBadge()).catch(function () {});
   }
+  // L'application ouverte : on lui transmet aussi la notification, pour l'afficher en bannière (certains téléphones,
+  // surtout l'iPhone, n'affichent pas la notification du système quand l'application est au premier plan).
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (fenetres) {
+    fenetres.forEach(function (f) { f.postMessage({ type: 'ovx-notification', titre: d.titre || 'Overmaxx', corps: d.corps || '', url: d.url || '/app' }); });
+  }).catch(function () {}));
   e.waitUntil(self.registration.showNotification(d.titre || 'Overmaxx', {
     body: d.corps || '',
     icon: '/static/icones/globe-192.png',

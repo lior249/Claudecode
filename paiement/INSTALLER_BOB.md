@@ -585,3 +585,13 @@ ou sur **overmaxx.online/admin/candidatures**.
   - plus de bouton « Déplacer » : sur ordinateur on glisse, sur téléphone appui long puis on glisse ;
   - « Compléter » apparaît seulement s'il manque quelque chose ;
   - dans chaque colonne, les élèves les plus complets sont en haut.
+
+## Notifications : diagnostic, bannière dans l'application, resynchronisation
+
+- **Application ouverte** : une notification reçue s'affiche aussi en bannière en haut de l'écran, avec une vibration. Certains téléphones, l'iPhone surtout, n'affichent pas la notification système quand l'application est au premier plan.
+- **Resynchronisation** : à chaque ouverture, le téléphone redonne son abonnement au site. Un téléphone peut le changer tout seul ; avant, le site gardait l'ancien et la notification partait dans le vide.
+- **Notifications › Réglages › « Je ne reçois rien : diagnostic »**, à ouvrir sur le téléphone qui ne reçoit pas :
+  - les vérifications : application installée, notifications autorisées, service actif, téléphone abonné et connu du site ;
+  - test 1 : affiche une notification directement sur le téléphone. S'il ne s'affiche pas, c'est un réglage du téléphone (Notifications › Overmaxx, mode Concentration).
+  - test 2 : passe par Apple ou Google et affiche leur réponse exacte (acceptée, refusée et pourquoi).
+- **Mes appareils** : chaque appareil montre la réponse au dernier envoi (accepté ou refusé).

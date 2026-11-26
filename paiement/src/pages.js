@@ -255,11 +255,45 @@ function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>${STYLE}</style>
 </head>
-<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});${SCRIPT_TRANSITIONS}</script></body>
+<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});${SCRIPT_NOTIF_APP}${SCRIPT_TRANSITIONS}</script></body>
 </html>`;
 }
 
 // ---------- Espace de gestion : barre latérale (ordinateur) / menu repliable (téléphone) ----------
+// À chaque ouverture : l'abonnement du téléphone est resynchronisé avec le site (un téléphone peut le changer seul),
+// et une notification reçue pendant que l'application est ouverte s'affiche en bannière en haut de l'écran.
+const SCRIPT_NOTIF_APP = `(function () {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.addEventListener('message', function (e) {
+    var d = e.data || {}; if (d.type !== 'ovx-notification') return;
+    var b = document.createElement('a'); b.className = 'ovx-banniere'; b.href = d.url || '/app';
+    b.setAttribute('style', 'position:fixed;z-index:9999;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));display:block;padding:12px 14px;border-radius:16px;background:#1b1b1b;border:1px solid #333;color:#fff;text-decoration:none;box-shadow:0 12px 30px rgba(0,0,0,.6);font:14px/1.35 var(--police, system-ui);transition:transform .3s, opacity .3s;transform:translateY(-120%);opacity:0');
+    var t = document.createElement('b'); t.textContent = d.titre || 'Overmaxx'; t.style.display = 'block';
+    var c = document.createElement('span'); c.textContent = d.corps || ''; c.style.color = '#cfcfcf';
+    b.appendChild(t); b.appendChild(c); document.body.appendChild(b);
+    requestAnimationFrame(function () { b.style.transform = 'none'; b.style.opacity = '1'; });
+    if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+    setTimeout(function () { b.style.transform = 'translateY(-120%)'; b.style.opacity = '0'; setTimeout(function () { b.remove(); }, 400); }, 6000);
+  });
+  if (!('PushManager' in window) || !('Notification' in window) || Notification.permission !== 'granted') return;
+  fetch('/api/notifications/cle', { credentials: 'include' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (k) {
+    if (!k || !k.cle) return;
+    return navigator.serviceWorker.ready.then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (s) {
+        if (s) return s;
+        var b = k.cle, p = '='.repeat((4 - b.length % 4) % 4), x = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')), a = new Uint8Array(x.length);
+        for (var i = 0; i < x.length; i++) a[i] = x.charCodeAt(i);
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: a });
+      }).then(function (s) {
+        if (!s || (k.connus || []).indexOf(s.endpoint) >= 0) return;
+        var ios = /iPhone|iPad|iPod/.test(navigator.userAgent), app = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+        return fetch('/api/notifications/abonnement', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ abonnement: s.toJSON(), appareil: (/Android/.test(navigator.userAgent) ? 'Android' : ios ? 'iPhone' : 'Ordinateur') + ' · ' + (app ? 'application' : 'navigateur') + ' (resynchronisé)' }) });
+      });
+    });
+  }).catch(function () {});
+})();`;
+
 const ICONES_NAV = {
   calendrier: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
   candidatures: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l4 4v12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M15 4v5h5M10 13h7M10 17h5"/></svg>',

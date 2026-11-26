@@ -127,7 +127,11 @@ test('application installable : manifeste, service worker, ouverture déjà conn
     assert.strictEqual((await api('/api/notifications/canal', { canal: 'app' })).status, 200);
     const t = await (await api('/api/notifications/test', {})).json();
     assert.strictEqual(t.appareils, 1);
-    assert.strictEqual(m.envoisPush[0][1].titre, 'Notifications activées');
+    assert.strictEqual(m.envoisPush[0][1].titre, 'Notification test');
+    assert.deepStrictEqual(t.details.map((x) => [x.ok, x.statut, x.service]), [[true, 201, new URL(a.endpoint).hostname]], 'la réponse du service pour chaque appareil');
+    assert.match(m.db.prepare('SELECT dernier_resultat FROM abonnements_push').get().dernier_resultat, /accepté/);
+    const cle = await (await m.get('/api/notifications/cle', { cookie: membre })).json();
+    assert.ok(cle.cle && cle.connus.includes(a.endpoint), 'clé et abonnements connus, pour la resynchronisation');
     assert.match(await (await m.get('/notifications?onglet=reglages', { cookie: membre })).text(), /Android · application/);
     assert.strictEqual((await api('/api/notifications/test', {}, '')).status, 401);
     // Plus aucun appareil : Bob reprend.

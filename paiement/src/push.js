@@ -34,6 +34,7 @@ function creerPush({ db, config, maintenant = () => new Date(), envoyerPush = (.
     supprimerDe: db.prepare('DELETE FROM abonnements_push WHERE endpoint = ? AND discord_id = ?'),
     vu: db.prepare('UPDATE abonnements_push SET vu_le = ?, erreurs = 0 WHERE endpoint = ?'),
     erreur: db.prepare('UPDATE abonnements_push SET erreurs = erreurs + 1 WHERE endpoint = ?'),
+    resultat: db.prepare('UPDATE abonnements_push SET dernier_resultat = ?, dernier_le = ? WHERE endpoint = ?'),
     canal: db.prepare('SELECT canal FROM preferences_notif WHERE discord_id = ?'),
     majCanal: db.prepare('INSERT INTO preferences_notif (discord_id, canal, maj_le) VALUES (?, ?, ?) ON CONFLICT(discord_id) DO UPDATE SET canal = excluded.canal, maj_le = excluded.maj_le'),
     differer: db.prepare(`INSERT INTO notifications_differees (discord_id, titre, corps, url, membre_id, acces_avant, envoyer_apres, cree_le)
@@ -74,24 +75,32 @@ function creerPush({ db, config, maintenant = () => new Date(), envoyerPush = (.
       return { ok: true };
     },
 
-    // Envoie à tous ses appareils. Renvoie le nombre d'appareils atteints.
-    async envoyer(discordId, { titre, corps, url, tag, compte }) {
+    // Envoie à tous ses appareils (ou à un seul : endpoint). Renvoie le nombre d'appareils atteints.
+    async envoyer(discordId, contenu, options = {}) { return (await api.envoyerDetaille(discordId, contenu, options)).filter((x) => x.ok).length; },
+    // Même envoi, avec la réponse du service de notification pour chaque appareil (diagnostic).
+    async envoyerDetaille(discordId, { titre, corps, url, tag, compte }, { endpoint = null } = {}) {
       const k = cles();
       const charge = JSON.stringify({ titre: String(titre || 'Overmaxx').slice(0, 100), corps: String(corps || '').slice(0, 300), url: url || '/app', tag: tag || undefined,
         compte: Number.isInteger(compte) && compte >= 0 ? compte : undefined });
-      let n = 0;
-      for (const s of q.abonnements.all(discordId)) {
+      const res = [];
+      for (const s of q.abonnements.all(discordId).filter((x) => !endpoint || x.endpoint === endpoint)) {
+        const service = (() => { try { return new URL(s.endpoint).hostname; } catch { return '?'; } })();
         try {
-          await envoyerPush({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, charge,
+          const r = await envoyerPush({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, charge,
             { vapidDetails: { subject: sujet, publicKey: k.publicKey, privateKey: k.privateKey }, TTL: 24 * 3600, urgency: 'high', timeout: 10000 });
           q.vu.run(iso(), s.endpoint);
-          n++;
+          q.resultat.run(`accepté (${(r && r.statusCode) || 201})`, iso(), s.endpoint);
+          res.push({ appareil: s.appareil, service, ok: true, statut: (r && r.statusCode) || 201 });
         } catch (err) {
-          if (err && [404, 410].includes(err.statusCode)) q.supprimer.run(s.endpoint); // appareil désinstallé ou notifications coupées
-          else { q.erreur.run(s.endpoint); console.warn('[push] envoi impossible :', (err && (err.statusCode || err.message)) || err); }
+          const statut = err && err.statusCode;
+          const detail = String((err && (err.body || err.message)) || err).slice(0, 160);
+          if ([404, 410].includes(statut)) q.supprimer.run(s.endpoint); // appareil désinstallé ou notifications coupées
+          else { q.erreur.run(s.endpoint); q.resultat.run(`refusé (${statut || 'réseau'}) ${detail}`, iso(), s.endpoint); }
+          console.warn('[push] envoi impossible :', statut || '', detail);
+          res.push({ appareil: s.appareil, service, ok: false, statut: statut || null, detail, supprime: [404, 410].includes(statut) });
         }
       }
-      return n;
+      return res;
     },
 
     // Notification à envoyer plus tard (rappel de paiement), annulée s'il a payé entre-temps.

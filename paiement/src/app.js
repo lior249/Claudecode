@@ -289,9 +289,18 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     return {};
   });
   apiNotif('/api/notifications/canal', async (session, b) => push.choisirCanal(session.id, String(b.canal || '')));
-  apiNotif('/api/notifications/test', async (session) => ({
-    appareils: await push.envoyer(session.id, { titre: 'Notifications activées', corps: 'Tu recevras ici les messages d\'Overmaxx.', url: '/notifications', tag: 'test' }),
-  }));
+  apiNotif('/api/notifications/test', async (session, b) => {
+    // Avec endpoint : seulement ce téléphone (diagnostic) ; la réponse d'Apple / Google pour chaque appareil.
+    const r = await push.envoyerDetaille(session.id, { titre: 'Notification test', corps: 'Si tu lis ceci sur ton téléphone, les notifications marchent.', url: '/notifications', tag: `test-${Date.now()}` },
+      { endpoint: b && b.endpoint ? String(b.endpoint) : null });
+    return { appareils: r.filter((x) => x.ok).length, details: r };
+  });
+  // La clé publique (pour réabonner un téléphone tout seul, à chaque ouverture de l'application).
+  app.get('/api/notifications/cle', (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    if (!session || !push) return res.status(401).json({});
+    res.json({ cle: push.clePublique(), connus: push.abonnements(session.id).map((a) => a.endpoint) });
+  });
 
   // ================= Accueil des nouveaux membres =================
   app.get('/bienvenue', (req, res) => {

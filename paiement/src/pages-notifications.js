@@ -120,6 +120,42 @@ function pageNotifications(config, { espace, clePublique, canal, appareils = [],
       .catch(function (e) { statut(e.message, 'erreur'); })
       .then(function () { b.disabled = false; });
   };
+  // Diagnostic : chaque maillon, du téléphone au service de notification.
+  (function () {
+    var liste = q('.diag-liste'), res = q('#diag-resultat'); if (!liste) return;
+    function ligne(ok, texte, aide) { var li = document.createElement('li'); li.innerHTML = '<b style="color:' + (ok ? '#3ddc84' : '#ff8f8f') + '">' + (ok ? '✓' : '✗') + '</b> '; var t = document.createElement('span'); t.textContent = texte + (ok || !aide ? '' : ' : ' + aide); li.appendChild(t); liste.appendChild(li); }
+    var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    ligne(standalone || !OVXApp.ios, 'Application installée' + (OVXApp.ios ? ' (obligatoire sur iPhone)' : ''), 'ouvre Overmaxx depuis l’icône de l’écran d’accueil');
+    ligne(OVXApp.supporte, 'Notifications possibles sur cet appareil', 'mets à jour ton téléphone (iOS 16.4 ou plus)');
+    var perm = 'Notification' in window ? Notification.permission : 'absent';
+    ligne(perm === 'granted', 'Notifications autorisées', perm === 'denied' ? 'refusées : Réglages du téléphone › Notifications › Overmaxx › Autoriser' : 'touche « L’application Overmaxx » plus haut');
+    var abonnement = null;
+    if (OVXApp.supporte) navigator.serviceWorker.getRegistration('/').then(function (reg) {
+      ligne(Boolean(reg && reg.active), 'Service de notifications du site actif', 'ferme et rouvre l’application');
+      return reg && reg.pushManager.getSubscription();
+    }).then(function (s) {
+      abonnement = s;
+      var connu = s && Array.prototype.some.call(document.querySelectorAll('[data-endpoint]'), function (l) { return l.getAttribute('data-endpoint') === s.endpoint; });
+      ligne(Boolean(s), 'Ce téléphone est abonné', 'touche « L’application Overmaxx » plus haut');
+      if (s) ligne(connu, 'Le site connaît ce téléphone', 'recharge la page : il se resynchronise tout seul');
+    }).catch(function () {});
+    q('#diag-local').onclick = function () {
+      if (!OVXApp.supporte || Notification.permission !== 'granted') { res.textContent = 'Autorise d’abord les notifications.'; res.setAttribute('data-ton', 'erreur'); return; }
+      navigator.serviceWorker.ready.then(function (reg) { return reg.showNotification('Test sur ce téléphone', { body: 'Tu la vois ? Alors ton téléphone affiche bien les notifications d’Overmaxx.', icon: '/static/icones/globe-192.png', tag: 'diag-local' }); })
+        .then(function () { res.textContent = 'Envoyée. Tu ne la vois pas ? C’est un réglage du téléphone : Réglages › Notifications › Overmaxx (Autoriser, Bannières), et coupe le mode Concentration / Ne pas déranger. Verrouille l’écran pour tester.'; res.setAttribute('data-ton', 'ok'); })
+        .catch(function (e) { res.textContent = 'Le téléphone refuse : ' + e.message; res.setAttribute('data-ton', 'erreur'); });
+    };
+    q('#diag-serveur').onclick = function () {
+      var b = this; b.disabled = true; res.textContent = 'Envoi…'; res.setAttribute('data-ton', '');
+      OVXApp.poster('/api/notifications/test', { endpoint: abonnement ? abonnement.endpoint : null }).then(function (d) {
+        var x = (d.details || [])[0];
+        if (!x) { res.textContent = 'Le site ne connaît pas ce téléphone : recharge la page, puis réessaie.'; res.setAttribute('data-ton', 'erreur'); return; }
+        res.textContent = x.ok ? (x.service.indexOf('apple') >= 0 ? 'Apple' : x.service.indexOf('google') >= 0 ? 'Google' : 'Le service') + ' a accepté la notification (' + x.statut + '). Verrouille l’écran : elle doit arriver dans les secondes qui suivent. Si le test 1 marche et pas celui-ci, envoie une capture de cette page à ton coach.'
+          : 'Refusée par ' + x.service + ' (' + (x.statut || 'réseau') + ') : ' + (x.detail || '') + (x.supprime ? ' — abonnement expiré : réactive les notifications plus haut.' : '');
+        res.setAttribute('data-ton', x.ok ? 'ok' : 'erreur');
+      }).catch(function (e) { res.textContent = e.message; res.setAttribute('data-ton', 'erreur'); }).then(function () { b.disabled = false; });
+    };
+  })();
   // Cet appareil est-il déjà abonné ? (bouton « Retirer »)
   if (OVXApp.supporte) navigator.serviceWorker.getRegistration('/').then(function (reg) { return reg && reg.pushManager.getSubscription(); }).then(function (s) {
     if (!s) return;
@@ -152,12 +188,23 @@ function pageNotifications(config, { espace, clePublique, canal, appareils = [],
         <p class="doux petit" style="margin:10px 0 0"><b>Rappels de paiement</b> : toujours par Bob, puis dans l'application 10 minutes plus tard si tu n'as pas encore payé.</p>
         <p class="doux petit" style="margin:6px 0 0">Bob ne t'écrit pas ? <a href="#" data-tuto-bob>Vérifie ce réglage dans Discord</a>.</p>
       </div>
+      <div class="carte" id="diagnostic">
+        <h2>Je ne reçois rien : diagnostic</h2>
+        <p class="doux petit" style="margin:0 0 10px">À faire sur le téléphone qui ne reçoit pas, dans l'application installée.</p>
+        <ul class="diag-liste" style="list-style:none;padding:0;margin:0 0 12px;display:grid;gap:6px"></ul>
+        <div style="display:grid;gap:8px">
+          <button class="bouton secondaire" type="button" id="diag-local" style="margin:0">1. Test sur ce téléphone, sans Internet</button>
+          <button class="bouton secondaire" type="button" id="diag-serveur" style="margin:0">2. Test complet, via Apple ou Google</button>
+        </div>
+        <p id="diag-resultat" class="statut" aria-live="polite" style="margin-top:10px"></p>
+      </div>
     </div>
     <div class="cote">
       <div class="carte">
         <h2>Mes appareils</h2>
         ${appareils.length ? appareils.map((a) => `<div class="appareil" data-endpoint="${echapper(a.endpoint)}"><div><b>${echapper(a.appareil || 'Appareil')}</b>
-          <span class="ce doux petit" hidden> · cet appareil</span><br><span class="doux petit">depuis le ${echapper(formatDate(a.cree_le))}</span></div>
+          <span class="ce doux petit" hidden> · cet appareil</span><br><span class="doux petit">depuis le ${echapper(formatDate(a.cree_le))}</span>
+          ${a.dernier_resultat ? `<br><span class="petit" style="color:${/^accepté/.test(a.dernier_resultat) ? 'var(--ok,#3ddc84)' : '#ff8f8f'}">Dernier envoi : ${echapper(a.dernier_resultat)}</span>` : ''}</div>
           <button class="petit-bouton" type="button" hidden>Retirer</button></div>`).join('')
     : '<p class="doux" style="margin:0">Aucun appareil pour l\'instant.</p>'}
       </div>
