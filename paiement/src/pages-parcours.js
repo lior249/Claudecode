@@ -91,6 +91,8 @@ const STYLE_PARCOURS = `<style>
   .note-ia small { font-size:14px; color:var(--doux); font-weight:600; }
   .apercus { display:flex; flex-wrap:wrap; gap:8px; }
   .apercus img { width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--bord); }
+  .ajouts-envoi { display:grid; gap:8px; } .ajouts-envoi summary { list-style:none; cursor:pointer; display:inline-block; padding:8px 14px; border-radius:999px; border:1px solid var(--bord-fort,#333); font-weight:700; font-size:13.5px; }
+  .ajouts-envoi summary::-webkit-details-marker { display:none; } .ajouts-envoi details[open] summary { background:#fff; color:#000; } .ajouts-envoi textarea { margin-top:8px; }
   .apercu-img { position:relative; display:inline-block; } .apercu-img.principale img { width:110px; outline:2px solid #c8f23a; outline-offset:1px; }
   .apercu-img button { position:absolute; top:-7px; right:-7px; width:24px; height:24px; border-radius:50%; border:0; background:#ff3b30; color:#fff; font:700 15px/24px var(--police); cursor:pointer; padding:0; }
   details > summary { cursor:pointer; font-weight:600; }
@@ -162,6 +164,9 @@ const scriptEnvoi = (maxMo) => `
       var note = f.querySelector('[name=note]'), retour = f.querySelector('[name=retour]');
       if (note) corps.note = note.value;
       if (retour) corps.retour = retour.value;
+      var rem = f.querySelector('[name=remarque]'), scr = f.querySelector('[name=script]');
+      if (rem && rem.value.trim()) corps.remarque = rem.value;
+      if (scr && scr.value.trim()) corps.script = scr.value;
       btn.disabled = true; btn.textContent = 'Envoi en cours…';
       fetch('/api/parcours/envoi', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
@@ -315,11 +320,16 @@ const zoneCapture = (nom, titre, aide, deja) => `<div data-images="/api/parcours
   <label class="fichier">${ICONE.plus}<span><b>${echapper(titre)}</b><br>${echapper(aide)}</span><input type="file" accept="image/*" hidden></label>
   <input type="hidden" name="${nom}" value="${echapper(deja || '')}"><div class="apercus" style="margin-top:8px">${deja ? `<img src="/fichiers/images/${echapper(deja)}" alt="">` : ''}</div></div>`;
 
-function formVideo(emplacement, { etape1 = false, libelle } = {}) {
+// Remarque et script de la vidéo : facultatifs, ouverts d'un clic.
+const champsFacultatifs = (id) => `<div class="ajouts-envoi">
+    <details><summary>+ Ajouter une remarque</summary><textarea name="remarque" maxlength="2000" placeholder="Ce que tu veux que ton coach regarde, une question…" id="remarque-${id}"></textarea></details>
+    <details><summary>+ Coller le script de la vidéo</summary><textarea name="script" maxlength="8000" placeholder="Colle ici le script français de ta vidéo : ton coach le relit aussi." id="script-${id}" style="min-height:140px"></textarea></details></div>`;
+function formVideo(emplacement, { etape1 = false, libelle, ajouts = false } = {}) {
   return `<form data-envoi="${emplacement}">
     ${etape1 ? `<div class="champ"><label for="note-${emplacement}">Note donnée par l'IA</label><input id="note-${emplacement}" name="note" type="number" min="0" max="100" inputmode="numeric" placeholder="ex. 84" required><small>Sur 100, telle que l'IA te l'a donnée.</small></div>
     <div class="champ"><label for="retour-${emplacement}">Retour de l'IA</label><textarea id="retour-${emplacement}" name="retour" placeholder="Colle ici tout le retour de l'IA." required></textarea></div>` : ''}
     <label class="fichier">${ICONE.plus}<span><b>${echapper(libelle || 'Choisir la vidéo')}</b><br><span data-nom>MP4, MOV ou WEBM</span></span><input type="file" accept="video/*" hidden></label>
+    ${ajouts ? champsFacultatifs(emplacement) : ''}
     <div class="barre" hidden><i></i></div>
     <p class="erreur-envoi" role="alert"></p>
     <button class="bouton" type="submit" style="margin-top:0">Envoyer</button>
@@ -640,13 +650,13 @@ function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarques
     const etat = s ? s.etat : 'vide';
     const rem = s ? remarquesDe(s.id)[0] : null;
     let corps;
-    if (['vide', 'brouillon'].includes(etat)) corps = fini ? '' : formVideo(emplacement, { libelle: `Choisir la vidéo ${n}` });
+    if (['vide', 'brouillon'].includes(etat)) corps = fini ? '' : formVideo(emplacement, { libelle: `Choisir la vidéo ${n}`, ajouts: true });
     else if (etat === 'corriger') {
       corps = `${rem ? remarque(rem) : ''}${s.corriger_avant ? `<div>${delai({ fin: s.corriger_avant, duree: 24 * 3600000 })}</div>` : ''}
-        ${formVideo(emplacement, { libelle: 'Choisir la nouvelle version' })}<p class="doux petit" style="margin:0">Elle remplace l'ancienne.</p>`;
+        ${formVideo(emplacement, { libelle: 'Choisir la nouvelle version', ajouts: true })}<p class="doux petit" style="margin:0">Elle remplace l'ancienne.</p>`;
     } else {
       corps = `<p class="doux petit" style="margin:0">Envoyée le ${echapper(formatDate(s.envoye_le))}</p>${rem ? remarque(rem) : ''}
-        ${etat === 'attente' && !fini ? `<details><summary>Envoyer une autre version</summary><div style="margin-top:12px">${formVideo(emplacement)}</div></details>` : ''}`;
+        ${etat === 'attente' && !fini ? `<details><summary>Envoyer une autre version</summary><div style="margin-top:12px">${formVideo(emplacement, { ajouts: true })}</div></details>` : ''}`;
     }
     return `<div class="carte envoi"><div class="envoi-tete"><h2>Vidéo ${n}</h2>${etatPuce(etat)}</div>${corps}</div>`;
   };
@@ -680,7 +690,24 @@ function choixNichePays(choix, p) {
 }
 
 // ---------- La fiche (membre ou coach) ----------
-function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0, choix = null }) {
+// Réalisations : chaque vidéo envoyée, visible par l'élève et le coach, avec son état, sa remarque, son script et l'avis du coach.
+function blocRealisations(liste, { vueCoach }) {
+  if (!liste.length) return '';
+  const ETATS = { attente: 'En attente', valide: 'Validée', corriger: 'À corriger', force: 'Passée' };
+  const nom = (x) => (x.etape === 4 ? `Vidéo à relire · ${formatDate(x.envoye_le)}` : `Vidéo ${x.emplacement.slice(1)} · étape 3`);
+  return `<div class="carte" id="realisations"><div class="envoi-tete"><h2>Réalisations</h2><span class="doux petit">${liste.length} vidéo(s)</span></div>
+    <div style="display:grid;gap:14px;margin-top:12px">${liste.map((x) => `<div class="realisation">
+      <div class="envoi-tete"><b>${echapper(nom(x))}</b><span class="etat" data-etat="${x.etat === 'valide' ? 'valide' : x.etat === 'corriger' ? 'corriger' : 'attente'}">${echapper(x.etape === 4 && x.etat === 'valide' ? 'Prête à publier' : x.etape === 4 && x.etat === 'corriger' ? 'À retravailler' : ETATS[x.etat] || x.etat)}</span></div>
+      ${x.fichier ? `<video controls preload="metadata" playsinline src="${vueCoach ? '/admin' : '/parcours'}/envois/${x.id}/video" style="width:100%;max-height:60vh;border-radius:14px;background:#000;margin-top:8px"></video>`
+    : '<p class="doux petit" style="margin:6px 0 0">Vidéo effacée du serveur (place libérée).</p>'}
+      ${x.remarque_eleve ? `<p style="margin:8px 0 0"><span class="doux petit">Remarque de l'élève :</span><br>${echapper(x.remarque_eleve)}</p>` : ''}
+      ${x.script ? `<details style="margin-top:6px"><summary>Script de la vidéo</summary><p style="white-space:pre-line;margin:6px 0 0">${echapper(x.script)}</p></details>` : ''}
+      ${x.remarque ? `<div style="margin-top:8px">${remarque(x.remarque)}</div>` : ''}
+      ${vueCoach ? `<a class="bouton${x.etat === 'attente' ? '' : ' secondaire'}" href="/admin/envois/${x.id}" style="margin-top:10px">${x.etat === 'attente' ? 'Donner ma décision' : 'Ouvrir'}</a>`
+    : x.etat !== 'valide' ? `<a class="bouton secondaire" href="/parcours/etape-${x.etape === 4 ? '4#avis' : '3'}" style="margin-top:10px">${x.etat === 'corriger' ? 'Envoyer une nouvelle version' : 'Voir'}</a>` : ''}
+    </div>`).join('<hr style="border:0;border-top:1px solid var(--bord);margin:0">')}</div></div>`;
+}
+function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0, choix = null, realisations = [] }) {
   // Ce qui attend une décision du coach (sinistre, rôle à confirmer) passe en haut de la colonne.
   const aConfirmer = recompenses.some((r) => !r.confirme_le);
   const base = vueCoach ? `/admin/membres/${encodeURIComponent(p.discord_id)}` : '/fiche';
@@ -693,13 +720,15 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
   ${frise(p.etape)}
   <div class="colonnes-2">
     <div>
-      ${vueCoach ? `<form class="carte" id="remarque" method="post" action="${base}/remarque" style="display:grid;gap:10px">
-        <h2 style="margin:0">Envoyer un message</h2>
+      ${vueCoach ? `<details class="pl-ecrire" id="remarque"><summary class="bouton" style="list-style:none;text-align:center;margin:0 0 14px">✉️ Envoyer un message</summary>
+        <form class="carte" method="post" action="${base}/remarque" style="display:grid;gap:10px">
         <input name="titre" maxlength="120" required placeholder="Titre (en gras)" aria-label="Titre">
         ${barreMiseEnForme('texte-fiche')}<textarea id="texte-fiche" name="texte" required placeholder="Ton message. Sélectionne un mot puis G, I ou S pour le mettre en forme."></textarea>
         ${zoneImages()}
         <button class="bouton" type="submit" style="margin-top:0">Envoyer à ${echapper(p.pseudo || 'cet élève')}</button>
-        <p class="doux petit" style="margin:0">Il le voit dans ses Remarques du coach, et Bob le prévient. Accusés de lecture dans Planifier → Envoyer un message.</p></form>` : ''}
+        <p class="doux petit" style="margin:0">Il le voit dans ses Remarques du coach, et Bob le prévient. Accusés de lecture dans Planifier → Envoyer un message.</p></form></details>
+        <script>if (location.hash === '#remarque') document.getElementById('remarque').open = true;</script>` : ''}
+      ${blocRealisations(realisations, { vueCoach })}
       <div class="carte" id="remarques">
         <div class="envoi-tete"><h2>Remarques du coach</h2><span class="doux petit">${remarques.length} au total</span></div>
         ${listeRemarques(remarques, { toutes })}
@@ -802,7 +831,7 @@ const STYLE_TRAITER = `<style>
   .tr-sep { font-size:14px; color:var(--doux); margin:18px 0 6px; text-transform:uppercase; letter-spacing:.06em; }
   .tr-tag[data-cat="etape-1"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="etape-2"] { color:#c8f23a; border-color:#4a5a15; }
   .tr-tag[data-cat="etape-3"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="etape-4"] { color:#7ee0b0; border-color:#1f5a3d; } .tr-tag[data-cat="videos"] { color:#ff9ad5; border-color:#6b1f4a; }
-  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; } .tr-tag[data-cat="ressources"] { color:#9ec5ff; border-color:#284a7a; }
+  .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; } .tr-tag[data-cat="ressources"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="avis"] { color:#ffb26b; border-color:#6b4316; }
   .tr-tag[data-cat="candidatures"] { color:#d4b3ff; border-color:#4b2b7a; } .tr-tag[data-cat="acces"] { color:#fff; } .tr-tag[data-cat="retards"] { color:#ffcf6b; border-color:#6b4a0e; }
   .tr-ouvrir { flex:none; width:auto !important; margin:0 !important; min-height:40px; padding:8px 16px; }
   .tr-carte .choix-acces { flex:none; } .tr-carte .choix-acces .bouton { min-height:40px; padding:8px 14px; }
@@ -818,8 +847,9 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   const items = [];
   const ajouter = (cat, x) => items.push({ cat, ...x });
   for (const s of a.envois) {
-    ajouter(s.etape === 1 ? 'etape-1' : 'etape-3', { qui: nom(s.parcours), ficheId: s.parcours && s.parcours.discord_id, pseudo: s.parcours && s.parcours.pseudo, quand: s.envoye_le,
-      quoi: s.etape === 1 ? `Exercice ${s.emplacement} · note de l'IA ${s.note} / 100` : `Vidéo ${s.emplacement.slice(1)} à valider`, lien: `/admin/envois/${s.id}` });
+    ajouter(s.etape === 1 ? 'etape-1' : s.etape === 4 ? 'avis' : 'etape-3', { qui: nom(s.parcours), ficheId: s.parcours && s.parcours.discord_id, pseudo: s.parcours && s.parcours.pseudo, quand: s.envoye_le,
+      quoi: s.etape === 1 ? `Exercice ${s.emplacement} · note de l'IA ${s.note} / 100` : s.etape === 4 ? `Vidéo à relire avant publication${s.script ? ' · script joint' : ''}${s.remarque_eleve ? ` · « ${s.remarque_eleve.slice(0, 80)} »` : ''}`
+        : `Vidéo ${s.emplacement.slice(1)} à valider${s.script ? ' · script joint' : ''}`, lien: `/admin/envois/${s.id}` });
   }
   for (const x of a.etape2) {
     ajouter('etape-2', { qui: nom(x.parcours), ficheId: x.parcours && x.parcours.discord_id, pseudo: x.parcours.pseudo, quand: `${x.entree.date}T${x.entree.heure}:00.000Z`,
@@ -862,7 +892,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   for (const x of [...items, ...notifs]) x.aTraiter = true;
   const faits = dejaTraites.map((n) => ({ ...n, fait: true }));
   const tous = [...items, ...notifs, ...retards, ...faits];
-  const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
+  const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['avis', 'Vidéos à relire'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
     ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
   const nb = (c) => tous.filter((x) => x.cat === c).length;
   const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
@@ -895,7 +925,8 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
 // ---------- Coach : valider un envoi ----------
 function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, message }) {
   const etape1 = s.etape === 1;
-  const titre = etape1 ? `Exercice ${s.emplacement}` : `Vidéo ${s.emplacement.slice(1)}`;
+  const avis = s.etape === 4;
+  const titre = etape1 ? `Exercice ${s.emplacement}` : avis ? 'Vidéo à relire avant publication' : `Vidéo ${s.emplacement.slice(1)}`;
   const decision = s.etat !== 'attente'
     ? `<div class="carte"><h2>Déjà traité</h2><p class="doux" style="margin:0">${s.etat === 'valide' ? 'Validé' : 'Modifications demandées'} le ${echapper(formatDate(s.decide_le))}.</p></div>`
     : `<form class="carte" method="post" action="/admin/envois/${s.id}/decision" style="display:grid;gap:12px">
@@ -907,6 +938,7 @@ function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, m
           <textarea id="texte" name="texte" placeholder="${etape1 ? 'Ce qu\'il peut améliorer.' : 'Ce qui va, ce qui ne va pas, et quoi changer.'}"></textarea></div>
         ${zoneImages()}
         ${etape1 ? '<button class="bouton vert" type="submit" name="decision" value="valider" style="margin-top:0">Valider</button><p class="doux petit" style="margin:0">À l\'étape 1, les exercices ne se refont pas : tu ajoutes tes remarques et tu valides.</p>'
+    : avis ? '<div class="deux-boutons"><button class="bouton secondaire" type="submit" name="decision" value="corriger">À retravailler</button><button class="bouton vert" type="submit" name="decision" value="valider">Prête à publier</button></div><p class="doux petit" style="margin:0">Un avis, sans délai : il publie quand il veut. Bob le prévient.</p>'
     : '<div class="deux-boutons"><button class="bouton secondaire" type="submit" name="decision" value="corriger">Demander des modifications</button><button class="bouton vert" type="submit" name="decision" value="valider">Valider</button></div><p class="doux petit" style="margin:0">Modifications : il a 24 h pour renvoyer, Bob le prévient. Validé : plus rien ne se modifie.</p>'}
       </form>`;
   return page(`${titre} de ${p.pseudo || ''}`, `
@@ -919,6 +951,8 @@ function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, m
     : '<div class="carte"><p class="doux" style="margin:0">La vidéo a été supprimée du serveur (étape validée).</p></div>'}
       ${etape1 ? `<div class="carte"><div class="envoi-tete"><h2>Note de l'IA</h2><span class="note-ia">${echapper(s.note)}<small> / 100</small></span></div>
         <details style="margin-top:10px"><summary>Retour de l'IA (copié par ${echapper(p.pseudo || 'le membre')})</summary><p class="doux" style="white-space:pre-line">${echapper(s.retour_ia || '')}</p></details></div>` : ''}
+      ${s.remarque_eleve ? `<div class="carte"><h2>Sa remarque</h2><p style="margin:0;white-space:pre-line">${echapper(s.remarque_eleve)}</p></div>` : ''}
+      ${s.script ? `<div class="carte"><h2>Script de la vidéo</h2><p style="margin:0;white-space:pre-line;line-height:1.55">${echapper(s.script)}</p></div>` : ''}
       ${remarques.length ? `<div class="carte"><h2>Tes remarques sur cet envoi</h2><div style="display:grid;gap:10px">${remarques.map(remarque).join('')}</div></div>` : ''}
     </div>
     <div>
@@ -947,7 +981,25 @@ function formHeures(p, { titre = 'Choisis tes 3 heures' } = {}) {
     <button class="bouton" type="submit" style="margin-top:0">Enregistrer mes heures</button></form>`;
 }
 // ---------- Étape 4 : publier (le lien), les résultats de chaque vidéo, l'update du compte ----------
-function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publications, videos = [], aFaire = [], updateDuJour, stats, message }) {
+// Étape 4 : faire relire une vidéo avant de la publier (facultatif, 3 en attente au plus).
+function blocAvis(avis = [], remarquesDe = () => []) {
+  const envoyees = avis.filter((s) => s.etat !== 'brouillon');
+  const enAttente = envoyees.filter((s) => s.etat === 'attente').length;
+  const ETATS = { attente: ['attente', 'En attente du coach'], valide: ['valide', 'Prête à publier'], corriger: ['corriger', 'À retravailler'] };
+  return `<div class="carte" id="avis">
+    <div class="envoi-tete"><h2>Faire relire une vidéo</h2><span class="doux petit">facultatif · ${enAttente} / 3 en attente</span></div>
+    <p class="doux" style="margin:8px 0 12px">Pas sûr d'une vidéo ? Envoie-la à ton coach <b>avant de la publier</b> pour avoir son avis. Ce qui est obligatoire, c'est de publier chaque jour.</p>
+    ${enAttente < 3 ? `<details${envoyees.length ? '' : ' open'}><summary class="bouton secondaire" style="list-style:none;text-align:center">Envoyer une vidéo à relire</summary><div style="margin-top:12px">${formVideo('avis', { libelle: 'Choisir la vidéo', ajouts: true })}</div></details>`
+    : '<p class="doux petit" style="margin:0">3 vidéos attendent déjà l\'avis de ton coach : tu pourras en envoyer une autre après sa réponse.</p>'}
+    ${envoyees.slice(0, 6).map((s) => {
+      const rem = remarquesDe(s.id)[0];
+      const [e, l] = ETATS[s.etat] || ['attente', s.etat];
+      return `<div class="ligne-envoi" style="display:block;margin-top:10px"><div class="envoi-tete"><b>Envoyée le ${echapper(formatDate(s.envoye_le))}</b><span class="etat" data-etat="${e}">${l}</span></div>
+        ${rem ? remarque(rem) : ''}</div>`;
+    }).join('')}
+  </div>`;
+}
+function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publications, videos = [], aFaire = [], updateDuJour, stats, message, avis = [], remarquesDe, maxMo }) {
   const etatVideo = (v) => (v.res_etat ? etatPuce(v.res_etat) : v.pret ? '<span class="etat" data-etat="corriger">Résultats à donner</span>' : '<span class="etat" data-etat="attente">Résultats dans 24 h</span>');
   // Le lien du compte TikTok d'abord : obligatoire pour l'étape 4.
   const formCompte = `<form class="carte" id="compte" method="post" action="/parcours/etape-4/compte" style="display:grid;gap:12px">
@@ -987,7 +1039,8 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
   <div class="titre-page"><div><p class="etiquette">Étape 4 sur 4${aujourdhui ? ` · ${echapper(jourLisible(aujourdhui))}` : ''}</p><h1>Publication et suivi</h1></div>${delai(tache && tache.delai)}</div>
   ${frise(Math.min(p.etape, 5))}
   ${message ? `<p class="${message.erreur ? 'erreur-form' : 'message-ok'}">${echapper(message.texte)}</p>` : ''}
-  ${corps}`, espace, 'parcours', null, SCRIPT_FUSEAU);
+  ${corps}
+  ${blocAvis(avis, remarquesDe)}`, espace, 'parcours', maxMo, SCRIPT_FUSEAU);
 }
 
 // ---------- Membre : l'update du compte (28 derniers jours) ----------

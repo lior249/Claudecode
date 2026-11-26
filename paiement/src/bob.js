@@ -174,8 +174,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   // Boutons d'action (Valider, Confirmer…) : ils n'existent que dans Discord, ces messages restent sur Bob.
   const aDesBoutonsAction = (contenu) => Boolean(contenu && contenu.components
     && contenu.components.some((r) => (r.components || []).some((b) => b.data && b.data.custom_id)));
+  // Dès qu'un téléphone a activé les notifications de l'application, la notification y arrive (même écran éteint),
+  // quel que soit le canal choisi.
   async function parApplication(discordId, contenu) {
-    if (!push || !discordId || aDesBoutonsAction(contenu) || push.canal(discordId) !== 'app') return false;
+    if (!push || !discordId || aDesBoutonsAction(contenu) || !push.abonnements(discordId).length) return false;
     let compte;
     try { compte = discordId === config.discord.adminId ? notifsAdmin.nonLues() : notifsAdmin.nonLuesMembre(discordId); } catch { compte = undefined; }
     try { return (await push.envoyer(discordId, { ...versPush(contenu), compte })) > 0; } catch (err) { console.warn('[push]', err.message); return false; }
@@ -183,14 +185,21 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   const notifier = {
     // Selon son choix : l'application, ou Bob. Si aucun appareil ne répond, Bob prend le relais.
     // Chaque message au coach est aussi rangé dans son espace Notifications (site).
+    // Application (si un téléphone est abonné) ; Bob aussi si l'application n'a rien atteint ou si « Bob » a été choisi.
     admin: async (contenu) => {
       try { notifsAdmin.noter(contenu); } catch (err) { console.warn('[bob] journal admin :', err.message); }
-      return config.discord.adminId ? ((await parApplication(config.discord.adminId, contenu)) || messagePrive(config.discord.adminId, contenu)) : false;
+      const id = config.discord.adminId;
+      if (!id) return false;
+      const app = await parApplication(id, contenu);
+      if (app && !(push && push.canalChoisi && push.canalChoisi(id) === 'bob')) return true;
+      return Boolean(await messagePrive(id, contenu)) || app;
     },
     // Message privé, sinon fil privé avec les mêmes boutons. Si rien ne passe, l'admin le sait (une fois par jour et par membre).
     membre: async (discordId, contenu) => {
       try { notifsAdmin.noterMembre(discordId, contenu); } catch (err) { console.warn('[bob] journal membre :', err.message); }
-      return (await parApplication(discordId, contenu)) || (await envoyer(discordId, contenu)).ok;
+      const app = await parApplication(discordId, contenu);
+      if (app && !(push && push.canalChoisi && push.canalChoisi(discordId) === 'bob')) return true;
+      return (await envoyer(discordId, contenu)).ok || app;
     },
     // Rappels de paiement : toujours par Bob, puis par l'application 10 minutes plus tard, s'il n'a toujours pas payé.
     paiement: async (discordId, contenu, { membreId, accesAvant } = {}) => {
@@ -1016,7 +1025,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
 
   // ---------- Parcours de l'accompagnement Elite ----------
   const ETAPES_NOMS = { 1: 'Prise en main', 2: 'Coaching d\'entrée', 3: 'Validation du contenu', 4: 'Publication et suivi', 5: 'GOAT' };
-  const quoi = (s) => (s.etape === 1 ? `ton exercice ${s.emplacement}` : `ta vidéo ${s.emplacement.slice(1)}`);
+  const quoi = (s) => (s.etape === 1 ? `ton exercice ${s.emplacement}` : s.etape === 4 ? 'ta vidéo à relire' : `ta vidéo ${s.emplacement.slice(1)}`);
   const lienCoach = (chemin) => lienPerso(config.discord.adminId, 'coach', chemin);
 
   // ---------- Forum « ressources » (double base avec la plateforme) ----------
@@ -1083,11 +1092,18 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     // Le membre a envoyé un exercice ou une vidéo : le coach est prévenu.
     async envoiRecu(s, p) {
       if (!config.discord.adminId) return;
-      await notifier.admin(avecBoutons(`**${(p && (p.nom || p.pseudo)) || s.discord_id}** (<@${s.discord_id}>) a envoyé ${s.etape === 1 ? `l'exercice ${s.emplacement}` : `la vidéo ${s.emplacement.slice(1)}`} (étape ${s.etape}).`,
+      await notifier.admin(avecBoutons(`**${(p && (p.nom || p.pseudo)) || s.discord_id}** (<@${s.discord_id}>) a envoyé ${s.etape === 1 ? `l'exercice ${s.emplacement}` : s.etape === 4 ? 'une vidéo à relire avant de la publier' : `la vidéo ${s.emplacement.slice(1)}`} (étape ${s.etape}).${s.remarque_eleve ? `\nSa remarque : ${String(s.remarque_eleve).slice(0, 300)}` : ''}${s.script ? '\nScript joint.' : ''}`,
         [{ label: 'Ouvrir', url: lienCoach(`/admin/envois/${s.id}`) }]));
     },
     // Décision du coach : le membre est prévenu, avec la suite.
     async decision(s, p, etapeSuivante) {
+      // Étape 4 : avis sur une vidéo avant de la publier (aucun délai).
+      if (s.etape === 4) {
+        await notifier.membre(s.discord_id, avecBoutons(s.etat === 'valide' ? '**Ta vidéo est prête : tu peux la publier.** Lis l\'avis de ton coach.'
+          : '**Ton coach a donné son avis sur ta vidéo : à retravailler avant de la publier.** Lis sa remarque.',
+          [{ label: 'Voir son avis', url: lienPerso(s.discord_id, p && p.pseudo, '/parcours/etape-4#avis') }]));
+        return;
+      }
       if (s.etat === 'corriger') {
         await notifier.membre(s.discord_id, avecBoutons(`**Ton coach demande des modifications sur ${quoi(s)}.** Lis sa remarque, puis renvoie la nouvelle version : tu as **24 h**.`,
           [{ label: 'Voir sa remarque', url: lienPerso(s.discord_id, p && p.pseudo, `/parcours/etape-${s.etape}`) }]));
@@ -1121,6 +1137,12 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     },
     // Forum « ressources » : appelé par la plateforme quand une ressource devient publique ou change. Renvoie l'id du post.
     async publierRessource(r, auteur) { return publierRessource(r, auteur); },
+    // Toute action d'un élève arrive chez le coach (notification), avec la page à ouvrir.
+    async activiteEleve(p, texte, chemin) {
+      if (!p) return;
+      await notifier.admin(avecBoutons(`**${p.nom || p.pseudo || p.discord_id}** (<@${p.discord_id}>) ${texte}`,
+        [{ label: 'Ouvrir', url: lienCoach(chemin || `/admin/membres/${encodeURIComponent(p.discord_id)}`) }]));
+    },
     async ressourceProposee(r, p) {
       const nom = (p && (p.pseudo || p.nom)) || r.auteur;
       const quoi = { niche: 'une niche', methode: 'une méthode', tutoriel: 'un tutoriel' }[r.type] || 'une ressource';

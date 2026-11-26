@@ -548,3 +548,23 @@ ou sur **overmaxx.online/admin/candidatures**.
 - **Les ressources publiques déjà sur la plateforme** sont postées au démarrage.
 - **Si le forum ne se crée pas** : le serveur doit être en mode **Communauté** (les forums en ont besoin) et Bob doit avoir **Gérer les salons**. Bob te prévient si ça bloque.
 - Les posts que tu avais faits à la main avant restent dans ton ancien forum : Bob ne les copie pas.
+
+## Vidéos à relire, réalisations, notifications partout
+
+- **Étape 4, « Faire relire une vidéo »** : facultatif. L'élève envoie une vidéo avant de la publier, 3 en attente au plus.
+  - Tu réponds « Prête à publier » ou « À retravailler », sans délai imposé.
+  - Seules ses 3 dernières vidéos restent sur le serveur : la plus ancienne est effacée, ton avis reste.
+- **Remarque et script** : à chaque vidéo envoyée (étapes 3 et 4), l'élève peut ajouter une remarque et coller le script français. Tu les vois dans la page de la vidéo et sur sa fiche.
+- **Fiche d'un élève** :
+  - « ✉️ Envoyer un message » s'ouvre d'un clic.
+  - « **Réalisations** » montre ses vidéos (lecteur, état, remarque, script, ton avis), visible par toi et par lui.
+  - Les vidéos de l'étape 3 y restent jusqu'au passage à l'étape 4, puis sont effacées.
+- **Notifications** :
+  - Dès qu'un téléphone a activé les notifications de l'application, elles s'y affichent, même écran éteint, que la personne ait choisi Bob ou non.
+  - Si « Bob » est choisi explicitement, Bob l'envoie aussi sur Discord.
+  - Tu es prévenu de chaque action d'élève :
+    - vidéo envoyée, résultats et updates ;
+    - vidéo publiée ;
+    - compte TikTok ajouté ou changé ;
+    - heures choisies, stratégie choisie ;
+    - messages, propositions de ressources, coachings réservés ou déplacés.

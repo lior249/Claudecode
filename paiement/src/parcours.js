@@ -16,6 +16,8 @@ const crypto = require('crypto');
 const H = 3600 * 1000;
 const DELAIS = { etape1: 72 * H, entree: 12 * H, etape3: 72 * H, correction: 24 * H };
 const EMPLACEMENTS = { 1: ['L1', 'L2'], 3: ['V1', 'V2', 'V3'] };
+// Étape 4 : faire relire une vidéo avant de la publier (facultatif), 3 en attente au plus.
+const MAX_AVIS_ATTENTE = 3;
 const TYPES_VIDEO = { 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/3gpp': '3gp', 'video/x-m4v': 'm4v', 'video/mpeg': 'mpeg' };
 const TYPES_IMAGE = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 
@@ -69,8 +71,9 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
     soumissionDe: db.prepare('SELECT * FROM soumissions WHERE discord_id = ? AND emplacement = ?'),
     soumissionsEtape: db.prepare('SELECT * FROM soumissions WHERE discord_id = ? AND etape = ? ORDER BY emplacement'),
     enAttente: db.prepare("SELECT * FROM soumissions WHERE etat = 'attente' ORDER BY envoye_le"),
-    nouvelleSoumission: db.prepare(`INSERT INTO soumissions (discord_id, etape, emplacement, etat, note, retour_ia, cree_le) VALUES (?, ?, ?, 'brouillon', ?, ?, ?)
-                                    ON CONFLICT(discord_id, emplacement) DO UPDATE SET note = excluded.note, retour_ia = excluded.retour_ia`),
+    nouvelleSoumission: db.prepare(`INSERT INTO soumissions (discord_id, etape, emplacement, etat, note, retour_ia, remarque_eleve, script, cree_le) VALUES (?, ?, ?, 'brouillon', ?, ?, ?, ?, ?)
+                                    ON CONFLICT(discord_id, emplacement) DO UPDATE SET note = excluded.note, retour_ia = excluded.retour_ia,
+                                      remarque_eleve = excluded.remarque_eleve, script = excluded.script`),
     videoRecue: db.prepare("UPDATE soumissions SET fichier = ?, type = ?, taille = ?, etat = 'attente', envoye_le = ?, corriger_avant = NULL WHERE id = ?"),
     decision: db.prepare('UPDATE soumissions SET etat = ?, decide_le = ?, corriger_avant = ? WHERE id = ?'),
     oublierFichier: db.prepare('UPDATE soumissions SET fichier = NULL WHERE id = ?'),
@@ -129,9 +132,26 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
     cheminVideo(s) { return s && s.fichier ? path.join(dossierVideos, s.fichier) : null; },
 
     // Étape 1 : note et retour de l'IA d'abord, la vidéo ensuite (envoi en deux temps, avec la barre de progression).
-    preparerEnvoi(discordId, emplacement, { note, retour } = {}) {
+    // Étapes 3 et 4 : une remarque et le script de la vidéo peuvent l'accompagner (facultatifs).
+    // Étape 4 : emplacement « avis » = une nouvelle vidéo à relire (R1, R2…), 3 en attente au plus.
+    preparerEnvoi(discordId, emplacement, { note, retour, remarque, script } = {}) {
       const p = q.get.get(discordId);
       if (!p) return { erreur: 'Ton parcours Elite n\'est pas encore ouvert.' };
+      if (p.etape >= 4 && (emplacement === 'avis' || /^R\d+$/.test(emplacement))) {
+        const mes = q.soumissionsEtape.all(discordId, 4);
+        const existante = mes.find((x) => x.emplacement === emplacement);
+        if (!existante || existante.etat !== 'brouillon') {
+          if (mes.filter((x) => x.etat === 'attente').length >= MAX_AVIS_ATTENTE) return { erreur: `Tu as déjà ${MAX_AVIS_ATTENTE} vidéos en attente de l'avis du coach : attends sa réponse.` };
+          if (emplacement !== 'avis' && existante && existante.etat === 'valide') return { erreur: 'Déjà validée.' };
+          if (emplacement === 'avis') {
+            const brouillon = mes.find((x) => x.etat === 'brouillon');
+            emplacement = brouillon ? brouillon.emplacement : `R${mes.reduce((n, x) => Math.max(n, Number(x.emplacement.slice(1)) || 0), 0) + 1}`;
+          }
+        }
+        const t = (v, n) => String(v || '').trim().slice(0, n) || null;
+        q.nouvelleSoumission.run(discordId, 4, emplacement, null, null, t(remarque, 2000), t(script, 8000), iso());
+        return { soumission: q.soumissionDe.get(discordId, emplacement) };
+      }
       if (!(EMPLACEMENTS[p.etape] || []).includes(emplacement)) return { erreur: 'Cet envoi n\'est pas ouvert à ton étape.' };
       const deja = q.soumissionDe.get(discordId, emplacement);
       if (deja && deja.etat === 'valide') return { erreur: 'Déjà validé : il ne peut plus être modifié.' };
@@ -144,7 +164,8 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
         if (texte.length < 10) return { erreur: 'Colle le retour complet de l\'IA.' };
         texte = texte.slice(0, 8000);
       }
-      q.nouvelleSoumission.run(discordId, p.etape, emplacement, n, texte, iso());
+      const t = (v, m) => (p.etape === 3 ? String(v || '').trim().slice(0, m) || null : null);
+      q.nouvelleSoumission.run(discordId, p.etape, emplacement, n, texte, t(remarque, 2000), t(script, 8000), iso());
       return { soumission: q.soumissionDe.get(discordId, emplacement) };
     },
 
@@ -159,6 +180,11 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       if (r.erreur) { console.error(`[parcours] vidéo ${s.emplacement} de ${discordId} refusée : ${r.cause || r.erreur}`); return { erreur: r.erreur }; }
       supprimerFichier(s); // l'ancienne version est remplacée
       q.videoRecue.run(nom, ext, r.taille, iso(), s.id);
+      // Étape 4 : seules les 3 dernières vidéos restent sur le serveur ; les plus anciennes sont effacées (leur avis reste).
+      if (s.etape === 4) {
+        const avecFichier = q.soumissionsEtape.all(discordId, 4).filter((x) => x.fichier).sort((a, b) => String(b.envoye_le || '').localeCompare(String(a.envoye_le || '')));
+        for (const vieille of avecFichier.slice(3)) { supprimerFichier(vieille); q.oublierFichier.run(vieille.id); }
+      }
       return { soumission: q.soumission.get(s.id) };
     },
 
@@ -172,7 +198,8 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       if (!['valider', 'corriger'].includes(decision)) return { erreur: 'Décision inconnue.' };
       const mot = String(texte || '').trim().slice(0, 8000);
       if (decision === 'corriger' && !mot) return { erreur: 'Écris ce qu\'il doit modifier.' };
-      const avant = decision === 'corriger' ? new Date(maintenant().getTime() + DELAIS.correction).toISOString() : null;
+      // Étape 4 (vidéo à relire) : un avis, pas de délai pour renvoyer.
+      const avant = decision === 'corriger' && s.etape !== 4 ? new Date(maintenant().getTime() + DELAIS.correction).toISOString() : null;
       q.decision.run(decision === 'valider' ? 'valide' : 'corriger', iso(), avant, s.id);
       if (mot || images.length) q.remarque.run(s.discord_id, s.id, decision === 'valider' ? 'valide' : 'corriger', mot || '(image)', images.length ? JSON.stringify(images) : null, iso());
       if (s.etape === 1 && niveau && ['L1', 'L2'].includes(niveau)) q.niveau.run(niveau, iso(), s.discord_id);
@@ -421,4 +448,4 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
   return api;
 }
 
-module.exports = { creerParcours, enregistrerFlux, DELAIS, EMPLACEMENTS };
+module.exports = { creerParcours, enregistrerFlux, DELAIS, EMPLACEMENTS, MAX_AVIS_ATTENTE };

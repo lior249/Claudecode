@@ -192,6 +192,18 @@ test('Bob : messages dans l\'application selon le choix, repli sur Discord, bout
     await bob.notificationsDifferees();
     assert.strictEqual(m.envoisPush.length, avant + 1, 'payé entre-temps');
 
+    // Un téléphone abonné reçoit TOUJOURS la notification (écran éteint), même sans avoir choisi « application » ;
+    // si « Bob » a été choisi explicitement, Bob l'envoie aussi.
+    m.push.abonner('E2', abonnementFaux(), 'iPhone');
+    const p0 = m.envoisPush.length; const d0 = dms.length;
+    assert.ok(await bob.notifier.membre('E2', '**Nouveau message de ton coach**'));
+    assert.strictEqual(m.envoisPush.length, p0 + 1, 'sans choix : l\'application');
+    assert.strictEqual(dms.length, d0, 'sans choix : pas de doublon sur Discord');
+    m.push.choisirCanal('E2', 'bob');
+    await bob.notifier.membre('E2', '**Ta vidéo est prête**');
+    assert.strictEqual(m.envoisPush.length, p0 + 2);
+    assert.strictEqual(dms.length, d0 + 1, '« Bob » choisi : Discord aussi');
+
     // Plus aucun appareil ne répond : Bob prend le relais.
     m.db.prepare('DELETE FROM abonnements_push WHERE discord_id = ?').run(E1);
     const d = dms.length;

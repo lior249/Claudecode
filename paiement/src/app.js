@@ -1034,6 +1034,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!x) return;
     if (x.p.etape < 3) return res.redirect(303, '/parcours');
     const r = parcours.choisirStrategie(x.session.id, { niche: req.body.niche, methode: req.body.methode, pays: req.body.pays });
+    if (!r.erreur) prevenir('activiteEleve', r.parcours, 'a choisi sa **stratégie** (niche, méthode 10K, pays).', `/admin/membres/${encodeURIComponent(x.session.id)}/profil`);
     res.redirect(303, r.erreur ? `/parcours/etape-3?erreur=${encodeURIComponent(r.erreur)}#strategie` : '/parcours/etape-3?fait=strategie#strategie');
   });
   // Envoi en deux temps : les informations (note et retour de l'IA à l'étape 1), puis la vidéo.
@@ -1042,7 +1043,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (m.erreur) return res.status(m.statut).json({ erreur: m.erreur });
     const { session } = m;
     const b = req.body || {};
-    const r = parcours.preparerEnvoi(session.id, String(b.emplacement || ''), { note: b.note, retour: b.retour });
+    const r = parcours.preparerEnvoi(session.id, String(b.emplacement || ''), { note: b.note, retour: b.retour, remarque: b.remarque, script: b.script });
     if (r.erreur) return res.status(400).json(r);
     return res.json({ id: r.soumission.id });
   });
@@ -1110,7 +1111,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const id = x.session.id;
     const jour = suivi.aujourdhui(x.p);
     return V.pageEtape4(config, { ...commun, aujourdhui: x.p.fuseau ? jour : null, publications: suivi.publications(id, jour), videos: suivi.videos(id).slice(0, 21),
-      aFaire: suivi.comptesRendusAFaire(id), updateDuJour: suivi.compteRendu(id, jour), stats: suivi.stats(id), message });
+      aFaire: suivi.comptesRendusAFaire(id), updateDuJour: suivi.compteRendu(id, jour), stats: suivi.stats(id), message,
+      avis: parcours.soumissions(id, 4).slice().sort((a, b) => String(b.cree_le).localeCompare(String(a.cree_le))), remarquesDe, maxMo });
   }
   // Une image n'est acceptée que si ce membre l'a lui-même envoyée.
   const imageDe = (nom, discordId) => (nom && parcours.imageDuMembre(String(nom), discordId) ? String(nom) : null);
@@ -1121,6 +1123,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const b = req.body;
     const r = suivi.choisirHeures(x.session.id, { creation: b.creation, publication: b.publication, compteRendu: b.compte_rendu, fuseau: String(b.fuseau || '') });
     if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
+    prevenir('activiteEleve', parcours.get(x.session.id), `a choisi ses **3 heures** : création ${b.creation}, publication ${b.publication}, résultats ${b.compte_rendu}.`);
     res.redirect(303, '/parcours/etape-4?ok=heures');
   });
   // Le lien du compte TikTok : demandé au passage à l'étape 4.
@@ -1132,6 +1135,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const l = lienCompte(req.body.compte);
     if (!l) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: 'Colle le lien de ton profil TikTok, par exemple https://www.tiktok.com/@ton.compte.' })); return; }
     parcours.majCompte(x.session.id, { compte: l });
+    prevenir('activiteEleve', parcours.get(x.session.id), `a ajouté son **compte TikTok** : ${l}`);
     res.redirect(303, '/parcours/etape-4?ok=compte');
   });
   app.post('/parcours/etape-4/publication', formulaire, (req, res) => {
@@ -1142,6 +1146,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const liens = String(req.body.liens || '').split(/\s+/).filter(Boolean);
     const r = suivi.declarer(x.session.id, { liens, capture: imageDe(req.body.capture, x.session.id) });
     if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
+    prevenir('activiteEleve', x.p, `a **publié** ${liens.length > 1 ? `${liens.length} vidéos` : 'sa vidéo du jour'} :\n${liens.slice(0, 5).join('\n')}`, `/admin/membres/${encodeURIComponent(x.session.id)}/profil`);
     res.redirect(303, '/parcours/etape-4?ok=publication');
   });
   // Update du compte : aujourd'hui (ou hier en retard), ou un update à corriger.
@@ -1445,6 +1450,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!p || p.retire_le) return res.redirect(303, '/reglages');
     if (!brut || lienCompte(brut) === undefined) return res.redirect(303, `/reglages?erreur=${encodeURIComponent('Colle le lien de ton profil TikTok (https://www.tiktok.com/@ton.compte).')}`);
     parcours.majCompte(session.id, { compte: brut });
+    prevenir('activiteEleve', parcours.get(session.id), `a modifié son **compte TikTok** : ${lienCompte(brut) || brut}`);
     return res.redirect(303, '/reglages?fait=tiktok');
   });
   app.get('/profil', (req, res) => {
@@ -1667,7 +1673,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   });
 
   // Données de la fiche (membre et coach).
-  const donneesFiche = (id) => ({ stats: suivi.stats(id), recompenses: suivi.recompenses(id), sinistre: sinistres.enCours(id),
+  // Réalisations : les vidéos de l'étape 3 (jusqu'au passage à l'étape 4) et les vidéos relues de l'étape 4 (les 3 dernières).
+  const realisationsDe = (id) => [...((parcours.get(id) || {}).etape <= 3 ? parcours.soumissions(id, 3) : []), ...parcours.soumissions(id, 4).slice().sort((a, b) => String(b.cree_le).localeCompare(String(a.cree_le)))]
+    .filter((x) => x.etat !== 'brouillon').map((x) => ({ ...x, remarque: (parcours.remarquesDe(x.id) || [])[0] || null }));
+  const donneesFiche = (id) => ({ realisations: realisationsDe(id), stats: suivi.stats(id), recompenses: suivi.recompenses(id), sinistre: sinistres.enCours(id),
     historique: sinistres.historique(id), joursAbsence: sinistres.joursAbsence(id) });
   app.get('/fiche', (req, res) => {
     const x = membreParcours(req, res, '/fiche', { sinistreOk: true });
@@ -1798,6 +1807,16 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!s) return;
     res.send(V.pageEnvoi(config, { espace: espaceDe(lireSession(req, config.secretApp)), s, parcours: parcours.get(s.discord_id),
       remarques: parcours.remarquesDe(s.id), niveauPropose: parcours.niveauPropose(s.discord_id), message: req.query.erreur || null }));
+  });
+  // L'élève revoit ses propres vidéos envoyées (réalisations).
+  app.get('/parcours/envois/:id/video', (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    const s = parcours.soumission(req.params.id);
+    if (!session || !s || s.discord_id !== session.id) { res.status(404).end(); return; }
+    const chemin = parcours.cheminVideo(s);
+    if (!chemin) { res.status(404).end(); return; }
+    res.set('Cache-Control', 'private, max-age=0');
+    res.sendFile(chemin, (err) => { if (err && !res.headersSent) res.status(404).end(); });
   });
   app.get('/admin/envois/:id/video', (req, res) => {
     if (!estAdmin(req, res, '/admin/a-traiter')) return;

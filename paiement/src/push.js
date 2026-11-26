@@ -65,6 +65,8 @@ function creerPush({ db, config, maintenant = () => new Date(), envoyerPush = (.
     abonnements(discordId) { return q.abonnements.all(discordId); },
 
     canal(discordId) { const r = q.canal.get(discordId); return (r && r.canal) || 'bob'; },
+    // Le choix fait explicitement (null si jamais choisi).
+    canalChoisi(discordId) { const r = q.canal.get(discordId); return (r && r.canal) || null; },
     choisirCanal(discordId, canal) {
       if (!['bob', 'app'].includes(canal)) return { erreur: 'Choix inconnu.' };
       if (canal === 'app' && !q.abonnements.all(discordId).length) return { erreur: 'Active d\'abord les notifications sur ce téléphone.' };

@@ -374,3 +374,74 @@ test('revenus cumulés : la première update sert de base, puis la fenêtre de 2
     assert.deepStrictEqual(m.suivi.periode('R', j(20)), { revenus: 90, vues: 800, updates: 2 });
   } finally { await m.fermer(); }
 });
+
+test('étape 4 : faire relire une vidéo avant de publier (facultatif, 3 en attente au plus), avec remarque et script ; le coach est prévenu de tout', async () => {
+  const appels = [];
+  const bob = { parcours: new Proxy({}, { get: (o, nom) => async (...a) => { appels.push([nom, ...a]); return true; } }) };
+  const m = await monter({ bob });
+  try {
+    m.parcours.assurer(E1, { pseudo: 'awa_27' });
+    m.parcours.changerEtape(E1, 4);
+    const membre = { cookie: cookieSession(E1, 'awa_27') };
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const page = await (await m.get('/parcours/etape-4', membre)).text();
+    assert.match(page, /Faire relire une vidéo[\s\S]*facultatif[\s\S]*\+ Ajouter une remarque[\s\S]*\+ Coller le script de la vidéo/);
+    const envoyer = async (corps) => fetch(`${m.base}/api/parcours/envoi`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: membre.cookie }, body: JSON.stringify(corps) });
+    const video = async (id) => fetch(`${m.base}/api/parcours/envoi/${id}/video`, { method: 'POST', headers: { 'Content-Type': 'video/mp4', cookie: membre.cookie }, body: Buffer.from('0000') });
+    const ids = [];
+    for (let k = 0; k < 3; k++) {
+      const r = await (await envoyer({ emplacement: 'avis', remarque: `Ma remarque ${k}`, script: k === 0 ? 'Le script de ma vidéo.' : '' })).json();
+      assert.ok(r.id, JSON.stringify(r));
+      assert.strictEqual((await video(r.id)).status, 200);
+      ids.push(r.id);
+    }
+    assert.deepStrictEqual(m.parcours.soumissions(E1, 4).map((s) => s.emplacement).sort(), ['R1', 'R2', 'R3']);
+    const quatre = await envoyer({ emplacement: 'avis' });
+    assert.strictEqual(quatre.status, 400);
+    assert.match((await quatre.json()).erreur, /déjà 3 vidéos en attente/);
+    // Le coach : dans À traiter, avec la remarque et le script ; « Prête à publier » ou « À retravailler » (sans délai).
+    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /data-filtre="avis"[\s\S]*Vidéo à relire avant publication · script joint/);
+    const envoi = await (await m.get(`/admin/envois/${ids[0]}`, coach)).text();
+    assert.match(envoi, /Sa remarque[\s\S]*Ma remarque 0[\s\S]*Script de la vidéo[\s\S]*Le script de ma vidéo/);
+    assert.match(envoi, /À retravailler[\s\S]*Prête à publier/);
+    await m.poster(`/admin/envois/${ids[0]}/decision`, { decision: 'corriger', texte: 'Accroche trop longue.' }, coach);
+    const s = m.parcours.soumission(ids[0]);
+    assert.strictEqual(s.etat, 'corriger');
+    assert.strictEqual(s.corriger_avant, null, 'pas de délai à l\'étape 4');
+    assert.strictEqual(m.parcours.get(E1).etape, 4);
+    // Une place s'est libérée : il peut en envoyer une autre.
+    assert.ok((await (await envoyer({ emplacement: 'avis' })).json()).id);
+    assert.match(await (await m.get('/parcours/etape-4', membre)).text(), /À retravailler[\s\S]*Accroche trop longue/);
+    // Le coach est prévenu des actions de l'élève (compte TikTok, publication).
+    await m.poster('/parcours/etape-4/compte', { compte: '@awa' }, membre);
+    assert.ok(appels.some(([n, , t]) => n === 'activiteEleve' && /compte TikTok/.test(t)));
+    assert.ok(appels.filter(([n]) => n === 'envoiRecu').length >= 3, 'chaque vidéo envoyée');
+  } finally { await m.fermer(); }
+});
+
+test('réalisations sur la fiche (coach et élève) ; étape 4 : seules les 3 dernières vidéos restent sur le serveur ; message derrière un bouton', async () => {
+  const m = await monter({ bob: { parcours: new Proxy({}, { get: () => async () => true }) } });
+  try {
+    m.parcours.assurer(E1, { pseudo: 'awa_27' });
+    m.parcours.changerEtape(E1, 4);
+    const membre = { cookie: cookieSession(E1, 'awa_27') };
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const envoyer = async () => {
+      const r = await (await fetch(`${m.base}/api/parcours/envoi`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: membre.cookie }, body: JSON.stringify({ emplacement: 'avis', remarque: 'Ça passe ?' }) })).json();
+      await fetch(`${m.base}/api/parcours/envoi/${r.id}/video`, { method: 'POST', headers: { 'Content-Type': 'video/mp4', cookie: membre.cookie }, body: Buffer.from('0000') });
+      m.db.prepare("UPDATE soumissions SET etat = 'valide' WHERE id = ?").run(r.id);
+      await new Promise((x) => setTimeout(x, 5));
+      return r.id;
+    };
+    const ids = [];
+    for (let k = 0; k < 4; k++) ids.push(await envoyer());
+    const fichiers = m.parcours.soumissions(E1, 4).filter((s) => s.fichier).map((s) => s.id).sort();
+    assert.deepStrictEqual(fichiers, ids.slice(1).sort(), 'la plus ancienne vidéo est effacée');
+    const fiche = await (await m.get(`/admin/membres/${E1}`, coach)).text();
+    assert.match(fiche, /<details class="pl-ecrire" id="remarque"><summary[^>]*>✉️ Envoyer un message<\/summary>/, 'formulaire derrière un bouton');
+    assert.match(fiche, /Réalisations[\s\S]*4 vidéo\(s\)[\s\S]*\/admin\/envois\/\d+\/video[\s\S]*Ça passe \?/);
+    assert.match(await (await m.get('/fiche', membre)).text(), /Réalisations[\s\S]*\/parcours\/envois\/\d+\/video/);
+    assert.strictEqual((await m.get(`/parcours/envois/${ids[3]}/video`, membre)).status, 200);
+    assert.strictEqual((await m.get(`/parcours/envois/${ids[3]}/video`, { cookie: cookieSession('AUTRE', 'x') })).status, 404);
+  } finally { await m.fermer(); }
+});

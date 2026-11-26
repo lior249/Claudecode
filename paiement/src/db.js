@@ -722,6 +722,16 @@ function migrerV31(db) {
   db.exec('PRAGMA user_version = 31');
 }
 
+// v32 : avec chaque vidéo envoyée, une remarque de l'élève et le script (français) de la vidéo, facultatifs.
+// Étape 4 : vidéos à relire avant de publier (facultatif, 3 en attente au plus) : emplacements R1, R2…
+function migrerV32(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 32) return;
+  const c = colonnes(db, 'soumissions');
+  if (!c.includes('remarque_eleve')) db.exec('ALTER TABLE soumissions ADD COLUMN remarque_eleve TEXT');
+  if (!c.includes('script')) db.exec('ALTER TABLE soumissions ADD COLUMN script TEXT');
+  db.exec('PRAGMA user_version = 32');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -762,6 +772,7 @@ function ouvrirBase(fichier) {
   migrerV29(db);
   migrerV30(db);
   migrerV31(db);
+  migrerV32(db);
   return db;
 }
 
