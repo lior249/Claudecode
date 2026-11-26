@@ -335,6 +335,13 @@ retire-les à la main.
 - Sur téléphone, **barre du bas** : Classement · Remarques · Mes rappels · Profil. La vibration de la roue marche sur Android ;
   Apple ne la permet pas aux sites (iPhone).
 
+## Annonce à tous les élèves
+
+Menu Gestion → **Annonce aux élèves** (`/admin/annonces`) : un titre, un message, et si besoin **+ Ajouter un lien**
+(https://… ou une page du site comme `/parcours/etape-4`, qui ouvre l'espace de chaque élève déjà connecté) et une image.
+Tous les élèves Elite la reçoivent (application ou Bob, avec l'image sur Discord) et la voient en haut de Mon profil
+pendant 7 jours (« × » pour la masquer). La liste des annonces envoyées montre combien l'ont reçue.
+
 ## Mon profil épuré (élèves)
 
 - **Menu** des élèves : Mon profil, Mon parcours, Mes coachings, Classement (« Site public » seulement pour le coach).

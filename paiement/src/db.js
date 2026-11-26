@@ -565,6 +565,23 @@ function migrerV22(db) {
   PRAGMA user_version = 22;`);
 }
 
+// v23 : annonces du coach à tous les élèves (titre, texte, lien et image facultatifs).
+function migrerV23(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 23) return;
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS annonces (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    titre          TEXT NOT NULL,
+    texte          TEXT NOT NULL,
+    lien           TEXT,                      -- page du site (/…) ou lien https
+    image          TEXT,                      -- image envoyée par le coach (dossier des images du parcours)
+    destinataires  INTEGER NOT NULL DEFAULT 0,
+    envoyes        INTEGER,                   -- messages arrivés (application ou Bob)
+    cree_le        TEXT NOT NULL
+  );
+  PRAGMA user_version = 23;`);
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -596,6 +613,7 @@ function ouvrirBase(fichier) {
   migrerV20(db);
   migrerV21(db);
   migrerV22(db);
+  migrerV23(db);
   return db;
 }
 

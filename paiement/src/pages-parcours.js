@@ -331,12 +331,15 @@ function fenetreAFaire(r) {
       border:1px solid var(--bord-fort); background:#141414; color:#fff; text-decoration:none; font-weight:600; font-size:14.5px; }
     .a-faire-liste a::after { content:'›'; font-size:22px; color:var(--doux); line-height:1; }
     .a-faire-liste li:first-child a { border-color:#fff; }
+    .rebours-fenetre { margin:2px 0 12px; font:800 40px/1 var(--police); letter-spacing:.02em; font-variant-numeric:tabular-nums; color:#dff58f; }
+    .rebours-fenetre[data-niveau="urgent"] { color:#ffcf6b; } .rebours-fenetre[data-niveau="retard"] { color:#ff6b6b; }
   </style>
   <dialog class="fenetre" id="a-faire" data-etape="${r.etape}" aria-labelledby="a-faire-titre">
     <button class="fermer" type="button" aria-label="Fermer" data-fermer>×</button>
     <p class="etiquette" style="margin:0 0 6px">${r.etape >= 5 ? 'GOAT' : `Étape ${r.etape} sur 4 · ${echapper(etape.titre)}`}</p>
     <h2 id="a-faire-titre" data-titre-normal>Ce qu'il te reste à faire</h2>
     <h2 data-titre-nouveau hidden>Bravo, étape ${r.etape} ouverte !</h2>
+    ${r.fin ? `<p class="rebours-fenetre" data-fin="${echapper(r.fin)}" data-duree="${Number(r.duree) || 0}" aria-label="Temps restant">--:--:--</p>` : ''}
     ${r.video ? `<div class="video-etape" style="margin:10px 0 12px">${blocVideo(r.video, r.etape >= 5 ? 'GOAT : le mot du coach' : `Étape ${r.etape} : le mot du coach`)}</div>` : ''}
     ${r.items.length ? `<p class="doux" style="margin:0">${r.items.length > 1 ? `${r.items.length} choses à faire, la plus importante en premier.` : 'Une chose à faire maintenant.'}</p>` : ''}
     <ul class="a-faire-liste">${r.items.map((i) => `<li><a href="${echapper(i.lien)}">${echapper(i.texte)}</a></li>`).join('')}</ul>
@@ -350,7 +353,19 @@ function fenetreAFaire(r) {
     // Fenêtre fermée : la vidéo s'arrête.
     d.addEventListener('close', function () { d.querySelectorAll('iframe').forEach(function (f) { var s = f.src; f.src = 'about:blank'; f.src = s; }); });
     d.addEventListener('click', function (ev) { if (ev.target === d) d.close(); });
-    d.showModal();
+    // Le décompte en temps réel : 11:59:58, 11:59:57…
+    var r = d.querySelector('.rebours-fenetre');
+    if (r) {
+      var deux = function (n) { return (n < 10 ? '0' : '') + n; };
+      var maj = function () {
+        var reste = new Date(r.getAttribute('data-fin')) - Date.now(), duree = +r.getAttribute('data-duree') || 0, s = Math.floor(Math.abs(reste) / 1000);
+        var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+        r.textContent = (reste < 0 ? '−' : '') + deux(h) + ':' + deux(m) + ':' + deux(s % 60);
+        r.setAttribute('data-niveau', reste < 0 ? 'retard' : duree && reste < duree / 4 ? 'urgent' : '');
+      };
+      maj(); setInterval(maj, 1000);
+    }
+    setTimeout(function () { d.showModal(); }, 300); // la fenêtre arrive 0,3 s après la page
   })();</script>`;
 }
 function pageParcours(config, { espace, parcours: p, tache, prochain, derniere, formation, stats, rappel }) {
@@ -1096,4 +1111,4 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
-module.exports = { fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+module.exports = { texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };

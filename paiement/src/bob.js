@@ -1070,6 +1070,18 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
           [{ label: 'Voir son profil', url: lienPerso(f.suiveur, pseudoParcours(f.suiveur), `/classement/${encodeURIComponent(auteur.id)}`) }]));
       }
     },
+    // Annonce du coach à tous les élèves : titre, texte, bouton du lien, image jointe (Discord) ; l'application reçoit le texte.
+    async annonce(a, ids, cheminImage) {
+      let n = 0;
+      for (const id of ids) {
+        const lien = a.lien ? (a.lien.startsWith('/') ? lienPerso(id, pseudoParcours(id), a.lien) : a.lien) : null;
+        const contenu = avecBoutons(`📣 **${a.titre}**\n${a.texte}`, lien ? [{ label: 'Ouvrir', url: lien }] : []);
+        if (cheminImage) contenu.files = [cheminImage];
+        try { if (await notifier.membre(id, contenu)) n++; } catch (err) { console.warn('[bob] annonce :', err.message); }
+      }
+      log(`annonce ${a.id} : ${n} / ${ids.length} envoyée(s)`);
+      return n;
+    },
     async invitationConcurrence(c, de) {
       await notifier.membre(c.vers, avecBoutons(`**${de.nom}** te défie : le premier à **${euros(c.objectif)}** de récompenses gagne. Tu acceptes ?`,
         [{ label: 'Répondre', url: lienPerso(c.vers, pseudoParcours(c.vers), '/communaute') }]));

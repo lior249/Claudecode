@@ -1034,7 +1034,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if ([3, 4].includes(p.etape) && !coaching.aUnPlanning(id)) ajouter('Réserve tes coachings de la semaine', '/coaching');
     const e = config.offres.elite;
     const video = [null, e.wistiaEtape1, e.wistiaEtape2, e.wistiaEtape3, e.wistiaEtape4, e.wistiaGoat][Math.min(p.etape, 5)] || null;
-    return { etape: Math.min(p.etape, 5), items, video };
+    // Le décompte de la tâche la plus importante (son délai, ou son échéance à l'étape 4).
+    const tache = p.etape === 4 ? suivi.tache(p) : t;
+    const ech = tache && (tache.delai || tache.echeance);
+    return { etape: Math.min(p.etape, 5), items, video, fin: ech ? ech.fin : null, duree: ech ? ech.duree : null };
   }
 
   // ---- Étape 4 : publication et suivi ----
@@ -1203,6 +1206,35 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       objectif: (stats.objectifs || []).find((o) => !o.atteint) || null,
     };
   }
+  // ---- Annonces du coach à tous les élèves Elite ----
+  const derniereAnnonce = () => commandes.db.prepare('SELECT * FROM annonces WHERE cree_le >= ? ORDER BY id DESC LIMIT 1').get(new Date(Date.now() - 7 * 864e5).toISOString()) || null;
+  app.get('/admin/annonces', (req, res) => {
+    if (!estAdmin(req, res, '/admin/annonces')) return;
+    res.send(PF.pageAnnonces(config, { espace: espaceDe(lireSession(req, config.secretApp)), nbEleves: parcours.tous().length,
+      annonces: commandes.db.prepare('SELECT * FROM annonces ORDER BY id DESC LIMIT 30').all(),
+      message: req.query.fait ? `Annonce envoyée à ${Number(req.query.n) || 0} élève(s). Le nombre de messages reçus s'affiche ci-dessous.` : null,
+      erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.post('/admin/annonces', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/annonces')) return;
+    const titre = String(req.body.titre || '').trim().slice(0, 120);
+    const texte = String(req.body.texte || '').trim().slice(0, 1800);
+    let lien = String(req.body.lien || '').trim().slice(0, 400) || null;
+    const erreur = (t) => res.redirect(303, `/admin/annonces?erreur=${encodeURIComponent(t)}`);
+    if (!titre || !texte) return erreur('Écris un titre et un message.');
+    if (lien && !/^https:\/\/\S+$/.test(lien) && !/^\/(?![/\\])\S*$/.test(lien)) return erreur('Le lien doit commencer par https:// ou être une page du site (/…).');
+    const image = imagesDe(req.body)[0] || null;
+    const ids = parcours.tous().map((p) => p.discord_id);
+    const r = commandes.db.prepare('INSERT INTO annonces (titre, texte, lien, image, destinataires, cree_le) VALUES (?, ?, ?, ?, ?, ?)').run(titre, texte, lien, image, ids.length, new Date().toISOString());
+    const a = commandes.db.prepare('SELECT * FROM annonces WHERE id = ?').get(Number(r.lastInsertRowid));
+    if (bob && bob.parcours && bob.parcours.annonce) {
+      bob.parcours.annonce(a, ids, image ? parcours.cheminImage(image) : null)
+        .then((n) => commandes.db.prepare('UPDATE annonces SET envoyes = ? WHERE id = ?').run(n, a.id))
+        .catch((err) => console.error('[bob] annonce :', err.message));
+    } else commandes.db.prepare('UPDATE annonces SET envoyes = 0 WHERE id = ?').run(a.id);
+    lien = null;
+    return res.redirect(303, `/admin/annonces?fait=1&n=${ids.length}`);
+  });
   app.get('/revenus', (req, res) => {
     const x = membreParcours(req, res, '/revenus', { sinistreOk: true });
     if (!x) return;
@@ -1238,7 +1270,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.get('/profil', (req, res) => {
     const x = membreParcours(req, res, '/profil', { sinistreOk: true });
     if (!x) return;
-    res.send(PF.pageMonProfil(config, { espace: x.espace, ...donneesMonProfil(x.p), rappel: aFaireDe(x.p) }));
+    res.send(PF.pageMonProfil(config, { espace: x.espace, ...donneesMonProfil(x.p), rappel: aFaireDe(x.p), annonce: derniereAnnonce() }));
   });
 
   // ---- Communauté : suivre (10 places), concurrences (3), invitations ----
@@ -1316,7 +1348,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const session = lireSession(req, config.secretApp);
     const chemin = parcours.cheminImage(req.params.nom);
     if (!session || !chemin) { res.status(404).end(); return; }
-    if (!estLeCoach(session) && parcours.proprietaireImage(req.params.nom) !== session.id) { res.status(403).end(); return; }
+    const deLAnnonce = Boolean(commandes.db.prepare('SELECT 1 FROM annonces WHERE image = ?').get(req.params.nom));
+    if (!estLeCoach(session) && !deLAnnonce && parcours.proprietaireImage(req.params.nom) !== session.id) { res.status(403).end(); return; }
     res.set('Cache-Control', 'private, max-age=86400');
     res.sendFile(chemin, (err) => { if (err && !res.headersSent) res.status(404).end(); });
   });

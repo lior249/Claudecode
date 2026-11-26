@@ -4,7 +4,8 @@
 // son résultat), la chaîne 🔥, ceux qu'il suit, la tâche du moment ; puis le tableau de bord des revenus.
 // Et la page Communauté : suivis (10 places), concurrents (3), invitations, suggestions.
 const { echapper } = require('./pages');
-const { page, remarque, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise } = require('./pages-parcours');
+const { page, remarque, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce } = require('./pages-parcours');
+const { ICONE } = require('./pages');
 const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
 const { vuesCourtes } = require('./pages-classement');
@@ -199,7 +200,7 @@ function panneauJour(d, i, tache) {
 }
 
 function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, nbSuivis, nbConcurrents, invitations, notifications, rappel,
-  rang, totalClasses, revenusMois, objectif, seances = [], remarquesNouvelles = 0 }) {
+  rang, totalClasses, revenusMois, objectif, seances = [], remarquesNouvelles = 0, annonce }) {
   const nom = prenom || p.pseudo || 'Membre';
   const roue = jours.map((d) => `<button type="button" class="roue-jour${d.aujourdhui ? ' aujourdhui' : ''}${d.futur ? ' futur' : ''}" data-jour="${d.j}" data-e="${d.e}" aria-label="${echapper(jourLisible(d.j))}">
       <span class="pts"><i></i></span><small>${JOURS_COURTS[new Date(`${d.j}T12:00:00Z`).getUTCDay()]}</small><b>${Number(d.j.slice(8))}</b></button>`).join('');
@@ -216,6 +217,7 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
   return page('Mon profil', `${STYLE_PROFIL}${STYLE_ROLES}
   ${fenetreAFaire(rappel)}
   <div class="pf">
+    ${carteAnnonce(annonce)}
     <div class="pf-haut">
       <div class="pf-groupe">
         <a class="pf-icone" href="/notifications" aria-label="Notifications et rappels">${ICONES.cloche}${notifications ? '<span class="point"></span>' : ''}</a>
@@ -360,4 +362,57 @@ function pageRemarques(config, { espace, remarques }) {
   <div style="display:grid;gap:10px">${remarques.map(remarque).join('') || '<p class="vide-traiter">Pas encore de remarque.</p>'}</div>`, espace, 'remarques');
 }
 
-module.exports = { pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
+// ---------- Annonces du coach ----------
+const STYLE_ANNONCE = `<style>
+  .annonce { position:relative; margin:0 0 16px; border-radius:20px; overflow:hidden; background:#121212; border:1px solid #2a2a2a; }
+  .annonce img { display:block; width:100%; max-height:220px; object-fit:cover; }
+  .annonce .corps { padding:14px 16px 16px; } .annonce .etiquette { margin:0 0 4px; color:#c8f23a; }
+  .annonce h2 { margin:0 34px 6px 0; font-size:17px; } .annonce p { margin:0; color:#cfcfcf; font-size:14px; white-space:pre-line; }
+  .annonce .bouton { margin-top:12px; }
+  .annonce .fermer { position:absolute; top:10px; right:10px; width:32px; height:32px; border-radius:50%; border:0; background:rgba(0,0,0,.6); color:#fff; font:400 20px/1 var(--police); cursor:pointer; }
+</style>`;
+// La dernière annonce (7 jours), en haut de Mon profil ; « × » la masque sur ce téléphone.
+function carteAnnonce(a) {
+  if (!a) return '';
+  return `${STYLE_ANNONCE}<section class="annonce" data-annonce="${a.id}">
+    <button class="fermer" type="button" aria-label="Masquer l'annonce">×</button>
+    ${a.image ? `<img src="/fichiers/images/${echapper(a.image)}" alt="">` : ''}
+    <div class="corps"><p class="etiquette">Annonce du coach</p><h2>${echapper(a.titre)}</h2><p>${echapper(a.texte)}</p>
+    ${a.lien ? `<a class="bouton" href="${echapper(a.lien)}"${a.lien.startsWith('/') ? '' : ' target="_blank" rel="noopener"'}>Ouvrir</a>` : ''}</div></section>
+  <script>(function () { var c = document.querySelector('[data-annonce]'); if (!c) return; var k = 'ovx-annonce-' + c.getAttribute('data-annonce');
+    try { if (localStorage.getItem(k)) { c.remove(); return; } } catch (e) {}
+    c.querySelector('.fermer').onclick = function () { try { localStorage.setItem(k, '1'); } catch (e) {} c.remove(); }; })();</script>`;
+}
+const SCRIPT_ANNONCE = `(function () {
+  var f = document.getElementById('form-annonce'); if (!f) return;
+  var zone = document.getElementById('zone-lien'), ajouter = document.getElementById('ajouter-lien');
+  ajouter.onclick = function () { zone.hidden = false; ajouter.hidden = true; f.lien.focus(); };
+  document.getElementById('retirer-lien').onclick = function () { f.lien.value = ''; zone.hidden = true; ajouter.hidden = false; };
+  f.addEventListener('submit', function (e) { if (!confirm('Envoyer cette annonce à ' + f.getAttribute('data-n') + ' élève(s) ?')) e.preventDefault(); });
+})();`;
+function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, message, erreur }) {
+  return page('Annonces', `
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Annonce à tous les élèves</h1></div><span class="doux petit">${nbEleves} élève(s) Elite</span></div>
+  ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <form id="form-annonce" class="carte" method="post" action="/admin/annonces" data-n="${nbEleves}" style="display:grid;gap:12px;max-width:640px">
+    <div class="champ"><label for="titre">Titre</label><input id="titre" name="titre" maxlength="120" required placeholder="ex. Live de groupe ce soir à 21 h"></div>
+    <div class="champ"><label for="texte">Message</label><textarea id="texte" name="texte" maxlength="1800" required placeholder="Colle ton texte ici."></textarea></div>
+    <button id="ajouter-lien" class="bouton secondaire" type="button" style="margin:0;width:auto;justify-self:start">+ Ajouter un lien</button>
+    <div id="zone-lien" class="champ" hidden><label for="lien">Lien</label>
+      <div style="display:flex;gap:8px"><input id="lien" name="lien" inputmode="url" placeholder="https://… ou une page du site : /parcours/etape-4">
+      <button id="retirer-lien" class="bouton secondaire" type="button" style="margin:0;width:auto">Retirer</button></div>
+      <small>Une page du site (/parcours, /coaching…) ouvre l'espace de chaque élève, déjà connecté.</small></div>
+    <div data-images="/admin/images" data-une>
+      <label class="fichier">${ICONE.plus}<span><b>Ajouter une image</b><br>Bannière qui accompagne le message (facultatif)</span><input type="file" accept="image/*" hidden></label>
+      <input type="hidden" name="images" value=""><div class="apercus" style="margin-top:8px"></div></div>
+    <button class="bouton" type="submit" style="margin:0">Envoyer à tous les élèves</button>
+    <p class="doux petit" style="margin:0">Chacun le reçoit dans l'application ou par Bob, selon son réglage, et le voit en haut de Mon profil pendant 7 jours.</p>
+  </form>
+  <h2 style="font-size:16px;margin:22px 0 10px">Annonces envoyées</h2>
+  <div style="display:grid;gap:8px;max-width:640px">${annonces.map((a) => `<div class="carte" style="margin:0"><b>${echapper(a.titre)}</b>
+    <p class="doux petit" style="margin:4px 0 0">${echapper(new Date(a.cree_le).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }))} GMT ·
+    ${a.envoyes === null ? 'envoi en cours…' : `reçue par ${a.envoyes} / ${a.destinataires}`}${a.lien ? ` · lien : ${echapper(a.lien)}` : ''}${a.image ? ' · avec image' : ''}</p></div>`).join('') || '<p class="vide-traiter">Aucune annonce pour le moment.</p>'}</div>`,
+  espace, 'annonces', null, SCRIPT_ANNONCE);
+}
+
+module.exports = { carteAnnonce, pageAnnonces, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };

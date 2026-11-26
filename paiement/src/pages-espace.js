@@ -69,6 +69,7 @@ function navEspace(espace = {}) {
       { cle: 'candidatures', libelle: 'Candidatures', lien: '/admin/candidatures', icone: 'candidatures', badge: espace.aTraiter || null },
       { cle: 'eleves', libelle: 'Élèves Elite', lien: '/admin/eleves', icone: 'eleves' },
       { cle: 'membres', libelle: 'Membres', lien: '/admin/membres', icone: 'membres' },
+      { cle: 'annonces', libelle: 'Annonce aux élèves', lien: '/admin/annonces', icone: 'annonces' },
       { cle: 'pages', libelle: 'Pages du site', lien: '/admin/pages', icone: 'pages' });
   }
   // Le coach (admin) ne réserve pas de séance : pas de « Mes coachings » pour lui.

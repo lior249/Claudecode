@@ -68,3 +68,24 @@ test('profil du classement : Suivre puis Ne plus suivre, retour sur le profil', 
     assert.strictEqual((await m.poster('/communaute/suivre', { id: 'B', retour: 'https://evil.com' }, a)).headers.get('location'), '/communaute?fait=suivi');
   } finally { await m.fermer(); }
 });
+
+test('annonce du coach : envoyée à tous les élèves (lien perso pour une page du site), visible en haut de Mon profil', async () => {
+  const envois = [];
+  const m = await monter({ bob: { parcours: { annonce: async (a, ids, image) => { envois.push([a, ids, image]); return ids.length; } } } });
+  try {
+    for (const id of ['A', 'B', 'C']) m.parcours.assurer(id, { pseudo: `p_${id}` });
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    assert.match(await (await m.get('/admin/annonces', coach)).text(), /3 élève\(s\) Elite[\s\S]*Ajouter un lien[\s\S]*Ajouter une image/);
+    assert.match((await m.poster('/admin/annonces', { titre: 'x', texte: 'y', lien: 'javascript:alert(1)' }, coach)).headers.get('location'), /erreur=/);
+    assert.strictEqual((await m.poster('/admin/annonces', { titre: 'x', texte: 'y' }, { cookie: cookieSession('A', 'p_A') })).status, 403);
+    const r = await m.poster('/admin/annonces', { titre: 'Live ce soir', texte: 'Rendez-vous à 21 h.', lien: '/parcours/etape-4' }, coach);
+    assert.strictEqual(r.headers.get('location'), '/admin/annonces?fait=1&n=3');
+    assert.strictEqual(envois.length, 1);
+    assert.deepStrictEqual(envois[0][1].sort(), ['A', 'B', 'C']);
+    assert.strictEqual(envois[0][0].lien, '/parcours/etape-4');
+    await new Promise((x) => setTimeout(x, 20));
+    assert.match(await (await m.get('/admin/annonces', coach)).text(), /reçue par 3 \/ 3/);
+    const profil = await (await m.get('/profil', { cookie: cookieSession('A', 'p_A') })).text();
+    assert.match(profil, /Annonce du coach[\s\S]*Live ce soir[\s\S]*Rendez-vous à 21 h\.[\s\S]*href="\/parcours\/etape-4"/);
+  } finally { await m.fermer(); }
+});

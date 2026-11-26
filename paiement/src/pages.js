@@ -168,6 +168,28 @@ const STYLE = `
     background:#161616; color:#fff; font:400 22px/1 var(--police); cursor:pointer; display:grid; place-items:center; padding:0; }
   dialog.fenetre h2 { margin:0 44px 8px 0; font-size:20px; letter-spacing:-0.02em; }
   dialog.fenetre .bouton { margin-top:14px; }
+  /* Animations : fenêtres (apparition, contenu qui monte en fondu, sortie en fondu dézoomé), reflet des boutons, fondu entre pages. */
+  @keyframes ovx-fenetre { from { opacity:0; transform:translateY(14px) scale(.98); } to { opacity:1; transform:none; } }
+  @keyframes ovx-fenetre-sortie { from { opacity:1; transform:none; } to { opacity:0; transform:scale(.92); } }
+  @keyframes ovx-monte { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+  @keyframes ovx-voile { from { opacity:0; } to { opacity:1; } }
+  @keyframes ovx-reflet { 0% { transform:translate(-120%, 120%) rotate(25deg); } 55%, 100% { transform:translate(220%, -220%) rotate(25deg); } }
+  @keyframes ovx-page { from { opacity:0; } to { opacity:1; } }
+  dialog.fenetre[open] { animation:ovx-fenetre .38s cubic-bezier(.2,.8,.2,1) both; }
+  dialog.fenetre[open]::backdrop { animation:ovx-voile .3s ease-out both; }
+  dialog.fenetre[open] > * { animation:ovx-monte .45s cubic-bezier(.2,.8,.2,1) both; }
+  dialog.fenetre[open] > :nth-child(2) { animation-delay:.05s; } dialog.fenetre[open] > :nth-child(3) { animation-delay:.1s; }
+  dialog.fenetre[open] > :nth-child(4) { animation-delay:.15s; } dialog.fenetre[open] > :nth-child(5) { animation-delay:.2s; }
+  dialog.fenetre[open] > :nth-child(6) { animation-delay:.25s; } dialog.fenetre[open] > :nth-child(n+7) { animation-delay:.3s; }
+  dialog.fenetre .fermer { z-index:5; } /* toujours cliquable, au-dessus du contenu animé */
+  dialog.fenetre.sortie { animation:ovx-fenetre-sortie .2s ease-in both; } dialog.fenetre.sortie::backdrop { opacity:0; transition:opacity .2s; }
+  dialog.fenetre .bouton, dialog.fenetre .a-faire-liste a { position:relative; overflow:hidden; }
+  dialog.fenetre .bouton::before, dialog.fenetre .a-faire-liste a::before { content:""; position:absolute; left:0; bottom:0; width:40%; height:300%; pointer-events:none;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent); animation:ovx-reflet 3.2s ease-in-out infinite; }
+  dialog.fenetre .a-faire-liste a::before { background:linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent); }
+  body { animation:ovx-page .32s ease-out both; }
+  body.ovx-sortie { opacity:0; transition:opacity .15s ease-in; }
+  @media (prefers-reduced-motion: reduce) { dialog.fenetre[open], dialog.fenetre[open] > *, dialog.fenetre.sortie, body, dialog.fenetre .bouton::before, dialog.fenetre .a-faire-liste a::before { animation:none !important; } }
   .tuto-bob ol { list-style:none; padding:0; margin:14px 0 0; display:grid; gap:20px; }
   .tuto-bob li { display:grid; gap:8px; }
   .tuto-bob li p { margin:0; }
@@ -188,6 +210,30 @@ function logo(classe = '') {
   return `<span class="logo ${classe}" aria-label="Overmaxx">OVERMAXX<i></i><i></i><i></i></span>`;
 }
 
+// Fondu en sortie de page (lien interne) et fermeture des fenêtres en fondu dézoomé.
+const SCRIPT_TRANSITIONS = `
+(function () {
+  var calme = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.addEventListener('pageshow', function () { document.body.classList.remove('ovx-sortie'); });
+  if (!calme) document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href]');
+    if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return;
+    var u; try { u = new URL(a.href); } catch (x) { return; }
+    if (u.origin !== location.origin || (u.pathname === location.pathname && u.hash) || a.getAttribute('href').charAt(0) === '#') return;
+    e.preventDefault(); document.body.classList.add('ovx-sortie');
+    setTimeout(function () { location.href = a.href; }, 140);
+  });
+  var P = window.HTMLDialogElement && HTMLDialogElement.prototype;
+  if (P && !P.__ovx && !calme) {
+    P.__ovx = 1; var fermer = P.close;
+    P.close = function (v) {
+      var d = this;
+      if (!d.open || !d.classList.contains('fenetre') || d.classList.contains('sortie')) return fermer.call(d, v);
+      d.classList.add('sortie');
+      setTimeout(function () { d.classList.remove('sortie'); fermer.call(d, v); }, 190);
+    };
+  }
+})();`;
 function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp } = {}) {
   return `<!doctype html>
 <html lang="fr">
@@ -209,7 +255,7 @@ function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>${STYLE}</style>
 </head>
-<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script></body>
+<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});${SCRIPT_TRANSITIONS}</script></body>
 </html>`;
 }
 
@@ -221,6 +267,7 @@ const ICONES_NAV = {
   membres: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg>',
   coaching: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
   parcours: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="18" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M6.2 16.3l4.6-8.6M13.2 7.7l4.6 8.6"/></svg>',
+  annonces: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>',
   remarques: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-4 3.5v-3.5h0a2 2 0 0 1-1.5-2z"/><path d="M8.5 9h7M8.5 12.2h4.5"/></svg>',
   communaute: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="9" r="3.2"/><circle cx="16.5" cy="10" r="2.6"/><path d="M3.5 19.5c.8-3.2 3-5 5.5-5s4.7 1.8 5.5 5M14.5 15c2.6-.6 5 .9 6 4"/></svg>',
   profil: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c1-3.8 4-6 7.5-6s6.5 2.2 7.5 6"/></svg>',
