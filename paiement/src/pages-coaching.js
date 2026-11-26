@@ -41,6 +41,33 @@ const STYLE_COACHING = `<style>
   .sem-nav { display:flex; gap:8px; margin-bottom:10px; }
   .sem-nav a { flex:1; text-align:center; padding:8px; border-radius:10px; border:1px solid var(--bord); color:var(--doux); text-decoration:none; font-size:13px; font-weight:600; }
   .sem-nav a[aria-current="page"] { color:#fff; border-color:#fff; }
+  /* Choix jour par jour : 1. le jour (7 boutons), 2. l'heure (gros boutons). */
+  .jp-etape { font:700 12px var(--police); text-transform:uppercase; letter-spacing:.1em; color:var(--doux); margin:14px 0 8px; }
+  .jp-jours { display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:5px; }
+  .jp-jour { min-height:64px; padding:8px 1px; border-radius:14px; border:1px solid #2c2c2c; background:#131313; color:#bdbdbd; font:600 12px var(--police);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; min-width:0; }
+  .jp-jour b { font-size:13.5px; color:#fff; } .jp-jour small { font-size:10.5px; color:#7a7a7a; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:clip; }
+  .jp-jour.actif { border-color:#fff; background:#1d1d1d; }
+  .jp-jour.choisi { background:#ff8a00; border-color:#ff8a00; } .jp-jour.choisi b, .jp-jour.choisi small, .jp-jour.choisi { color:#000; }
+  .jp-jour.choisi.actif { box-shadow:0 0 0 2px #fff; }
+  .jp-jour.vide { opacity:.4; }
+  .jp-panneau { margin-top:10px; padding:14px; border-radius:18px; background:#0f0f0f; border:1px solid #232323; }
+  .jp-panneau h3 { margin:0 0 10px; font-size:15.5px; }
+  .jp-heures { display:grid; grid-template-columns:repeat(auto-fill, minmax(86px, 1fr)); gap:8px; }
+  .jp-h { min-height:50px; border-radius:12px; border:1px solid #3a3a3a; background:#1e1e1e; color:#fff; font:700 16px var(--police); cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:4px; }
+  .jp-h small { font:600 10.5px var(--police); color:#8fb3ff; }
+  .jp-h.choisi { background:#ff8a00; border-color:#ff8a00; color:#000; } .jp-h.choisi small { color:#000; }
+  .jp-h.moi { background:#ff8a00; border-color:#ff8a00; color:#000; }
+  .jp-h:disabled { background:transparent; border-style:dashed; border-color:#2e2e2e; color:#5c5c5c; cursor:not-allowed; }
+  .jp-h:disabled span { text-decoration:line-through; } .jp-h:disabled small { color:#666; }
+  .jp-h.touchee:disabled { border-color:#ff3b3b; color:#ffb3b3; }
+  .jp-h.moi:disabled { background:#3b2200; border-style:solid; border-color:#ff8a00; color:#ffcf99; } .jp-h.moi:disabled span { text-decoration:none; }
+  .jp-aucun { display:block; margin:12px auto 0; background:none; border:0; color:var(--doux); text-decoration:underline; font:600 13px var(--police); cursor:pointer; }
+  .jp-vide { color:var(--doux); font-size:13.5px; margin:0; }
+  .jp-resume { margin:12px 0 4px; padding:12px 14px; border-radius:14px; border:1px solid #2a2a2a; font-size:14px; }
+  .jp-resume b { color:#ff8a00; } .jp-resume .ok { color:#3ddc84; font-weight:700; }
+  .jp-barre { height:6px; border-radius:999px; background:#222; margin-top:8px; overflow:hidden; } .jp-barre i { display:block; height:100%; background:#ff8a00; transition:width .2s; }
 </style>`;
 
 // Heures et dates à l'heure du membre (fuseau de son téléphone).
@@ -100,8 +127,8 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
 
   const grilleFixe = `
       <div class="alerte">Réserve avant <b data-limite="${echapper(limite)}">${echapper(limite)} GMT</b> pour qu'une séance compte le jour même.</div>
-      <div class="legende"><span><i style="background:#ff8a00"></i>Mes créneaux</span><span><i style="background:#1b1b1b;border:1px solid #333"></i>Pris</span><span><i style="background:#4a4a4a"></i>Libre</span></div>
-      <div id="grille" class="tableau"></div>
+      <p class="doux petit" style="margin:0">Choisis de <b>${min} à ${max} jours</b>, puis une heure pour chacun. Ils reviennent chaque semaine.</p>
+      <div id="grille"></div>
       <p id="compteur" class="compteur" style="margin:0"></p>
       <button id="enregistrer" class="bouton" type="button" style="margin-top:6px;min-height:46px">Enregistrer mes créneaux fixes</button>
       <p class="doux petit" style="margin:8px 0 0">Les mêmes chaque semaine : c'est le plus simple, et personne ne te les prend.</p>`;
@@ -109,9 +136,8 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
       <nav class="sem-nav" aria-label="Semaine">${lundis.map((l, i) => `<a href="/coaching?mode=semaine&semaine=${echapper(l)}"${l === semaine.lundi ? ' aria-current="page"' : ''}>${i ? 'Semaine prochaine' : 'Cette semaine'}</a>`).join('')}</nav>
       ${aDesFixes ? `<div class="alerte">Tu as des créneaux fixes. Pour réserver semaine par semaine, retire-les d'abord (tes séances déjà passées ne changent pas).
         <button id="retirer-fixes" class="petit-bouton" type="button" style="margin-top:8px;display:block">Retirer mes créneaux fixes</button></div>` : ''}
-      <div class="legende"><span><i style="background:#ff8a00"></i>Mes séances</span><span><i style="background:#1b1b1b;border:1px solid #333"></i>Pris</span><span><i style="background:#4a4a4a"></i>Libre</span>
-        <span><i style="background:repeating-linear-gradient(135deg,#1b1b1b 0 3px,#2a2a2a 3px 6px)"></i>Coach absent</span><span><i style="background:#3a0d0d;outline:2px solid #ff3b3b;outline-offset:-2px"></i>Annulée par le coach</span></div>
-      <div id="grille-semaine" class="tableau"></div>
+      <p class="doux petit" style="margin:0">Choisis de <b>${min} à ${max} jours</b> cette semaine, puis une heure pour chacun.</p>
+      <div id="grille-semaine"></div>
       <p id="compteur-semaine" class="compteur" style="margin:0"></p>
       <button id="reserver-semaine" class="bouton" type="button" style="margin-top:6px;min-height:46px"${aDesFixes ? ' disabled' : ''}>Réserver cette semaine</button>
       <p class="doux petit" style="margin:8px 0 0">Une semaine à la fois : à refaire chaque semaine, et d'autres membres peuvent prendre les créneaux avant toi.</p>` : '';
@@ -137,7 +163,81 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
     if (dec) lab.appendChild(el('small', 'nuit', dec === 'nuit' ? 'nuit' : 'veille'));
     return lab;
   }
-  function coupure(g, i) { if (i > 0 && +D.heures[i].slice(0, 2) - +D.heures[i - 1].slice(0, 2) > 1) g.appendChild(el('div', 'coupure')); }
+  // Sélecteur jour par jour. jours : [{ cle, nom, date }] ; cases(cle) : [{ heure, etat, cliquable }] ; choix : { cle: heure }.
+  var NOMS = { pris: 'pris', absent: 'coach absent', passe: 'passé', touchee: 'annulé', moi: 'ta séance' };
+  function selecteur(zone, jours, cases, choix, apres) {
+    var actif = null;
+    jours.forEach(function (j) { if (actif === null && choix[j.cle] !== undefined) actif = j.cle; });
+    if (actif === null) jours.forEach(function (j) { if (actif === null && cases(j.cle).some(function (c) { return c.cliquable; })) actif = j.cle; });
+    if (actif === null && jours.length) actif = jours[0].cle;
+    function dessiner() {
+      zone.innerHTML = '';
+      zone.appendChild(el('p', 'jp-etape', '1. Le jour'));
+      var rangee = el('div', 'jp-jours');
+      jours.forEach(function (j) {
+        var b = el('button', 'jp-jour'); b.type = 'button';
+        var h = choix[j.cle];
+        if (h !== undefined) b.classList.add('choisi');
+        if (j.cle === actif) b.classList.add('actif');
+        if (!cases(j.cle).some(function (c) { return c.cliquable; }) && h === undefined) b.classList.add('vide');
+        b.appendChild(el('b', '', j.nom));
+        b.appendChild(el('small', '', h !== undefined ? OVX.heure(j.date + 'T' + h + ':00.000Z') : (j.sous || '—')));
+        b.setAttribute('aria-pressed', j.cle === actif ? 'true' : 'false');
+        b.setAttribute('aria-label', j.long + (h !== undefined ? ', choisi à ' + OVX.heure(j.date + 'T' + h + ':00.000Z') : ''));
+        b.onclick = function () { actif = j.cle; dessiner(); };
+        rangee.appendChild(b);
+      });
+      zone.appendChild(rangee);
+      var j = jours.filter(function (x) { return x.cle === actif; })[0];
+      if (!j) return apres();
+      zone.appendChild(el('p', 'jp-etape', '2. L\\'heure'));
+      var pan = el('div', 'jp-panneau');
+      pan.appendChild(el('h3', '', j.long + ' : choisis ton heure'));
+      var liste = cases(j.cle);
+      var grilleH = el('div', 'jp-heures');
+      liste.forEach(function (c) {
+        var mien = choix[j.cle] === c.heure;
+        var b = el('button', 'jp-h ' + (mien ? 'choisi' : c.etat)); b.type = 'button';
+        var iso = j.date + 'T' + c.heure + ':00.000Z';
+        b.appendChild(el('span', '', OVX.heure(iso)));
+        var dec = OVX.decalage(j.date, c.heure);
+        var note = !c.cliquable && !mien ? NOMS[c.etat] : dec === 'nuit' ? 'le lendemain' : dec === 'veille' ? 'la veille' : '';
+        if (note) b.appendChild(el('small', '', note));
+        b.setAttribute('aria-label', OVX.heure(iso) + (note ? ' (' + note + ')' : '') + (mien ? ', choisi' : ''));
+        if (!c.cliquable && !mien) b.disabled = true;
+        else b.onclick = function () {
+          if (mien) delete choix[j.cle]; else choix[j.cle] = c.heure;
+          // Jour choisi : on passe au jour suivant sans heure, pour aller vite.
+          if (!mien) { var suivant = jours.filter(function (x) { return choix[x.cle] === undefined && cases(x.cle).some(function (y) { return y.cliquable; }); })[0]; if (suivant) actif = suivant.cle; }
+          dessiner();
+        };
+        grilleH.appendChild(b);
+      });
+      if (!liste.some(function (c) { return c.cliquable; }) && choix[j.cle] === undefined) pan.appendChild(el('p', 'jp-vide', 'Aucun créneau libre ce jour-là : choisis un autre jour.'));
+      pan.appendChild(grilleH);
+      if (choix[j.cle] !== undefined) {
+        var aucun = el('button', 'jp-aucun', 'Pas de séance ce jour-là'); aucun.type = 'button';
+        aucun.onclick = function () { delete choix[j.cle]; dessiner(); };
+        pan.appendChild(aucun);
+      }
+      zone.appendChild(pan);
+      // Résumé et progression.
+      var n = Object.keys(choix).length;
+      var res = el('div', 'jp-resume');
+      var faits = jours.filter(function (x) { return choix[x.cle] !== undefined; }).map(function (x) { return x.nom + ' ' + OVX.heure(x.date + 'T' + choix[x.cle] + ':00.000Z'); });
+      res.appendChild(el('span', n >= D.min ? 'ok' : '', n >= D.min ? '✓ ' + n + ' séance(s) choisie(s)' : n + ' / ' + D.min + ' minimum'));
+      if (faits.length) { res.appendChild(document.createTextNode(' : ')); res.appendChild(el('b', '', faits.join(' · '))); }
+      var barre = el('div', 'jp-barre'); var i = el('i'); i.style.width = Math.min(100, (n / D.min) * 100) + '%'; barre.appendChild(i); res.appendChild(barre);
+      zone.appendChild(res);
+      apres();
+    }
+    dessiner();
+  }
+  [].forEach.call(document.querySelectorAll('dialog'), function (d) {
+    if (d.showModal) return;
+    d.showModal = function () { d.setAttribute('open', ''); d.style.cssText += ';position:fixed;inset:5% 4% auto;z-index:50;max-height:90vh;overflow:auto;box-shadow:0 0 0 100vmax rgba(0,0,0,.7)'; };
+    d.close = function () { d.removeAttribute('open'); };
+  });
   var ref = new Date(); var refDate = ref.toISOString().slice(0, 10);
   document.querySelectorAll('[data-limite]').forEach(function (b) { b.textContent = OVX.heure(refDate + 'T' + b.getAttribute('data-limite') + ':00.000Z') + ' (ton heure)'; });
 
@@ -147,29 +247,18 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
     var choix = {};
     D.fixe.forEach(function (c) { if (c.etat === 'moi') choix[c.jour] = c.heure; });
     var lundi = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate() - ((ref.getUTCDay() + 6) % 7))).toISOString().slice(0, 10);
-    var dessiner = function () {
-      grille.innerHTML = '';
-      grille.appendChild(el('div'));
-      COURTS.forEach(function (n, j) { grille.appendChild(el('div', 'tete' + (choix[j] !== undefined ? ' choisi' : ''), n)); });
-      D.heures.forEach(function (h, i) {
-        coupure(grille, i);
-        grille.appendChild(libelle(lundi, h));
-        for (var j = 0; j < 7; j++) (function (j) {
-          var c = D.fixe.filter(function (x) { return x.jour === j && x.heure === h; })[0];
-          var mien = choix[j] === h;
-          var b = el('button', 'case ' + (mien ? 'moi' : c.etat === 'pris' ? 'pris' : 'libre'));
-          b.type = 'button';
-          b.setAttribute('aria-label', D.jours[j] + ' ' + OVX.heure(lundi + 'T' + h + ':00.000Z') + (c.etat === 'pris' ? ' (pris)' : mien ? ' (choisi)' : ''));
-          if (c.etat === 'pris') b.disabled = true;
-          else b.onclick = function () { if (mien) delete choix[j]; else choix[j] = h; dessiner(); };
-          grille.appendChild(b);
-        })(j);
-      });
+    var joursFixes = COURTS.map(function (n, j) {
+      var date = new Date(Date.parse(lundi + 'T12:00:00Z') + j * 864e5).toISOString().slice(0, 10);
+      return { cle: j, nom: n, long: D.jours[j], date: date, sous: '' };
+    });
+    selecteur(grille, joursFixes, function (j) {
+      return D.heures.map(function (h) { var c = D.fixe.filter(function (x) { return x.jour === j && x.heure === h; })[0] || { etat: 'pris' }; return { heure: h, etat: c.etat === 'pris' ? 'pris' : 'libre', cliquable: c.etat !== 'pris' }; });
+    }, choix, function () {
       var n = Object.keys(choix).length;
-      document.getElementById('compteur').textContent = n + ' créneau(x) choisi(s) · de ' + D.min + ' à ' + D.max + ' · 1 par jour';
+      document.getElementById('compteur').textContent = n > D.max ? 'Au plus ' + D.max + ' par semaine : retire un jour.' : '';
       document.getElementById('enregistrer').disabled = n < D.min || n > D.max;
-    };
-    dessiner();
+      document.getElementById('enregistrer').textContent = n < D.min ? 'Choisis encore ' + (D.min - n) + ' jour(s)' : 'Enregistrer mes ' + n + ' créneaux fixes';
+    });
     document.getElementById('enregistrer').onclick = function () {
       var sel = Object.keys(choix).map(function (j) { return { jour: +j, heure: choix[j] }; });
       var btn = this; btn.disabled = true; btn.textContent = 'Enregistrement…';
@@ -185,34 +274,16 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
     var dates = []; S.cases.forEach(function (c) { if (dates.indexOf(c.date) < 0) dates.push(c.date); });
     var pris = {};
     S.cases.forEach(function (c) { if (c.etat === 'moi' && c.type === 'semaine') pris[c.date] = c.heure; });
-    var dessinerSemaine = function () {
-      gs.innerHTML = '';
-      gs.appendChild(el('div'));
-      dates.forEach(function (dt, j) {
-        var t = el('div', 'tete' + (pris[dt] ? ' choisi' : ''), COURTS[j]);
-        t.appendChild(el('small', '', dt.slice(8, 10) + '/' + dt.slice(5, 7)));
-        gs.appendChild(t);
+    var joursSem = dates.map(function (dt, j) { return { cle: dt, nom: COURTS[j], long: OVX.jour(dt + 'T12:00:00.000Z'), date: dt, sous: dt.slice(8, 10) + '/' + dt.slice(5, 7) }; });
+    selecteur(gs, joursSem, function (dt) {
+      return D.heures.map(function (h) {
+        var c = S.cases.filter(function (x) { return x.date === dt && x.heure === h; })[0] || { etat: 'pris' };
+        return { heure: h, etat: c.etat, cliquable: (c.etat === 'libre' || (c.etat === 'moi' && c.modifiable)) && !${aDesFixes ? 'true' : 'false'} };
       });
-      D.heures.forEach(function (h, i) {
-        coupure(gs, i);
-        gs.appendChild(libelle(dates[0], h));
-        dates.forEach(function (dt) {
-          var c = S.cases.filter(function (x) { return x.date === dt && x.heure === h; })[0];
-          var mien = pris[dt] === h;
-          var etat = mien ? 'choisie' : c.etat === 'moi' ? 'moi' : c.etat;
-          var b = el('button', 'case ' + etat);
-          b.type = 'button';
-          b.setAttribute('aria-label', OVX.quand(dt + 'T' + h + ':00.000Z') + ' : ' + ({ libre: 'libre', pris: 'pris', absent: 'coach absent', passe: 'passé', touchee: 'annulée par ton coach', moi: 'ta séance', choisie: 'choisi' })[etat]);
-          var cliquable = (c.etat === 'libre' || (c.etat === 'moi' && c.modifiable)) && !${aDesFixes ? 'true' : 'false'};
-          if (!cliquable) b.disabled = true;
-          else b.onclick = function () { if (mien) delete pris[dt]; else pris[dt] = h; dessinerSemaine(); };
-          gs.appendChild(b);
-        });
-      });
+    }, pris, function () {
       var n = Object.keys(pris).length;
-      document.getElementById('compteur-semaine').textContent = n + ' séance(s) cette semaine · de ' + D.min + ' à ' + D.max + ' · 1 par jour';
-    };
-    dessinerSemaine();
+      document.getElementById('compteur-semaine').textContent = n > D.max ? 'Au plus ' + D.max + ' par semaine : retire un jour.' : '';
+    });
     var rs = document.getElementById('reserver-semaine');
     rs.onclick = function () {
       var sel = Object.keys(pris).filter(function (dt) {
