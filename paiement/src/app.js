@@ -1723,6 +1723,23 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     prevenir('messageAuCoach', m.message, x.p);
     return res.redirect(303, `/ressources/${r.id}?fait=remarque`);
   });
+  // Importer un ancien forum Discord : lien d'invitation de Bob, puis le lien du forum ; Bob prévient quand c'est fini.
+  app.get('/admin/ressources/import', (req, res) => {
+    if (!estAdmin(req, res, '/admin/ressources/import')) return;
+    const invite = config.discord.clientId ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(config.discord.clientId)}&scope=bot&permissions=66560` : null;
+    res.send(RS.pageImport(config, { espace: espaceDe(lireSession(req, config.secretApp)), invite, lance: req.query.fait === 'lance',
+      erreur: req.query.erreur ? String(req.query.erreur).slice(0, 300) : null }));
+  });
+  app.post('/admin/ressources/import', formulaire, async (req, res) => {
+    if (!estAdmin(req, res, '/admin/ressources/import')) return;
+    if (!bob || !bob.parcours || !bob.parcours.importerForum) return res.redirect(303, `/admin/ressources/import?erreur=${encodeURIComponent('Bob est indisponible : réessaie dans un instant.')}`);
+    const lien = String(req.body.lien || '').trim();
+    if (!/channels\/\d+\/\d+|^\d{15,25}$/.test(lien)) return res.redirect(303, `/admin/ressources/import?erreur=${encodeURIComponent('Colle le lien du forum : clic droit sur le forum › Copier le lien.')}`);
+    // Long (images à copier) : Bob travaille en arrière-plan et t'envoie le bilan.
+    Promise.resolve(bob.parcours.importerForum(lien)).then((r) => { if (r && r.erreur) prevenir('activiteEleve', { discord_id: config.discord.adminId, pseudo: 'Import' }, `: ${r.erreur}`, '/admin/ressources/import'); })
+      .catch((err) => console.error('[bob] import du forum :', err.message));
+    return res.redirect(303, '/admin/ressources/import?fait=lance');
+  });
   app.post('/admin/ressources/:id/decision', formulaire, (req, res) => {
     if (!estAdmin(req, res, `/ressources/${encodeURIComponent(req.params.id)}`)) return;
     const r = ressources.decider(req.params.id, String(req.body.decision || ''), req.body.motif);

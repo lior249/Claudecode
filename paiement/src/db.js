@@ -779,6 +779,13 @@ function migrerV35(db) {
   db.exec('PRAGMA user_version = 35');
 }
 
+// v36 : import d'un ancien forum Discord : le post d'origine de chaque ressource importée (pas de doublon).
+function migrerV36(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 36) return;
+  if (!colonnes(db, 'ressources').includes('source_discord')) db.exec('ALTER TABLE ressources ADD COLUMN source_discord TEXT');
+  db.exec('PRAGMA user_version = 36');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -823,6 +830,7 @@ function ouvrirBase(fichier) {
   migrerV33(db);
   migrerV34(db);
   migrerV35(db);
+  migrerV36(db);
   return db;
 }
 

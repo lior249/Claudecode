@@ -76,6 +76,7 @@ function pageRessources(config, { espace, type, liste, aimees, coach, message })
   ${onglets}
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}
   <a class="bouton" href="/ressources/nouvelle?type=${type}" style="max-width:720px;margin:0 0 14px">+ ${coach ? 'Ajouter' : 'Proposer'} ${t.un}</a>
+  ${coach ? '<a class="bouton secondaire" href="/admin/ressources/import" style="max-width:720px;margin:-4px 0 14px">📥 Importer un ancien forum Discord</a>' : ''}
   ${coach ? '' : '<p class="doux petit" style="max-width:720px;margin:-6px 0 14px">Ta proposition est relue par le coach avant d\'être visible par tous. Tu peux la modifier tant qu\'elle n\'est pas validée.</p>'}
   <div class="rs-liste">${liste.map((r) => ligne(r, aimees)).join('') || '<p class="vide-traiter">Rien pour le moment.</p>'}</div>`, espace, 'ressources');
 }
@@ -195,4 +196,26 @@ function pageFormRessource(config, { espace, type, r = null, coach, erreur, vale
   </form>`, espace, 'ressources', null, SCRIPT_FORM);
 }
 
-module.exports = { pageRessources, pageRessource, pageFormRessource, titreDe };
+// Importer un ancien forum Discord (coach).
+function pageImport(config, { espace, invite, lance, erreur }) {
+  return page('Importer un forum', `${STYLE}
+  <a class="retour" href="/ressources"><span aria-hidden="true">‹</span> Ressources</a>
+  <div class="titre-page"><div><p class="etiquette">Ressources</p><h1>Importer un ancien forum</h1></div></div>
+  ${lance ? '<p class="message-ok">Import lancé : Bob lit le forum, copie les images, puis poste chaque ressource dans le nouveau forum. Il t\'envoie le bilan quand c\'est fini.</p>' : ''}
+  ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <div class="carte" style="max-width:720px;display:grid;gap:10px">
+    <h2 style="margin:0">1. Invite Bob sur l'ancien serveur</h2>
+    <p class="doux" style="margin:0">Il lui faut seulement « Voir les salons » et « Lire l'historique des messages ».</p>
+    ${invite ? `<a class="bouton" href="${echapper(invite)}" target="_blank" rel="noopener" style="margin:0">Inviter Bob</a>
+      <p class="doux petit" style="margin:0;overflow-wrap:anywhere">${echapper(invite)}</p>` : '<p class="erreur-form" style="margin:0">L\'identifiant de Bob (DISCORD_CLIENT_ID) n\'est pas réglé.</p>'}
+    <p class="doux petit" style="margin:0">Si le forum est privé, donne aussi à Bob l'accès à ce forum (Paramètres du salon › Permissions).</p></div>
+  <form class="carte" method="post" action="/admin/ressources/import" style="max-width:720px;display:grid;gap:10px">
+    <h2 style="margin:0">2. Colle le lien du forum</h2>
+    <p class="doux" style="margin:0">Sur Discord : clic droit (ou appui long) sur le forum › <b>Copier le lien</b>.</p>
+    <input name="lien" required inputmode="url" placeholder="https://discord.com/channels/…/…">
+    <p class="doux petit" style="margin:0">Chaque post devient une ressource publique : 10k Abos → méthode, repost → niche L1, Cmtry → niche L2, le reste → tutoriel.
+      « Thématique : … » donne le nom, les drapeaux les pays, les liens TikTok les comptes. Un post déjà importé ne l'est pas deux fois.</p>
+    <button class="bouton" type="submit" style="margin:0">Importer</button></form>`, espace, 'ressources');
+}
+
+module.exports = { pageImport, pageRessources, pageRessource, pageFormRessource, titreDe };

@@ -1069,6 +1069,60 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     })();
     try { return await forumEnCours; } finally { forumEnCours = null; }
   }
+  // ---------- Import d'un ancien forum (posts faits à la main) → Ressources + nouveau forum ----------
+  // Bob doit être sur l'ancien serveur, avec accès en lecture au forum. Chaque post n'est importé qu'une fois.
+  async function importerForum(lien) {
+    const m = String(lien || '').match(/channels\/(\d+)\/(\d+)/) || String(lien || '').match(/^(\d{15,25})$/);
+    const idForum = m ? (m[2] || m[1]) : null;
+    if (!idForum) return { erreur: 'Colle le lien du forum : clic droit sur le forum › Copier le lien.' };
+    const forum = await client.channels.fetch(idForum).catch(() => null);
+    if (!forum) return { erreur: 'Bob ne voit pas ce forum : invite-le sur ce serveur et donne-lui accès au forum (Voir le salon, Lire l\'historique).' };
+    if (forum.type !== ChannelType.GuildForum) return { erreur: 'Ce lien n\'est pas un forum.' };
+    const { creerRessources } = require('./ressources');
+    const { analyserPost } = require('./import-forum');
+    const { Readable } = require('stream');
+    const rs = creerRessources({ db, maintenant });
+    const fils = new Map();
+    const actifs = await forum.threads.fetchActive().catch(() => ({ threads: new Map() }));
+    for (const [id, f] of actifs.threads) fils.set(id, f);
+    let avant;
+    for (let page = 0; page < 20; page++) {
+      const arch = await forum.threads.fetchArchived({ before: avant, limit: 100 }).catch(() => null);
+      if (!arch) break;
+      for (const [id, f] of arch.threads) fils.set(id, f);
+      if (!arch.hasMore || !arch.threads.size) break;
+      avant = [...arch.threads.values()].pop();
+    }
+    const tagsDe = (f) => (f.appliedTags || []).map((t) => ((forum.availableTags || []).find((x) => x.id === t) || {}).name).filter(Boolean);
+    const res = { importes: 0, deja: 0, ignores: 0, erreurs: [] };
+    for (const f of fils.values()) {
+      if (db.prepare('SELECT 1 FROM ressources WHERE source_discord = ?').get(f.id)) { res.deja++; continue; }
+      try {
+        const premier = await f.fetchStarterMessage().catch(() => null);
+        const a = analyserPost({ nomFil: f.name, tags: tagsDe(f), contenu: premier ? premier.content : '' });
+        if (!a) { res.ignores++; continue; }
+        // Images du post (5 au plus), copiées sur la plateforme.
+        const images = [];
+        for (const pj of premier ? [...premier.attachments.values()] : []) {
+          if (images.length >= 5 || !/^image\//.test(pj.contentType || '')) continue;
+          const r = await fetch(pj.url).catch(() => null);
+          if (!r || !r.ok || !r.body) continue;
+          const img = await parcours.recevoirImage(Readable.fromWeb(r.body), { type: pj.contentType, taille: pj.size || 0 }).catch(() => null);
+          if (img && img.nom) images.push(img.nom);
+        }
+        const c = rs.creer(a.type, a.champs, { images });
+        if (c.erreur) { res.erreurs.push(`${f.name} : ${c.erreur}`); continue; }
+        db.prepare('UPDATE ressources SET source_discord = ? WHERE id = ?').run(f.id, c.ressource.id);
+        const fil = await publierRessource(rs.une(c.ressource.id), null).catch((e) => { console.warn('[bob] import → forum :', e.message); return null; });
+        if (fil) db.prepare('UPDATE ressources SET discord_fil = ? WHERE id = ?').run(fil, c.ressource.id);
+        res.importes++;
+      } catch (err) { res.erreurs.push(`${f.name} : ${err.message}`); }
+    }
+    log(`import du forum ${forum.name} : ${res.importes} importé(s), ${res.deja} déjà là, ${res.erreurs.length} erreur(s)`);
+    await notifier.admin(avecBoutons(`📥 **Import du forum « ${forum.name} » terminé** : ${res.importes} ressource(s) importée(s)${res.deja ? `, ${res.deja} déjà importée(s)` : ''}${res.ignores ? `, ${res.ignores} vide(s)` : ''}.`
+      + (res.erreurs.length ? `\nÀ reprendre à la main :\n${res.erreurs.slice(0, 10).map((x) => `- ${x}`).join('\n')}` : ''), [{ label: 'Voir les ressources', url: lienCoach('/ressources') }])).catch(() => {});
+    return res;
+  }
   // Publie (ou met à jour) le post d'une ressource publique. Renvoie l'identifiant du post.
   async function publierRessource(r, auteur) {
     const forum = await forumRessources();
@@ -1137,6 +1191,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     },
     // Forum « ressources » : appelé par la plateforme quand une ressource devient publique ou change. Renvoie l'id du post.
     async publierRessource(r, auteur) { return publierRessource(r, auteur); },
+    async importerForum(lien) { return importerForum(lien); },
     // Toute action d'un élève arrive chez le coach (notification), avec la page à ouvrir.
     // Un message court à un élève, avec la page à ouvrir.
     async messageEleve(p, texte, chemin) {

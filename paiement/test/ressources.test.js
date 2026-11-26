@@ -181,3 +181,47 @@ test('Bob crée le forum « ressources » (tags) une seule fois, publie puis met
     assert.match(fils.get('T1').message.content, /Thématique : Tricot\*\*/);
   } finally { await m.fermer(); }
 });
+
+test('import d\'un ancien forum : posts lus (titre, tags, thématique, drapeaux, comptes), importés une seule fois, postés dans le nouveau forum', async () => {
+  const { analyserPost } = require('../src/import-forum');
+  const tricot = analyserPost({ nomFil: '🚀 Niche (Repost Amelioré)', tags: ['repost'],
+    contenu: 'Thématique : tricotage\n\nNiveau minimum requis : aucun\npays Recommandés : 🇩🇪🇫🇷🇬🇧🇧🇷\nTutoriel Repost amélioré: https://whop.com/x\n\nComptes sources :\nhttps://www.tiktok.com/@halilah.arte?lang=fr' });
+  assert.strictEqual(tricot.type, 'niche');
+  assert.strictEqual(tricot.champs.categorie, 'L1');
+  assert.strictEqual(tricot.champs.titre, 'Tricotage');
+  assert.deepStrictEqual(tricot.champs.pays, ['Allemagne', 'France', 'Angleterre', 'Brésil']);
+  assert.strictEqual(tricot.champs.sources, 'https://www.tiktok.com/@halilah.arte');
+  assert.strictEqual(analyserPost({ nomFil: '😈 (Méthode) 10k - Versus #1', tags: ['10k Abos'], contenu: 'Prompt Versus 10k' }).type, 'methode');
+  assert.strictEqual(analyserPost({ nomFil: '😈 (Méthode) 10k - Versus #1', tags: ['10k Abos'], contenu: 'x' }).champs.titre, 'Versus #1');
+  assert.strictEqual(analyserPost({ nomFil: '😈 (Niche) 10k - Politique', tags: ['Cmtry'], contenu: 'Concept' }).champs.categorie, 'L2');
+  assert.strictEqual(analyserPost({ nomFil: 'Tout les documents de la formation', tags: ['guide'], contenu: 'ici' }).type, 'tutoriel');
+
+  // Bob : lit le forum (actifs et archivés), crée les ressources, les poste dans le nouveau forum, pas de doublon.
+  const { creerBob } = require('../src/bob');
+  const { ChannelType } = require('discord.js');
+  const m = await monter();
+  try {
+    const dms = [];
+    const fil = (id, name, tag, content) => ({ id, name, appliedTags: [tag], fetchStarterMessage: async () => ({ content, attachments: new Map() }) });
+    const ancien = { id: '777888999000111222', name: 'niches', type: ChannelType.GuildForum, availableTags: [{ id: 't1', name: 'repost' }, { id: 't2', name: '10k Abos' }],
+      threads: { fetchActive: async () => ({ threads: new Map([['P1', fil('P1', '🚀 Niche (Repost amélioré)', 't1', 'Thématique : Lego ASMR\n🇫🇷')]]) }),
+        fetchArchived: async () => ({ threads: new Map([['P2', fil('P2', '😈 (Méthode) 10k - Versus #1', 't2', 'Prompt Versus')]]), hasMore: false }) } };
+    const nouveaux = new Map();
+    const forum = { id: 'F1', availableTags: [], threads: { create: async (o) => { const f = { id: `T${nouveaux.size + 1}`, o }; nouveaux.set(f.id, f); return f; }, fetch: async (id) => nouveaux.get(id) || null } };
+    const serveur = { id: 'G', roles: { everyone: { id: 'G' } }, members: { fetch: async (id) => ({ id, roles: { cache: new Set() } }) },
+      channels: { create: async (o) => { forum.availableTags = o.availableTags.map((t, i) => ({ ...t, id: `tag${i}` })); return forum; }, fetch: async () => null } };
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, candidatures: m.candidatures, parcours: m.parcours, suivi: m.suivi,
+      sinistres: m.sinistres, serveur, client: { isReady: () => true, user: { id: 'BOB' }, channels: { fetch: async (id) => (id === '777888999000111222' ? ancien : null) },
+        users: { fetch: async (id) => ({ send: async (c) => dms.push([id, c.content || c]) }) } } });
+    assert.match((await bob.parcours.importerForum('pas un lien')).erreur, /lien du forum/);
+    assert.match((await bob.parcours.importerForum('https://discord.com/channels/1/999')).erreur, /ne voit pas ce forum/);
+    const r = await bob.parcours.importerForum('https://discord.com/channels/123/777888999000111222');
+    assert.strictEqual(r.importes, 2);
+    assert.strictEqual((await bob.parcours.importerForum('777888999000111222')).deja, 2, 'relancé : rien en double');
+    const lignes = m.db.prepare('SELECT type, titre, categorie, etat, source_discord, discord_fil FROM ressources ORDER BY id').all();
+    assert.deepStrictEqual(lignes.map((x) => [x.type, x.titre, x.etat, x.source_discord]), [['niche', 'Lego ASMR', 'public', 'P1'], ['methode', 'Versus #1', 'public', 'P2']]);
+    assert.ok(lignes.every((x) => x.discord_fil), 'postées dans le nouveau forum');
+    assert.strictEqual(nouveaux.size, 2, 'importées une seule fois malgré 2 lancements');
+    assert.ok(dms.some(([, t]) => /Import du forum « niches » terminé/.test(t)));
+  } finally { await m.fermer(); }
+});

@@ -616,3 +616,15 @@ ou sur **overmaxx.online/admin/candidatures**.
 - **Coaching fait en avance** (ou annulé car non nécessaire, remplacé par un live de groupe, autre raison) : ouvre le créneau dans le Calendrier, puis « **Valider ce coaching en avance** ».
   - L'élève approuve : la séance disparaît du programme et le créneau se libère.
   - Ou il refuse en disant pourquoi : tu es prévenu, la séance reste.
+
+## Importer un ancien forum Discord
+
+- **Ressources › « 📥 Importer un ancien forum Discord »** (coach).
+  1. « Inviter Bob » sur l'ancien serveur. Il ne lui faut que « Voir les salons » et « Lire l'historique ». Si le forum est privé, donne-lui accès au forum.
+  2. Colle le lien du forum (clic droit sur le forum › Copier le lien), puis « Importer ».
+- **Ce que fait Bob** : il lit chaque post (actifs et archivés) et le crée en ressource publique.
+  - Les tags donnent le type : 10k Abos → méthode, repost → niche L1, Cmtry → niche L2, le reste → tutoriel.
+  - « Thématique : … » donne le nom, les drapeaux les pays, les liens TikTok les comptes (après « Comptes sources » : les sources).
+  - Il copie les images (5 au plus) et poste chaque ressource dans le nouveau forum.
+- **Bilan** : Bob te l'envoie quand c'est fini, avec les posts à reprendre à la main s'il y en a.
+- **Relancer** n'importe jamais deux fois le même post.
