@@ -52,6 +52,8 @@ function chargerConfig({ strict = true } = {}) {
         wistiaEtape1: lire('WISTIA_ETAPE_1', ''),
         wistiaEtape2: lire('WISTIA_ETAPE_2', ''),
         wistiaEtape3: lire('WISTIA_ETAPE_3', ''),
+        wistiaEtape4: lire('WISTIA_ETAPE_4', ''),
+        wistiaGoat: lire('WISTIA_GOAT', ''), // vidéo de félicitations GOAT (fenêtre « Ce qu'il te reste à faire »)
         // Paiement par carte : lien de l'offre Whop cachée (même prix). Proposé à côté du mobile money après validation.
         lienCarte: lire('LIEN_CARTE_ELITE', 'https://whop.com/overmaxx/legroupe-secret-accompagnement-prive/'),
         tallyFormId: lire('TALLY_FORM_ID', ''),

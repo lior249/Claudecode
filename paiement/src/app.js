@@ -992,7 +992,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       if (!suivi.publications(id, suivi.aujourdhui(p)).length) ajouter('Publie ta vidéo du jour', '/parcours/etape-4');
     }
     if ([3, 4].includes(p.etape) && !coaching.aUnPlanning(id)) ajouter('Réserve tes coachings de la semaine', '/coaching');
-    return { etape: Math.min(p.etape, 5), items };
+    const e = config.offres.elite;
+    const video = [null, e.wistiaEtape1, e.wistiaEtape2, e.wistiaEtape3, e.wistiaEtape4, e.wistiaGoat][Math.min(p.etape, 5)] || null;
+    return { etape: Math.min(p.etape, 5), items, video };
   }
 
   // ---- Étape 4 : publication et suivi ----
@@ -1150,7 +1152,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.get('/profil', (req, res) => {
     const x = membreParcours(req, res, '/profil', { sinistreOk: true });
     if (!x) return;
-    res.send(PF.pageMonProfil(config, { espace: x.espace, ...donneesMonProfil(x.p) }));
+    res.send(PF.pageMonProfil(config, { espace: x.espace, ...donneesMonProfil(x.p), rappel: aFaireDe(x.p) }));
   });
 
   // ---- Communauté : suivre (10 places), concurrences (3), invitations ----

@@ -207,7 +207,23 @@ Chaque membre Elite a un parcours (voir `docs/ACCOMPAGNEMENT-ELITE.md`) :
   selon les délais (moitié du délai, 1 h avant la fin, puis toutes les 12 h en retard).
 - Les vidéos d'une étape (150 Mo maximum, `VIDEO_PARCOURS_MO`) sont supprimées du serveur dès que l'étape est validée.
 - Les coachings réguliers s'ouvrent à l'étape 3 : **3 à 5 par semaine** (`COACHING_MIN_PAR_SEMAINE`, `COACHING_MAX_PAR_SEMAINE`).
-- Tutos vidéo des étapes : `WISTIA_ETAPE_1`, `WISTIA_ETAPE_2`, `WISTIA_ETAPE_3`.
+- Vidéos de présentation des étapes : `WISTIA_ETAPE_1`, `WISTIA_ETAPE_2`, `WISTIA_ETAPE_3`, `WISTIA_ETAPE_4`, et `WISTIA_GOAT`.
+  Elles s'affichent dans la fenêtre « Ce qu'il te reste à faire » (à chaque ouverture de Mon profil et de Mon parcours,
+  et avec « Bravo, étape ouverte ! » au changement d'étape) ; celles des étapes 1 à 3 aussi en haut de leur étape.
+
+### Remettre tous les élèves à l'étape 1 (après les tests)
+
+Garde les comptes (paiements, connexions, prénoms, accès validés) et efface le suivi : exercices, vidéos, remarques,
+comptes rendus, rôles atteints, sinistres, suivis, concurrences et coachings réservés. D'abord voir ce qui serait effacé :
+```
+docker exec overmaxx-paiement node src/outils/remettre-etape-1.js
+```
+Puis le faire (une sauvegarde complète de la base est créée juste avant) :
+```
+docker exec overmaxx-paiement node src/outils/remettre-etape-1.js --confirmer
+```
+Ajouter `--garder-coaching` pour garder les coachings réservés. Les rôles Discord (GOAT, clubs, Sinistré) ne changent pas :
+retire-les à la main.
 
 ## Le parcours Elite (livraison 2) : étape 4, objectifs, sinistrés
 

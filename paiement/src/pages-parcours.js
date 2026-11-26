@@ -318,8 +318,9 @@ const jourDe = (p) => Math.min(90, Math.max(1, Math.floor((Date.now() - new Date
 
 // ---------- Membre : Mon parcours ----------
 // Fenêtre de Mon parcours : ce qu'il reste à faire (à chaque ouverture) ; « Bravo » quand une nouvelle étape s'ouvre.
+// La fenêtre « Ce qu'il te reste à faire » : la vidéo où le coach présente l'étape, puis les choses à faire.
 function fenetreAFaire(r) {
-  if (!r || !r.items.length) return '';
+  if (!r || (!r.items.length && !r.video)) return '';
   const etape = ETAPES.find((e) => e.n === r.etape) || { titre: '' };
   return `<style>
     .a-faire-liste { list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px; }
@@ -333,7 +334,8 @@ function fenetreAFaire(r) {
     <p class="etiquette" style="margin:0 0 6px">${r.etape >= 5 ? 'GOAT' : `Étape ${r.etape} sur 4 · ${echapper(etape.titre)}`}</p>
     <h2 id="a-faire-titre" data-titre-normal>Ce qu'il te reste à faire</h2>
     <h2 data-titre-nouveau hidden>Bravo, étape ${r.etape} ouverte !</h2>
-    <p class="doux" style="margin:0">${r.items.length > 1 ? `${r.items.length} choses à faire, la plus importante en premier.` : 'Une chose à faire maintenant.'}</p>
+    ${r.video ? `<div class="video-etape" style="margin:10px 0 12px">${blocVideo(r.video, r.etape >= 5 ? 'GOAT : le mot du coach' : `Étape ${r.etape} : le mot du coach`)}</div>` : ''}
+    ${r.items.length ? `<p class="doux" style="margin:0">${r.items.length > 1 ? `${r.items.length} choses à faire, la plus importante en premier.` : 'Une chose à faire maintenant.'}</p>` : ''}
     <ul class="a-faire-liste">${r.items.map((i) => `<li><a href="${echapper(i.lien)}">${echapper(i.texte)}</a></li>`).join('')}</ul>
   </dialog>
   <script>(function () {
@@ -342,6 +344,8 @@ function fenetreAFaire(r) {
     try { avant = localStorage.getItem('ovx-etape-vue'); localStorage.setItem('ovx-etape-vue', e); } catch (x) {}
     if (avant && avant !== e) { d.querySelector('[data-titre-normal]').hidden = true; d.querySelector('[data-titre-nouveau]').hidden = false; }
     d.querySelectorAll('[data-fermer]').forEach(function (b) { b.onclick = function () { d.close(); }; });
+    // Fenêtre fermée : la vidéo s'arrête.
+    d.addEventListener('close', function () { d.querySelectorAll('iframe').forEach(function (f) { var s = f.src; f.src = 'about:blank'; f.src = s; }); });
     d.addEventListener('click', function (ev) { if (ev.target === d) d.close(); });
     d.showModal();
   })();</script>`;
@@ -1082,4 +1086,4 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
-module.exports = { page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+module.exports = { fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };

@@ -4,7 +4,7 @@
 // son résultat), la chaîne 🔥, ceux qu'il suit, la tâche du moment ; puis le tableau de bord des revenus.
 // Et la page Communauté : suivis (10 places), concurrents (3), invitations, suggestions.
 const { echapper } = require('./pages');
-const { page, remarque, blocTableau, SCRIPT_TABLEAU, dollars } = require('./pages-parcours');
+const { page, remarque, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire } = require('./pages-parcours');
 const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
 const { vuesCourtes } = require('./pages-classement');
@@ -142,11 +142,12 @@ function panneauJour(d, i, tache) {
   return `<section class="jour-panneau" data-jour="${d.j}"${d.aujourdhui ? '' : ' hidden'}><h2>${echapper(titre)}</h2>${corps}${d.futur ? '' : encourage}</section>`;
 }
 
-function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, nbSuivis, nbConcurrents, invitations, tableau, notifications }) {
+function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, nbSuivis, nbConcurrents, invitations, tableau, notifications, rappel }) {
   const nom = prenom || p.pseudo || 'Membre';
   const roue = jours.map((d) => `<button type="button" class="roue-jour${d.aujourdhui ? ' aujourdhui' : ''}${d.futur ? ' futur' : ''}" data-jour="${d.j}" data-e="${d.e}" aria-label="${echapper(jourLisible(d.j))}">
       <span class="pts"><i></i></span><small>${JOURS_COURTS[new Date(`${d.j}T12:00:00Z`).getUTCDay()]}</small><b>${Number(d.j.slice(8))}</b></button>`).join('');
   return page('Mon profil', `${STYLE_PROFIL}${STYLE_ROLES}
+  ${fenetreAFaire(rappel)}
   <div class="pf">
     <div class="pf-haut">
       <a class="pf-icone" href="/notifications" aria-label="Notifications">${ICONES.cloche}${notifications ? '<span class="point"></span>' : ''}</a>
