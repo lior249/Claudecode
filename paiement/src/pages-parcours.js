@@ -599,7 +599,7 @@ function pageEtape2(config, { espace, parcours: p, tache, entree, libres, messag
       <li>${ICONE.ok}<span>Tes deux exercices de l'étape 1, et les remarques de ton coach.</span></li>
       <li>${ICONE.ok}<span>Ton pays cible.</span></li>
       <li>${ICONE.ok}<span>Tes disponibilités de la semaine, pour réserver tes coachings ensemble.</span></li>
-    </ul><p class="doux petit" style="margin:10px 0 0">Pendant ce coaching : choix de ta niche, ton compte monétisé, ta connexion, et tes coachings de la semaine.</p></div>`
+    </ul><p class="doux petit" style="margin:10px 0 0">Pendant ce coaching : ta niche, ta stratégie et tes coachings de la semaine. Ton compte TikTok, tu le crées à l'étape 4, quand tu commences à publier.</p></div>`
       : `<div class="carte">
       <h2>Choisis ton coaching d'entrée</h2>
       <p class="doux">Un seul coaching, de 30 minutes. Heures affichées à ton heure (<span data-fuseau>GMT</span>).</p>
@@ -614,8 +614,11 @@ function pageEtape2(config, { espace, parcours: p, tache, entree, libres, messag
 
 // ---------- Membre : étape 3 ----------
 // Étape 3 : niche, méthode 10K et pays cible (visibles par le coach seulement).
-function blocStrategie({ strategie: st = {}, niches = [], methodes = [], pays = [], drapeaux = {}, message }) {
-  const opt = (liste, choisi, nom) => liste.map((r) => `<option value="${r.id}"${choisi && choisi.id === r.id ? ' selected' : ''}>${echapper(nom(r))}${r.etat === 'attente' ? ' (en attente du coach)' : ''}</option>`).join('');
+function blocStrategie({ strategie: st = {}, niches = [], methodes = [], pays = [], drapeaux = {}, message, niveau = null }) {
+  const opt = (liste, choisi, nom) => liste.map((r) => {
+    const interdite = niveau === 'L1' && r.type === 'niche' && r.categorie === 'L2';
+    return `<option value="${r.id}"${choisi && choisi.id === r.id ? ' selected' : ''}${interdite ? ' disabled' : ''}>${echapper(nom(r))}${interdite ? ' (L2 : pas pour ton profil L1)' : r.etat === 'attente' ? ' (en attente du coach)' : ''}</option>`;
+  }).join('');
   const nomMethode = (r) => r.titre || `Méthode ${({ video: 'vidéo', carrousel: 'carrousel', cta: 'CTA' })[r.categorie] || ''}${r.pour ? ` · ${r.pour === 'L1L2' ? 'L1 et L2' : r.pour}` : ''}`;
   return `<form class="carte" id="strategie" method="post" action="/parcours/etape-3/strategie" style="display:grid;gap:12px">
     <div class="envoi-tete"><h2>Ma stratégie</h2>${st.complete ? `<span class="etat" data-etat="valide">${ICONE.ok}Choisie</span>` : '<span class="etat" data-etat="corriger">À choisir</span>'}</div>
@@ -663,8 +666,21 @@ function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarques
   </div>`, espace, 'parcours', maxMo);
 }
 
+// Niche, méthode 10K et pays visé, choisis dans les listes (ressources publiées, 8 pays).
+// Un profil L1 ne voit pas les niches L2 (commentaire) ; un profil L2 les voit toutes.
+function choixNichePays(choix, p) {
+  if (!choix) return '';
+  const niches = choix.niches.filter((n) => p.niveau !== 'L1' || n.categorie !== 'L2');
+  const opt = (liste, choisi) => liste.map((x) => `<option value="${x.id}"${choisi === x.id ? ' selected' : ''}>${echapper(x.titre)}</option>`).join('');
+  return `<div class="champ"><label for="niche">Niche</label><select id="niche" name="niche"><option value="">${niches.length ? 'Choisir une niche' : 'Aucune niche dans les Ressources'}</option>${opt(niches, p.niche_id)}</select>
+      ${p.niveau === 'L1' ? '<small>Profil L1 : les niches L2 (commentaire) ne sont pas proposées.</small>' : ''}</div>
+    <div class="champ"><label for="methode">Méthode 10K</label><select id="methode" name="methode"><option value="">Choisir une méthode</option>${opt(choix.methodes, p.methode_id)}</select></div>
+    <div class="champ"><label for="pays">Pays visé</label><select id="pays" name="pays"><option value="">Choisir un pays</option>${choix.pays.map((x) => `<option value="${echapper(x)}"${p.pays_cible === x ? ' selected' : ''}>${choix.drapeaux[x] || ''} ${echapper(x)}</option>`).join('')}</select></div>
+    <p class="doux petit" style="margin:0">Pas dans la liste ? Ajoute-la d'abord dans les <a href="/ressources">Ressources</a>.</p>`;
+}
+
 // ---------- La fiche (membre ou coach) ----------
-function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0 }) {
+function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0, choix = null }) {
   // Ce qui attend une décision du coach (sinistre, rôle à confirmer) passe en haut de la colonne.
   const aConfirmer = recompenses.some((r) => !r.confirme_le);
   const base = vueCoach ? `/admin/membres/${encodeURIComponent(p.discord_id)}` : '/fiche';
@@ -701,16 +717,16 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
         <div><dt>Profil type</dt><dd>${echapper(p.niveau || '—')}</dd></div>
       </dl></div>
       ${vueCoach ? `<form class="carte" method="post" action="${base}/compte" style="display:grid;gap:10px">
-        <h2 style="margin:0">Compte TikTok</h2>
-        <div class="champ"><label for="compte">Lien du compte TikTok</label><input id="compte" name="compte" value="${echapper(p.compte_tiktok || '')}" placeholder="https://www.tiktok.com/@compte"></div>
-        <div class="champ"><label for="niche">Niche</label><input id="niche" name="niche" value="${echapper(p.niche || '')}"></div>
-        <div class="champ"><label for="pays">Pays cible</label><input id="pays" name="pays" value="${echapper(p.pays || '')}"></div>
+        <h2 style="margin:0">Niche, méthode et pays</h2>
+        ${p.etape >= 4 ? `<div class="champ"><label for="compte">Lien du compte TikTok</label><input id="compte" name="compte" value="${echapper(p.compte_tiktok || '')}" placeholder="https://www.tiktok.com/@compte"></div>`
+    : '<p class="doux petit" style="margin:0">Le compte TikTok est demandé à l\'élève à l\'étape 4, quand il commence à publier.</p>'}
+        ${choixNichePays(choix, p)}
         ${p.etape === 2 ? '<button class="bouton" type="submit" name="ouvrir" value="3" style="margin-top:0">Enregistrer et ouvrir l\'étape 3</button>' : ''}
         <button class="bouton${p.etape === 2 ? ' secondaire' : ''}" type="submit" style="margin-top:0">Enregistrer</button></form>`
-    : `<div class="carte"><h2>Compte TikTok</h2><dl class="details">
-        <div><dt>Compte</dt><dd>${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : 'à l\'étape 2'}</dd></div>
+    : `<div class="carte"><h2>${p.etape >= 4 ? 'Compte TikTok' : 'Ma niche'}</h2><dl class="details">
+        ${p.etape >= 4 ? `<div><dt>Compte</dt><dd>${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : '<a href="/parcours/etape-4#compte">à ajouter</a>'}</dd></div>` : ''}
         <div><dt>Niche</dt><dd>${echapper(p.niche || '—')}</dd></div>
-        <div><dt>Pays cible</dt><dd>${echapper(p.pays || '—')}</dd></div></dl></div>`}
+        <div><dt>Pays visé</dt><dd>${echapper(p.pays_cible || p.pays || '—')}</dd></div></dl></div>`}
       <div class="carte"><h2>Parcours</h2><dl class="details">${dates.map(([t, le]) => `<div><dt>${echapper(t)}</dt><dd>${echapper(le)}</dd></div>`).join('')}</dl>
         ${p.etapes_forcees ? `<p class="doux petit" style="margin:10px 0 0">Passée(s) par ${vueCoach ? 'toi' : 'ton coach'} : étape(s) ${echapper(JSON.parse(p.etapes_forcees).join(', '))}.</p>` : ''}
         ${vueCoach && p.etape < 5 ? `<a class="bouton secondaire" href="/admin/eleves?eleve=${encodeURIComponent(p.discord_id)}">Changer d'étape</a>` : ''}</div>

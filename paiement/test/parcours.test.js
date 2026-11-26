@@ -106,10 +106,10 @@ test('parcours Elite : étape 1 (exercices), étape 2 (coaching d\'entrée), ét
     assert.match(await (await m.get('/parcours/etape-2', { cookie: membre })).text(), /Prépare ton coaching/);
 
     // Le coach ouvre l'étape 3 depuis la fiche (compte, niche, pays).
-    await m.poster(`/admin/membres/${E1}/compte`, { compte: 'voyage.douce', niche: 'Voyages pas chers', pays: 'France', ouvrir: '3' }, { cookie: coach });
+    await m.poster(`/admin/membres/${E1}/compte`, { ouvrir: '3' }, { cookie: coach });
     p = parcours.get(E1);
     assert.strictEqual(p.etape, 3);
-    assert.strictEqual(p.compte_tiktok, 'https://www.tiktok.com/@voyage.douce');
+    assert.strictEqual(p.compte_tiktok, null, 'le compte TikTok se donne à l\'étape 4, pas avant');
     await attendre();
     assert.ok(dms.some(([id, t]) => id === E1 && /Étape 3 ouverte/.test(t)));
 
@@ -132,7 +132,7 @@ test('parcours Elite : étape 1 (exercices), étape 2 (coaching d\'entrée), ét
     p = parcours.get(E1);
     assert.strictEqual(p.etape, 4);
     assert.strictEqual(parcours.soumission(v.V1).fichier, null, 'vidéos de l\'étape 3 supprimées');
-    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Choisis tes 3 heures/);
+    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Ajoute le lien de ton compte TikTok/, 'étape 4 : le compte TikTok d\'abord');
 
     // Remarque avec lien et image : le membre la voit, Bob le prévient ; l'image n'est visible que par lui et le coach.
     const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');

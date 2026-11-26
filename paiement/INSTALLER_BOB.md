@@ -522,3 +522,14 @@ ou sur **overmaxx.online/admin/candidatures**.
 - **Liens** (exemples, contre-exemples, sources) : « + Ajouter un lien » ouvre un champ par lien ; × pour le retirer.
 - **Tutoriels et astuces** : les élèves peuvent aussi en proposer (validés par toi). Un tutoriel se découpe en étapes, chacune avec son explication et le lien du tuto à suivre, dans l'ordre.
 - **Notifications** : le titre s'affiche en gras dans tes notifications et dans À traiter (les anciennes restent comme avant).
+
+## Compte TikTok à l'étape 4, niche choisie dans les listes
+
+- **Compte TikTok** : demandé seulement à l'étape 4, à l'élève lui-même, quand il commence à publier.
+  - Avant l'étape 4, il n'apparaît ni dans ses Réglages, ni sur sa fiche, ni dans le texte du coaching d'entrée.
+  - Tu n'as plus à le renseigner pour faire passer quelqu'un à l'étape 4.
+- **Niche, méthode 10K, pays visé** se choisissent dans des listes : sur la fiche, et dans « Infos » du tableau des élèves.
+  - Les niches et les méthodes viennent des Ressources publiées ; le pays est l'un des 8.
+  - Une niche ou une méthode manque : ajoute-la d'abord dans les Ressources.
+- **Profil L1** : les niches L2 (commentaire) ne lui sont pas proposées, ni par toi ni par l'élève à l'étape 3. Un profil L2 les voit toutes.
+- **Plus de niveau ni de date d'entrée** dans la fenêtre « Infos ».

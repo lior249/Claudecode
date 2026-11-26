@@ -1,7 +1,7 @@
 'use strict';
 
 // Tableau des élèves Elite (Kanban) : faire passer un élève d'une étape à l'autre, avec confirmation de ce qui n'a pas
-// été validé, compte TikTok obligatoire à partir de l'étape 4, jamais GOAT à la main ; ajouter un élève déjà accompagné.
+// été validé, compte TikTok donné par l'élève à l'étape 4, jamais GOAT à la main ; ajouter un élève déjà accompagné.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -35,17 +35,14 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
     const manque = m.parcours.manquants(E1);
     assert.deepStrictEqual(manque[1], ['Exercice L1 pas validé', 'Exercice L2 pas validé', 'Profil type (L1 ou L2) pas choisi']);
     assert.deepStrictEqual(manque[2], ['Coaching d\'entrée pas fait']);
-    assert.deepStrictEqual(manque[3], ['Niche, méthode 10K ou pays pas choisis', 'Vidéo 1 pas validée', 'Vidéo 2 pas validée', 'Vidéo 3 pas validée', 'Compte TikTok pas renseigné']);
+    assert.deepStrictEqual(manque[3], ['Niche, méthode 10K ou pays pas choisis', 'Vidéo 1 pas validée', 'Vidéo 2 pas validée', 'Vidéo 3 pas validée']);
     assert.match(await (await m.get('/admin/a-traiter', { cookie: coach })).text(), /Exercice L1/);
 
     const deplacer = (corps) => fetch(`${m.base}/admin/eleves/${E1}/etape`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: coach }, body: JSON.stringify(corps) });
-    // GOAT : jamais à la main. Étape 4 : compte TikTok obligatoire.
+    // GOAT : jamais à la main. Le compte TikTok n'est jamais exigé du coach : l'élève le donne lui-même à l'étape 4.
     const goat = await deplacer({ etape: 5 });
     assert.strictEqual(goat.status, 400);
     assert.match((await goat.json()).erreur, /GOAT se gagne/);
-    const sansCompte = await deplacer({ etape: 4 });
-    assert.strictEqual(sansCompte.status, 400);
-    assert.match((await sansCompte.json()).erreur, /compte TikTok/);
     assert.strictEqual(m.parcours.get(E1).etape, 1);
 
     // De 1 à 4 : étapes 1 à 3 passées par le coach, envois en attente laissés de côté, Bob prévient.
@@ -77,12 +74,26 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
     m.db.prepare('UPDATE parcours SET etape = 5 WHERE discord_id = ?').run(E1);
     assert.match((await (await deplacer({ etape: 3 })).json()).erreur, /GOAT/);
 
-    // Compléter ses informations en une fois.
-    const infos = await fetch(`${m.base}/admin/eleves/${E1}/infos`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: coach },
-      body: JSON.stringify({ compte: 'awa.voyage', niche: 'Voyages pas chers', pays: 'France', niveau: 'L1', entree: '2026-10-01' }) });
-    assert.strictEqual(infos.status, 200);
+    // Ses infos : niche, méthode et pays choisis dans les listes (ressources publiées, 8 pays) ; un profil L1 ne prend pas de niche L2.
+    const ajouterRes = (x) => m.poster('/ressources/nouvelle', x, { cookie: coach });
+    await ajouterRes({ type: 'niche', titre: 'Voyages pas chers', description: 'Voyager avec peu.', categorie: 'L1' });
+    await ajouterRes({ type: 'niche', titre: 'Débats foot', description: 'Commentaires.', categorie: 'L2' });
+    await ajouterRes({ type: 'methode', description: 'Carrousel', categorie: 'carrousel' });
+    const id = (t) => m.db.prepare('SELECT id FROM ressources WHERE titre = ? OR (titre IS NULL AND type = ?)').get(t, t).id;
+    const kanban = await (await m.get('/admin/eleves', { cookie: coach })).text();
+    assert.match(kanban, /<select id="i-niche" name="niche">[\s\S]*Voyages pas chers/);
+    assert.match(kanban, /data-cat="L2">Débats foot/);
+    assert.match(kanban, /<select id="i-pays" name="pays">[\s\S]*Corée du Sud/);
+    assert.doesNotMatch(kanban, /id="i-niveau"|id="i-entree"/, 'plus de niveau ni de date d\'entrée');
+    const infos = (corps) => fetch(`${m.base}/admin/eleves/${E1}/infos`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: coach }, body: JSON.stringify(corps) });
+    m.db.prepare("UPDATE parcours SET niveau = 'L1' WHERE discord_id = ?").run(E1);
+    const l2 = await infos({ niche: String(id('Débats foot')) });
+    assert.strictEqual(l2.status, 400);
+    assert.match((await l2.json()).erreur, /réservée aux profils L2/);
+    assert.strictEqual((await infos({ niche: String(id('Voyages pas chers')), methode: String(id('methode')), pays: 'Japon', compte: 'awa.voyage' })).status, 200);
     p = m.parcours.get(E1);
-    assert.deepStrictEqual([p.compte_tiktok, p.niche, p.pays, p.niveau, p.entree_le.slice(0, 10)], ['https://www.tiktok.com/@awa.voyage', 'Voyages pas chers', 'France', 'L1', '2026-10-01']);
+    assert.deepStrictEqual([p.niche, p.pays_cible, p.compte_tiktok], ['Voyages pas chers', 'Japon', 'https://www.tiktok.com/@awa.voyage']);
+    assert.strictEqual((await infos({ pays: 'Belgique' })).status, 400, 'seulement les 8 pays');
 
     // Ajouter un élève déjà accompagné, avec sa date d'entrée.
     const inconnu = await m.poster('/admin/eleves/ajouter', { pseudo: 'personne' }, { cookie: coach });
@@ -94,5 +105,20 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
     assert.strictEqual(k.entree_le.slice(0, 10), '2026-09-01');
     assert.strictEqual(k.fin_le.slice(0, 10), '2026-11-30');
     assert.match(await (await m.get('/admin/eleves', { cookie: coach })).text(), /kodjo\.tt/);
+  } finally { await m.fermer(); }
+});
+
+test('compte TikTok : jamais demandé avant l\'étape 4 (réglages, fiche, étape 2)', async () => {
+  const m = await monter();
+  try {
+    m.parcours.assurer('X', { pseudo: 'x' });
+    m.db.prepare("UPDATE parcours SET etape = 2 WHERE discord_id = 'X'").run();
+    const c = { cookie: cookieSession('X', 'x') };
+    for (const url of ['/reglages', '/fiche', '/parcours/etape-2', '/parcours', '/profil']) {
+      assert.doesNotMatch(await (await m.get(url, c)).text(), /Lien de (mon|ton|son) (compte|profil)|Mon compte TikTok|name="compte"/, url);
+    }
+    m.db.prepare("UPDATE parcours SET etape = 4 WHERE discord_id = 'X'").run();
+    assert.match(await (await m.get('/reglages', c)).text(), /Mon compte TikTok/);
+    assert.match(await (await m.get('/parcours', c)).text(), /Ajoute le lien de ton compte TikTok/);
   } finally { await m.fermer(); }
 });

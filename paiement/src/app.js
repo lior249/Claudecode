@@ -1025,7 +1025,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     res.send(V.pageEtape3(config, { ...commun, soumissions: parcours.soumissions(x.session.id, 3), remarquesDe,
       coachings: { reserves, min: config.coaching.minParSemaine, max: config.coaching.maxParSemaine || 7 },
       strategie: { strategie: parcours.strategie(x.session.id), niches: ressources.liste('niche', { pour: x.session.id }).filter((r) => r.etat !== 'refuse'),
-        methodes: ressources.liste('methode', { pour: x.session.id }).filter((r) => r.etat !== 'refuse'), pays: ressources.PAYS, drapeaux: ressources.DRAPEAUX,
+        methodes: ressources.liste('methode', { pour: x.session.id }).filter((r) => r.etat !== 'refuse'), pays: ressources.PAYS, drapeaux: ressources.DRAPEAUX, niveau: x.p.niveau,
         message: { strategie: 'Stratégie enregistrée.', niche: 'Ta niche est envoyée au coach, et déjà choisie. Choisis ta méthode et ton pays.' }[req.query.fait] || req.query.erreur || null } }));
   });
 
@@ -1426,7 +1426,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!session) return;
     const profil = qProfils.get.get(session.id) || {};
     const p = parcours.get(session.id);
-    res.send(PF.pageReglages(config, { espace: espaceDe(session), prenom: profil.prenom, pays: profil.pays, parcours: Boolean(p && !p.retire_le), compteTikTok: p && p.compte_tiktok,
+    res.send(PF.pageReglages(config, { espace: espaceDe(session), prenom: profil.prenom, pays: profil.pays, parcours: Boolean(p && !p.retire_le), etape: p ? p.etape : 0, compteTikTok: p && p.compte_tiktok,
       message: { profil: 'Profil enregistré.', tiktok: 'Lien du compte enregistré.' }[req.query.fait], erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
   app.post('/reglages/profil', formulaire, (req, res) => {
@@ -1829,7 +1829,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const message = { remarque: 'Message envoyé : il le voit dans ses Remarques, et Bob l\'a prévenu.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.',
       recompense: 'Rôle confirmé. Bob le donne et prévient le membre.', precisions: 'Précisions demandées. Bob a prévenu le membre.', rehabiliter: 'Membre réhabilité : Bob lui rend le rôle Elite.',
       declarer: 'Sinistre déclaré. Bob l\'a prévenu.', retirer: 'Sinistres retirés : jours d\'absence rendus sur ses 90 jours.' }[req.query.fait] || req.query.erreur || null;
-    res.send(V.pageFiche(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, parcours: p, remarques: parcours.remarques(p.discord_id),
+    res.send(V.pageFiche(config, { espace: espaceDe(lireSession(req, config.secretApp)), vueCoach: true, parcours: p, remarques: parcours.remarques(p.discord_id), choix: choixStrategie(),
       toutes: Boolean(req.query.toutes), message, ...donneesFiche(p.discord_id) }));
   });
   app.post('/admin/membres/:id/remarque', formulaire, (req, res) => {
@@ -1844,7 +1844,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, '/admin/membres')) return;
     const p = ficheDe(req, res);
     if (!p) return;
-    const champs = { compte: req.body.compte, niche: req.body.niche, pays: req.body.pays };
+    const vide = (v) => (v === undefined || v === null || String(v) === '' ? undefined : String(v));
+    const st = parcours.choisirStrategie(p.discord_id, { niche: vide(req.body.niche), methode: vide(req.body.methode), pays: vide(req.body.pays) });
+    if (st.erreur) return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?erreur=${encodeURIComponent(st.erreur)}`);
+    const champs = p.etape >= 4 && typeof req.body.compte === 'string' ? { compte: req.body.compte } : {};
     if (req.body.ouvrir === '3') {
       const r = parcours.ouvrirEtape3(p.discord_id, champs);
       if (!r.erreur) prevenir('etapeOuverte', r.parcours, 3);
@@ -1918,7 +1921,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     return parcours.tous().map((p) => ({
       id: p.discord_id, nom: p.nom || p.pseudo || p.discord_id, pseudo: p.pseudo, etape: p.etape,
       jour: Math.min(90, Math.max(1, Math.floor((maintenant - new Date(p.entree_le)) / 864e5) + 1)),
-      compte: p.compte_tiktok, niche: p.niche, pays: p.pays, niveau: p.niveau,
+      compte: p.compte_tiktok, niche: p.niche, pays: p.pays_cible || p.pays, niveau: p.niveau, nicheId: p.niche_id, methodeId: p.methode_id, paysCible: p.pays_cible,
       sinistre: Boolean(p.sinistre_depuis), sinistres: p.sinistres || 0, retard: retards.has(p.discord_id), aTraiter: compte[p.discord_id] || 0,
       forcees: JSON.parse(p.etapes_forcees || '[]'), tache: p.etape <= 4 ? (parcours.tache(p.discord_id) || {}).titre : null,
       manquants: parcours.manquants(p.discord_id), entree: (p.entree_le || '').slice(0, 10),
@@ -1932,7 +1935,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, '/admin/eleves')) return;
     const fait = req.query.fait === 'ajoute' ? 'Élève ajouté à l\'étape 1 : glisse-le à son étape.' : req.query.fait === 'infos' ? 'Infos enregistrées.'
       : /^[1-4]$/.test(String(req.query.fait || '')) ? `Élève placé à l'étape ${req.query.fait}. Bob l'a prévenu.` : null;
-    res.send(K.pageEleves(config, { espace: espaceDe(lireSession(req, config.secretApp)), eleves: donneesEleves(), vue: req.query.vue === 'liste' ? 'liste' : 'kanban',
+    res.send(K.pageEleves(config, { espace: espaceDe(lireSession(req, config.secretApp)), eleves: donneesEleves(), vue: req.query.vue === 'liste' ? 'liste' : 'kanban', choix: choixStrategie(),
       sansDiscord: db.prepare("SELECT nom, email FROM membres WHERE programme = 'elite' AND statut = 'actif' AND discord_id IS NULL ORDER BY nom").all(),
       message: fait, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
@@ -1941,17 +1944,23 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const avant = parcours.get(req.params.id);
     if (!avant) { res.status(404).json({ erreur: 'Élève introuvable.' }); return; }
     const b = req.body || {};
-    const r = parcours.forcerEtape(avant.discord_id, b.etape, { compte: b.compte, niche: b.niche, pays: b.pays, niveau: b.niveau });
+    const r = parcours.forcerEtape(avant.discord_id, b.etape, { compte: b.compte, niveau: b.niveau });
     if (r.erreur) { res.status(400).json(r); return; }
     if (r.parcours.etape > avant.etape) prevenir('etapeOuverte', r.parcours, r.parcours.etape);
     res.json({ ok: true, etape: r.parcours.etape, forcees: r.forcees });
   });
+  // Les choix proposés au coach : niches et méthodes publiques, les 8 pays.
+  const choixStrategie = () => ({ niches: ressources.liste('niche', { coach: true }).filter((r) => r.etat === 'public').map((r) => ({ id: r.id, titre: r.titre, categorie: r.categorie })),
+    methodes: ressources.liste('methode', { coach: true }).filter((r) => r.etat === 'public').map((r) => ({ id: r.id, titre: RS.titreDe(r) })), pays: ressources.PAYS, drapeaux: ressources.DRAPEAUX });
   app.post('/admin/eleves/:id/infos', json, (req, res) => {
     if (!estAdmin(req, res, '/admin/eleves')) return;
     if (!parcours.get(req.params.id)) { res.status(404).json({ erreur: 'Élève introuvable.' }); return; }
     const b = req.body || {};
-    const r = parcours.majInfos(req.params.id, { compte: b.compte, niche: b.niche, pays: b.pays, niveau: b.niveau, entree: b.entree });
+    // Niche, méthode et pays : choisis dans les listes (ressources publiques, 8 pays) ; compte TikTok à partir de l'étape 4.
+    const vide = (v) => (v === undefined || v === null || String(v) === '' ? undefined : String(v));
+    const r = parcours.choisirStrategie(req.params.id, { niche: vide(b.niche), methode: vide(b.methode), pays: vide(b.pays) });
     if (r.erreur) { res.status(400).json(r); return; }
+    if (typeof b.compte === 'string' && b.compte.trim()) parcours.majCompte(req.params.id, { compte: b.compte });
     res.json({ ok: true });
   });
   app.post('/admin/eleves/ajouter', formulaire, async (req, res) => {

@@ -332,7 +332,7 @@ function pageRevenus(config, { espace, tableau, stats, objectif }) {
 }
 
 // Réglages : prénom et pays, lien du compte TikTok, notifications, compte.
-function pageReglages(config, { espace, prenom, pays, compteTikTok, parcours: aUnParcours, message, erreur }) {
+function pageReglages(config, { espace, prenom, pays, compteTikTok, parcours: aUnParcours, etape = 0, message, erreur }) {
   return page('Réglages', `<a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
   <div class="titre-page"><div><p class="etiquette">Mon compte</p><h1>Réglages</h1></div></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
@@ -343,7 +343,7 @@ function pageReglages(config, { espace, prenom, pays, compteTikTok, parcours: aU
       <div class="champ"><label for="pays">Pays</label><input id="pays" name="pays" maxlength="60" value="${echapper(pays || '')}"></div>
       <button class="bouton" type="submit" style="margin:0">Enregistrer</button>
     </form>
-    ${aUnParcours ? `<form class="carte" method="post" action="/reglages/tiktok" style="display:grid;gap:12px">
+    ${aUnParcours && etape >= 4 ? `<form class="carte" method="post" action="/reglages/tiktok" style="display:grid;gap:12px">
       <h2 style="margin:0">Mon compte TikTok</h2>
       <div class="champ"><label for="compte">Lien de mon compte</label><input id="compte" name="compte" inputmode="url" value="${echapper(compteTikTok || '')}" placeholder="https://www.tiktok.com/@ton.compte">
         <small>Sur TikTok : ton profil › Partager le profil › Copier le lien.</small></div>

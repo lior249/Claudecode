@@ -275,6 +275,8 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
         : db.prepare("SELECT * FROM ressources WHERE id = ? AND type = ? AND (etat = 'public' OR (auteur = ? AND etat != 'refuse'))").get(Number(id), type, discordId) || null);
       const n = ressource(niche, 'niche'); const m = ressource(methode, 'methode');
       if (n === null) return { erreur: 'Choisis une niche de la liste.' };
+      // Un profil L1 ne prend pas de niche L2 (commentaire) ; un profil L2 peut tout prendre.
+      if (n && n.categorie === 'L2' && p.niveau === 'L1') return { erreur: 'Cette niche est en L2 (commentaire) : elle est réservée aux profils L2.' };
       if (m === null) return { erreur: 'Choisis une méthode de la liste.' };
       const PAYS = require('./ressources').PAYS;
       if (pays !== undefined && pays !== '' && !PAYS.includes(pays)) return { erreur: 'Choisis un pays de la liste.' };
@@ -301,14 +303,13 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
         1: [...['L1', 'L2'].filter((e) => etat(e) !== 'valide').map((e) => `Exercice ${e} pas validé`), ...(p.niveau ? [] : ['Profil type (L1 ou L2) pas choisi'])],
         2: entreeFaite ? [] : ['Coaching d\'entrée pas fait'],
         3: [...(p.niche_id && p.methode_id && p.pays_cible ? [] : ['Niche, méthode 10K ou pays pas choisis']),
-          ...['V1', 'V2', 'V3'].filter((e) => etat(e) !== 'valide').map((e) => `Vidéo ${e.slice(1)} pas validée`),
-          ...(p.compte_tiktok ? [] : ['Compte TikTok pas renseigné'])],
+          ...['V1', 'V2', 'V3'].filter((e) => etat(e) !== 'valide').map((e) => `Vidéo ${e.slice(1)} pas validée`)],
       };
       for (const k of [1, 2, 3]) if (p.etape > k) r[k] = []; // étapes déjà franchies
       return r;
     },
     // Le coach déplace un élève (tableau des élèves) : vers l'avant, les étapes sautées sont marquées « passées par le coach »
-    // (leurs envois non validés sont laissés de côté). Le compte TikTok est obligatoire à partir de l'étape 4.
+    // (leurs envois non validés sont laissés de côté). Le compte TikTok, l'élève le donne lui-même en arrivant à l'étape 4.
     // GOAT ne se donne jamais à la main : il se gagne avec des résultats suivis sur la plateforme.
     forcerEtape(discordId, cible, { compte, niche, pays, niveau } = {}) {
       const p = q.get.get(discordId);
@@ -321,7 +322,6 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       for (const [k, v] of Object.entries({ compte, niche, pays })) if (typeof v === 'string' && v.trim()) champs[k] = v;
       if (Object.keys(champs).length) api.majCompte(discordId, champs);
       const apres = q.get.get(discordId);
-      if (n >= 4 && !apres.compte_tiktok) return { erreur: 'Renseigne son compte TikTok : il le faut à partir de l\'étape 4.' };
       if (['L1', 'L2'].includes(niveau) && !apres.niveau) q.niveau.run(niveau, iso(), discordId);
       if (n === p.etape) return { parcours: q.get.get(discordId), forcees: [] };
       const forcees = [];

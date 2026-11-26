@@ -4,7 +4,7 @@ const { pastilleRole, STYLE_ROLES } = require('./roles');
 
 // Tableau des élèves Elite (Kanban) : une colonne par étape (1 à 4), et GOAT en lecture seule.
 // Le coach glisse un élève vers une autre étape (ou touche « Déplacer » sur téléphone) ; vers l'avant, il confirme
-// en voyant tout ce qui n'a pas été validé sur la plateforme. Le compte TikTok est demandé à partir de l'étape 3.
+// en voyant tout ce qui n'a pas été validé sur la plateforme. Le compte TikTok, l'élève le donne lui-même à l'étape 4.
 // GOAT ne se donne pas à la main : il se gagne avec des résultats suivis sur la plateforme.
 const { echapper } = require('./pages');
 const { pageEspace } = require('./pages-espace');
@@ -64,7 +64,7 @@ function carte(e) {
   return `<article class="eleve" data-id="${echapper(e.id)}" draggable="${goat ? 'false' : 'true'}">
     <a class="nom" href="/admin/membres/${encodeURIComponent(e.id)}">${echapper(e.nom)}</a>
     <span class="sous">${echapper(e.pseudo || '')}${e.pseudo ? ' · ' : ''}jour ${e.jour} sur 90</span>
-    <span class="sous">${e.compte ? `${echapper(e.compte)}${e.niche ? ` · ${echapper(e.niche)}` : ''}` : '<span style="color:#ffb35c">Compte TikTok à renseigner</span>'}</span>
+    <span class="sous">${e.compte ? `${echapper(e.compte)}${e.niche ? ` · ${echapper(e.niche)}` : ''}` : (e.etape >= 4 ? '<span style="color:#ffb35c">Compte TikTok à renseigner</span>' : (e.niche ? echapper(e.niche) : ''))}</span>
     ${e.tache ? `<span class="tache">${echapper(e.tache)}</span>` : ''}
     <div class="pastilles">${e.sinistre ? `<span class="rouge">Sinistré ${e.sinistres}/3</span>` : ''}${e.retard ? '<span class="rouge">En retard</span>' : ''}
       ${e.aTraiter ? `<span class="orange">${e.aTraiter} à traiter</span>` : ''}${e.forcees.length ? `<span>Passé par toi : ${e.forcees.join(', ')}</span>` : ''}
@@ -162,10 +162,11 @@ const STYLE_LISTE = `<style>
   .ls-col { display:flex; flex-direction:column; align-items:flex-start; font-size:13.5px; } .ls-col small { color:var(--doux); font-size:11.5px; } .ls-col .rouge { color:#ff8f8f; }
   @media (max-width: 720px) { .ls-ligne { grid-template-columns:1fr 1fr 1fr; } .ls-nom { grid-column:1 / -1; } }
 </style>`;
-function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur, vue = 'kanban' }) {
+function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur, vue = 'kanban', choix = { niches: [], methodes: [], pays: [], drapeaux: {} } }) {
   const parColonne = (n) => eleves.filter((e) => (n === 5 ? e.etape >= 5 : e.etape === n));
   const donnees = {};
-  for (const e of eleves) donnees[e.id] = { nom: e.nom, etape: e.etape, compte: e.compte || '', niche: e.niche || '', pays: e.pays || '', niveau: e.niveau || '', entree: e.entree || '', manquants: e.manquants };
+  for (const e of eleves) donnees[e.id] = { nom: e.nom, etape: e.etape, compte: e.compte || '', niche: e.nicheId ? String(e.nicheId) : '', methode: e.methodeId ? String(e.methodeId) : '',
+    pays: e.paysCible || '', niveau: e.niveau || '', manquants: e.manquants };
   const script = `
 (function () {
   var D = ${JSON.stringify({ eleves: donnees, colonnes: COLONNES }).replace(/</g, '\\u003c')};
@@ -187,8 +188,7 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
       html += blocs.length
         ? '<div class="manquants"><p>Ces étapes n\\'ont pas été validées sur la plateforme :</p>' + blocs.join('') + '<p style="margin:0">Es-tu sûr de le faire passer à l\\'étape ' + cible + ' malgré tout ?</p></div>'
         : '<p class="doux" style="margin:0 0 10px">Tout a été validé jusqu\\'ici.</p>';
-      if (cible >= 3 && !e.compte) html += '<div class="champs-compte"><div class="champ large"><label for="f-compte">Lien de son compte TikTok (obligatoire)</label><input id="f-compte" name="compte" placeholder="https://www.tiktok.com/@compte" required></div>'
-        + '<div class="champ"><label for="f-niche">Niche</label><input id="f-niche" name="niche"></div><div class="champ"><label for="f-pays">Pays cible</label><input id="f-pays" name="pays"></div></div>';
+      if (cible >= 4 && !e.compte) html += '<div class="champs-compte"><div class="champ large"><label for="f-compte">Lien de son compte TikTok (facultatif : il le donne lui-même à l’étape 4)</label><input id="f-compte" name="compte" placeholder="https://www.tiktok.com/@compte"></div></div>';
       if (e.etape <= 1 && !e.niveau) html += '<div class="champs-compte"><div class="champ large"><label for="f-niveau">Son profil type</label><select id="f-niveau" name="niveau"><option value="L2">L2</option><option value="L1">L1</option></select></div></div>';
       html += '<p class="doux petit" style="margin:0">Bob le prévient : « Étape ' + cible + ' ouverte ».</p>';
     } else {
@@ -209,8 +209,7 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
   q('#annuler').onclick = function () { dlg.close(); };
   q('#confirmer').onclick = function () {
     var b = this, corps = { etape: +(q('input[name=cible]:checked') || {}).value };
-    ['compte', 'niche', 'pays', 'niveau'].forEach(function (k) { var f = q('[name=' + k + ']'); if (f) corps[k] = f.value; });
-    if (corps.etape >= 3 && !D.eleves[choisi].compte && !(corps.compte || '').trim()) { q('#erreur').textContent = 'Renseigne son compte TikTok.'; return; }
+    ['compte', 'niveau'].forEach(function (k) { var f = q('[name=' + k + ']'); if (f) corps[k] = f.value; });
     b.disabled = true;
     fetch('/admin/eleves/' + encodeURIComponent(choisi) + '/etape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) })
       .then(function (r) { return r.json(); })
@@ -234,14 +233,17 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
       if (id && D.eleves[id] && D.eleves[id].etape !== n) ouvrir(id, n);
     });
   });
-  // Compléter ses informations (compte TikTok, niche, pays, niveau, date d'entrée), en une fois.
+  // Ses infos : niche, méthode 10K et pays (choisis dans les listes), compte TikTok à partir de l'étape 4.
   var di = document.getElementById('dlg-infos'), infosDe = null;
   document.querySelectorAll('.eleve .infos').forEach(function (b) {
     b.onclick = function () {
       infosDe = b.closest('.eleve').getAttribute('data-id');
       var e = D.eleves[infosDe]; if (!e) return;
       di.querySelector('#i-nom').textContent = e.nom;
-      ['compte', 'niche', 'pays', 'niveau', 'entree'].forEach(function (k) { di.querySelector('[name=' + k + ']').value = e[k] || ''; });
+      ['niche', 'methode', 'pays', 'compte'].forEach(function (k) { di.querySelector('[name=' + k + ']').value = e[k] || ''; });
+      // Profil L1 : les niches L2 (commentaire) ne se choisissent pas. Compte TikTok : seulement à partir de l'étape 4.
+      di.querySelectorAll('[name=niche] option[data-cat]').forEach(function (o) { var non = e.niveau === 'L1' && o.getAttribute('data-cat') === 'L2'; o.hidden = non; o.disabled = non; });
+      di.querySelector('.i-compte').hidden = e.etape < 4;
       di.querySelector('#i-erreur').textContent = '';
       di.showModal();
     };
@@ -249,7 +251,8 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
   di.querySelector('#i-annuler').onclick = function () { di.close(); };
   di.querySelector('#i-enregistrer').onclick = function () {
     var b = this, corps = {};
-    ['compte', 'niche', 'pays', 'niveau', 'entree'].forEach(function (k) { corps[k] = di.querySelector('[name=' + k + ']').value; });
+    ['niche', 'methode', 'pays'].forEach(function (k) { corps[k] = di.querySelector('[name=' + k + ']').value; });
+    if (D.eleves[infosDe].etape >= 4) corps.compte = di.querySelector('[name=compte]').value;
     b.disabled = true;
     fetch('/admin/eleves/' + encodeURIComponent(infosDe) + '/infos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) })
       .then(function (r) { return r.json(); })
@@ -281,13 +284,15 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
   <dialog id="dlg-infos" class="fenetre">
     <h2 style="margin:0 0 10px">Infos de <span id="i-nom"></span></h2>
     <div class="champs-compte">
-      <div class="champ large"><label for="i-compte">Lien du compte TikTok</label><input id="i-compte" name="compte" placeholder="https://www.tiktok.com/@compte"></div>
-      <div class="champ"><label for="i-niche">Niche</label><input id="i-niche" name="niche"></div>
-      <div class="champ"><label for="i-pays">Pays cible</label><input id="i-pays" name="pays"></div>
-      <div class="champ"><label for="i-niveau">Profil type</label><select id="i-niveau" name="niveau"><option value="">—</option><option value="L1">L1</option><option value="L2">L2</option></select></div>
-      <div class="champ"><label for="i-entree">Entrée</label><input id="i-entree" name="entree" type="date"></div>
+      <div class="champ large"><label for="i-niche">Niche</label><select id="i-niche" name="niche"><option value="">${choix.niches.length ? 'Choisir une niche' : 'Aucune niche dans les Ressources'}</option>
+        ${choix.niches.map((n) => `<option value="${n.id}" data-cat="${echapper(n.categorie || '')}">${echapper(n.titre)}${n.categorie === 'L2' ? ' · L2' : n.categorie === 'L1' ? ' · L1' : ''}</option>`).join('')}</select></div>
+      <div class="champ large"><label for="i-methode">Méthode 10K</label><select id="i-methode" name="methode"><option value="">Choisir une méthode</option>
+        ${choix.methodes.map((x) => `<option value="${x.id}">${echapper(x.titre)}</option>`).join('')}</select></div>
+      <div class="champ large"><label for="i-pays">Pays visé</label><select id="i-pays" name="pays"><option value="">Choisir un pays</option>
+        ${choix.pays.map((x) => `<option value="${echapper(x)}">${choix.drapeaux[x] || ''} ${echapper(x)}</option>`).join('')}</select></div>
+      <div class="champ large i-compte"><label for="i-compte">Lien du compte TikTok</label><input id="i-compte" name="compte" placeholder="https://www.tiktok.com/@compte"></div>
     </div>
-    <p class="doux petit" style="margin:0">La date d'entrée fait partir ses 90 jours.</p>
+    <p class="doux petit" style="margin:0">Une niche ou une méthode manque ? Ajoute-la dans les <a href="/ressources">Ressources</a>. Profil L1 : les niches L2 ne sont pas proposées.</p>
     <p id="i-erreur" class="erreur-form" style="margin:8px 0 0"></p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
       <button id="i-annuler" class="bouton secondaire" type="button" style="margin:0">Annuler</button>
