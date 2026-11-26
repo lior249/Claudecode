@@ -599,6 +599,16 @@ function migrerV24(db) {
   PRAGMA user_version = 24;`);
 }
 
+// v25 : les annonces deviennent aussi des événements (bannière en haut des pages) : couleur dominante, fin d'affichage, notification ou non.
+function migrerV25(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 25) return;
+  const c = colonnes(db, 'annonces');
+  if (!c.includes('couleur')) db.exec('ALTER TABLE annonces ADD COLUMN couleur TEXT');
+  if (!c.includes('fin_le')) db.exec('ALTER TABLE annonces ADD COLUMN fin_le TEXT');
+  if (!c.includes('notifier')) db.exec('ALTER TABLE annonces ADD COLUMN notifier INTEGER NOT NULL DEFAULT 1');
+  db.exec('PRAGMA user_version = 25');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -632,6 +642,7 @@ function ouvrirBase(fichier) {
   migrerV22(db);
   migrerV23(db);
   migrerV24(db);
+  migrerV25(db);
   return db;
 }
 

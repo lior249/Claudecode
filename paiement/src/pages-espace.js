@@ -69,7 +69,7 @@ function navEspace(espace = {}) {
       { cle: 'candidatures', libelle: 'Candidatures', lien: '/admin/candidatures', icone: 'candidatures', badge: espace.aTraiter || null },
       { cle: 'eleves', libelle: 'Élèves Elite', lien: '/admin/eleves', icone: 'eleves' },
       { cle: 'membres', libelle: 'Membres', lien: '/admin/membres', icone: 'membres' },
-      { cle: 'annonces', libelle: 'Annonce aux élèves', lien: '/admin/annonces', icone: 'annonces' },
+      { cle: 'annonces', libelle: 'Événements', lien: '/admin/annonces', icone: 'annonces' },
       { cle: 'pages', libelle: 'Pages du site', lien: '/admin/pages', icone: 'pages' });
   }
   // Le coach (admin) ne réserve pas de séance : pas de « Mes coachings » pour lui.
@@ -91,7 +91,7 @@ function navEspace(espace = {}) {
 function pageEspace(titre, contenu, espace, actif, options = {}) {
   const session = espace && espace.session;
   return gabaritEspace(titre, `${STYLE_GRILLE}${STYLE_BUREAU}${contenu}`, {
-    ...options, nav: navEspace(espace), actif, jetonApp: espace && espace.jetonApp,
+    ...options, nav: navEspace(espace), actif, jetonApp: espace && espace.jetonApp, evenements: (espace && espace.evenements) || [],
     // Élèves de l'accompagnement : la barre du bas sur téléphone.
     barreBas: espace && espace.parcours && !espace.estAdmin ? [
       { cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' },

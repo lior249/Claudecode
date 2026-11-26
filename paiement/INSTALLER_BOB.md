@@ -339,17 +339,20 @@ retire-les à la main.
 
 - **Pastilles rouges** sur la cloche (notifications non lues, jusqu'à « 9+ ») et sur la bulle (nouvelles remarques du coach).
   Chaque message de Bob ou de l'application à un élève est rangé dans sa page Notifications (onglets Notifications / Réglages).
-- **Photo en pièce** de la couleur du rang : bleu Elite, vert Membre, doré GOAT et €10k, or €5k, orange €1.5k ; rouge et photo
-  en gris pour un sinistré. Un reflet passe du bas vers le haut.
+- **Photo en pièce** au bord cranté, de la couleur du rang : bleu Elite, vert Membre, doré GOAT et €10k, or €5k, orange €1.5k ;
+  rouge et photo en gris pour un sinistré. Pas de brillance fixe : un reflet passe du coin bas gauche au coin haut droit.
 - **Prochain objectif** sous les chiffres : barre de progression, le montant à droite ; elle ouvre Mes revenus (même barre).
 - **Roue des jours** : chaque jour donne son action (faire, corriger ou voir son compte rendu).
 
-## Annonce à tous les élèves
+## Événements (bannière) et annonces
 
-Menu Gestion → **Annonce aux élèves** (`/admin/annonces`) : un titre, un message, et si besoin **+ Ajouter un lien**
-(https://… ou une page du site comme `/parcours/etape-4`, qui ouvre l'espace de chaque élève déjà connecté) et une image.
-Tous les élèves Elite la reçoivent (application ou Bob, avec l'image sur Discord) et la voient en haut de Mon profil
-pendant 7 jours (« × » pour la masquer). La liste des annonces envoyées montre combien l'ont reçue.
+Menu Gestion → **Événements** (`/admin/annonces`). Le logo du haut des pages est remplacé par une **bannière des événements en cours**
+(plusieurs : elles défilent toutes les 4 secondes, ou au doigt) ; sans événement, rien ne s'affiche.
+- Titre, message, **+ Ajouter un lien** (https://… ou une page du site), **image au format 16:5** (par exemple 1600 × 500 px), **sans texte** :
+  le titre s'écrit à gauche, sur la **couleur dominante** (calculée toute seule d'après le côté gauche de l'image, modifiable),
+  et l'image apparaît en fondu vers la droite. Sans image : le texte sur la couleur.
+- **Afficher jusqu'au** (7 jours par défaut) ; **Retirer de la bannière** à tout moment.
+- **Envoyer aussi une notification** (coché par défaut) : tous les élèves Elite la reçoivent (application ou Bob, image jointe sur Discord).
 
 ## Mon profil épuré (élèves)
 

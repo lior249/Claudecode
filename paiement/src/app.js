@@ -66,7 +66,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       ? parcours.aTraiter().total + suivi.enAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
-      notifsNonLues: estAdmin ? notifsAdmin.nonLues() : 0 };
+      notifsNonLues: estAdmin ? notifsAdmin.nonLues() : 0, evenements: session ? evenementsEnCours() : [] };
+  };
+  // Événements en cours : jusqu'à leur date de fin (sinon 7 jours après leur création).
+  const evenementsEnCours = () => {
+    const now = new Date().toISOString();
+    return commandes.db.prepare(`SELECT * FROM annonces WHERE (fin_le IS NOT NULL AND fin_le > ?) OR (fin_le IS NULL AND cree_le > ?) ORDER BY id DESC LIMIT 6`)
+      .all(now, new Date(Date.now() - 7 * 864e5).toISOString());
   };
   const app = express();
   app.disable('x-powered-by');
@@ -1213,12 +1219,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     };
   }
   // ---- Annonces du coach à tous les élèves Elite ----
-  const derniereAnnonce = () => commandes.db.prepare('SELECT * FROM annonces WHERE cree_le >= ? ORDER BY id DESC LIMIT 1').get(new Date(Date.now() - 7 * 864e5).toISOString()) || null;
   app.get('/admin/annonces', (req, res) => {
     if (!estAdmin(req, res, '/admin/annonces')) return;
     res.send(PF.pageAnnonces(config, { espace: espaceDe(lireSession(req, config.secretApp)), nbEleves: parcours.tous().length,
       annonces: commandes.db.prepare('SELECT * FROM annonces ORDER BY id DESC LIMIT 30').all(),
-      message: req.query.fait ? `Annonce envoyée à ${Number(req.query.n) || 0} élève(s). Le nombre de messages reçus s'affiche ci-dessous.` : null,
+      message: req.query.fait ? (Number(req.query.n) ? `Événement publié et envoyé à ${Number(req.query.n)} élève(s).` : 'Événement publié dans la bannière.') : null, maintenant: new Date().toISOString(),
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
   app.post('/admin/annonces', formulaire, (req, res) => {
@@ -1230,16 +1235,25 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!titre || !texte) return erreur('Écris un titre et un message.');
     if (lien && !/^https:\/\/\S+$/.test(lien) && !/^\/(?![/\\])\S*$/.test(lien)) return erreur('Le lien doit commencer par https:// ou être une page du site (/…).');
     const image = imagesDe(req.body)[0] || null;
-    const ids = parcours.tous().map((p) => p.discord_id);
-    const r = commandes.db.prepare('INSERT INTO annonces (titre, texte, lien, image, destinataires, cree_le) VALUES (?, ?, ?, ?, ?, ?)').run(titre, texte, lien, image, ids.length, new Date().toISOString());
+    const couleur = /^#[0-9a-f]{6}$/i.test(String(req.body.couleur || '')) ? req.body.couleur : '#1a1a1a';
+    const fin = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body.fin || '')) ? `${req.body.fin}T23:59:59.000Z` : null;
+    const notifier = req.body.notifier === '1';
+    const ids = notifier ? parcours.tous().map((p) => p.discord_id) : [];
+    const r = commandes.db.prepare('INSERT INTO annonces (titre, texte, lien, image, destinataires, cree_le, couleur, fin_le, notifier, envoyes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(titre, texte, lien, image, ids.length, new Date().toISOString(), couleur, fin, notifier ? 1 : 0, notifier ? null : 0);
     const a = commandes.db.prepare('SELECT * FROM annonces WHERE id = ?').get(Number(r.lastInsertRowid));
-    if (bob && bob.parcours && bob.parcours.annonce) {
+    if (!notifier) { /* seulement la bannière */ } else if (bob && bob.parcours && bob.parcours.annonce) {
       bob.parcours.annonce(a, ids, image ? parcours.cheminImage(image) : null)
         .then((n) => commandes.db.prepare('UPDATE annonces SET envoyes = ? WHERE id = ?').run(n, a.id))
         .catch((err) => console.error('[bob] annonce :', err.message));
     } else commandes.db.prepare('UPDATE annonces SET envoyes = 0 WHERE id = ?').run(a.id);
     lien = null;
     return res.redirect(303, `/admin/annonces?fait=1&n=${ids.length}`);
+  });
+  app.post('/admin/annonces/:id/retirer', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/annonces')) return;
+    commandes.db.prepare('UPDATE annonces SET fin_le = ? WHERE id = ?').run(new Date().toISOString(), Number(req.params.id));
+    res.redirect(303, '/admin/annonces');
   });
   app.get('/revenus', (req, res) => {
     const x = membreParcours(req, res, '/revenus', { sinistreOk: true });
@@ -1277,7 +1291,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.get('/profil', (req, res) => {
     const x = membreParcours(req, res, '/profil', { sinistreOk: true });
     if (!x) return;
-    res.send(PF.pageMonProfil(config, { espace: x.espace, ...donneesMonProfil(x.p), rappel: aFaireDe(x.p), annonce: derniereAnnonce() }));
+    res.send(PF.pageMonProfil(config, { espace: x.espace, ...donneesMonProfil(x.p), rappel: aFaireDe(x.p) }));
   });
 
   // ---- Communauté : suivre (10 places), concurrences (3), invitations ----

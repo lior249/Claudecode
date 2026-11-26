@@ -69,24 +69,31 @@ test('profil du classement : Suivre puis Ne plus suivre, retour sur le profil', 
   } finally { await m.fermer(); }
 });
 
-test('annonce du coach : envoyée à tous les élèves (lien perso pour une page du site), visible en haut de Mon profil', async () => {
+test('événement du coach : bannière en haut des pages (lien, couleur), notification facultative, retiré à la demande', async () => {
   const envois = [];
   const m = await monter({ bob: { parcours: { annonce: async (a, ids, image) => { envois.push([a, ids, image]); return ids.length; } } } });
   try {
     for (const id of ['A', 'B', 'C']) m.parcours.assurer(id, { pseudo: `p_${id}` });
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
-    assert.match(await (await m.get('/admin/annonces', coach)).text(), /3 élève\(s\) Elite[\s\S]*Ajouter un lien[\s\S]*Ajouter une image/);
+    assert.match(await (await m.get('/admin/annonces', coach)).text(), /3 élève\(s\) Elite[\s\S]*16:5[\s\S]*Ajouter un lien[\s\S]*Ajouter une image/);
     assert.match((await m.poster('/admin/annonces', { titre: 'x', texte: 'y', lien: 'javascript:alert(1)' }, coach)).headers.get('location'), /erreur=/);
     assert.strictEqual((await m.poster('/admin/annonces', { titre: 'x', texte: 'y' }, { cookie: cookieSession('A', 'p_A') })).status, 403);
-    const r = await m.poster('/admin/annonces', { titre: 'Live ce soir', texte: 'Rendez-vous à 21 h.', lien: '/parcours/etape-4' }, coach);
+    const r = await m.poster('/admin/annonces', { titre: 'Live ce soir', texte: 'Rendez-vous à 21 h.', lien: '/parcours/etape-4', notifier: '1', couleur: '#ff7a00', fin: '2099-01-01' }, coach);
     assert.strictEqual(r.headers.get('location'), '/admin/annonces?fait=1&n=3');
     assert.strictEqual(envois.length, 1);
     assert.deepStrictEqual(envois[0][1].sort(), ['A', 'B', 'C']);
     assert.strictEqual(envois[0][0].lien, '/parcours/etape-4');
     await new Promise((x) => setTimeout(x, 20));
-    assert.match(await (await m.get('/admin/annonces', coach)).text(), /reçue par 3 \/ 3/);
+    assert.match(await (await m.get('/admin/annonces', coach)).text(), /dans la bannière · reçu par 3 \/ 3/);
     const profil = await (await m.get('/profil', { cookie: cookieSession('A', 'p_A') })).text();
-    assert.match(profil, /Annonce du coach[\s\S]*Live ce soir[\s\S]*Rendez-vous à 21 h\.[\s\S]*href="\/parcours\/etape-4"/);
+    assert.match(profil, /class="evts"[\s\S]*class="evt sans-image" style="--c:#ff7a00" href="\/parcours\/etape-4"[\s\S]*Live ce soir[\s\S]*Rendez-vous à 21 h\./);
+    // Bannière seule (sans notification), puis retirée.
+    await m.poster('/admin/annonces', { titre: 'Défi de la semaine', texte: '3 vidéos', fin: '2099-01-01' }, coach);
+    assert.strictEqual(envois.length, 1, 'pas de notification');
+    assert.match(await (await m.get('/classement', { cookie: cookieSession('A', 'p_A') })).text(), /Défi de la semaine[\s\S]*Live ce soir/);
+    const id = m.db.prepare("SELECT id FROM annonces WHERE titre = 'Défi de la semaine'").get().id;
+    await m.poster(`/admin/annonces/${id}/retirer`, {}, coach);
+    assert.doesNotMatch(await (await m.get('/classement', { cookie: cookieSession('A', 'p_A') })).text(), /Défi de la semaine/);
   } finally { await m.fermer(); }
 });
 

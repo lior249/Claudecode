@@ -94,15 +94,17 @@ const STYLE_PROFIL = `<style>
   .pf-groupe { display:flex; align-items:center; gap:6px; }
   .pf-icone .compteur { position:absolute; top:-3px; right:-9px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:#ff3b30; color:#fff;
     font:800 11px/19px var(--police); text-align:center; border:2px solid #000; box-sizing:content-box; }
-  /* La photo dans une pièce de monnaie : tranche métallique de la couleur du rang, reflet qui passe du bas vers le haut. */
-  .pf-avatar.piece { position:relative; width:108px; height:108px; padding:9px; border:0; border-radius:50%; overflow:hidden; isolation:isolate;
-    background:radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--piece) 35%, #fff) 0%, var(--piece) 38%, color-mix(in srgb, var(--piece) 45%, #000) 100%);
-    box-shadow:0 0 0 1px color-mix(in srgb, var(--piece) 60%, #000), 0 6px 22px color-mix(in srgb, var(--piece) 35%, transparent), inset 0 2px 3px rgba(255,255,255,.45), inset 0 -3px 5px rgba(0,0,0,.45); }
-  .pf-avatar.piece .face { display:block; width:100%; height:100%; border-radius:50%; overflow:hidden; box-shadow:inset 0 0 0 2px rgba(0,0,0,.45), 0 0 0 2px color-mix(in srgb, var(--piece) 50%, #000); }
-  .pf-avatar.piece::after { content:""; position:absolute; inset:-40%; z-index:2; pointer-events:none;
-    background:linear-gradient(0deg, transparent 38%, color-mix(in srgb, var(--piece) 25%, #fff) 50%, transparent 62%); opacity:.55; mix-blend-mode:screen;
-    animation:ovx-piece 3.6s ease-in-out infinite; }
-  @keyframes ovx-piece { 0% { transform:translateY(60%) rotate(-20deg); } 55%, 100% { transform:translateY(-60%) rotate(-20deg); } }
+  /* La photo dans une pièce de monnaie : bord cranté de la couleur du rang, sans brillance fixe ;
+     seul un reflet passe, du coin bas gauche au coin haut droit, découpé à la forme de la pièce. */
+  .pf-avatar.piece { position:relative; width:104px; height:104px; padding:6px; border:0; border-radius:50%; isolation:isolate;
+    clip-path:polygon(100.00% 50.00%,98.68% 51.27%,99.93% 52.62%,98.55% 53.82%,99.73% 55.23%,98.28% 56.36%,99.38% 57.82%,97.88% 58.87%,98.91% 60.40%,97.35% 61.37%,98.30% 62.94%,96.69% 63.83%,97.55% 65.45%,95.91% 66.26%,96.68% 67.92%,94.99% 68.64%,95.68% 70.34%,93.96% 70.97%,94.55% 72.70%,92.80% 73.24%,93.30% 75.00%,91.52% 75.45%,91.93% 77.23%,90.13% 77.58%,90.45% 79.39%,88.64% 79.65%,88.86% 81.47%,87.03% 81.63%,87.16% 83.46%,85.33% 83.52%,85.36% 85.36%,83.52% 85.33%,83.46% 87.16%,81.63% 87.03%,81.47% 88.86%,79.65% 88.64%,79.39% 90.45%,77.58% 90.13%,77.23% 91.93%,75.45% 91.52%,75.00% 93.30%,73.24% 92.80%,72.70% 94.55%,70.97% 93.96%,70.34% 95.68%,68.64% 94.99%,67.92% 96.68%,66.26% 95.91%,65.45% 97.55%,63.83% 96.69%,62.94% 98.30%,61.37% 97.35%,60.40% 98.91%,58.87% 97.88%,57.82% 99.38%,56.36% 98.28%,55.23% 99.73%,53.82% 98.55%,52.62% 99.93%,51.27% 98.68%,50.00% 100.00%,48.73% 98.68%,47.38% 99.93%,46.18% 98.55%,44.77% 99.73%,43.64% 98.28%,42.18% 99.38%,41.13% 97.88%,39.60% 98.91%,38.63% 97.35%,37.06% 98.30%,36.17% 96.69%,34.55% 97.55%,33.74% 95.91%,32.08% 96.68%,31.36% 94.99%,29.66% 95.68%,29.03% 93.96%,27.30% 94.55%,26.76% 92.80%,25.00% 93.30%,24.55% 91.52%,22.77% 91.93%,22.42% 90.13%,20.61% 90.45%,20.35% 88.64%,18.53% 88.86%,18.37% 87.03%,16.54% 87.16%,16.48% 85.33%,14.64% 85.36%,14.67% 83.52%,12.84% 83.46%,12.97% 81.63%,11.14% 81.47%,11.36% 79.65%,9.55% 79.39%,9.87% 77.58%,8.07% 77.23%,8.48% 75.45%,6.70% 75.00%,7.20% 73.24%,5.45% 72.70%,6.04% 70.97%,4.32% 70.34%,5.01% 68.64%,3.32% 67.92%,4.09% 66.26%,2.45% 65.45%,3.31% 63.83%,1.70% 62.94%,2.65% 61.37%,1.09% 60.40%,2.12% 58.87%,0.62% 57.82%,1.72% 56.36%,0.27% 55.23%,1.45% 53.82%,0.07% 52.62%,1.32% 51.27%,0.00% 50.00%,1.32% 48.73%,0.07% 47.38%,1.45% 46.18%,0.27% 44.77%,1.72% 43.64%,0.62% 42.18%,2.12% 41.13%,1.09% 39.60%,2.65% 38.63%,1.70% 37.06%,3.31% 36.17%,2.45% 34.55%,4.09% 33.74%,3.32% 32.08%,5.01% 31.36%,4.32% 29.66%,6.04% 29.03%,5.45% 27.30%,7.20% 26.76%,6.70% 25.00%,8.48% 24.55%,8.07% 22.77%,9.87% 22.42%,9.55% 20.61%,11.36% 20.35%,11.14% 18.53%,12.97% 18.37%,12.84% 16.54%,14.67% 16.48%,14.64% 14.64%,16.48% 14.67%,16.54% 12.84%,18.37% 12.97%,18.53% 11.14%,20.35% 11.36%,20.61% 9.55%,22.42% 9.87%,22.77% 8.07%,24.55% 8.48%,25.00% 6.70%,26.76% 7.20%,27.30% 5.45%,29.03% 6.04%,29.66% 4.32%,31.36% 5.01%,32.08% 3.32%,33.74% 4.09%,34.55% 2.45%,36.17% 3.31%,37.06% 1.70%,38.63% 2.65%,39.60% 1.09%,41.13% 2.12%,42.18% 0.62%,43.64% 1.72%,44.77% 0.27%,46.18% 1.45%,47.38% 0.07%,48.73% 1.32%,50.00% 0.00%,51.27% 1.32%,52.62% 0.07%,53.82% 1.45%,55.23% 0.27%,56.36% 1.72%,57.82% 0.62%,58.87% 2.12%,60.40% 1.09%,61.37% 2.65%,62.94% 1.70%,63.83% 3.31%,65.45% 2.45%,66.26% 4.09%,67.92% 3.32%,68.64% 5.01%,70.34% 4.32%,70.97% 6.04%,72.70% 5.45%,73.24% 7.20%,75.00% 6.70%,75.45% 8.48%,77.23% 8.07%,77.58% 9.87%,79.39% 9.55%,79.65% 11.36%,81.47% 11.14%,81.63% 12.97%,83.46% 12.84%,83.52% 14.67%,85.36% 14.64%,85.33% 16.48%,87.16% 16.54%,87.03% 18.37%,88.86% 18.53%,88.64% 20.35%,90.45% 20.61%,90.13% 22.42%,91.93% 22.77%,91.52% 24.55%,93.30% 25.00%,92.80% 26.76%,94.55% 27.30%,93.96% 29.03%,95.68% 29.66%,94.99% 31.36%,96.68% 32.08%,95.91% 33.74%,97.55% 34.55%,96.69% 36.17%,98.30% 37.06%,97.35% 38.63%,98.91% 39.60%,97.88% 41.13%,99.38% 42.18%,98.28% 43.64%,99.73% 44.77%,98.55% 46.18%,99.93% 47.38%,98.68% 48.73%);
+    background:repeating-conic-gradient(from 0deg, var(--piece) 0deg 1.5deg, color-mix(in srgb, var(--piece) 75%, #000) 1.5deg 3deg); }
+  .pf-avatar.piece .face { position:relative; z-index:1; display:block; width:100%; height:100%; border-radius:50%; overflow:hidden;
+    box-shadow:0 0 0 2px color-mix(in srgb, var(--piece) 55%, #000); }
+  .pf-avatar.piece::after { content:""; position:absolute; inset:0; z-index:2; pointer-events:none;
+    background:linear-gradient(45deg, transparent 35%, rgba(255,255,255,.55) 50%, transparent 65%) no-repeat;
+    background-size:250% 250%; background-position:120% -20%; animation:ovx-piece 3.6s ease-in-out infinite; }
+  @keyframes ovx-piece { 0% { background-position:100% 0%; } 50%, 100% { background-position:0% 100%; } }
   .pf-avatar.piece[data-sinistre]::after { animation:none; opacity:0; } .pf-avatar.piece[data-sinistre] img { filter:grayscale(1); }
   .pf-objectif-barre { display:block; margin:-4px 0 18px; padding:12px 14px; border-radius:16px; background:#101010; border:1px solid #222; color:#fff; text-decoration:none; }
   .pf-objectif-barre .haut { display:flex; justify-content:space-between; align-items:baseline; font-size:13px; color:var(--doux); }
@@ -426,11 +428,31 @@ const SCRIPT_ANNONCE = `(function () {
   var zone = document.getElementById('zone-lien'), ajouter = document.getElementById('ajouter-lien');
   ajouter.onclick = function () { zone.hidden = false; ajouter.hidden = true; f.lien.focus(); };
   document.getElementById('retirer-lien').onclick = function () { f.lien.value = ''; zone.hidden = true; ajouter.hidden = false; };
-  f.addEventListener('submit', function (e) { if (!confirm('Envoyer cette annonce à ' + f.getAttribute('data-n') + ' élève(s) ?')) e.preventDefault(); });
+  f.addEventListener('submit', function (e) { if (f.notifier.checked && !confirm('Publier et envoyer une notification à ' + f.getAttribute('data-n') + ' élève(s) ?')) e.preventDefault(); });
+  // Couleur dominante : la moyenne du côté gauche de l'image (là où s'écrit le texte).
+  var apercus = f.querySelector('.apercus');
+  new MutationObserver(function () {
+    var img = apercus.querySelector('img'); if (!img) return;
+    var calc = function () {
+      try {
+        var c = document.createElement('canvas'), w = 40, h = 20; c.width = w; c.height = h;
+        var x = c.getContext('2d'); x.drawImage(img, 0, 0, img.naturalWidth * 0.3, img.naturalHeight, 0, 0, w, h);
+        var d = x.getImageData(0, 0, w, h).data, r = 0, g = 0, b = 0, n = d.length / 4;
+        for (var i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+        var hex = function (v) { return ('0' + Math.round(v / n).toString(16)).slice(-2); };
+        f.couleur.value = '#' + hex(r) + hex(g) + hex(b);
+      } catch (e) {}
+    };
+    if (img.complete) calc(); else img.onload = calc;
+  }).observe(apercus, { childList: true });
 })();`;
-function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, message, erreur }) {
-  return page('Annonces', `
-  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Annonce à tous les élèves</h1></div><span class="doux petit">${nbEleves} élève(s) Elite</span></div>
+function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, message, erreur, maintenant = new Date().toISOString() }) {
+  const fin7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const enCours = (a) => (a.fin_le ? a.fin_le > maintenant : a.cree_le > new Date(Date.now() - 7 * 864e5).toISOString());
+  return page('Événements', `
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Événements et annonces</h1></div><span class="doux petit">${nbEleves} élève(s) Elite</span></div>
+  <p class="doux" style="max-width:640px;margin:0 0 12px">Chaque événement s'affiche dans la bannière en haut des pages des élèves (plusieurs : elles défilent).
+    Image au format <b>16:5</b> (par exemple 1600 × 500 px), sans texte : le titre s'écrit à gauche, sur la couleur dominante.</p>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   <form id="form-annonce" class="carte" method="post" action="/admin/annonces" data-n="${nbEleves}" style="display:grid;gap:12px;max-width:640px">
     <div class="champ"><label for="titre">Titre</label><input id="titre" name="titre" maxlength="120" required placeholder="ex. Live de groupe ce soir à 21 h"></div>
@@ -441,15 +463,21 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, message, er
       <button id="retirer-lien" class="bouton secondaire" type="button" style="margin:0;width:auto">Retirer</button></div>
       <small>Une page du site (/parcours, /coaching…) ouvre l'espace de chaque élève, déjà connecté.</small></div>
     <div data-images="/admin/images" data-une>
-      <label class="fichier">${ICONE.plus}<span><b>Ajouter une image</b><br>Bannière qui accompagne le message (facultatif)</span><input type="file" accept="image/*" hidden></label>
+      <label class="fichier">${ICONE.plus}<span><b>Ajouter une image</b><br>Format 16:5, sans texte (facultatif)</span><input type="file" accept="image/*" hidden></label>
       <input type="hidden" name="images" value=""><div class="apercus" style="margin-top:8px"></div></div>
-    <button class="bouton" type="submit" style="margin:0">Envoyer à tous les élèves</button>
-    <p class="doux petit" style="margin:0">Chacun le reçoit dans l'application ou par Bob, selon son réglage, et le voit en haut de Mon profil pendant 7 jours.</p>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:end">
+      <div class="champ"><label for="couleur">Couleur dominante</label><input id="couleur" name="couleur" type="color" value="#1a1a1a" style="width:64px;height:44px;padding:2px"></div>
+      <div class="champ"><label for="fin">Afficher jusqu'au</label><input id="fin" name="fin" type="date" value="${fin7}"></div>
+    </div>
+    <small class="doux" style="margin-top:-6px">La couleur se règle toute seule d'après le côté gauche de l'image ; tu peux la changer.</small>
+    <label style="display:flex;gap:10px;align-items:center;font-weight:600"><input type="checkbox" name="notifier" value="1" checked style="width:auto;margin:0"> Envoyer aussi une notification à tous les élèves</label>
+    <button class="bouton" type="submit" style="margin:0">Publier</button>
   </form>
-  <h2 style="font-size:16px;margin:22px 0 10px">Annonces envoyées</h2>
+  <h2 style="font-size:16px;margin:22px 0 10px">Événements publiés</h2>
   <div style="display:grid;gap:8px;max-width:640px">${annonces.map((a) => `<div class="carte" style="margin:0"><b>${echapper(a.titre)}</b>
     <p class="doux petit" style="margin:4px 0 0">${echapper(new Date(a.cree_le).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }))} GMT ·
-    ${a.envoyes === null ? 'envoi en cours…' : `reçue par ${a.envoyes} / ${a.destinataires}`}${a.lien ? ` · lien : ${echapper(a.lien)}` : ''}${a.image ? ' · avec image' : ''}</p></div>`).join('') || '<p class="vide-traiter">Aucune annonce pour le moment.</p>'}</div>`,
+    ${enCours(a) ? 'dans la bannière' : 'terminé'} · ${a.notifier === 0 ? 'sans notification' : a.envoyes === null ? 'envoi en cours…' : `reçu par ${a.envoyes} / ${a.destinataires}`}${a.lien ? ` · lien : ${echapper(a.lien)}` : ''}${a.image ? ' · avec image' : ''}</p>
+    ${enCours(a) ? `<form method="post" action="/admin/annonces/${a.id}/retirer" style="margin:8px 0 0"><button class="bouton secondaire" type="submit" style="margin:0;width:auto">Retirer de la bannière</button></form>` : ''}</div>`).join('') || '<p class="vide-traiter">Aucun événement pour le moment.</p>'}</div>`,
   espace, 'annonces', null, SCRIPT_ANNONCE);
 }
 

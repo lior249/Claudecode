@@ -314,6 +314,25 @@ const STYLE_ESPACE = `
     border-bottom:1px solid #161616; backdrop-filter:blur(8px); }
   .topbar-menu { display:grid; place-items:center; width:38px; height:38px; border-radius:10px; border:1px solid var(--bord); cursor:pointer; }
   .topbar .logo { font-size:17px; }
+  .topbar { padding:8px 16px 0; background:transparent; position:static; border:0 !important; backdrop-filter:none !important; }
+  /* Bannière des événements (format 16:5) : couleur dominante à gauche sous le texte, image en fondu vers la droite. */
+  .evts { position:relative; margin:0 0 16px; }
+  .evts-piste { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; border-radius:18px; }
+  .evts-piste::-webkit-scrollbar { display:none; }
+  .evt { position:relative; flex:0 0 100%; scroll-snap-align:start; aspect-ratio:16 / 5; min-height:104px; overflow:hidden; border-radius:18px; background:var(--c, #1a1a1a); color:#fff; text-decoration:none; }
+  .evt img { position:absolute; top:0; right:0; width:72%; height:100%; object-fit:cover;
+    -webkit-mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.6) 25%, #000 55%); mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.6) 25%, #000 55%); }
+  .evt.sans-image { background:linear-gradient(110deg, var(--c, #1a1a1a) 0%, color-mix(in srgb, var(--c, #1a1a1a) 55%, #000) 100%); }
+  .evt-texte { position:absolute; inset:0 auto 0 0; width:58%; padding:10px 14px; display:flex; flex-direction:column; justify-content:center; gap:3px; z-index:1;
+    background:linear-gradient(to right, var(--c, #1a1a1a) 55%, transparent); }
+  .evt.sans-image .evt-texte { width:100%; background:none; }
+  .evt-texte > * { flex:none; }
+  .evt-texte b { font-size:clamp(14px, 4.2vw, 22px); line-height:1.2; letter-spacing:-0.02em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; padding-bottom:1px; }
+  .evt-texte span { font-size:clamp(11px, 3vw, 14px); color:rgba(255,255,255,.82); line-height:1.3; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+  .evt.sans-image .evt-texte span { -webkit-line-clamp:2; }
+  .evt-texte em { font-style:normal; align-self:flex-start; margin-top:4px; padding:4px 11px; border-radius:999px; background:rgba(255,255,255,.92); color:#000; font-size:11.5px; font-weight:700; }
+  .evts-points { display:flex; justify-content:center; gap:5px; margin-top:7px; } .evts-points i { width:6px; height:6px; border-radius:50%; background:#3a3a3a; transition:width .2s; }
+  .evts-points i.actif { width:16px; border-radius:3px; background:#fff; }
   .titre-page { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:14px; }
   .titre-page h1 { margin:0; }
   @media (min-width: 960px) {
@@ -326,7 +345,25 @@ const STYLE_ESPACE = `
 `;
 
 // nav : [{ cle, libelle, lien, icone, badge }] ; actif : cle de la page ; compte : { pseudo, role }.
-function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp, barreBas } = {}) {
+// Les événements en cours (bannière qui défile toute seule s'il y en a plusieurs).
+function banniereEvenements(evts = []) {
+  if (!evts.length) return '';
+  const slide = (e) => {
+    const balise = e.lien ? 'a' : 'div';
+    const attrs = e.lien ? ` href="${echapper(e.lien)}"${e.lien.startsWith('/') ? '' : ' target="_blank" rel="noopener"'}` : '';
+    return `<${balise} class="evt${e.image ? '' : ' sans-image'}" style="--c:${echapper(/^#[0-9a-f]{6}$/i.test(e.couleur || '') ? e.couleur : '#1a1a1a')}"${attrs}>
+      ${e.image ? `<img src="/fichiers/images/${echapper(e.image)}" alt="">` : ''}
+      <span class="evt-texte"><b>${echapper(e.titre)}</b>${e.texte ? `<span>${echapper(e.texte)}</span>` : ''}${e.lien ? '<em>Voir ›</em>' : ''}</span></${balise}>`;
+  };
+  return `<section class="evts" aria-label="Événements en cours"><div class="evts-piste">${evts.map(slide).join('')}</div>
+    ${evts.length > 1 ? `<div class="evts-points" aria-hidden="true">${evts.map((e, i) => `<i${i ? '' : ' class="actif"'}></i>`).join('')}</div>
+    <script>(function () { var c = document.querySelector('.evts-piste'), pts = document.querySelectorAll('.evts-points i'), n = c.children.length, touche = 0;
+      function k() { return Math.round(c.scrollLeft / c.clientWidth); }
+      c.addEventListener('scroll', function () { var i = k(); Array.prototype.forEach.call(pts, function (p, j) { p.className = j === i ? 'actif' : ''; }); }, { passive: true });
+      ['touchstart', 'pointerdown', 'wheel'].forEach(function (e) { c.addEventListener(e, function () { touche = Date.now(); }, { passive: true }); });
+      setInterval(function () { if (Date.now() - touche < 6000 || document.hidden) return; c.scrollTo({ left: ((k() + 1) % n) * c.clientWidth, behavior: 'smooth' }); }, 4000); })();</script>` : ''}</section>`;
+}
+function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp, barreBas, evenements = [] } = {}) {
   const liens = nav.map((n) => (n.section
     ? `<p class="sb-section">${echapper(n.section)}</p>`
     : `<a class="sb-lien${n.cle === actif ? ' actif' : ''}" href="${echapper(n.lien)}"${n.externe ? ' target="_blank" rel="noopener"' : ''}>${ICONES_NAV[n.icone] || ''}<span>${echapper(n.libelle)}</span>${n.badge ? `<span class="sb-badge">${echapper(n.badge)}</span>` : ''}</a>`)).join('');
@@ -344,8 +381,8 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonA
   </aside>
   <label for="menu-ouvert" class="sb-voile" aria-hidden="true"></label>
   <div class="espace-corps">
-    <header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label>${logo()}</header>
-    <main class="espace-contenu">${contenu}</main>
+    <header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label></header>
+    <main class="espace-contenu">${banniereEvenements(evenements)}${contenu}</main>
   </div>
   ${barreBas ? `<nav class="barre-bas" aria-label="Navigation rapide">${barreBas.map((n) => `<a href="${echapper(n.lien)}"${n.cle === actif ? ' class="actif" aria-current="page"' : ''}>${ICONES_NAV[n.icone] || ''}<span>${echapper(n.libelle)}</span></a>`).join('')}</nav>` : ''}
 </div>`, { script, entete: false, brut: true, jetonApp });
@@ -749,7 +786,7 @@ function pageMessage(config, titre, message, { lien = '/', texteLien = 'Retour' 
   ${blocSupport(config)}`);
 }
 
-module.exports = {
+module.exports = { banniereEvenements,
   CONTENU, ICONE, echapper, gabarit, gabaritEspace, logo, formatPrix, formatDate, blocSupport, blocVideo,
   pageBienvenue, pageAccueil, fenetreTutoBob, pageEmailWhop, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
 };
