@@ -58,6 +58,14 @@ const STYLE_PARCOURS = `<style>
   .remarque p { margin:0; overflow-wrap:anywhere; }
   .remarque a { color:#fff; }
   .remarque .images { display:flex; flex-wrap:wrap; gap:8px; }
+  .remarques-liste { display:grid; gap:8px; margin-top:12px; }
+  .remarque.compacte { display:block; padding:12px 14px; }
+  .remarque.compacte > summary { list-style:none; cursor:pointer; display:grid; gap:4px; } .remarque.compacte > summary::-webkit-details-marker { display:none; }
+  .remarque.compacte .apercu { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:14px; overflow-wrap:anywhere; }
+  .remarque.compacte[open] .apercu { display:none; }
+  .remarque.compacte[open] > :not(summary) { margin-top:8px; }
+  .remarques-liste.repliee > :nth-child(4) { opacity:.5; } .remarques-liste.repliee > :nth-child(5) { opacity:.22; pointer-events:none; }
+  .remarques-liste.repliee > :nth-child(n+6) { display:none; }
   .remarque .images img { width:100%; max-width:320px; border-radius:10px; border:1px solid var(--bord); }
   .remarque[data-type="corriger"] { border-color:rgba(255,77,77,.45); }
   .recap { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -237,6 +245,21 @@ function remarque(r) {
     ${r.texte && r.texte !== '(image)' ? `<p>${texteRiche(r.texte)}</p>` : ''}
     ${(r.images || []).length ? `<div class="images">${r.images.map((n) => `<a href="/fichiers/images/${echapper(n)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(n)}" alt="Image jointe par le coach" loading="lazy"></a>`).join('')}</div>` : ''}
   </div>`;
+}
+function remarqueCompacte(r) {
+  const n = (r.images || []).length;
+  return `<details class="remarque compacte" data-type="${echapper(r.type || 'remarque')}">
+    <summary><span class="qui">Ton coach · ${echapper(formatDate(r.cree_le))}${r.modifie_le ? ' · modifiée' : ''}${n ? ` · ${n} image${n > 1 ? 's' : ''}` : ''}</span>
+      <span class="apercu">${echapper(r.texte && r.texte !== '(image)' ? r.texte : 'Image jointe par le coach')}</span></summary>
+    ${r.texte && r.texte !== '(image)' ? `<p>${texteRiche(r.texte)}</p>` : ''}
+    ${n ? `<div class="images">${r.images.map((x) => `<a href="/fichiers/images/${echapper(x)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(x)}" alt="Image jointe par le coach" loading="lazy"></a>`).join('')}</div>` : ''}
+  </details>`;
+}
+// Les remarques en liste : les 3 premières bien visibles, puis en fondu ; « Tout afficher » montre le reste.
+function listeRemarques(remarques, { toutes } = {}) {
+  if (!remarques.length) return '<p class="doux" style="margin:0">Pas encore de remarque.</p>';
+  return `<div class="remarques-liste${toutes || remarques.length <= 3 ? '' : ' repliee'}">${remarques.map(remarqueCompacte).join('')}</div>
+    ${!toutes && remarques.length > 3 ? `<button class="bouton secondaire tout-afficher" type="button" onclick="var l=this.previousElementSibling;l.classList.remove('repliee');this.remove();">Tout afficher (${remarques.length})</button>` : ''}`;
 }
 const zoneImages = () => `<div data-images="/admin/images">
   <label class="fichier">${ICONE.plus}<span><b>Joindre des images</b><br>Captures, exemples…</span><input type="file" accept="image/*" multiple hidden></label>
@@ -518,7 +541,6 @@ function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarques
 
 // ---------- La fiche (membre ou coach) ----------
 function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0 }) {
-  const visibles = toutes ? remarques : remarques.slice(0, 1);
   // Ce qui attend une décision du coach (sinistre, rôle à confirmer) passe en haut de la colonne.
   const aConfirmer = recompenses.some((r) => !r.confirme_le);
   const base = vueCoach ? `/admin/membres/${encodeURIComponent(p.discord_id)}` : '/fiche';
@@ -539,9 +561,10 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
         <p class="doux petit" style="margin:0">${echapper(p.pseudo || 'Le membre')} la voit sur sa fiche, et Bob le prévient.</p></form>` : ''}
       <div class="carte" id="remarques">
         <div class="envoi-tete"><h2>Remarques du coach</h2><span class="doux petit">${remarques.length} au total</span></div>
-        <div style="display:grid;gap:10px;margin-top:12px">${visibles.map(remarque).join('') || '<p class="doux" style="margin:0">Pas encore de remarque.</p>'}</div>
-        ${!toutes && remarques.length > 1 ? `<a class="bouton secondaire" href="${base}?toutes=1#remarques">Tout afficher (${remarques.length})</a>` : ''}
+        ${listeRemarques(remarques, { toutes })}
       </div>
+      ${p.etape >= 4 && stats ? (vueCoach ? `${blocObjectifs(stats, { lien: `${base}/profil`, texteLien: 'Voir son tableau de bord' })}${blocStats(stats)}`
+        : blocObjectifs(stats, { lien: '/revenus' })) : '<div class="carte"><h2>Statistiques</h2><p class="doux" style="margin:0">Elles s\'afficheront à partir de l\'étape 4, avec les comptes rendus.</p></div>'}
     </div>
     <div>
       ${sinistre ? blocSinistres({ vueCoach, base, p, sinistre, historique, joursAbsence }) : ''}
@@ -550,7 +573,7 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
         <div><dt>Discord</dt><dd>${echapper(p.pseudo || p.discord_id)}</dd></div>
         <div><dt>Entrée</dt><dd>${echapper(formatDate(p.entree_le))}</dd></div>
         <div><dt>Fin des 90 jours</dt><dd>${echapper(formatDate(p.fin_le))}</dd></div>
-        <div><dt>Niveau</dt><dd>${echapper(p.niveau || '—')}</dd></div>
+        <div><dt>Profil type</dt><dd>${echapper(p.niveau || '—')}</dd></div>
       </dl></div>
       ${vueCoach ? `<form class="carte" method="post" action="${base}/compte" style="display:grid;gap:10px">
         <h2 style="margin:0">Compte TikTok</h2>
@@ -566,8 +589,6 @@ function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, m
       <div class="carte"><h2>Parcours</h2><dl class="details">${dates.map(([t, le]) => `<div><dt>${echapper(t)}</dt><dd>${echapper(le)}</dd></div>`).join('')}</dl>
         ${p.etapes_forcees ? `<p class="doux petit" style="margin:10px 0 0">Passée(s) par ${vueCoach ? 'toi' : 'ton coach'} : étape(s) ${echapper(JSON.parse(p.etapes_forcees).join(', '))}.</p>` : ''}
         ${vueCoach && p.etape < 5 ? `<a class="bouton secondaire" href="/admin/eleves?eleve=${encodeURIComponent(p.discord_id)}">Changer d'étape</a>` : ''}</div>
-      ${p.etape >= 4 && stats ? (vueCoach ? `${blocObjectifs(stats, { lien: `${base}/profil`, texteLien: 'Voir son tableau de bord' })}${blocStats(stats)}`
-        : blocObjectifs(stats, { lien: '/profil' })) : '<div class="carte"><h2>Statistiques</h2><p class="doux" style="margin:0">Elles s\'afficheront à partir de l\'étape 4, avec les comptes rendus.</p></div>'}
       ${vueCoach && !aConfirmer ? blocRecompenses(base, recompenses) : ''}
       ${sinistre ? '' : blocSinistres({ vueCoach, base, p, sinistre, historique, joursAbsence })}
     </div>
@@ -712,7 +733,7 @@ function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, m
     ? `<div class="carte"><h2>Déjà traité</h2><p class="doux" style="margin:0">${s.etat === 'valide' ? 'Validé' : 'Modifications demandées'} le ${echapper(formatDate(s.decide_le))}.</p></div>`
     : `<form class="carte" method="post" action="/admin/envois/${s.id}/decision" style="display:grid;gap:12px">
         <h2 style="margin:0">Ta décision</h2>
-        ${etape1 ? `<div class="champ"><label for="niveau">Niveau</label><select id="niveau" name="niveau">
+        ${etape1 ? `<div class="champ"><label for="niveau">Profil type</label><select id="niveau" name="niveau">
             <option value="L2"${niveauPropose === 'L2' ? ' selected' : ''}>L2</option><option value="L1"${niveauPropose === 'L1' ? ' selected' : ''}>L1</option></select>
           <small>Proposé : ${echapper(niveauPropose)} (L2 si ses deux notes sont à 80 ou plus).</small></div>` : ''}
         <div class="champ"><label for="texte">${etape1 ? 'Tes remarques (facultatif)' : 'Ton retour complet'}</label>
@@ -1122,4 +1143,4 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
-module.exports = { texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+module.exports = { listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };

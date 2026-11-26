@@ -186,3 +186,17 @@ test('remarque modifiée par le coach : jamais supprimée ; déjà lue → l\'é
     assert.doesNotMatch(await (await m.get('/coach', coach)).text(), /Générés/);
   } finally { await m.fermer(); }
 });
+
+test('remarques compactes : 3 bien visibles, les suivantes en fondu, « Tout afficher »', async () => {
+  const m = await monter();
+  try {
+    m.parcours.assurer('A', { pseudo: 'p_A' });
+    for (let k = 1; k <= 6; k++) m.parcours.ajouterRemarque('A', { texte: `Remarque numéro ${k}` });
+    const page = await (await m.get('/remarques', { cookie: cookieSession('A', 'p_A') })).text();
+    assert.match(page, /class="remarques-liste repliee"/);
+    assert.strictEqual((page.match(/class="remarque compacte"/g) || []).length, 6);
+    assert.match(page, /Tout afficher \(6\)/);
+    const fiche = await (await m.get('/admin/membres/A', { cookie: cookieSession(ADMIN, 'coach') })).text();
+    assert.match(fiche, /Remarques du coach[\s\S]*Tout afficher \(6\)[\s\S]*Statistiques/, 'statistiques juste sous les remarques');
+  } finally { await m.fermer(); }
+});

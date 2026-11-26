@@ -145,7 +145,7 @@ test('parcours Elite : étape 1 (exercices), étape 2 (coaching d\'entrée), ét
     const fiche = await (await m.get('/fiche', { cookie: membre })).text();
     assert.match(fiche, /href="https:\/\/www\.tiktok\.com\/@exemple"/);
     assert.ok(fiche.includes(`/fichiers/images/${img.nom}`));
-    assert.match(fiche, /Tout afficher/, 'plusieurs remarques : bouton Tout afficher');
+    assert.match(fiche, /class="remarque compacte"[\s\S]*class="apercu"/, 'remarques compactes : titre et aperçu, le reste à l\'ouverture');
     assert.strictEqual((await m.get(`/fichiers/images/${img.nom}`, { cookie: membre })).status, 200);
     assert.strictEqual((await m.get(`/fichiers/images/${img.nom}`, { cookie: cookieSession('AUTRE', 'x') })).status, 403);
     assert.match(await (await m.get(`/admin/membres/${E1}`, { cookie: coach })).text(), /Nouvelle remarque/);

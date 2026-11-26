@@ -268,7 +268,7 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       const entree = q.entree.get(discordId);
       const entreeFaite = Boolean(entree && new Date(`${entree.date}T${entree.heure}:00.000Z`) < maintenant());
       const r = {
-        1: [...['L1', 'L2'].filter((e) => etat(e) !== 'valide').map((e) => `Exercice ${e} pas validé`), ...(p.niveau ? [] : ['Niveau (L1 ou L2) pas choisi'])],
+        1: [...['L1', 'L2'].filter((e) => etat(e) !== 'valide').map((e) => `Exercice ${e} pas validé`), ...(p.niveau ? [] : ['Profil type (L1 ou L2) pas choisi'])],
         2: [...(entreeFaite ? [] : ['Coaching d\'entrée pas fait']), ...(p.compte_tiktok ? [] : ['Compte TikTok pas renseigné'])],
         3: ['V1', 'V2', 'V3'].filter((e) => etat(e) !== 'valide').map((e) => `Vidéo ${e.slice(1)} pas validée`),
       };

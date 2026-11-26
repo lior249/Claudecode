@@ -4,7 +4,7 @@
 // son résultat), la chaîne 🔥, ceux qu'il suit, la tâche du moment ; puis le tableau de bord des revenus.
 // Et la page Communauté : suivis (10 places), concurrents (3), invitations, suggestions.
 const { echapper } = require('./pages');
-const { page, remarque, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce } = require('./pages-parcours');
+const { page, remarque, listeRemarques, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce } = require('./pages-parcours');
 const { ICONE } = require('./pages');
 const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
@@ -404,7 +404,7 @@ function pageCommunaute(config, { espace, suivis, concurrents, recues, envoyees,
 // ---------- Remarques du coach ----------
 function pageRemarques(config, { espace, remarques }) {
   return page('Remarques du coach', `<div class="titre-page"><div><p class="etiquette">Mon accompagnement</p><h1>Remarques du coach</h1></div><span class="doux petit">${remarques.length} au total</span></div>
-  <div style="display:grid;gap:10px">${remarques.map(remarque).join('') || '<p class="vide-traiter">Pas encore de remarque.</p>'}</div>`, espace, 'remarques');
+  ${remarques.length ? listeRemarques(remarques) : '<p class="vide-traiter">Pas encore de remarque.</p>'}`, espace, 'remarques');
 }
 
 // ---------- Annonces du coach ----------

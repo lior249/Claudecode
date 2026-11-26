@@ -33,7 +33,7 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
     const r = m.parcours.preparerEnvoi(E1, 'L1', { note: 85, retour: 'Retour complet de l\'IA sur la vidéo.' });
     m.db.prepare("UPDATE soumissions SET etat = 'attente', envoye_le = ? WHERE id = ?").run(new Date().toISOString(), r.soumission.id);
     const manque = m.parcours.manquants(E1);
-    assert.deepStrictEqual(manque[1], ['Exercice L1 pas validé', 'Exercice L2 pas validé', 'Niveau (L1 ou L2) pas choisi']);
+    assert.deepStrictEqual(manque[1], ['Exercice L1 pas validé', 'Exercice L2 pas validé', 'Profil type (L1 ou L2) pas choisi']);
     assert.deepStrictEqual(manque[2], ['Coaching d\'entrée pas fait', 'Compte TikTok pas renseigné']);
     assert.deepStrictEqual(manque[3], ['Vidéo 1 pas validée', 'Vidéo 2 pas validée', 'Vidéo 3 pas validée']);
     assert.match(await (await m.get('/admin/a-traiter', { cookie: coach })).text(), /Exercice L1/);
