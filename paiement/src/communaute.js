@@ -1,7 +1,7 @@
 'use strict';
 
 // Communauté des élèves Elite : suivis (10 places), concurrences (3 au plus, elles prennent une place de suivi),
-// chaîne d'activité (comptes rendus envoyés jour après jour) et suggestions (en vogue, profils proches).
+// chaîne d'activité (updates du compte envoyés jour après jour) et suggestions (en vogue, profils proches).
 const MAX_SUIVIS = 10;
 const MAX_CONCURRENTS = 3;
 const CHAINE_MIN = 3; // la flamme s'allume à 3 jours d'affilée
@@ -33,9 +33,9 @@ function creerCommunaute({ db, parcours, suivi, maintenant = () => new Date() })
     decider: db.prepare('UPDATE concurrences SET statut = ?, decide_le = ? WHERE id = ? AND statut = ?'),
     finir: db.prepare("UPDATE concurrences SET statut = 'fini', gagnant = ?, fini_le = ? WHERE id = ? AND statut = 'accepte'"),
     joursCr: db.prepare("SELECT jour FROM comptes_rendus WHERE discord_id = ? AND envoye_le IS NOT NULL ORDER BY jour DESC"),
-    crValides: db.prepare("SELECT jour, decide_le FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide' AND decide_le >= ? ORDER BY decide_le DESC LIMIT 10"),
     finies: db.prepare("SELECT * FROM concurrences WHERE statut = 'fini' AND (de = ? OR vers = ?) AND fini_le >= ?"),
-    crPeriode: db.prepare("SELECT jour, vues_jour, etat FROM comptes_rendus WHERE discord_id = ? AND envoye_le IS NOT NULL AND jour >= ? AND etat != 'corriger'"),
+    videosPeriode: db.prepare('SELECT ok_vues, ok_revenus FROM publications WHERE discord_id = ? AND jour >= ? AND ok_vues IS NOT NULL'),
+    videosValidees: db.prepare("SELECT * FROM publications WHERE discord_id = ? AND res_etat = 'valide' AND res_decide_le >= ? ORDER BY res_decide_le DESC LIMIT 10"),
   };
   const iso = () => maintenant().toISOString();
   const aujourdhuiDe = (p) => (p && p.fuseau ? suivi.aujourdhui(p) : maintenant().toISOString().slice(0, 10));
@@ -58,9 +58,8 @@ function creerCommunaute({ db, parcours, suivi, maintenant = () => new Date() })
   function periode(id, jours) {
     const p = parcours.get(id);
     const depuis = decaler(aujourdhuiDe(p), -(jours - 1));
-    const crs = q.crPeriode.all(id, depuis);
-    const gains = suivi.gains(id).filter((g) => g.jour >= depuis).reduce((t, g) => t + g.gain, 0);
-    return { revenus: Math.round(gains * 100) / 100, vues: crs.reduce((t, c) => t + (c.vues_jour || 0), 0), comptesRendus: crs.length };
+    const v = q.videosPeriode.all(id, depuis);
+    return { revenus: Math.round(v.reduce((t, x) => t + (x.ok_revenus || 0), 0) * 100) / 100, vues: v.reduce((t, x) => t + (x.ok_vues || 0), 0), comptesRendus: v.length };
   }
 
   const concurrentsDe = (id) => q.actives.all(id, id).map((c) => ({ ...c, autre: c.de === id ? c.vers : c.de }));
@@ -163,17 +162,16 @@ function creerCommunaute({ db, parcours, suivi, maintenant = () => new Date() })
       const depuis = new Date(maintenant().getTime() - 21 * JOUR).toISOString();
       const items = [];
       for (const s of q.suivis.all(id)) {
-        for (const cr of q.crValides.all(s.suivi, depuis)) items.push({ auteur: s.suivi, concurrent: s.type === 'concurrent', quand: cr.decide_le, ...api.nouvelle(s.suivi, cr.jour) });
+        for (const v of q.videosValidees.all(s.suivi, depuis)) items.push({ auteur: s.suivi, concurrent: s.type === 'concurrent', quand: v.res_decide_le, ...api.nouvelle(v) });
       }
       for (const c of q.finies.all(id, id, depuis)) items.push({ auteur: c.gagnant, concurrent: true, quand: c.fini_le, type: 'gagne', valeur: c.objectif });
       return items.sort((a, b) => String(b.quand).localeCompare(String(a.quand))).slice(0, n);
     },
     // Message pour ceux qui le suivent, après un compte rendu validé : l'argent d'abord, sinon les vues, sinon « a posté ».
-    nouvelle(id, jour) {
-      const g = suivi.gains(id).find((x) => x.jour === jour);
-      const cr = suivi.compteRendu(id, jour);
-      if (g && g.gain > 0) return { type: 'gain', valeur: g.gain };
-      if (cr && cr.vues_jour > 0) return { type: 'vues', valeur: cr.vues_jour };
+    // D'après les résultats validés d'une vidéo.
+    nouvelle(v) {
+      if (v && v.ok_revenus > 0) return { type: 'gain', valeur: v.ok_revenus };
+      if (v && v.ok_vues > 0) return { type: 'vues', valeur: v.ok_vues };
       return { type: 'poste', valeur: null };
     },
   };

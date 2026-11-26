@@ -12,10 +12,13 @@ function eleve(m, id, { etape = 4 } = {}) {
   m.parcours.assurer(id, { pseudo: `p_${id}`, nom: `${id} Nom-complet` });
   m.db.prepare('UPDATE parcours SET etape = ? WHERE discord_id = ?').run(etape, id);
 }
+// Un jour d'activité : une vidéo et ses résultats (validés ou en attente), et l'update du compte du jour. Renvoie l'id de la vidéo.
 function compteRendu(m, id, jour, { etat = 'valide', total = 0, vues = 0 } = {}) {
-  m.db.prepare("INSERT INTO publications (discord_id, jour, lien, cree_le) VALUES (?, ?, ?, ?)").run(id, jour, `https://tiktok.com/${id}/${jour}`, new Date().toISOString());
-  const r = m.db.prepare('INSERT INTO comptes_rendus (discord_id, jour, etat, total_mois, vues_jour, envoye_le, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(id, jour, etat, total, vues, new Date().toISOString(), new Date().toISOString());
+  const ok = etat === 'valide';
+  const r = m.db.prepare(`INSERT INTO publications (discord_id, jour, lien, cree_le, res_vues, res_revenus, res_captures, res_etat, res_envoye_le, ok_vues, ok_revenus)
+    VALUES (?, ?, ?, ?, ?, ?, '["x.png"]', ?, ?, ?, ?)`).run(id, jour, `https://tiktok.com/${id}/${jour}`, new Date(Date.now() - 30 * 3600000).toISOString(), vues, total, etat, new Date().toISOString(), ok ? vues : null, ok ? total : null);
+  m.db.prepare('INSERT INTO comptes_rendus (discord_id, jour, etat, vues_28j, revenus_28j, envoye_le, cree_le) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(id, jour, etat, vues, total, new Date().toISOString(), new Date().toISOString());
   return Number(r.lastInsertRowid);
 }
 
@@ -64,9 +67,9 @@ test('suivre (10 places), défier (3 concurrents), résultats envoyés à ceux q
     // Pas encore à l'étape 4 : pas de concurrence.
     assert.match((await m.poster('/communaute/defier', { id: 'E5' }, cookie('N'))).headers.get('location') || '', /erreur|parcours/);
 
-    // Le coach valide un compte rendu de E11 qui dépasse 1 000 $ : ceux qui le suivent sont prévenus, il gagne la concurrence.
-    const crId = compteRendu(m, 'E11', jourIl(1), { etat: 'attente', total: 1200, vues: 45000 });
-    await m.poster(`/admin/comptes-rendus/${crId}/decision`, { decision: 'valider' }, { cookie: cookieSession(ADMIN, 'coach') });
+    // Le coach valide les résultats d'une vidéo de E11 qui le font dépasser 1 000 $ : ceux qui le suivent sont prévenus, il gagne la concurrence.
+    const videoId = compteRendu(m, 'E11', jourIl(1), { etat: 'attente', total: 1089, vues: 45000 });
+    await m.poster(`/admin/resultats/${videoId}/decision`, { decision: 'valider' }, { cookie: cookieSession(ADMIN, 'coach') });
     const partage = appels.find(([nom]) => nom === 'resultatPartage');
     assert.ok(partage, 'résultat partagé');
     assert.strictEqual(partage[1].nom, 'p_E11', 'jamais le nom complet');

@@ -616,6 +616,19 @@ function migrerV26(db) {
   db.exec('PRAGMA user_version = 26');
 }
 
+// v27 : résultats par vidéo (24 h après la publication, mis à jour ensuite) et update du compte de chaque jour (28 derniers jours).
+// Le coach valide tout : les valeurs validées (ok_*) comptent ; celles envoyées attendent sa décision.
+function migrerV27(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 27) return;
+  const p = colonnes(db, 'publications');
+  for (const [c, t] of [['res_vues', 'INTEGER'], ['res_revenus', 'REAL'], ['res_captures', 'TEXT'], ['res_etat', 'TEXT'], ['res_envoye_le', 'TEXT'],
+    ['res_decide_le', 'TEXT'], ['ok_vues', 'INTEGER'], ['ok_revenus', 'REAL']]) if (!p.includes(c)) db.exec(`ALTER TABLE publications ADD COLUMN ${c} ${t}`);
+  const c = colonnes(db, 'comptes_rendus');
+  if (!c.includes('vues_28j')) db.exec('ALTER TABLE comptes_rendus ADD COLUMN vues_28j INTEGER');
+  if (!c.includes('revenus_28j')) db.exec('ALTER TABLE comptes_rendus ADD COLUMN revenus_28j REAL');
+  db.exec('PRAGMA user_version = 27');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -651,6 +664,7 @@ function ouvrirBase(fichier) {
   migrerV24(db);
   migrerV25(db);
   migrerV26(db);
+  migrerV27(db);
   return db;
 }
 

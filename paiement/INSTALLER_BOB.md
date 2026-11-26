@@ -354,6 +354,18 @@ Menu Gestion → **Événements** (`/admin/annonces`). Le logo du haut des pages
 - **Afficher jusqu'au** (7 jours par défaut) ; **Retirer de la bannière** à tout moment.
 - **Envoyer aussi une notification** (coché par défaut) : tous les élèves Elite la reçoivent (application ou Bob, image jointe sur Discord).
 
+## Étape 4 : résultats par vidéo et update du compte
+
+- **Publier** : l'élève colle seulement le lien de la vidéo (un lien déjà déclaré est refusé).
+- **24 h après** : « Résultats » de la vidéo : capture des statistiques, vues et revenus de la vidéo. Il peut revenir les **mettre à jour**
+  (une capture de plus, nouvelles vues et nouveaux revenus) ; la date de publication ne change pas.
+- **Chaque jour, à son heure de résultats** : l'**update du compte** : capture des **28 derniers jours**, vues et revenus sur 28 jours.
+- **Tu valides tout** (À traiter : « Résultats vidéo » et « Updates du compte ») ; une demande de modifications revient à l'élève avec ta remarque.
+- **Calculs** : revenus totaux = revenus validés des vidéos (objectifs, rôles €1.5k / €5k / €10k, classement) ;
+  **GOAT** = revenus des 28 derniers jours du dernier update validé ($1,000) ; vues du profil = vues sur 28 jours du dernier update validé.
+- **Rappels de Bob** : à son heure de résultats, les vidéos à mettre à jour et l'update du jour ; **le dimanche**, « tes vidéos bangers
+  ont fait plus de stats ? Mets-les à jour ». Ceux qui le suivent sont prévenus quand tu valides les résultats d'une vidéo.
+
 ## Espace du coach épuré
 
 - **Menu** : Mon profil (`/coach`), À traiter, Calendrier, Élèves Elite, Planifier, Classement, Notifications.

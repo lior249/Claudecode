@@ -63,7 +63,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
     const aTraiterParcours = estAdmin
-      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + aTraiter : 0;
+      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
     const c = !estAdmin && session ? compteursMembre(session.id) : { notifs: 0, remarques: 0 };
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
@@ -1045,7 +1045,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const t = parcours.tache(id);
     if (t && !['attente1', 'attente3', 'entree-reservee', 'ok', 'goat'].includes(t.cle)) ajouter(t.titre, t.lien);
     if (p.etape === 4 && p.heure_creation) {
-      for (const x of suivi.comptesRendusAFaire(id)) ajouter(`${x.cr && x.cr.etat === 'corriger' ? 'Corrige' : 'Envoie'} ton compte rendu du ${jourLisible(x.jour)}`, `/parcours/compte-rendu/${x.jour}`);
+      for (const v of suivi.videosAFaire(id)) ajouter(`${v.res_etat === 'corriger' ? 'Corrige les' : 'Donne les'} résultats de ta vidéo du ${jourLisible(v.jour)}`, `/parcours/videos/${v.id}`);
+      for (const x of suivi.comptesRendusAFaire(id)) ajouter(x.cr && x.cr.etat === 'corriger' ? `Corrige ton update du compte du ${jourLisible(x.jour)}` : 'Fais l\'update de ton compte', `/parcours/compte-rendu/${x.jour}`);
       if (!suivi.publications(id, suivi.aujourdhui(p)).length) ajouter('Publie ta vidéo du jour', '/parcours/etape-4');
     }
     if ([3, 4].includes(p.etape) && !coaching.aUnPlanning(id)) ajouter('Réserve tes coachings de la semaine', '/coaching');
@@ -1060,14 +1061,15 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // ---- Étape 4 : publication et suivi ----
   const MESSAGES_ETAPE4 = {
     heures: 'Tes heures sont enregistrées. Bob te les rappellera chaque jour.',
-    publication: 'Vidéo déclarée. Demain, à ton heure de compte rendu, tu enverras ses résultats.',
-    'compte-rendu': 'Compte rendu envoyé. Ton coach le regarde, Bob te prévient de sa décision.',
+    publication: 'Vidéo déclarée. Dans 24 h, tu donneras ses résultats.',
+    'compte-rendu': 'Update du compte envoyé. Ton coach le regarde, Bob te prévient de sa décision.',
+    resultat: 'Résultats envoyés. Ton coach les regarde, Bob te prévient de sa décision.',
   };
   function pageEtape4(x, commun, message) {
     const id = x.session.id;
     const jour = suivi.aujourdhui(x.p);
-    return V.pageEtape4(config, { ...commun, aujourdhui: x.p.fuseau ? jour : null, publications: suivi.publications(id, jour), capture: suivi.captureDuJour(id, jour),
-      aFaire: suivi.comptesRendusAFaire(id), stats: suivi.stats(id), message });
+    return V.pageEtape4(config, { ...commun, aujourdhui: x.p.fuseau ? jour : null, publications: suivi.publications(id, jour), videos: suivi.videos(id).slice(0, 21),
+      aFaire: suivi.comptesRendusAFaire(id), updateDuJour: suivi.compteRendu(id, jour), stats: suivi.stats(id), message });
   }
   // Une image n'est acceptée que si ce membre l'a lui-même envoyée.
   const imageDe = (nom, discordId) => (nom && parcours.imageDuMembre(String(nom), discordId) ? String(nom) : null);
@@ -1089,53 +1091,61 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
     res.redirect(303, '/parcours/etape-4?ok=publication');
   });
+  // Update du compte : aujourd'hui (ou hier en retard), ou un update à corriger.
   function compteRenduMembre(req, res) {
     const jour = String(req.params.jour || '');
     const x = membreParcours(req, res, `/parcours/compte-rendu/${encodeURIComponent(jour)}`);
     if (!x) return null;
-    const videos = /^\d{4}-\d{2}-\d{2}$/.test(jour) && x.p.etape >= 4 ? suivi.publications(x.session.id, jour) : [];
-    if (!videos.length) { res.redirect(303, '/parcours/etape-4'); return null; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(jour) || x.p.etape < 4) { res.redirect(303, '/parcours/etape-4'); return null; }
     const cr = suivi.compteRendu(x.session.id, jour);
     if (cr && cr.etat === 'valide') {
-      res.send(P.pageMessage(config, 'Compte rendu validé', `Ton compte rendu du ${jourLisible(jour)} est validé par ton coach.`, { lien: '/parcours/etape-4', texteLien: 'Étape 4' }));
+      res.send(P.pageMessage(config, 'Update validé', `Ton update du compte du ${jourLisible(jour)} est validé par ton coach.`, { lien: '/parcours/etape-4', texteLien: 'Étape 4' }));
       return null;
     }
-    const remarques = parcours.remarques(x.session.id).filter((r) => String(r.texte || '').startsWith(`Compte rendu du ${jourLisible(jour)}`));
-    return { ...x, jour, videos, cr, remarques };
+    const remarques = parcours.remarques(x.session.id).filter((r) => String(r.texte || '').startsWith(`Update du compte du ${jourLisible(jour)}`));
+    return { ...x, jour, cr, remarques };
   }
   app.get('/parcours/compte-rendu/:jour', (req, res) => {
     const x = compteRenduMembre(req, res);
     if (!x) return;
-    res.send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, videos: x.videos, cr: x.cr, questions: QUESTIONS, remarques: x.remarques,
-      precedent: suivi.totalPrecedent(x.session.id, x.jour) }));
+    res.send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, cr: x.cr, remarques: x.remarques }));
   });
   app.post('/parcours/compte-rendu/:jour', formulaire, (req, res) => {
     const x = compteRenduMembre(req, res);
     if (!x) return;
     const b = req.body;
-    const d = {
-      total_mois: b.total_mois,
-      abonnes_total: b.abonnes_total, vues_total: b.vues_total, abonnes_jour: b.abonnes_jour, vues_jour: b.vues_jour,
-      pays_vues: [b.pays_vues_1, b.pays_vues_2, b.pays_vues_3], pays_abonnes: [b.pays_abonnes_1, b.pays_abonnes_2, b.pays_abonnes_3],
-      capture_revenus: imageDe(b.capture_revenus, x.session.id),
-      question: b.question === 'autre' ? b.question_autre : b.question,
-      videos: {},
-    };
-    for (const v of x.videos) {
-      d.videos[v.id] = Object.fromEntries(['vues', 'abonnes', 'heure', 'visionnage_s', 'retention_10s', 'revenus'].map((k) => [k, b[`v_${v.id}_${k}`]]));
-    }
+    const d = { vues_28j: b.vues_28j, revenus_28j: b.revenus_28j, capture: imageDe(b.capture, x.session.id), question: b.question };
     const r = suivi.enregistrerCompteRendu(x.session.id, x.jour, d);
     if (r.erreur) {
-      // On réaffiche ce qu'il a tapé.
-      const saisi = { ...d, etat: x.cr ? x.cr.etat : null, capture_revenus: d.capture_revenus || (x.cr && x.cr.capture_revenus) || null,
-        pays_vues: d.pays_vues.map((v) => String(v || '')), pays_abonnes: d.pays_abonnes.map((v) => String(v || '')),
-        videos: Object.entries(d.videos).map(([id, v]) => ({ publication_id: Number(id), ...v })) };
-      res.status(400).send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, videos: x.videos, cr: saisi, questions: QUESTIONS, remarques: x.remarques,
-        erreur: r.erreur, precedent: suivi.totalPrecedent(x.session.id, x.jour) }));
+      const saisi = { ...(x.cr || {}), vues_28j: b.vues_28j, revenus_28j: b.revenus_28j, question: b.question, capture_revenus: d.capture || (x.cr && x.cr.capture_revenus) || null };
+      res.status(400).send(V.pageCompteRendu(config, { espace: x.espace, parcours: x.p, jour: x.jour, cr: saisi, remarques: x.remarques, erreur: r.erreur }));
       return;
     }
     prevenir('compteRenduRecu', r.compteRendu, x.p);
     res.redirect(303, '/parcours/etape-4?ok=compte-rendu');
+  });
+  // Résultats d'une vidéo (24 h après la publication ; mise à jour possible ensuite : nouvelle capture, vues, revenus).
+  function videoMembre(req, res) {
+    const x = membreParcours(req, res, `/parcours/videos/${encodeURIComponent(req.params.id)}`);
+    if (!x) return null;
+    const v = suivi.video(req.params.id);
+    if (!v || v.discord_id !== x.session.id) { res.redirect(303, '/parcours/etape-4'); return null; }
+    const remarques = parcours.remarques(x.session.id).filter((r) => String(r.texte || '').startsWith(`Résultats de ta vidéo du ${jourLisible(v.jour)}`));
+    return { ...x, v, remarques };
+  }
+  app.get('/parcours/videos/:id', (req, res) => {
+    const x = videoMembre(req, res);
+    if (!x) return;
+    res.send(V.pageResultatVideo(config, { espace: x.espace, parcours: x.p, video: x.v, remarques: x.remarques }));
+  });
+  app.post('/parcours/videos/:id', formulaire, (req, res) => {
+    const x = videoMembre(req, res);
+    if (!x) return;
+    const b = req.body;
+    const r = suivi.enregistrerResultat(x.session.id, x.v.id, { vues: b.vues, revenus: b.revenus, capture: imageDe(b.capture, x.session.id) });
+    if (r.erreur) { res.status(400).send(V.pageResultatVideo(config, { espace: x.espace, parcours: x.p, video: { ...x.v, res_vues: b.vues, res_revenus: b.revenus }, remarques: x.remarques, erreur: r.erreur })); return; }
+    prevenir('resultatRecu', r.video, x.p);
+    res.redirect(303, '/parcours/etape-4?ok=resultat');
   });
   // Captures envoyées par le membre (compte du jour, revenus).
   app.post('/api/parcours/image', async (req, res) => {
@@ -1188,14 +1198,17 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const aujourdhui = p.fuseau ? suivi.aujourdhui(p) : new Date().toISOString().slice(0, 10);
     const entree = (p.entree_le || aujourdhui).slice(0, 10);
     const debut = entree > decaler(aujourdhui, -45) ? entree : decaler(aujourdhui, -45);
-    const pubs = Object.fromEntries(commandes.db.prepare('SELECT jour, COUNT(*) n FROM publications WHERE discord_id = ? GROUP BY jour').all(id).map((x) => [x.jour, x.n]));
+    const videosParJour = {};
+    for (const v of suivi.videos(id)) (videosParJour[v.jour] = videosParJour[v.jour] || []).push(v);
     const crs = Object.fromEntries(suivi.comptesRendus(id).map((c) => [c.jour, c]));
-    const gains = Object.fromEntries(suivi.gains(id).map((g) => [g.jour, g.gain]));
+    const ordre = ['corriger', 'attente', 'valide'];
     const jours = [];
     for (let j = debut; j <= decaler(aujourdhui, 3); j = decaler(j, 1)) {
-      const cr = crs[j];
-      jours.push({ j, aujourdhui: j === aujourdhui, futur: j > aujourdhui, e: cr ? cr.etat : pubs[j] ? 'publie' : 'vide', etape4: p.etape >= 4,
-        g: cr && gains[j] !== undefined ? gains[j] : null, v: cr ? cr.vues_jour : null, n: pubs[j] || 0 });
+      const vids = (videosParJour[j] || []).slice().reverse();
+      const etats = [...vids.map((v) => v.res_etat), crs[j] && crs[j].etat].filter(Boolean);
+      const e = ordre.find((x) => etats.includes(x)) || (vids.length ? 'publie' : 'vide');
+      jours.push({ j, aujourdhui: j === aujourdhui, futur: j > aujourdhui, e, etape4: p.etape >= 4, cr: crs[j] || null,
+        videos: vids.map((v) => ({ id: v.id, lien: v.lien, etat: v.res_etat, vues: v.res_vues, revenus: v.res_revenus, pret: v.pret })) });
     }
     const envoyes = new Set(Object.values(crs).filter((c) => c.envoye_le).map((c) => c.jour));
     const chaine = communaute.chaine(id);
@@ -1291,7 +1304,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     // Tâches du jour : décisions prises aujourd'hui, sur ce qui reste à traiter.
     const debut = `${aujourdhui}T00:00:00.000Z`;
     const n = (sql) => { try { return commandes.db.prepare(sql).get(debut).n; } catch { return 0; } };
-    const faites = n('SELECT COUNT(*) n FROM soumissions WHERE decide_le >= ?') + n('SELECT COUNT(*) n FROM comptes_rendus WHERE decide_le >= ?')
+    const faites = n('SELECT COUNT(*) n FROM soumissions WHERE decide_le >= ?') + n('SELECT COUNT(*) n FROM comptes_rendus WHERE decide_le >= ?') + n('SELECT COUNT(*) n FROM publications WHERE res_decide_le >= ?')
       + n('SELECT COUNT(*) n FROM recompenses WHERE confirme_le >= ?') + n('SELECT COUNT(*) n FROM acces_manuels WHERE decide_le >= ?') + n('SELECT COUNT(*) n FROM candidatures WHERE maj_le >= ? AND statut NOT IN (\'examen\', \'video\')');
     let seancesFaites = 0;
     try { seancesFaites = coaching.occurrences(aujourdhui, aujourdhui).filter((o) => !o.touchee && new Date(o.debut) < new Date()).length; } catch { seancesFaites = 0; }
@@ -1477,7 +1490,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       return { id: c.id, nom: (r && r.valeur) || c.pseudo || c.discord_id, pseudo: c.pseudo, statut: c.statut, maj_le: c.maj_le };
     }) : [];
     res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter(), candidatures: demandes,
-      comptesRendus: suivi.enAttente(), fichesSinistre: sinistres.fichesATraiter(), roles: suivi.aConfirmer(),
+      comptesRendus: suivi.enAttente(), resultats: suivi.resultatsEnAttente(), fichesSinistre: sinistres.fichesATraiter(), roles: suivi.aConfirmer(),
       acces: acces.enAttente(), accesRefuses: acces.refuses(), nomsOffres: Object.fromEntries(Object.values(config.offres).map((o) => [o.id, o.nom])) }));
   });
   // Rôle donné à la main : Oui (accès au site) ou Non. Même décision que les boutons de Bob.
@@ -1488,6 +1501,36 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     res.redirect(303, '/admin/a-traiter#acces');
   });
   // Comptes rendus de l'étape 4.
+  // Résultats d'une vidéo (coach).
+  function resultatDe(req, res) {
+    const v = suivi.video(req.params.id);
+    if (!v || !v.res_etat) { res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ces résultats n\'existent pas.', { lien: '/admin/a-traiter', texteLien: 'À traiter' })); return null; }
+    return v;
+  }
+  app.get('/admin/resultats/:id', (req, res) => {
+    if (!estAdmin(req, res, `/admin/resultats/${encodeURIComponent(req.params.id)}`)) return;
+    const v = resultatDe(req, res);
+    if (!v) return;
+    res.send(V.pageResultatCoach(config, { espace: espaceDe(lireSession(req, config.secretApp)), video: v, parcours: parcours.get(v.discord_id),
+      message: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.post('/admin/resultats/:id/decision', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const v = resultatDe(req, res);
+    if (!v) return;
+    const decision = String(req.body.decision || '');
+    const r = suivi.deciderResultat(v.id, decision, { texte: req.body.texte, images: imagesDe(req.body) });
+    if (r.erreur) { res.redirect(303, `/admin/resultats/${v.id}?erreur=${encodeURIComponent(r.erreur)}`); return; }
+    const p = parcours.get(v.discord_id);
+    prevenir('resultatDecide', r.video, p, decision);
+    if (r.nouvelles.length) prevenir('recompensesAtteintes', p, r.nouvelles);
+    if (decision === 'valider') {
+      const suiveurs = communaute.suiveurs(v.discord_id);
+      if (suiveurs.length) prevenir('resultatPartage', membreVu(v.discord_id), communaute.nouvelle(r.video), suiveurs);
+      for (const c of communaute.verifierConcurrences(v.discord_id)) prevenir('concurrenceGagnee', c, membreVu(v.discord_id), membreVu(c.autre));
+    }
+    res.redirect(303, '/admin/a-traiter');
+  });
   function compteRenduDe(req, res) {
     const cr = suivi.compteRenduParId(req.params.id);
     if (!cr) { res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce compte rendu n\'existe pas.', { lien: '/admin/a-traiter', texteLien: 'À traiter' })); return null; }
@@ -1510,11 +1553,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const p = parcours.get(cr.discord_id);
     prevenir('compteRenduDecide', r.compteRendu, p, decision);
     if (r.nouvelles.length) prevenir('recompensesAtteintes', p, r.nouvelles);
-    if (decision === 'valider') {
-      const suiveurs = communaute.suiveurs(cr.discord_id);
-      if (suiveurs.length) prevenir('resultatPartage', membreVu(cr.discord_id), communaute.nouvelle(cr.discord_id, cr.jour), suiveurs);
-      for (const c of communaute.verifierConcurrences(cr.discord_id)) prevenir('concurrenceGagnee', c, membreVu(cr.discord_id), membreVu(c.autre));
-    }
+
     res.redirect(303, '/admin/a-traiter#etape-4');
   });
   function envoiDe(req, res) {

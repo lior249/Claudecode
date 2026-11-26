@@ -105,7 +105,21 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     confirmer: db.prepare('UPDATE recompenses SET confirme_le = ? WHERE discord_id = ? AND role = ? AND confirme_le IS NULL'),
     aConfirmer: db.prepare('SELECT * FROM recompenses WHERE confirme_le IS NULL ORDER BY atteint_le'),
     etape: db.prepare('UPDATE parcours SET etape = ?, etape_depuis = ?, maj_le = ? WHERE discord_id = ?'),
+    // Résultats par vidéo.
+    pub: db.prepare('SELECT * FROM publications WHERE id = ?'),
+    pubsMembre: db.prepare('SELECT * FROM publications WHERE discord_id = ? ORDER BY jour DESC, id DESC'),
+    pubResultat: db.prepare("UPDATE publications SET res_vues = ?, res_revenus = ?, res_captures = ?, res_etat = 'attente', res_envoye_le = ?, res_decide_le = NULL WHERE id = ?"),
+    pubDecision: db.prepare('UPDATE publications SET res_etat = ?, res_decide_le = ?, ok_vues = CASE WHEN ? THEN res_vues ELSE ok_vues END, ok_revenus = CASE WHEN ? THEN res_revenus ELSE ok_revenus END WHERE id = ?'),
+    pubsAttente: db.prepare("SELECT * FROM publications WHERE res_etat = 'attente' ORDER BY res_envoye_le"),
+    revenusVideos: db.prepare('SELECT COALESCE(SUM(ok_revenus), 0) r, COALESCE(SUM(ok_vues), 0) v FROM publications WHERE discord_id = ?'),
+    dernierUpdate: db.prepare("SELECT * FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide' AND revenus_28j IS NOT NULL ORDER BY jour DESC LIMIT 1"),
+    updateEnregistrer: db.prepare(`INSERT INTO comptes_rendus (discord_id, jour, etat, vues_28j, revenus_28j, capture_revenus, question, envoye_le, cree_le)
+      VALUES (?, ?, 'attente', ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(discord_id, jour) DO UPDATE SET etat = 'attente', vues_28j = excluded.vues_28j, revenus_28j = excluded.revenus_28j,
+        capture_revenus = excluded.capture_revenus, question = excluded.question, envoye_le = excluded.envoye_le, decide_le = NULL`),
   };
+  const DELAI_RESULTAT = 24 * 3600 * 1000;
+  const captures = (pub) => { try { return JSON.parse(pub.res_captures || '[]'); } catch { return []; } };
   const iso = () => maintenant().toISOString();
   const entier = (v) => { const n = Number(String(v ?? '').replace(/[\s ]/g, '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? Math.round(n) : null; };
   const decimal = (v) => { const n = Number(String(v ?? '').replace(/[\s ]/g, '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null; };
@@ -151,12 +165,50 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     captureDuJour(discordId, jour) { return q.captureJour.get(discordId, jour) || null; },
 
     // Jours dont le compte rendu reste à faire (publiés avant aujourd'hui, sans compte rendu) ou à corriger.
+    // Updates du compte à faire : celui d'aujourd'hui (à partir de son heure), et ceux à corriger.
     comptesRendusAFaire(discordId) {
       const p = parcours.get(discordId);
-      if (!p || !p.fuseau) return [];
+      if (!p || !p.fuseau || p.etape < 4 || !p.heure_compte_rendu) return [];
       const aujourdhui = api.aujourdhui(p);
-      return q.joursPublies.all(discordId).filter((j) => j.jour < aujourdhui).map((j) => ({ jour: j.jour, videos: j.n, cr: q.crJour.get(discordId, j.jour) || null }))
-        .filter((x) => !x.cr || x.cr.etat === 'corriger');
+      const liste = q.crMembre.all(discordId).filter((c) => c.etat === 'corriger').map((c) => ({ jour: c.jour, cr: c }));
+      const heure = heureDans(p.fuseau, maintenant());
+      if (!q.crJour.get(discordId, aujourdhui) && heure >= p.heure_compte_rendu) liste.unshift({ jour: aujourdhui, cr: null });
+      return liste;
+    },
+    // Vidéos dont les résultats sont à remplir (24 h après la publication) ou à corriger.
+    videosAFaire(discordId) {
+      const limite = maintenant().getTime() - DELAI_RESULTAT;
+      return q.pubsMembre.all(discordId).filter((v) => (!v.res_etat && Date.parse(v.cree_le) <= limite) || v.res_etat === 'corriger').reverse();
+    },
+    videos(discordId) { return q.pubsMembre.all(discordId).map((v) => ({ ...v, captures: captures(v), pret: Date.parse(v.cree_le) <= maintenant().getTime() - DELAI_RESULTAT })); },
+    video(id) { const v = q.pub.get(Number(id)); return v ? { ...v, captures: captures(v), pret: Date.parse(v.cree_le) <= maintenant().getTime() - DELAI_RESULTAT } : null; },
+    resultatsEnAttente() { return q.pubsAttente.all().map((v) => ({ ...v, captures: captures(v), parcours: parcours.get(v.discord_id) })); },
+    // Résultats d'une vidéo : capture (ajoutée aux précédentes), vues et revenus. 24 h après la publication ; mise à jour possible ensuite.
+    enregistrerResultat(discordId, id, { vues, revenus, capture } = {}) {
+      const v = q.pub.get(Number(id));
+      if (!v || v.discord_id !== discordId) return { erreur: 'Vidéo introuvable.' };
+      if (Date.parse(v.cree_le) > maintenant().getTime() - DELAI_RESULTAT) return { erreur: 'Les résultats se donnent 24 h après la publication.' };
+      const nv = entier(vues);
+      const nr = lireMontant(revenus);
+      if (nv === null) return { erreur: 'Indique le nombre de vues de la vidéo.' };
+      if (nr === null || nr < 0) return { erreur: 'Indique les revenus de la vidéo ($), 0 si rien.' };
+      const liste = captures(v);
+      if (capture && !liste.includes(capture)) liste.push(capture);
+      if (!liste.length) return { erreur: 'Ajoute la capture des résultats de la vidéo.' };
+      q.pubResultat.run(nv, nr, JSON.stringify(liste.slice(-10)), iso(), v.id);
+      return { video: api.video(v.id) };
+    },
+    deciderResultat(id, decision, { texte, images = [] } = {}) {
+      const v = q.pub.get(Number(id));
+      if (!v) return { erreur: 'Vidéo introuvable.' };
+      if (v.res_etat !== 'attente') return { erreur: 'Ces résultats ont déjà été traités.' };
+      if (!['valider', 'corriger'].includes(decision)) return { erreur: 'Décision inconnue.' };
+      const mot = String(texte || '').trim();
+      if (decision === 'corriger' && !mot) return { erreur: 'Écris ce qu\'il doit corriger.' };
+      const ok = decision === 'valider' ? 1 : 0;
+      q.pubDecision.run(ok ? 'valide' : 'corriger', iso(), ok, ok, v.id);
+      if (mot || images.length) parcours.ajouterRemarque(v.discord_id, { texte: `Résultats de ta vidéo du ${jourLisible(v.jour)} : ${mot || '(image)'}`, images, type: ok ? 'valide' : 'corriger' });
+      return { video: api.video(v.id), nouvelles: ok ? api.verifierRecompenses(v.discord_id) : [] };
     },
     compteRendu(discordId, jour) {
       const cr = q.crJour.get(discordId, jour);
@@ -168,37 +220,21 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     },
     comptesRendus(discordId) { return q.crMembre.all(discordId); },
 
+    // Update du compte (fin de journée) : capture des 28 derniers jours, vues et revenus sur 28 jours. Aujourd'hui, ou hier en retard.
     enregistrerCompteRendu(discordId, jour, d) {
       const p = parcours.get(discordId);
       if (!p || p.etape < 4) return { erreur: 'Tu n\'es pas encore à l\'étape 4.' };
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(jour) || jour >= api.aujourdhui(p)) return { erreur: 'Le compte rendu se fait le lendemain de la publication.' };
-      const videos = q.publicationsJour.all(discordId, jour);
-      if (!videos.length) return { erreur: 'Aucune vidéo déclarée ce jour-là.' };
+      const aujourdhui = api.aujourdhui(p);
       const deja = q.crJour.get(discordId, jour);
-      if (deja && deja.etat === 'valide') return { erreur: 'Ce compte rendu est déjà validé.' };
-      const totalMois = lireMontant(d.total_mois);
-      if (totalMois === null || totalMois < 0) return { erreur: `Recopie le total de ${moisLisible(jour)} affiché par ton tableau de bord TikTok (Récompenses estimées, Par mois).` };
-      const nombres = ['abonnes_total', 'vues_total', 'abonnes_jour', 'vues_jour'].map((k) => entier(d[k]));
-      if (nombres.some((n) => n === null)) return { erreur: 'Remplis les chiffres de ton compte (abonnés et vues).' };
-      const pays = (v) => [0, 1, 2].map((i) => String((v || [])[i] || '').trim().slice(0, 40)).filter(Boolean);
-      const paysVues = pays(d.pays_vues);
-      const paysAbonnes = pays(d.pays_abonnes);
-      if (!paysVues.length || !paysAbonnes.length) return { erreur: 'Indique au moins le premier pays de tes vues et de tes abonnés.' };
-      if (!d.capture_revenus && !(deja && deja.capture_revenus)) return { erreur: 'Ajoute la capture de ta page des revenus TikTok.' };
-      const stats = [];
-      for (const v of videos) {
-        const s = (d.videos || {})[v.id] || {};
-        const ligne = { vues: entier(s.vues), abonnes: entier(s.abonnes), heure: HEURE.test(String(s.heure || '')) ? s.heure : null,
-          visionnage: entier(s.visionnage_s), retention: decimal(s.retention_10s), revenus: decimal(s.revenus) };
-        if (Object.values(ligne).some((x) => x === null)) return { erreur: 'Remplis toutes les statistiques de chaque vidéo.' };
-        if (ligne.retention > 100) return { erreur: 'La rétention est un pourcentage (de 0 à 100).' };
-        stats.push([v.id, ligne]);
-      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(jour) || jour > aujourdhui || (jour < decalerJour(aujourdhui, -1) && !(deja && deja.etat === 'corriger'))) return { erreur: 'L\'update du compte se fait chaque jour, pour le jour même.' };
+      if (deja && deja.etat === 'valide') return { erreur: 'Cet update est déjà validé.' };
+      const vues = entier(d.vues_28j);
+      const revenus = lireMontant(d.revenus_28j);
+      if (vues === null) return { erreur: 'Indique les vues de ton compte sur les 28 derniers jours.' };
+      if (revenus === null || revenus < 0) return { erreur: 'Indique tes revenus sur les 28 derniers jours ($), 0 si rien.' };
+      if (!d.capture && !(deja && deja.capture_revenus)) return { erreur: 'Ajoute la capture de tes résultats des 28 derniers jours.' };
       const question = String(d.question || '').trim().slice(0, 1000) || null;
-      q.crEnregistrer.run(discordId, jour, totalMois, ...nombres, JSON.stringify(paysVues), JSON.stringify(paysAbonnes),
-        d.capture_revenus || (deja && deja.capture_revenus), question, iso(), iso());
-      const cr = q.crJour.get(discordId, jour);
-      for (const [pid, l] of stats) q.statVideo.run(cr.id, pid, l.vues, l.abonnes, l.heure, l.visionnage, l.retention, l.revenus);
+      q.updateEnregistrer.run(discordId, jour, vues, revenus, d.capture || deja.capture_revenus, question, iso(), iso());
       return { compteRendu: api.compteRendu(discordId, jour) };
     },
 
@@ -210,7 +246,7 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       const mot = String(texte || '').trim();
       if (decision === 'corriger' && !mot) return { erreur: 'Écris ce qu\'il doit corriger.' };
       q.decider.run(decision === 'valider' ? 'valide' : 'corriger', iso(), cr.id);
-      if (mot || images.length) parcours.ajouterRemarque(cr.discord_id, { texte: `Compte rendu du ${jourLisible(cr.jour)} : ${mot || '(image)'}`, images, type: decision === 'valider' ? 'valide' : 'corriger' });
+      if (mot || images.length) parcours.ajouterRemarque(cr.discord_id, { texte: `Update du compte du ${jourLisible(cr.jour)} : ${mot || '(image)'}`, images, type: decision === 'valider' ? 'valide' : 'corriger' });
       return { compteRendu: api.compteRendu(cr.discord_id, cr.jour), nouvelles: decision === 'valider' ? api.verifierRecompenses(cr.discord_id) : [] };
     },
     enAttente() { return q.crAttente.all().map((cr) => ({ ...cr, parcours: parcours.get(cr.discord_id) })); },
@@ -218,7 +254,23 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     // Gains jour par jour, d'après le total du tableau de bord TikTok de chaque compte rendu
     // (validés seulement pour les objectifs ; validés et en attente pour le tableau de bord).
     gains(discordId, { valides = false } = {}) {
-      return gainsDepuisTotaux(q.totaux.all(discordId).filter((l) => !valides || l.etat === 'valide'));
+      const parJour = new Map();
+      for (const v of q.pubsMembre.all(discordId).reverse()) {
+        const ok = v.ok_revenus !== null && v.ok_revenus !== undefined;
+        const enAttente = v.res_etat === 'attente' && v.res_revenus !== null;
+        if (!ok && (valides || !enAttente)) continue;
+        const montant = valides || !enAttente ? v.ok_revenus : v.res_revenus;
+        const j = parJour.get(v.jour) || { jour: v.jour, gain: 0, etat: 'valide' };
+        j.gain = Math.round((j.gain + (montant || 0)) * 100) / 100;
+        if (!valides && enAttente) j.etat = 'attente';
+        parJour.set(v.jour, j);
+      }
+      let mois = null; let cumul = 0;
+      return [...parJour.values()].sort((a, b) => a.jour.localeCompare(b.jour)).map((j) => {
+        if (j.jour.slice(0, 7) !== mois) { mois = j.jour.slice(0, 7); cumul = 0; }
+        cumul = Math.round((cumul + j.gain) * 100) / 100;
+        return { ...j, total: cumul };
+      });
     },
     // Données du tableau de bord (page Mon profil) : j = jour, g = gain, t = total du mois, e = état.
     tableau(discordId) {
@@ -237,23 +289,24 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       const p = parcours.get(discordId);
       if (!p) return null;
       const aujourdhui = p.fuseau ? api.aujourdhui(p) : maintenant().toISOString().slice(0, 10);
-      const dernier = q.dernierCr.get(discordId);
+      const dernier = q.dernierUpdate.get(discordId);
       const compte = {};
       for (const r of q.paysCr.all(discordId)) { const premier = JSON.parse(r.pays_abonnes || '[]')[0]; if (premier) compte[premier] = (compte[premier] || 0) + 1; }
       const paysPrincipal = Object.entries(compte).sort((a, b) => b[1] - a[1])[0];
       const jours = q.joursPublies.all(discordId);
       const debut = p.etape >= 4 ? (p.etape3_le ? p.etape3_le.slice(0, 10) : (jours[0] && jours[0].jour) || null) : null;
       const joursDepuis = debut ? Math.max(1, Math.round((Date.parse(`${aujourdhui}T12:00:00Z`) - Date.parse(`${debut}T12:00:00Z`)) / JOUR) + 1) : 0;
-      const gains = api.gains(discordId, { valides: true });
-      const debut28 = decalerJour(aujourdhui, -(FENETRE_GOAT_JOURS - 1));
       const arrondi = (n) => Math.round(n * 100) / 100;
-      const total = arrondi(gains.reduce((t, g) => t + g.gain, 0));
+      const videos = q.revenusVideos.get(discordId);
+      const total = arrondi(videos.r);
+      void FENETRE_GOAT_JOURS;
       return {
-        abonnes: dernier ? dernier.abonnes_total : null,
-        vues: dernier ? dernier.vues_total : null,
+        abonnes: null,
+        vues: dernier ? dernier.vues_28j : null,
+        vuesVideos: videos.v,
         paysPrincipal: paysPrincipal ? paysPrincipal[0] : null,
         revenusTotal: total,
-        revenus28: arrondi(gains.filter((g) => g.jour >= debut28).reduce((t, g) => t + g.gain, 0)),
+        revenus28: dernier ? arrondi(dernier.revenus_28j) : 0,
         joursPublies: jours.length,
         videosPubliees: jours.reduce((n, j) => n + j.n, 0),
         joursDepuisEtape4: joursDepuis,
@@ -288,19 +341,26 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
         return { cle: 'heures', titre: 'Choisis tes 3 heures', texte: 'Création, publication et compte rendu : Bob te le rappellera chaque jour à ces heures.',
           lien: '/parcours/etape-4', bouton: 'Choisir mes heures', delai: { fin: new Date(new Date(p.etape_depuis).getTime() + 12 * 3600 * 1000).toISOString(), duree: 12 * 3600 * 1000 } };
       }
+      const videos = api.videosAFaire(p.discord_id);
+      if (videos.length) {
+        const v = videos[0];
+        return { cle: `video-${v.id}-${v.res_etat || 'neuf'}`, titre: v.res_etat === 'corriger' ? `Corrige les résultats de ta vidéo du ${jourLisible(v.jour)}` : `Donne les résultats de ta vidéo du ${jourLisible(v.jour)}`,
+          texte: videos.length > 1 ? `${videos.length} vidéos à mettre à jour : capture, vues et revenus.` : 'Capture de ses résultats, vues et revenus après 24 h.',
+          lien: `/parcours/videos/${v.id}`, bouton: 'Mettre à jour les résultats' };
+      }
       const aFaire = api.comptesRendusAFaire(p.discord_id);
       if (aFaire.length) {
         const x = aFaire[0];
-        const finCr = finDuJour(p.fuseau, new Date(Date.parse(`${x.jour}T12:00:00Z`) + 86400000).toISOString().slice(0, 10));
-        return { cle: `cr-${x.jour}`, titre: x.cr && x.cr.etat === 'corriger' ? `Corrige ton compte rendu du ${jourLisible(x.jour)}` : `Envoie ton compte rendu du ${jourLisible(x.jour)}`,
-          texte: aFaire.length > 1 ? `${aFaire.length} comptes rendus à envoyer ou à corriger.` : 'Les résultats de tes vidéos de ce jour-là.',
-          lien: `/parcours/compte-rendu/${x.jour}`, bouton: 'Faire mon compte rendu', echeance: { fin: finCr.toISOString(), duree: 86400000 } };
+        const finCr = finDuJour(p.fuseau, x.jour);
+        return { cle: `cr-${x.jour}`, titre: x.cr && x.cr.etat === 'corriger' ? `Corrige ton update du compte du ${jourLisible(x.jour)}` : 'Fais l\'update de ton compte',
+          texte: 'Capture de tes résultats des 28 derniers jours, vues et revenus.',
+          lien: `/parcours/compte-rendu/${x.jour}`, bouton: 'Update du compte', echeance: { fin: finCr.toISOString(), duree: 86400000 } };
       }
       if (!q.publicationsJour.all(p.discord_id, api.aujourdhui(p)).length) {
         return { echeance: { fin: finDuJour(p.fuseau, api.aujourdhui(p)).toISOString(), duree: 86400000 }, cle: 'publier', titre: 'Publie ta vidéo du jour', texte: 'Au moins une vidéo par jour, puis colle son lien ici.',
           lien: '/parcours/etape-4', bouton: 'Déclarer ma vidéo' };
       }
-      return { cle: 'ok', titre: 'Ta vidéo du jour est déclarée', texte: 'Demain, à ton heure de compte rendu, tu enverras ses résultats.', lien: '/parcours/etape-4', bouton: 'Ouvrir l\'étape 4' };
+      return { cle: 'ok', titre: 'Ta vidéo du jour est déclarée', texte: 'Dans 24 h, tu donneras ses résultats ; ce soir, l\'update de ton compte.', lien: '/parcours/etape-4', bouton: 'Ouvrir l\'étape 4' };
     },
 
     // Prochains rappels quotidiens (Bob) : l'heure locale atteinte et pas encore envoyée aujourd'hui.

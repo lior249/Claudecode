@@ -1056,17 +1056,17 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
 
     // ---- Étape 4 ----
     async compteRenduRecu(cr, p) {
-      await notifier.admin(avecBoutons(`**${nomDe(p)}** (<@${cr.discord_id}>) a envoyé son **compte rendu du ${jourLisible(cr.jour)}**.`,
+      await notifier.admin(avecBoutons(`**${nomDe(p)}** (<@${cr.discord_id}>) a envoyé son **update du compte** (${jourLisible(cr.jour)}).`,
         [{ label: 'Ouvrir', url: lienCoach(`/admin/comptes-rendus/${cr.id}`) }]));
     },
     async compteRenduDecide(cr, p, decision) {
       if (decision === 'corriger') {
-        await notifier.membre(cr.discord_id, avecBoutons(`**Ton coach demande des modifications sur ton compte rendu du ${jourLisible(cr.jour)}.** Lis sa remarque et renvoie-le.`,
-          [{ label: 'Corriger mon compte rendu', url: lienPerso(cr.discord_id, p && p.pseudo, `/parcours/compte-rendu/${cr.jour}`) }]));
+        await notifier.membre(cr.discord_id, avecBoutons(`**Ton coach demande des modifications sur ton update du compte du ${jourLisible(cr.jour)}.** Lis sa remarque et renvoie-le.`,
+          [{ label: 'Corriger mon update', url: lienPerso(cr.discord_id, p && p.pseudo, `/parcours/compte-rendu/${cr.jour}`) }]));
         return;
       }
       const st = suivi ? suivi.stats(cr.discord_id) : null;
-      await notifier.membre(cr.discord_id, avecBoutons(`**Ton compte rendu du ${jourLisible(cr.jour)} est validé.**${st ? ` Récompenses validées au total : **${euros(st.revenusTotal)}**.` : ''}`,
+      await notifier.membre(cr.discord_id, avecBoutons(`**Ton update du compte du ${jourLisible(cr.jour)} est validé.**${st ? ` Revenus sur 28 jours : **${euros(st.revenus28)}**.` : ''}`,
         [{ label: 'Mon parcours', url: lienPerso(cr.discord_id, p && p.pseudo, '/parcours') }]));
     },
     // ---- Communauté : jamais le nom complet, seulement le prénom ou le pseudo (nom). ----
@@ -1104,6 +1104,21 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await notifier.membre(gagnant.id, `🏆 **Tu as gagné ta concurrence contre ${perdant.nom}** : tu as atteint **${euros(c.objectif)}** en premier !`);
       await notifier.membre(perdant.id, avecBoutons(`**${gagnant.nom}** a atteint **${euros(c.objectif)}** en premier et gagne votre concurrence. Lance un nouveau défi !`,
         [{ label: 'Ma communauté', url: lienPerso(perdant.id, pseudoParcours(perdant.id), '/communaute') }]));
+    },
+    // Résultats d'une vidéo : le coach est prévenu ; l'élève apprend sa décision.
+    async resultatRecu(v, p) {
+      await notifier.admin(avecBoutons(`**${nomDe(p)}** (<@${v.discord_id}>) a envoyé les **résultats de sa vidéo du ${jourLisible(v.jour)}** : ${Number(v.res_vues || 0).toLocaleString('fr-FR')} vues, ${euros(v.res_revenus || 0)}.`,
+        [{ label: 'Ouvrir', url: lienCoach(`/admin/resultats/${v.id}`) }]));
+    },
+    async resultatDecide(v, p, decision) {
+      if (decision === 'corriger') {
+        await notifier.membre(v.discord_id, avecBoutons(`**Ton coach demande des modifications sur les résultats de ta vidéo du ${jourLisible(v.jour)}.** Lis sa remarque et renvoie-les.`,
+          [{ label: 'Corriger les résultats', url: lienPerso(v.discord_id, p && p.pseudo, `/parcours/videos/${v.id}`) }]));
+        return;
+      }
+      const st = suivi ? suivi.stats(v.discord_id) : null;
+      await notifier.membre(v.discord_id, avecBoutons(`**Les résultats de ta vidéo du ${jourLisible(v.jour)} sont validés** : ${Number(v.ok_vues || 0).toLocaleString('fr-FR')} vues, ${euros(v.ok_revenus || 0)}.${st ? ` Revenus validés au total : **${euros(st.revenusTotal)}**.` : ''}`,
+        [{ label: 'Mon profil', url: lienPerso(v.discord_id, p && p.pseudo, '/profil') }]));
     },
     // Seuil atteint (GOAT ou rôle de revenus) : le coach confirme, ici ou sur la plateforme.
     async recompensesAtteintes(p, roles) {
@@ -1264,12 +1279,19 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
           contenu = avecBoutons('**C\'est l\'heure de publier.** Une fois ta vidéo en ligne, colle son lien sur le site, c\'est tout.', [{ label: 'Déclarer ma vidéo', url: lien('/parcours/etape-4') }]);
         }
         if (r.type === 'compte-rendu') {
-          // Les comptes rendus en retard ou à corriger, listés chaque jour à son heure de compte rendu.
-          const aFaire = suivi.comptesRendusAFaire(p.discord_id);
-          if (aFaire.length) {
-            const corriger = aFaire.filter((x) => x.cr && x.cr.etat === 'corriger').length;
-            contenu = avecBoutons(`**C'est l'heure de ton compte rendu.** ${aFaire.length === 1 ? `Celui du ${jourLisible(aFaire[0].jour)} est à ${corriger ? 'corriger' : 'envoyer'}.` : `${aFaire.length} sont à envoyer ou à corriger${corriger ? ` (dont ${corriger} à corriger)` : ''}.`}`,
-              aFaire.slice(0, 10).map((x) => ({ label: `${x.cr && x.cr.etat === 'corriger' ? 'Corriger' : 'Compte rendu'} du ${jourLisible(x.jour)}`, url: lien(`/parcours/compte-rendu/${x.jour}`) })));
+          // À son heure de résultats : les vidéos de plus de 24 h à remplir, et l'update du compte du jour.
+          const videos = suivi.videosAFaire(p.discord_id);
+          const updates = suivi.comptesRendusAFaire(p.discord_id);
+          const dimanche = new Date(`${r.jour}T12:00:00Z`).getUTCDay() === 0;
+          if (videos.length || updates.length || dimanche) {
+            const lignes = [];
+            if (videos.length) lignes.push(videos.length === 1 ? `Les résultats de ta vidéo du ${jourLisible(videos[0].jour)} (capture, vues, revenus).` : `Les résultats de **${videos.length} vidéos** (capture, vues, revenus).`);
+            if (updates.length) lignes.push('L\'update de ton compte : capture des 28 derniers jours, vues et revenus.');
+            if (dimanche) lignes.push('**C\'est la fin de la semaine** : tes vidéos bangers ont fait plus de stats ? Mets-les à jour depuis l\'étape 4.');
+            contenu = avecBoutons(`**C'est l'heure de tes résultats.**\n${lignes.map((l) => `- ${l}`).join('\n')}`,
+              [...videos.slice(0, 5).map((v) => ({ label: `Vidéo du ${jourLisible(v.jour)}`, url: lien(`/parcours/videos/${v.id}`) })),
+                ...(updates.length ? [{ label: 'Update du compte', url: lien(`/parcours/compte-rendu/${updates[0].jour}`) }] : []),
+                ...(dimanche && !videos.length && !updates.length ? [{ label: 'Mes vidéos', url: lien('/parcours/etape-4') }] : [])]);
           }
         }
         if (contenu) { await notifier.membre(p.discord_id, contenu); log(`rappel ${r.type} envoyé à ${p.discord_id}`); }

@@ -8,9 +8,11 @@ const assert = require('node:assert');
 const { monter, cookieSession, ADMIN } = require('./aide');
 const { vuesCourtes, roleLePlusHaut } = require('../src/pages-classement');
 
-// Un compte rendu validé : total du mois (récompenses) et vues du compte.
+// Revenus validés d'une vidéo, et vues du compte (dernier update validé).
 function resultat(m, id, jour, total, vues) {
-  m.db.prepare("INSERT INTO comptes_rendus (discord_id, jour, etat, total_mois, vues_total, cree_le) VALUES (?, ?, 'valide', ?, ?, ?)").run(id, jour, total, vues, new Date().toISOString());
+  const now = new Date().toISOString();
+  m.db.prepare("INSERT INTO publications (discord_id, jour, lien, cree_le, res_etat, ok_vues, ok_revenus) VALUES (?, ?, ?, ?, 'valide', ?, ?)").run(id, jour, `https://tiktok.com/${id}`, now, vues, total);
+  m.db.prepare("INSERT INTO comptes_rendus (discord_id, jour, etat, vues_28j, revenus_28j, cree_le) VALUES (?, ?, 'valide', ?, ?, ?)").run(id, jour, vues, total, now);
 }
 
 test('vues abrégées et rôle le plus élevé', () => {

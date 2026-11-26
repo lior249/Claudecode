@@ -75,6 +75,9 @@ const STYLE_PROFIL = `<style>
   .rebours { display:inline-flex; align-items:center; gap:6px; margin:8px 0 6px !important; padding:6px 12px; border-radius:999px; background:#1b2208; border:1px solid #3d4f12; color:#dff58f !important; font-weight:700; font-size:14px !important; font-variant-numeric:tabular-nums; }
   .rebours[data-niveau="urgent"] { background:#2a1d05; border-color:#6b4a0e; color:#ffcf6b !important; }
   .rebours[data-niveau="retard"] { background:#2a0b0b; border-color:#7a1d1d; color:#ff8f8f !important; }
+  .jp-videos { display:grid; gap:6px; margin-top:10px; }
+  .jp-video { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:12px; background:#161616; font-size:13.5px; margin-top:6px; }
+  .jp-video .bouton { flex:none; width:auto; margin:0 !important; min-height:34px; padding:6px 12px; font-size:13px; }
   .jour-panneau .encourage { margin-top:10px; font-size:13px; color:#cfe88a; }
   .pf-cartes { display:grid; grid-template-columns:minmax(0, .85fr) minmax(0, 1.15fr); gap:10px; margin-bottom:10px; }
   .pf-carte { position:relative; display:block; padding:14px; border-radius:20px; background:#141414; border:1px solid #1f1f1f; color:#fff; text-decoration:none; overflow:hidden; min-height:112px; }
@@ -207,20 +210,23 @@ const rond = (x) => `<span>${x.avatar ? `<img src="${echapper(x.avatar)}" alt=""
 function panneauJour(d, i, tache) {
   const encourage = `<p class="encourage">${echapper(ENCOURAGEMENTS[i % ENCOURAGEMENTS.length])}</p>`;
   const titre = d.aujourdhui ? 'Aujourd\'hui' : jourLisible(d.j);
-  let corps;
+  const ETATS = { valide: 'validés', attente: 'en attente', corriger: 'à corriger' };
+  const ligneVideo = (v, k) => `<div class="jp-video"><span><b>Vidéo ${k + 1}</b> · ${v.etat ? `${Number(v.vues || 0).toLocaleString('fr-FR')} vues · ${dollars(v.revenus || 0)} (${ETATS[v.etat]})` : v.pret ? 'résultats à donner' : 'résultats dans 24 h'}</span>
+    ${v.pret ? `<a class="bouton${!v.etat || v.etat === 'corriger' ? '' : ' secondaire'}" href="/parcours/videos/${v.id}">${!v.etat ? 'Résultats' : v.etat === 'corriger' ? 'Corriger' : 'Mettre à jour'}</a>` : ''}</div>`;
+  let corps = '';
   if (d.futur) corps = '<p>À venir : prépare ta vidéo.</p>';
-  else if (d.aujourdhui && tache) {
-    const ech = tache.delai || tache.echeance;
-    corps = `<p><b style="color:#fff">${echapper(tache.titre)}</b></p>${ech && ech.fin ? `<p class="rebours" data-fin="${echapper(ech.fin)}" data-duree="${Number(ech.duree) || 0}">⏳ <span>…</span></p>` : ''}<p>${echapper(tache.texte || '')}</p>
-      ${tache.lien ? `<a class="bouton" href="${echapper(tache.lien)}">${echapper(tache.bouton || 'Y aller')}</a>` : ''}`;
-  } else if (d.e === 'valide' || d.e === 'attente' || d.e === 'corriger') {
-    const etat = { valide: 'Compte rendu validé', attente: 'Compte rendu en attente de validation', corriger: 'Compte rendu à corriger' }[d.e];
-    corps = `<p>${etat}</p><div class="res"><div><b>${d.g !== null ? dollars(d.g) : '—'}</b><small>Gagné ce jour-là</small></div>
-      <div><b>${d.v !== null ? vuesCourtes(d.v) : '—'}</b><small>Vues du jour</small></div><div><b>${d.n}</b><small>Vidéo${d.n > 1 ? 's' : ''}</small></div></div>
-      <a class="bouton${d.e === 'corriger' ? '' : ' secondaire'}" href="/parcours/compte-rendu/${d.j}">${d.e === 'corriger' ? 'Corriger mon compte rendu' : 'Voir mon compte rendu'}</a>`;
-  } else if (d.e === 'publie') {
-    corps = `<p>${d.n} vidéo${d.n > 1 ? 's' : ''} publiée${d.n > 1 ? 's' : ''}, compte rendu pas encore envoyé.</p><a class="bouton" href="/parcours/compte-rendu/${d.j}">Faire mon compte rendu</a>`;
-  } else corps = d.etape4 ? '<p>Aucune vidéo déclarée ce jour-là.</p>' : '<p>Rien à faire ce jour-là : tes tâches sont celles d\'aujourd\'hui.</p>';
+  else {
+    if (d.aujourdhui && tache) {
+      const ech = tache.delai || tache.echeance;
+      corps += `<p><b style="color:#fff">${echapper(tache.titre)}</b></p>${ech && ech.fin ? `<p class="rebours" data-fin="${echapper(ech.fin)}" data-duree="${Number(ech.duree) || 0}">⏳ <span>…</span></p>` : ''}<p>${echapper(tache.texte || '')}</p>
+        ${tache.lien ? `<a class="bouton" href="${echapper(tache.lien)}">${echapper(tache.bouton || 'Y aller')}</a>` : ''}`;
+    }
+    if (d.etape4) {
+      corps += d.videos.length ? `<div class="jp-videos">${d.videos.map(ligneVideo).join('')}</div>` : (d.aujourdhui ? '' : '<p>Aucune vidéo déclarée ce jour-là.</p>');
+      if (d.cr) corps += `<div class="jp-video"><span><b>Update du compte</b> · ${d.cr.revenus_28j !== null && d.cr.revenus_28j !== undefined ? `${dollars(d.cr.revenus_28j)} sur 28 j · ` : ''}${ETATS[d.cr.etat] || ''}</span>
+        ${d.cr.etat === 'corriger' ? `<a class="bouton" href="/parcours/compte-rendu/${d.j}">Corriger</a>` : ''}</div>`;
+    } else if (!d.aujourdhui) corps = '<p>Rien à faire ce jour-là : tes tâches sont celles d\'aujourd\'hui.</p>';
+  }
   return `<section class="jour-panneau" data-jour="${d.j}"${d.aujourdhui ? '' : ' hidden'}><h2>${echapper(titre)}</h2>${corps}${d.futur ? '' : encourage}</section>`;
 }
 
