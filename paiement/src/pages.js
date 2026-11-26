@@ -366,7 +366,7 @@ function banniereEvenements(evts = []) {
       ['touchstart', 'pointerdown', 'wheel'].forEach(function (e) { c.addEventListener(e, function () { touche = Date.now(); }, { passive: true }); });
       setInterval(function () { if (Date.now() - touche < 6000 || document.hidden) return; c.scrollTo({ left: ((k() + 1) % n) * c.clientWidth, behavior: 'smooth' }); }, 4000); })();</script>` : ''}</section>`;
 }
-function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp, barreBas, evenements = [], pastilleApp = null } = {}) {
+function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp, barreBas, evenements = [], pastilleApp = null, sansHaut = false } = {}) {
   // Nombre sur l'icône de l'application (écran d'accueil) : notifications non lues + nouvelles remarques.
   const scriptPastille = pastilleApp === null ? '' : `;(function () { try { var n = ${Number(pastilleApp) || 0};
     if (n && navigator.setAppBadge) navigator.setAppBadge(n).catch(function () {}); else if (!n && navigator.clearAppBadge) navigator.clearAppBadge().catch(function () {}); } catch (e) {} })();`;
@@ -387,7 +387,7 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonA
   </aside>
   <label for="menu-ouvert" class="sb-voile" aria-hidden="true"></label>
   <div class="espace-corps">
-    <header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label></header>
+    ${sansHaut ? '' : `<header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label></header>`}
     <main class="espace-contenu">${banniereEvenements(evenements)}${contenu}</main>
   </div>
   ${barreBas ? `<nav class="barre-bas" aria-label="Navigation rapide" style="grid-template-columns:repeat(${barreBas.length}, 1fr)">${barreBas.map((n) => `<a href="${echapper(n.lien)}"${n.cle === actif ? ' class="actif" aria-current="page"' : ''}${n.badge ? ` aria-label="${echapper(n.libelle)} : ${n.badge} nouveau(x)"` : ''}><span class="icone-bb">${ICONES_NAV[n.icone] || ''}${n.badge ? `<span class="compteur-bb">${n.badge > 9 ? '9+' : n.badge}</span>` : ''}</span><span>${echapper(n.libelle)}</span></a>`).join('')}</nav>` : ''}

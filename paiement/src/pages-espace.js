@@ -99,10 +99,12 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
       { cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' }]
       : espace && espace.parcours ? [
       { cle: 'profil', libelle: 'Profil', lien: '/profil', icone: 'profil' },
-      { cle: 'remarques', libelle: 'Remarques', lien: '/remarques', icone: 'remarques', badge: espace.remarquesNouvelles || 0 },
       { cle: 'notifications', libelle: 'Mes rappels', lien: '/notifications', icone: 'notifications', badge: espace.notifsNonLues || 0 },
+      { cle: 'remarques', libelle: 'Remarques', lien: '/remarques', icone: 'remarques', badge: espace.remarquesNouvelles || 0 },
       { cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' }] : null,
     compte: session ? { pseudo: session.pseudo || 'Membre', role: espace.estAdmin ? 'Coach' : 'Membre Elite' } : null,
+    // Élèves : pas de barre du haut (tout est en bas) ; le menu s'ouvre depuis Mon profil.
+    sansHaut: Boolean(espace && espace.parcours && !espace.estAdmin),
     // Le nombre sur l'icône de l'application installée (comme TikTok).
     pastilleApp: session ? (espace.notifsNonLues || 0) + (espace.remarquesNouvelles || 0) : null,
   });
