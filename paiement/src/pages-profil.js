@@ -70,6 +70,9 @@ const STYLE_PROFIL = `<style>
   .jour-panneau h2 { margin:0 0 4px; font-size:16px; } .jour-panneau p { margin:0; color:var(--doux); font-size:14px; }
   .jour-panneau .res { display:flex; gap:18px; margin:10px 0 4px; } .jour-panneau .res b { display:block; font-size:22px; } .jour-panneau .res small { color:var(--doux); font-size:12.5px; }
   .jour-panneau .bouton { margin-top:12px; }
+  .rebours { display:inline-flex; align-items:center; gap:6px; margin:8px 0 6px !important; padding:6px 12px; border-radius:999px; background:#1b2208; border:1px solid #3d4f12; color:#dff58f !important; font-weight:700; font-size:14px !important; font-variant-numeric:tabular-nums; }
+  .rebours[data-niveau="urgent"] { background:#2a1d05; border-color:#6b4a0e; color:#ffcf6b !important; }
+  .rebours[data-niveau="retard"] { background:#2a0b0b; border-color:#7a1d1d; color:#ff8f8f !important; }
   .jour-panneau .encourage { margin-top:10px; font-size:13px; color:#cfe88a; }
   .pf-cartes { display:grid; grid-template-columns:minmax(0, .85fr) minmax(0, 1.15fr); gap:10px; margin-bottom:10px; }
   .pf-carte { position:relative; display:block; padding:14px; border-radius:20px; background:#141414; border:1px solid #1f1f1f; color:#fff; text-decoration:none; overflow:hidden; min-height:112px; }
@@ -152,6 +155,21 @@ const SCRIPT_CARROUSEL = `(function () {
     setInterval(function () { if (Date.now() - touche < 6000 || document.hidden) return; c.scrollTo({ left: ((index() + 1) % n) * c.clientWidth, behavior: 'smooth' }); }, 3000);
   }
 })();`;
+// Compte à rebours de la tâche du moment (chaque seconde) : jaune dans le dernier quart, rouge en retard.
+const SCRIPT_REBOURS = `(function () {
+  var els = document.querySelectorAll('.rebours[data-fin]'); if (!els.length) return;
+  function deux(n) { return (n < 10 ? '0' : '') + n; }
+  function maj() {
+    Array.prototype.forEach.call(els, function (el) {
+      var reste = new Date(el.getAttribute('data-fin')) - Date.now(), duree = +el.getAttribute('data-duree') || 0;
+      var s = Math.floor(Math.abs(reste) / 1000), j = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+      var t = (j ? j + ' j ' : '') + (j || h ? h + ' h ' : '') + deux(m) + ' min ' + deux(sec) + ' s';
+      el.querySelector('span').textContent = reste >= 0 ? 'Il te reste ' + t : 'En retard de ' + t;
+      el.setAttribute('data-niveau', reste < 0 ? 'retard' : duree && reste < duree / 4 ? 'urgent' : '');
+    });
+  }
+  maj(); setInterval(maj, 1000);
+})();`;
 const SCRIPT_QUAND = `document.querySelectorAll('[data-quand]').forEach(function (el) {
   var d = new Date(el.getAttribute('data-quand')); if (isNaN(d)) return;
   var t = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -166,7 +184,8 @@ function panneauJour(d, i, tache) {
   let corps;
   if (d.futur) corps = '<p>À venir : prépare ta vidéo.</p>';
   else if (d.aujourdhui && tache) {
-    corps = `<p><b style="color:#fff">${echapper(tache.titre)}</b></p><p>${echapper(tache.texte || '')}</p>
+    const ech = tache.delai || tache.echeance;
+    corps = `<p><b style="color:#fff">${echapper(tache.titre)}</b></p>${ech && ech.fin ? `<p class="rebours" data-fin="${echapper(ech.fin)}" data-duree="${Number(ech.duree) || 0}">⏳ <span>…</span></p>` : ''}<p>${echapper(tache.texte || '')}</p>
       ${tache.lien ? `<a class="bouton" href="${echapper(tache.lien)}">${echapper(tache.bouton || 'Y aller')}</a>` : ''}`;
   } else if (d.e === 'valide' || d.e === 'attente' || d.e === 'corriger') {
     const etat = { valide: 'Compte rendu validé', attente: 'Compte rendu en attente de validation', corriger: 'Compte rendu à corriger' }[d.e];
@@ -233,7 +252,7 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
     <a class="bouton secondaire" href="/parcours" style="margin:4px 0 18px">Mon parcours</a>
     ${seances.length ? `<h2 class="section">Mes prochains coachings</h2><div class="carte">${seances.slice(0, 3).map((x) => `<div class="pf-seance"><b data-quand="${echapper(x.debut)}">${echapper(x.date)} à ${echapper(x.heure)} GMT</b><span>${echapper(x.type)}</span></div>`).join('')}
       <a class="bouton secondaire" href="/coaching" style="margin-top:10px">Mes coachings</a></div>` : ''}
-  </div>`, espace, 'profil', null, `${SCRIPT_ROUE}${SCRIPT_CARROUSEL}${SCRIPT_QUAND}`);
+  </div>`, espace, 'profil', null, `${SCRIPT_ROUE}${SCRIPT_CARROUSEL}${SCRIPT_QUAND}${SCRIPT_REBOURS}`);
 }
 
 // Revenus : le tableau de bord TikTok (ouvert depuis le carrousel de Mon profil).

@@ -58,6 +58,16 @@ function heureDans(fuseau, d) {
   const h = new Intl.DateTimeFormat('en-GB', { timeZone: fuseau || 'UTC', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
   return h.replace(/^24/, '00');
 }
+// Minuit (fin du jour) chez le membre : l'instant où son « jour » se termine.
+function finDuJour(fuseau, jour) {
+  const suivant = new Date(Date.parse(`${jour}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  const essai = Date.parse(`${suivant}T00:00:00Z`);
+  const local = (t) => {
+    const d = new Date(t);
+    return Date.parse(`${jourDans(fuseau, d)}T${new Intl.DateTimeFormat('en-GB', { timeZone: fuseau || 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(d)}Z`);
+  };
+  return new Date(essai - (local(essai) - essai));
+}
 // « lundi 24 novembre » : les dates du suivi telles que le membre et le coach les lisent.
 const jourLisible = (jour) => new Date(`${jour}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 const moisLisible = (jour) => new Date(`${jour}T12:00:00Z`).toLocaleDateString('fr-FR', { month: 'long', timeZone: 'UTC' });
@@ -281,12 +291,13 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       const aFaire = api.comptesRendusAFaire(p.discord_id);
       if (aFaire.length) {
         const x = aFaire[0];
+        const finCr = finDuJour(p.fuseau, new Date(Date.parse(`${x.jour}T12:00:00Z`) + 86400000).toISOString().slice(0, 10));
         return { cle: `cr-${x.jour}`, titre: x.cr && x.cr.etat === 'corriger' ? `Corrige ton compte rendu du ${jourLisible(x.jour)}` : `Envoie ton compte rendu du ${jourLisible(x.jour)}`,
           texte: aFaire.length > 1 ? `${aFaire.length} comptes rendus à envoyer ou à corriger.` : 'Les résultats de tes vidéos de ce jour-là.',
-          lien: `/parcours/compte-rendu/${x.jour}`, bouton: 'Faire mon compte rendu' };
+          lien: `/parcours/compte-rendu/${x.jour}`, bouton: 'Faire mon compte rendu', echeance: { fin: finCr.toISOString(), duree: 86400000 } };
       }
       if (!q.publicationsJour.all(p.discord_id, api.aujourdhui(p)).length) {
-        return { cle: 'publier', titre: 'Publie ta vidéo du jour', texte: 'Au moins une vidéo par jour, puis colle son lien ici.',
+        return { echeance: { fin: finDuJour(p.fuseau, api.aujourdhui(p)).toISOString(), duree: 86400000 }, cle: 'publier', titre: 'Publie ta vidéo du jour', texte: 'Au moins une vidéo par jour, puis colle son lien ici.',
           lien: '/parcours/etape-4', bouton: 'Déclarer ma vidéo' };
       }
       return { cle: 'ok', titre: 'Ta vidéo du jour est déclarée', texte: 'Demain, à ton heure de compte rendu, tu enverras ses résultats.', lien: '/parcours/etape-4', bouton: 'Ouvrir l\'étape 4' };
@@ -307,4 +318,4 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
   return api;
 }
 
-module.exports = { creerSuivi, jourDans, heureDans, jourLisible, moisLisible, lireMontant, gainsDepuisTotaux, QUESTIONS, OBJECTIFS, ROLES_REVENUS };
+module.exports = { finDuJour, creerSuivi, jourDans, heureDans, jourLisible, moisLisible, lireMontant, gainsDepuisTotaux, QUESTIONS, OBJECTIFS, ROLES_REVENUS };
