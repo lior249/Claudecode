@@ -2103,10 +2103,19 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         }
         // Savoir qui donne les rôles (Whop ou toi) : Bob lit le journal d'audit du serveur.
         try {
-          const moi = serveur ? await moiSurLeServeur() : null;
-          if (moi && moi.permissions && !moi.permissions.has(PermissionFlagsBits.ViewAuditLog)) {
-            await notifier.admin('Pour savoir si un rôle vient de **Whop** (paiement par carte) ou de **toi** (donné à la main), donne à mon rôle '
-              + 'la permission **Voir les logs du serveur** (Paramètres du serveur > Rôles > Bob), puis relance le site.');
+          // Un vrai essai de lecture (pas seulement la case du rôle), et le message n'est envoyé qu'une fois.
+          let lisible = true;
+          if (serveur && typeof serveur.fetchAuditLogs === 'function') {
+            try { await serveur.fetchAuditLogs({ limit: 1 }); } catch { lisible = false; }
+          } else {
+            const moi = serveur ? await moiSurLeServeur() : null;
+            lisible = !(moi && moi.permissions && !moi.permissions.has(PermissionFlagsBits.ViewAuditLog));
+          }
+          if (lisible) { if (dejaEnvoye('config:journal-audit')) db.prepare("DELETE FROM envois WHERE cle = 'config:journal-audit'").run(); }
+          else if (!dejaEnvoye('config:journal-audit')) {
+            marquer('config:journal-audit');
+            await notifier.admin(`Pour savoir si un rôle vient de **Whop** (paiement par carte) ou de **toi** (donné à la main), donne à mon rôle `
+              + `la permission **Voir les logs du serveur** sur le serveur **${serveur.name || 'des membres'}** (Paramètres du serveur > Rôles > Bob). Je ne te le redemanderai pas.`);
           }
         } catch (err) { console.warn('[bob] droit du journal d\'audit :', err.message); }
         cycle();
