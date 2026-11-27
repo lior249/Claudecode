@@ -7,7 +7,7 @@
 //      Compte (vues au total)            : Bronze 100K, Argent 1M, Or 5M, Platine 15M.
 //      Abonnés                           : Junior 1K, Sophomore 5K, Créateur 10K.
 //      Revenus                           : Rookie 50 $ ($ bronze), Amateur 100 $ ($ argent), Pro 500 $ ($ or),
-//                                          GOAT 1 000 $ sur 28 jours ($$ or), 1K5 Club ($$ platine), 5K Club ($$$ or), 10K Club ($$$ émeraude) ;
+//                                          GOAT 1 000 $ sur 28 jours ($$ or), puis les clubs (couronne) : 1K5 platine, 5K or, 10K émeraude ;
 //                                          à partir de 1 000 $, la pièce est un hexagone.
 //      Régularité (updates d'affilée)    : Bronze 10 jours, Argent 30, Or 50, Platine 99.
 //  Chaque trophée a son image (public/trophees/<image>.png) ; tant qu'elle n'est pas là, une pièce dessinée la remplace.
@@ -31,7 +31,7 @@ const TROPHEES = [
     titre: t, image: `abonnes-${m}`, court: court(s), label: `Tu viens d'obtenir ${nombre(s)} abonnés`, but: `${nombre(s)} abonnés`, icone: '👥' })),
   ...[['rookie', 'Rookie', 50, 'bronze', 1], ['amateur', 'Amateur', 100, 'argent', 1], ['pro', 'Pro', 500, 'or', 1], ['goat', 'GOAT', 1000, 'or', 2],
     ['1k5', '1K5 Club', 1500, 'platine', 2], ['5k', '5K Club', 5000, 'or', 3], ['10k', '10K Club', 10000, 'emeraude', 3]].map(([c, t, s, m, d]) => ({ cle: `revenus_${c}`, famille: 'revenus', metal: m, seuil: s,
-    titre: t, image: `revenus${d > 1 ? d : ''}-${m}`, forme: s >= 1000 ? 'hexagone' : 'cercle', court: c === 'goat' ? 'GOAT' : `$${s >= 1000 ? `${s / 1000}K` : s}`, icone: '💰',
+    titre: t, image: c.endsWith('k') || c === '1k5' ? `club-${m}` : `revenus${d > 1 ? d : ''}-${m}`, forme: s >= 1000 ? 'hexagone' : 'cercle', court: c === 'goat' ? 'GOAT' : `$${s >= 1000 ? `${s / 1000}K` : s}`, icone: '💰',
     label: c === 'goat' ? 'Tu as gagné 1 000 $ sur les 28 derniers jours' : `Tu as gagné ${nombre(s)} $ au total`,
     but: c === 'goat' ? '1 000 $ sur 28 jours' : `${nombre(s)} $ au total` })),
   ...[['bronze', 10], ['argent', 30], ['or', 50], ['platine', 99]].map(([m, s]) => ({ cle: `regularite_${m}`, famille: 'regularite', metal: m, seuil: s,
