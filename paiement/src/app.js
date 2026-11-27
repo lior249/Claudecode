@@ -1149,7 +1149,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
 
   // ---- Étape 4 : publication et suivi ----
   const MESSAGES_ETAPE4 = {
-    compte: 'Compte TikTok enregistré. Choisis maintenant tes 3 heures.',
+    compte: 'Ta soumission est en cours d\'examen : tu recevras une notification quand ton coach aura approuvé ton compte. En attendant, choisis tes 3 heures.',
     heures: 'Tes heures sont enregistrées. Bob te les rappellera chaque jour.',
     publication: 'Vidéo déclarée. Dans 24 h, tu donneras ses résultats.',
     'compte-rendu': 'Update du compte envoyé. Ton coach le regarde, Bob te prévient de sa décision.',
@@ -1160,7 +1160,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const jour = suivi.aujourdhui(x.p);
     return V.pageEtape4(config, { ...commun, aujourdhui: x.p.fuseau ? jour : null, publications: suivi.publications(id, jour), videos: suivi.videos(id).slice(0, 21),
       aFaire: suivi.comptesRendusAFaire(id), updateDuJour: suivi.compteRendu(id, jour), stats: suivi.stats(id), message,
-      avis: parcours.soumissions(id, 4).slice().sort((a, b) => String(b.cree_le).localeCompare(String(a.cree_le))), remarquesDe, maxMo });
+      avis: parcours.soumissions(id, 4).slice().sort((a, b) => String(b.cree_le).localeCompare(String(a.cree_le))), remarquesDe, maxMo, formation: config.formation });
   }
   // Une image n'est acceptée que si ce membre l'a lui-même envoyée.
   const imageDe = (nom, discordId) => (nom && parcours.imageDuMembre(String(nom), discordId) ? String(nom) : null);
@@ -1182,7 +1182,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const { lienCompte } = require('./tiktok');
     const l = lienCompte(req.body.compte);
     if (!l) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: 'Colle le lien de ton profil TikTok, par exemple https://www.tiktok.com/@ton.compte.' })); return; }
-    const r = parcours.envoyerCompte(x.session.id, l);
+    const r = parcours.envoyerCompte(x.session.id, l, { methode: req.body.methode || undefined, abonnes: req.body.abonnes });
     if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
     prevenir('activiteEleve', r.parcours, `a ${r.changement ? 'changé' : 'envoyé'} son **compte TikTok** : ${l}\nÀ valider.`, `/admin/membres/${encodeURIComponent(x.session.id)}#compte`);
     res.redirect(303, '/parcours/etape-4?ok=compte');

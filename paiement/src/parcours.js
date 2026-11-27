@@ -338,11 +338,17 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       return { parcours: q.get.get(discordId) };
     },
     // ---- Compte TikTok : envoyé par l'élève, validé par le coach, puis verrouillé ----
-    envoyerCompte(discordId, lien) {
+    envoyerCompte(discordId, lien, { methode, abonnes } = {}) {
       const p = q.get.get(discordId);
       if (!p) return { erreur: 'Membre introuvable.' };
       if (p.compte_valide_le && !p.compte_change_autorise) return { erreur: 'Ton compte est validé par ton coach : demande-lui un changement si besoin (compte bloqué, shadowban…).' };
       api.majCompte(discordId, { compte: lien });
+      // Formulaire de l'étape 4 : comment le compte a été créé, et ses abonnés au départ (0 pour un compte neuf).
+      if (methode !== undefined || abonnes !== undefined) {
+        const nb = methode === 'nouveau' ? 0 : Number.isFinite(Number(abonnes)) && String(abonnes).trim() !== '' ? Math.max(0, Math.round(Number(abonnes))) : null;
+        db.prepare('UPDATE parcours SET compte_methode = ?, compte_abonnes_depart = ?, abonnes_actuels = COALESCE(?, abonnes_actuels) WHERE discord_id = ?')
+          .run(['oui', 'verifie', 'nouveau'].includes(methode) ? methode : null, nb, nb, discordId);
+      }
       db.prepare('UPDATE parcours SET compte_envoye_le = ?, compte_valide_le = NULL, compte_change_autorise = NULL, compte_demande = NULL, compte_demande_le = NULL WHERE discord_id = ?').run(iso(), discordId);
       return { parcours: q.get.get(discordId), changement: Boolean(p.compte_valide_le) };
     },

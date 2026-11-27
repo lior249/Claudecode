@@ -140,3 +140,24 @@ test('compte TikTok : envoyé par l\'élève, validé par le coach, verrouillé 
     assert.match((await m.poster('/reglages/tiktok', { compte: '@encore' }, eleve)).headers.get('location'), /fait=tiktok/, 'pas encore validé : il peut corriger');
   } finally { await m.fermer(); }
 });
+
+test('étape 4 : formulaire « Mon compte TikTok » (une question par page) ; méthode et abonnés de départ gardés', async () => {
+  const m = await monter({ bob: { parcours: new Proxy({}, { get: () => async () => true }) } });
+  try {
+    m.parcours.assurer('X', { pseudo: 'x' }); m.parcours.assurer('Y', { pseudo: 'y' });
+    m.db.prepare("UPDATE parcours SET etape = 4 WHERE discord_id IN ('X', 'Y')").run();
+    const X = { cookie: cookieSession('X', 'x') };
+    const page = await (await m.get('/parcours/etape-4', X)).text();
+    assert.match(page, /As-tu déjà un compte TikTok[\s\S]*data-page="n1"[\s\S]*lesn_9J723ZxcGblHC[\s\S]*L'as-tu créé avec la méthode[\s\S]*VPN ou un proxy[\s\S]*Combien d'abonnés[\s\S]*Partage le lien de ton compte/);
+    // Compte existant, méthode suivie, 1 250 abonnés.
+    await m.poster('/parcours/etape-4/compte', { a_compte: 'oui', methode: 'oui', abonnes: '1250', compte: '@x.histoire' }, X);
+    let p = m.parcours.get('X');
+    assert.deepStrictEqual([p.compte_tiktok, p.compte_methode, p.compte_abonnes_depart, p.abonnes_actuels], ['https://www.tiktok.com/@x.histoire', 'oui', 1250, 1250]);
+    assert.match(await (await m.get('/parcours/etape-4', X)).text(), /En cours d'examen/);
+    // Pas de compte : créé avec la méthode, 0 abonné.
+    await m.poster('/parcours/etape-4/compte', { a_compte: 'non', methode: 'nouveau', compte: '@y.neuf' }, { cookie: cookieSession('Y', 'y') });
+    p = m.parcours.get('Y');
+    assert.deepStrictEqual([p.compte_methode, p.compte_abonnes_depart], ['nouveau', 0]);
+    assert.match(await (await m.get('/admin/membres/Y', { cookie: cookieSession(ADMIN, 'coach') })).text(), /Nouveau compte, créé avec la méthode · 0 abonnés au départ/);
+  } finally { await m.fermer(); }
+});

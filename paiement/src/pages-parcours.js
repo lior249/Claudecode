@@ -785,6 +785,7 @@ function blocPositionnement({ p, vueCoach, base, choix, strategie: st }) {
   const valide = Boolean(p.compte_valide_le);
   const compte = `<div class="carte" id="compte"><div class="envoi-tete"><h2>Compte TikTok</h2>${pastilleEtat(Boolean(p.compte_tiktok), valide)}</div>
     <p style="margin:8px 0 0">${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : '<span class="doux">pas encore envoyé</span>'}</p>
+    ${p.compte_methode || p.compte_abonnes_depart !== null && p.compte_abonnes_depart !== undefined ? `<p class="doux petit" style="margin:6px 0 0">${{ oui: 'Créé avec la méthode de la formation', verifie: 'Méthode vérifiée par l\'élève', nouveau: 'Nouveau compte, créé avec la méthode' }[p.compte_methode] || ''}${p.compte_abonnes_depart !== null && p.compte_abonnes_depart !== undefined ? ` · ${Number(p.compte_abonnes_depart).toLocaleString('fr-FR')} abonnés au départ` : ''}</p>` : ''}
     ${p.compte_demande_le ? `<div class="manquants" style="margin:10px 0 0;border:1px solid #5a4a1a;background:#1d1708;color:#f1d38a;border-radius:12px;padding:10px 12px"><b>Demande de changement de compte</b><p style="margin:4px 0 0">${echapper(p.compte_demande)}</p></div>` : ''}
     ${p.compte_change_autorise ? '<p class="doux petit" style="margin:8px 0 0">Changement autorisé : en attente du nouveau lien.</p>' : ''}
     ${vueCoach ? `${p.compte_tiktok && !valide ? `<form method="post" action="${base}/compte/valider" style="margin:10px 0 0"><button class="bouton vert" type="submit" style="margin:0">Valider le compte</button></form>` : ''}
@@ -1089,15 +1090,45 @@ function blocAvis(avis = [], remarquesDe = () => []) {
     }).join('')}
   </div>`;
 }
-function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publications, videos = [], aFaire = [], updateDuJour, stats, message, avis = [], remarquesDe, maxMo }) {
+function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publications, videos = [], aFaire = [], updateDuJour, stats, message, avis = [], remarquesDe, maxMo, formation = null }) {
   const etatVideo = (v) => (v.res_etat ? etatPuce(v.res_etat) : v.pret ? '<span class="etat" data-etat="corriger">Résultats à donner</span>' : '<span class="etat" data-etat="attente">Résultats dans 24 h</span>');
-  // Le lien du compte TikTok d'abord : obligatoire pour l'étape 4.
-  const formCompte = `<form class="carte" id="compte" method="post" action="/parcours/etape-4/compte" style="display:grid;gap:12px">
-    <h2 style="margin:0">Le lien de ton compte TikTok</h2>
-    <p class="doux" style="margin:0">Il le faut pour commencer à publier : c'est le compte que ton coach suit.</p>
-    <div class="champ"><label for="compte-tiktok">Lien de ton profil</label><input id="compte-tiktok" name="compte" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" required placeholder="https://www.tiktok.com/@ton.compte"></div>
-    <button class="bouton" type="submit" style="margin:0">Enregistrer</button></form>`;
-  const corps = !p.compte_tiktok ? formCompte : !p.heure_creation ? `<div class="carte">${formHeures(p)}</div>` : `
+  // Le compte TikTok d'abord : un formulaire, une question par page (déjà un compte ? créé avec la méthode ? abonnés ? lien).
+  const f = formation || {};
+  const formCompte = `${STYLE_ETAPES}<form class="carte assistant" id="compte" method="post" action="/parcours/etape-4/compte" data-depart="1">
+    <div class="envoi-tete"><h2>Mon compte TikTok</h2><div class="points-pages"><i></i><i></i><i></i></div></div>
+    <input type="hidden" name="a_compte" value=""><input type="hidden" name="methode" value="">
+    <div data-page="1"><h3>As-tu déjà un compte TikTok ?</h3>
+      <div class="choix2"><button class="bouton secondaire" type="button" data-aller="n1" onclick="this.form.a_compte.value='non';this.form.methode.value='nouveau'">Non</button>
+        <button class="bouton" type="button" data-aller="o1" onclick="this.form.a_compte.value='oui'">Oui</button></div></div>
+    <div data-page="n1" hidden><h3>Crée ton compte correctement</h3>
+      <p class="doux" style="margin:0">Suis exactement la méthode de la formation : un compte bien créé, c'est un bon RPM plus tard.</p>
+      ${lienFormation(f.compte, 'Créer ton compte TikTok correctement')}
+      <button class="bouton" type="button" data-aller="lien" style="margin:0">C'est fait, mon compte est créé</button>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="o1" hidden><h3>L'as-tu créé avec la méthode de la formation ?</h3>
+      <div class="choix2"><button class="bouton secondaire" type="button" data-aller="o-non">Non, ou je ne l'ai pas vue</button>
+        <button class="bouton" type="button" data-aller="o2" onclick="this.form.methode.value='oui'">Oui</button></div>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="o-non" hidden><h3>Vérifie ta méthode</h3>
+      <p class="doux" style="margin:0">Regarde la leçon et vérifie que tu as fait exactement pareil.</p>
+      ${lienFormation(f.compte, 'Créer ton compte TikTok correctement')}
+      <p class="avert"><b>Créé avec un VPN ou un proxy ?</b> Reprends la procédure depuis le début, sinon tu auras des problèmes de RPM.</p>
+      <button class="bouton" type="button" data-aller="o2" style="margin:0" onclick="this.form.methode.value='verifie'">Mon compte respecte bien la méthode</button>
+      <button class="bouton secondaire" type="button" data-aller="lien" style="margin:0" onclick="this.form.methode.value='nouveau';this.form.abonnes.value='0'">J'ai recréé un compte avec la méthode</button>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="o2" hidden><h3>Combien d'abonnés a-t-il actuellement ?</h3>
+      <input name="abonnes" type="number" min="0" inputmode="numeric" placeholder="ex. 1250">
+      <button class="bouton" type="button" data-aller="lien" style="margin:0">Suivant</button>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="lien" hidden><h3>Partage le lien de ton compte</h3>
+      ${f.partagerCompte ? blocVideo(f.partagerCompte, 'Comment partager le lien de ton compte') : '<p class="doux" style="margin:0">Sur TikTok : ton profil › ☰ ou Partager le profil › <b>Copier le lien</b>.</p>'}
+      <input name="compte" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" required placeholder="https://www.tiktok.com/@ton.compte">
+      <button class="bouton" type="submit" style="margin:0">Envoyer à mon coach</button>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+  </form>`;
+  const etatCompte = p.compte_tiktok && !p.compte_valide_le ? `<div class="carte"><div class="envoi-tete"><h2>Mon compte TikTok</h2><span class="etat" data-etat="attente">En cours d'examen</span></div>
+    <p style="margin:8px 0 0">${lienTikTok(p.compte_tiktok)}</p><p class="doux petit" style="margin:6px 0 0">Ta soumission est en cours d'examen. Tu recevras une notification quand ton coach l'aura approuvée.</p></div>` : '';
+  const corps = !p.compte_tiktok ? formCompte : !p.heure_creation ? `${etatCompte}<div class="carte">${formHeures(p)}</div>` : `${etatCompte}
   <div class="carte">
     <div class="envoi-tete"><h2>Aujourd'hui</h2>${publications.length ? `<span class="etat" data-etat="valide">${ICONE.ok}${publications.length} vidéo(s) déclarée(s)</span>` : '<span class="etat" data-etat="attente">À déclarer</span>'}</div>
     <p class="doux" style="margin:8px 0 12px">Au moins une vidéo par jour. Après avoir publié, colle son lien : c'est tout.</p>
@@ -1130,7 +1161,7 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
   ${frise(Math.min(p.etape, 5))}
   ${message ? `<p class="${message.erreur ? 'erreur-form' : 'message-ok'}">${echapper(message.texte)}</p>` : ''}
   ${corps}
-  ${blocAvis(avis, remarquesDe)}`, espace, 'parcours', maxMo, SCRIPT_FUSEAU);
+  ${blocAvis(avis, remarquesDe)}`, espace, 'parcours', maxMo, SCRIPT_FUSEAU + SCRIPT_ETAPES);
 }
 
 // ---------- Membre : l'update du compte (28 derniers jours) ----------
