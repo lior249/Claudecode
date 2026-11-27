@@ -44,12 +44,12 @@ const PAR_CLE = Object.fromEntries(TROPHEES.map((t) => [t.cle, t]));
 // Prestige : le métal d'abord (bronze < argent < or < platine < émeraude), puis le palier dans sa famille.
 const RANG_METAL = { bronze: 1, argent: 2, or: 3, platine: 4, emeraude: 5 };
 const prestige = (t) => (RANG_METAL[t.metal] || 0) * 100 + TROPHEES.filter((x) => x.famille === t.famille).findIndex((x) => x.cle === t.cle);
-// La vitrine (4 pièces, de gauche à droite) : les plus récents, puis le plus prestigieux en dernier (le plus gros).
+// La vitrine (4 pièces, de gauche à droite) : par prestige décroissant ; la plus prestigieuse en premier, à côté de la photo,
+// et la plus grosse.
 function vitrine(obtenus = []) {
   if (!obtenus.length) return { pieces: [], top: null };
-  const top = obtenus.slice().sort((a, b) => prestige(b) - prestige(a))[0];
-  const autres = obtenus.filter((t) => t.cle !== top.cle).slice(0, 3).reverse(); // obtenus : du plus récent au plus ancien
-  return { pieces: [...autres, top], top };
+  const tries = obtenus.slice().sort((a, b) => prestige(b) - prestige(a));
+  return { pieces: tries.slice(0, 4), top: tries[0] };
 }
 // Les leçons conseillées pour décrocher un trophée (liens de la formation).
 const LECONS = {
