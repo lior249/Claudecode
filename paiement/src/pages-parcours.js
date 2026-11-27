@@ -347,21 +347,26 @@ function blocStats(s) {
   return `<div class="carte"><h2>Statistiques</h2>
     <div class="recap">
       <div><b>${s.abonnes === null ? '—' : Number(s.abonnes).toLocaleString('fr-FR')}</b><span>abonnés</span></div>
-      <div><b>${s.vues === null ? '—' : Number(s.vues).toLocaleString('fr-FR')}</b><span>vues au total</span></div>
+      <div><b>${s.vuesTotal ? Number(s.vuesTotal).toLocaleString('fr-FR') : '—'}</b><span>vues au total</span></div>
       <div><b>${echapper(s.paysPrincipal || '—')}</b><span>pays principal des abonnés</span></div>
       <div><b>${s.videosPubliees}</b><span>vidéos publiées</span></div>
       <div><b>${regularite}</b><span>régularité (jours publiés)</span></div>
       <div><b>${euros(s.revenus28)}</b><span>revenus des 28 derniers jours</span></div>
     </div></div>`;
 }
+// Valeur d'un objectif dans son unité : « 4 200 vues », « 830 abonnés », « $42 ».
+const nombreFr = (n) => Math.round(Number(n) || 0).toLocaleString('fr-FR').replace(/ | /g, ' ');
+const valeurObjectif = (o, n) => (o.type === 'revenus' ? dollars(n, { centimes: false }) : `${nombreFr(n)} ${o.type === 'vues' ? 'vues' : 'abonnés'}`);
 function blocObjectifs(s, { lien, texteLien = 'Voir mon tableau de bord' } = {}) {
   if (!s) return '';
-  const max = s.objectifs[s.objectifs.length - 1].montant;
-  const pct = Math.min(100, Math.round((s.revenusTotal / max) * 100));
-  return `<div class="carte"><div class="envoi-tete"><h2>Objectifs de revenus</h2><span class="etat" data-etat="${s.revenusTotal >= max ? 'valide' : 'attente'}">${euros(s.revenusTotal)}</span></div>
+  const suivant = s.objectifs.find((o) => !o.atteint);
+  const pct = suivant ? Math.min(100, Math.round((suivant.valeur / suivant.seuil) * 100)) : 100;
+  const faits = s.objectifs.filter((o) => o.atteint).length;
+  return `<div class="carte"><div class="envoi-tete"><h2>Objectifs</h2><span class="etat" data-etat="${suivant ? 'attente' : 'valide'}">${faits} / ${s.objectifs.length}</span></div>
+    ${suivant ? `<p style="margin:10px 0 0">Prochain objectif : <b>${echapper(suivant.libelle)}</b> <span class="doux">(${valeurObjectif(suivant, suivant.valeur)})</span></p>` : '<p style="margin:10px 0 0"><b>Tous les objectifs sont atteints.</b></p>'}
     <div class="barre-objectifs"><i style="width:${pct}%"></i></div>
-    <div class="paliers">${s.objectifs.map((o) => `<span data-atteint="${o.atteint ? 1 : 0}">${o.atteint ? ICONE.ok : ''}${dollars(o.montant, { centimes: false })}</span>`).join('')}</div>
-    <p class="doux petit" style="margin:10px 0 0">Récompenses cumulées des comptes rendus validés. GOAT : ${dollars(1000, { centimes: false })} sur 28 jours (${euros(s.revenus28)} en ce moment).</p>
+    <div class="paliers">${s.objectifs.map((o) => `<span data-atteint="${o.atteint ? 1 : 0}"${o === suivant ? ' data-suivant="1" style="border-color:var(--lime, #c8f23a);color:#fff"' : ''}>${o.atteint ? ICONE.ok : ''}${echapper(o.libelle)}</span>`).join('')}</div>
+    <p class="doux petit" style="margin:10px 0 0">D'après tes résultats validés. GOAT : ${dollars(1000, { centimes: false })} sur 28 jours (${euros(s.revenus28)} en ce moment).</p>
     ${lien ? `<a class="bouton secondaire" href="${echapper(lien)}">${echapper(texteLien)}</a>` : ''}</div>`;
 }
 
@@ -1135,9 +1140,9 @@ function blocPreuves(p, dues = {}) {
 // Progresser (étape 4) : 3 axes conseillés, dans l'ordre (Hook, puis Engagement, puis Watchtime). Pour chacun : la leçon
 // (« J'ai regardé »), puis une vidéo à faire relire sur cet axe. Facultatif : le coach posera ces questions quand l'élève demande de l'aide.
 const AXES = [
-  ['hook', 'Améliorer ton hook', 'L\'accroche : ce qui donne envie de regarder.'],
-  ['engagement', 'Améliorer l\'engagement', 'Faire réagir : commenter, partager, interagir.'],
-  ['watchtime', 'Améliorer le watchtime', 'Le rythme : garder les gens le plus longtemps possible.'],
+  ['hook', 'Améliorer ton hook', 'L\'accroche : ce qui donne envie de regarder.', 'Hook'],
+  ['engagement', 'Améliorer l\'engagement', 'Faire réagir : commenter, partager, interagir.', 'Engagement'],
+  ['watchtime', 'Améliorer le watchtime', 'Le rythme : garder les gens le plus longtemps possible.', 'Watchtime'],
 ];
 function blocAvis(avis = [], remarquesDe = () => [], { formation = {}, tutosVus = [] } = {}) {
   const envoyees = avis.filter((s) => s.etat !== 'brouillon');
@@ -1148,14 +1153,14 @@ function blocAvis(avis = [], remarquesDe = () => [], { formation = {}, tutosVus 
     const [e, l] = ETATS[sv.etat] || ['attente', sv.etat];
     return `<div class="ligne-envoi" style="display:block;margin-top:8px"><div class="envoi-tete"><b>Envoyée le ${echapper(formatDate(sv.envoye_le))}</b><span class="etat" data-etat="${e}">${l}</span></div>${rem ? remarque(rem) : ''}</div>`;
   };
-  const axes = AXES.map(([cle, titre, texte], i) => {
+  const axes = AXES.map(([cle, titre, texte, court], i) => {
     const vu = tutosVus.includes(cle);
     const sienne = envoyees.filter((sv) => sv.axe === cle);
     return `<div class="carte" style="margin:0"><div class="envoi-tete"><h3 style="margin:0">${i + 1}. ${titre}</h3>${vu ? `<span class="etat" data-etat="valide">${ICONE.ok}Vu</span>` : ''}</div>
       <p class="doux petit" style="margin:4px 0 8px">${texte}</p>
       ${formation[cle] ? `<a href="${echapper(formation[cle])}" target="_blank" rel="noopener" data-tuto="${cle}" style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid #2a2a2a;color:#fff;text-decoration:none;font-weight:700">▶ <span>Regarder la leçon</span><span style="margin-left:auto;color:var(--doux)">↗</span></a>` : ''}
       ${vu ? '' : `<form method="post" action="/parcours/etape-4/tuto" style="margin:8px 0 0"><input type="hidden" name="axe" value="${cle}"><button class="bouton secondaire" type="submit" style="margin:0">J'ai regardé cette leçon</button></form>`}
-      ${enAttente < 3 ? `<details style="margin-top:8px"><summary class="doux petit" style="cursor:pointer">Envoyer une vidéo « ${titre.replace(/^Améliorer (ton |l')/, '')} » à relire</summary><div style="margin-top:10px">${formVideo('avis', { libelle: 'Choisir la vidéo', ajouts: true, axe: cle })}</div></details>` : ''}
+      ${enAttente < 3 ? `<details style="margin-top:8px"><summary class="doux petit" style="cursor:pointer">Envoyer une vidéo « ${court} » à relire</summary><div style="margin-top:10px">${formVideo('avis', { libelle: 'Choisir la vidéo', ajouts: true, axe: cle })}</div></details>` : ''}
       ${sienne.slice(0, 2).map(ligne).join('')}</div>`;
   }).join('');
   const libres = envoyees.filter((sv) => !sv.axe);
@@ -1610,4 +1615,4 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
-module.exports = { blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+module.exports = { valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };

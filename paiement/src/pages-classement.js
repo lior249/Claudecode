@@ -6,6 +6,7 @@
 const { echapper } = require('./pages');
 const { pageEspace } = require('./pages-espace');
 const { ORDRE_ROLES, pastilleRole, nomRole, STYLE_ROLES } = require('./roles');
+const { pieceTrophee } = require('./trophees');
 
 // Vues : 999, puis 1.2K, 1.2M, 1.2Md.
 function vuesCourtes(n) {
@@ -22,6 +23,8 @@ const dollars = (n) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFra
 // Le rôle le plus élevé obtenu (confirmé par le coach).
 const roleLePlusHaut = (recompenses = []) => ORDRE_ROLES.find((r) => recompenses.some((x) => String(x.role) === r && x.confirme_le)) || null;
 
+// Le dernier trophée obtenu, à côté du nom.
+const trophee = (m) => (m.trophee ? `<span class="tr-cl" title="${echapper(m.trophee.titre)}">${pieceTrophee(m.trophee, { taille: 20 })}<span>${echapper(m.trophee.titre)}</span></span>` : '');
 const MEDAILLE = `<svg class="medaille" viewBox="0 0 64 96" aria-label="Médaille du premier">
   <defs><linearGradient id="or-medaille" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff3b0"/><stop offset=".45" stop-color="#f2c230"/><stop offset="1" stop-color="#9a6b00"/></linearGradient></defs>
   <path d="M14 0h14l10 34H24z" fill="#c62828"/><path d="M36 0h14L40 34H26z" fill="#1e3a8a"/><path d="M27 0h10l-4 30h-2z" fill="#fff"/>
@@ -31,6 +34,7 @@ const MEDAILLE = `<svg class="medaille" viewBox="0 0 64 96" aria-label="Médaill
 
 const STYLE_CLASSEMENT = `<style>
   .feu { color:#ff9a3c; font-weight:700; white-space:nowrap; }
+  .tr-cl { display:inline-flex; align-items:center; gap:4px; margin-top:3px; font-size:11.5px; color:#e8c35a; font-weight:600; white-space:nowrap; } .tr-cl svg { flex:none; }
   .cl-stats { display:grid; grid-template-columns:1fr 1fr 2fr; gap:14px; margin-bottom:18px; }
   .cl-stat { background:var(--surface); border:1px solid var(--bord); border-radius:18px; padding:18px; min-width:0; }
   .cl-stat b { display:block; font-size:30px; font-weight:800; letter-spacing:-0.02em; overflow-wrap:anywhere; }
@@ -110,7 +114,7 @@ function cartePodium(m, metal) {
   return `<article class="metal ${metal}"><div class="interieur">
     ${metal === 'or' ? MEDAILLE : ''}
     <div class="qui">${avatar(m, true)}<div style="min-width:0"><a class="nom" href="/classement/${encodeURIComponent(m.id)}">${echapper(m.nom)}</a>
-      <span class="pseudo">@${echapper(m.pseudo || '')}</span></div></div>
+      <span class="pseudo">@${echapper(m.pseudo || '')}</span>${trophee(m) ? `<br>${trophee(m)}` : ''}</div></div>
     <div class="chiffres"><div class="gros"><small>Revenus générés</small><b>${dollars(m.revenus)}</b></div>
       <div><small>Vues</small><b>${vuesCourtes(m.vues)}</b></div><div><small>Jours</small><b>${feu(m.chaine)}${m.jours}</b></div></div>
     ${roles(m)}
@@ -135,7 +139,7 @@ function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRa
   ${reste.length ? `<section class="classement"><h2>Classement général</h2>
     <table class="cl"><thead><tr><th>Rang</th><th>Membre</th><th>Revenus générés</th><th class="optionnel">Vues</th><th class="optionnel">Jours</th><th class="optionnel">Rôle</th></tr></thead><tbody>
     ${reste.map((m) => `<tr${m.id === moi ? ' class="moi"' : ''}><td><span class="n">${m.rang}</span></td>
-      <td><div class="membre-cl">${avatar(m)}<div><a href="/classement/${encodeURIComponent(m.id)}">${echapper(m.nom)}</a><small>@${echapper(m.pseudo || '')}</small></div></div></td>
+      <td><div class="membre-cl">${avatar(m)}<div><a href="/classement/${encodeURIComponent(m.id)}">${echapper(m.nom)}</a><small>@${echapper(m.pseudo || '')}</small>${trophee(m)}</div></div></td>
       <td><b>${dollars(m.revenus)}</b></td><td class="optionnel">${vuesCourtes(m.vues)}</td><td class="optionnel">${feu(m.chaine)}${m.jours}</td>
       <td class="optionnel">${pastilleRole(roleLePlusHaut(m.recompenses) || (m.elite ? 'elite' : 'membre'))}</td></tr>`).join('')}
     </tbody></table></section>` : ''}`, espace, 'classement');

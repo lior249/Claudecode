@@ -639,3 +639,16 @@ ou sur **overmaxx.online/admin/candidatures**.
   - Connecte-toi avec ton pseudo Discord et le code de Bob (ou son bouton : il ramène sur la même adresse).
   - Sur www, utilise la connexion par pseudo, pas « Se connecter avec Discord » qui revient sur l'adresse principale.
 - **Ordinateur** : Mon profil (élève et coach) s'affiche en deux colonnes, et À traiter aussi sur grand écran.
+
+## Progresser, trophées et « Garde ce qui marche »
+
+- **Étape 4, section Progresser** : 3 leçons conseillées dans l'ordre (Hook, Engagement, Watchtime), avec « J'ai regardé ». L'élève peut envoyer une vidéo à relire pour chaque point (3 en attente au plus). La leçon « Routine de travail » est proposée au choix des 3 heures.
+- **Objectifs**, dans l'ordre (on montre le premier pas encore atteint) : 10K vues, 1 000 abonnés, 100K vues, 5 000 abonnés, 10 000 abonnés, 1M vues, puis $50, $100, $500, $1 000, $1 500, $5 000, $10 000.
+- **Trophées**, gagnés sur les résultats validés par le coach :
+  - Banger (vues d'une vidéo en 24 h) : Bronze 10K, Argent 100K, Or 1M, Platine 5M.
+  - Compte (vues au total) : Bronze 100K, Argent 1M, Or 5M, Platine 15M.
+  - Abonnés : Junior 1K, Sophomore 5K, Créateur 10K.
+  - Revenus : Rookie $50, Amateur $100, Pro $500, GOAT ($1 000 sur 28 jours), 1K5 Club, 5K Club, 10K Club.
+  - Une fenêtre « pièce » s'ouvre une seule fois par trophée. Bob prévient l'élève et le coach.
+  - Page « Mes trophées », Trophy room sur le profil (avec les concurrents en faisant défiler), dernier trophée au classement.
+- **« Garde ce qui marche »** : dès que l'élève donne les résultats d'une vidéo, si elle dépasse 10K vues, 5 % d'abonnés par rapport aux vues, $1 de RPM ou $50 de revenus. Chaque signal s'affiche une seule fois, avec la leçon. « Ne plus afficher ce message » coupe tout, après un message dissuasif.

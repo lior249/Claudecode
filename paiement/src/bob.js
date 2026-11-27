@@ -1314,6 +1314,15 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         [{ label: 'Mon profil', url: lienPerso(v.discord_id, p && p.pseudo, '/profil') }]));
     },
     // Seuil atteint (GOAT ou rôle de revenus) : le coach confirme, ici ou sur la plateforme.
+    // Nouveaux trophées : un message à l'élève (la fenêtre s'ouvre dans l'application), et au coach.
+    async trophees(p, liste) {
+      if (!p || !liste.length) return;
+      const noms = liste.map((t) => `**${t.titre}**`).join(', ');
+      await notifier.membre(p.discord_id, avecBoutons(`🏆 ${liste.length > 1 ? `Nouveaux trophées : ${noms}` : `Nouveau trophée : ${noms}. ${liste[0].label} !`}`,
+        [{ label: 'Voir mes trophées', url: lienPerso(p.discord_id, p.pseudo, '/trophees') }]));
+      await notifier.admin(avecBoutons(`**${p.nom || p.pseudo || p.discord_id}** (<@${p.discord_id}>) a obtenu ${liste.length > 1 ? 'les trophées' : 'le trophée'} ${noms}`,
+        [{ label: 'Ouvrir', url: lienCoach(`/admin/membres/${encodeURIComponent(p.discord_id)}`) }]));
+    },
     async recompensesAtteintes(p, roles) {
       for (const role of roles) {
         const quoi = role === 'goat' ? '**GOAT** ($1,000 sur 28 jours)' : `le rôle **${nomRole(role)}** (${ROLES_DISCORD[role].seuil} de récompenses validées)`;

@@ -4,11 +4,12 @@
 // son résultat), la chaîne 🔥, ceux qu'il suit, la tâche du moment ; puis le tableau de bord des revenus.
 // Et la page Communauté : suivis (10 places), concurrents (3), invitations, suggestions.
 const { echapper } = require('./pages');
-const { blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, page, remarque, listeRemarques, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce, barreMiseEnForme, texteSimple, zoneImages } = require('./pages-parcours');
+const { valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, page, remarque, listeRemarques, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce, barreMiseEnForme, texteSimple, zoneImages } = require('./pages-parcours');
 const { ICONE } = require('./pages');
 const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
 const { vuesCourtes } = require('./pages-classement');
+const { pieceTrophee } = require('./trophees');
 
 const JOURS_COURTS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const ENCOURAGEMENTS = [
@@ -49,7 +50,19 @@ const STYLE_PROFIL = `<style>
   .pf-chaine { display:inline-flex; align-items:center; gap:6px; padding:7px 12px 7px 9px; border-radius:999px; background:#141414; border:1px solid #242424; font-weight:700; font-size:15px; text-decoration:none; color:#fff; }
   .flamme { width:20px; height:20px; fill:#3a3a3a; } .flamme .coeur { fill:#242424; }
   .flamme.allumee { fill:#ff7a1a; filter:drop-shadow(0 0 6px rgba(255,122,26,.55)); } .flamme.allumee .coeur { fill:#ffd23f; }
-  .pf-identite { text-align:center; }
+  .pf-identite { display:flex; align-items:center; gap:14px; text-align:left; }
+  .pf-identite .qui { flex:none; width:118px; text-align:center; min-width:0; }
+  .pf-identite .qui h1 { font-size:19px; overflow-wrap:anywhere; } .pf-identite .qui p { font-size:12.5px; overflow-wrap:anywhere; }
+  .pf-salle { flex:1; min-width:0; border-radius:20px; background:radial-gradient(120% 120% at 100% 0%, #2a1f05 0%, #121212 55%); border:1px solid #2b2410; overflow:hidden; }
+  .pf-salle .defile { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
+  .pf-salle .defile::-webkit-scrollbar { display:none; }
+  .pf-salle a { flex:0 0 100%; scroll-snap-align:start; display:block; padding:12px 12px 10px; color:#fff; text-decoration:none; box-sizing:border-box; }
+  .pf-salle h3 { margin:0; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:#f5c518; display:flex; justify-content:space-between; gap:6px; }
+  .pf-salle h3 small { color:var(--doux); letter-spacing:0; text-transform:none; font-weight:600; }
+  .pf-salle .pieces { display:flex; gap:4px; margin:8px 0 4px; min-height:44px; align-items:center; }
+  .pf-salle .dernier { font-size:12px; color:var(--doux); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pf-salle .dernier b { color:#fff; }
+  .pf-salle .pts { display:flex; justify-content:center; gap:5px; padding:0 0 8px; } .pf-salle .pts i { width:5px; height:5px; border-radius:50%; background:#444; }
   .pf-avatar { width:92px; height:92px; margin:0 auto 10px; border-radius:50%; padding:5px; border:2px dashed var(--lime); }
   .pf-avatar img, .pf-avatar span { width:100%; height:100%; border-radius:50%; object-fit:cover; display:grid; place-items:center; background:#2a2a2a; font-size:32px; font-weight:800; }
   .pf-identite h1 { font-size:26px; margin:0; letter-spacing:-0.02em; }
@@ -242,15 +255,48 @@ const compteur = (n) => (n ? `<span class="compteur">${n > 9 ? '9+' : n}</span>`
 // La couleur de la pièce (contour de la photo) : celle du rang Discord.
 const couleurPiece = (role) => ({ goat: '#f5c518', 10000: '#f5c518', 5000: '#d9a21b', 1500: '#ee8a2d', elite: '#5b6cff', membre: '#57d17a', sinistre: '#e5484d' })[role] || '#5b6cff';
 // Prochain objectif : la barre de progression (ouvre Mes revenus).
-function barreObjectif(objectif, total) {
+function barreObjectif(objectif) {
   if (!objectif) return '';
-  const pct = Math.min(100, Math.round((total / objectif.montant) * 100));
+  const pct = Math.min(100, Math.round(((objectif.valeur || 0) / objectif.seuil) * 100));
   return `<a class="pf-objectif-barre" href="/revenus" aria-label="Prochain objectif : ${pct} %">
-    <span class="haut"><span>Prochain objectif</span><b>${dollars(objectif.montant, { centimes: false })}</b></span>
-    <span class="barre"><i style="width:${pct}%"></i></span><span class="bas">${dollars(total)} · ${pct} %</span></a>`;
+    <span class="haut"><span>Prochain objectif</span><b>${echapper(objectif.libelle)}</b></span>
+    <span class="barre"><i style="width:${pct}%"></i></span><span class="bas">${valeurObjectif(objectif, objectif.valeur || 0)} · ${pct} %</span></a>`;
 }
+// Trophy room (Mon profil) : mes derniers trophées, puis ceux de mes concurrents (on fait défiler).
+function salleTrophees(salle) {
+  if (!salle) return '';
+  const pieces = (liste) => liste.slice(0, 4).map((t) => pieceTrophee(t, { taille: 40 })).join('');
+  const vide = pieceTrophee({ court: '10K', metal: 'bronze', titre: 'Premier trophée', famille: 'banger' }, { taille: 40, obtenu: false });
+  const moi = salle.moi || { obtenus: [] };
+  const slides = [`<a href="/trophees"><h3>Trophy room <small>${moi.obtenus.length} / ${moi.total || 18}</small></h3>
+      <div class="pieces">${moi.obtenus.length ? pieces(moi.obtenus) : vide}</div>
+      <div class="dernier">${moi.obtenus.length ? `Dernier : <b>${echapper(moi.obtenus[0].titre)}</b>` : 'Premier trophée : 10K vues sur une vidéo'}</div></a>`,
+    ...(salle.concurrents || []).map((c) => `<a href="/trophees?de=${encodeURIComponent(c.id)}"><h3>${echapper(c.nom)} <small>${c.nb} trophée${c.nb > 1 ? 's' : ''}</small></h3>
+      <div class="pieces">${c.trophees.length ? pieces(c.trophees) : '<span class="doux petit">Pas encore de trophée</span>'}</div>
+      <div class="dernier">${c.trophees.length ? `Dernier : <b>${echapper(c.trophees[0].titre)}</b>` : 'Concurrent'}</div></a>`)];
+  return `<div class="pf-salle"><div class="defile" aria-label="Trophy room">${slides.join('')}</div>${slides.length > 1 ? `<div class="pts" aria-hidden="true">${slides.map(() => '<i></i>').join('')}</div>` : ''}</div>`;
+}
+
+// Salle des trophées : par famille, obtenus en couleur, les autres en gris, avec le seuil.
+function pageTrophees(config, { espace, salle, membre, mesures = {} }) {
+  const valeur = { banger: mesures.banger, compte: mesures.compte, abonnes: mesures.abonnes, revenus: mesures.revenus };
+  const style = `<style>.tr-fam { margin:0 0 14px; } .tr-fam h2 { margin:0; } .tr-grille { display:grid; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); gap:10px; margin-top:12px; }
+  .tr-t { text-align:center; padding:12px 6px; border-radius:16px; background:#111; border:1px solid #222; } .tr-t[data-obtenu="1"] { background:radial-gradient(100% 100% at 50% 0%, #2a2108, #111 70%); border-color:#3a3112; }
+  .tr-t b { display:block; margin-top:6px; font-size:14px; } .tr-t small { display:block; color:var(--doux); font-size:11.5px; line-height:1.35; margin-top:2px; }</style>`;
+  const nombre = (n) => Math.round(Number(n) || 0).toLocaleString('fr-FR');
+  const familles = salle.map((f) => `<div class="carte tr-fam"><div class="envoi-tete"><h2>${echapper(f.titre)}</h2><span class="doux petit">${f.trophees.filter((t) => t.obtenu).length} / ${f.trophees.length}</span></div>
+    <p class="doux petit" style="margin:4px 0 0">${echapper(f.texte)}${valeur[f.cle] !== undefined ? ` : <b style="color:#fff">${f.cle === 'revenus' ? dollars(valeur[f.cle]) : nombre(valeur[f.cle])}</b>${f.cle === 'banger' ? ' (meilleure vidéo)' : ''}` : ''}</p>
+    <div class="tr-grille">${f.trophees.map((t) => `<div class="tr-t" data-obtenu="${t.obtenu ? 1 : 0}">${pieceTrophee(t, { taille: 64, obtenu: !!t.obtenu })}<b>${echapper(t.titre)}</b>
+      <small>${t.obtenu ? `Obtenu le ${echapper(jourLisible(t.obtenu.obtenu_le.slice(0, 10)))}` : `Objectif : ${echapper(t.but)}`}</small></div>`).join('')}</div></div>`).join('');
+  const total = salle.reduce((n, f) => n + f.trophees.filter((t) => t.obtenu).length, 0);
+  return page(membre ? `Trophées de ${membre.nom}` : 'Mes trophées', `${style}<a class="retour" href="${membre ? '/communaute' : '/profil'}"><span aria-hidden="true">‹</span> ${membre ? 'Communauté' : 'Mon profil'}</a>
+  <div class="titre-page"><div><p class="etiquette">Trophy room</p><h1>${membre ? `Trophées de ${echapper(membre.nom)}` : 'Mes trophées'}</h1></div><span class="doux petit">${total} / ${salle.reduce((n, f) => n + f.trophees.length, 0)}</span></div>
+  <p class="doux" style="margin:0 0 14px">Les trophées se gagnent avec les résultats validés par ton coach : vues d'une vidéo, vues du compte, abonnés et revenus.</p>
+  ${familles}`, espace, 'profil');
+}
+
 function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, concurrents = [], activite = {}, aujourdhui, nbSuivis, nbConcurrents, invitations, notifications, rappel,
-  rang, totalClasses, revenusMois, objectif, seances = [], remarquesNouvelles = 0, annonce }) {
+  rang, totalClasses, revenusMois, objectif, seances = [], remarquesNouvelles = 0, annonce, salleTrophees: salle }) {
   const nom = prenom || p.pseudo || 'Membre';
   const roue = jours.map((d) => `<button type="button" class="roue-jour${d.aujourdhui ? ' aujourdhui' : ''}${d.futur ? ' futur' : ''}" data-jour="${d.j}" data-e="${d.e}" aria-label="${echapper(jourLisible(d.j))}">
       <span class="pts"><i></i></span><small>${JOURS_COURTS[new Date(`${d.j}T12:00:00Z`).getUTCDay()]}</small><b>${Number(d.j.slice(8))}</b></button>`).join('');
@@ -261,8 +307,8 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
       <div class="points">${derniers7.map((x) => `<i${x ? ' class="ok"' : ''}></i>`).join('')}</div>${FLAMME(flamme).replace('class="flamme', 'class="grande flamme')}</a>`,
     `<a class="pf-slide pf-rang" href="/classement"><h3>Classement</h3><p>${rang ? `Tu es <b class="gros">${rang}<sup>e</sup></b> sur ${totalClasses}` : 'Envoie tes premiers résultats pour entrer au classement.'}</p><span class="lien">Voir le classement ›</span></a>`,
     `<a class="pf-slide pf-revenus" href="/revenus"><h3>Mes revenus</h3><p><b class="gros">${dollars(revenusMois || 0)}</b> ce mois-ci</p><span class="lien">Mon tableau de bord ›</span></a>`,
-    objectif ? `<a class="pf-slide pf-objectif" href="/revenus"><h3>Prochain objectif : ${dollars(objectif.montant, { centimes: false })}</h3><p>Encore ${dollars(Math.max(0, objectif.montant - (stats.revenusTotal || 0)))} à gagner.</p>
-      <div class="cm-barre"><i style="width:${Math.min(100, Math.round(((stats.revenusTotal || 0) / objectif.montant) * 100))}%"></i></div></a>` : '',
+    objectif ? `<a class="pf-slide pf-objectif" href="/revenus"><h3>Prochain objectif : ${echapper(objectif.libelle)}</h3><p>Encore ${valeurObjectif(objectif, Math.max(0, objectif.seuil - (objectif.valeur || 0)))}${objectif.type === 'revenus' ? ' à gagner' : ''}.</p>
+      <div class="cm-barre"><i style="width:${Math.min(100, Math.round(((objectif.valeur || 0) / objectif.seuil) * 100))}%"></i></div></a>` : '',
   ].filter(Boolean);
   return page('Mon profil', `${STYLE_PROFIL}${STYLE_ROLES}
   ${fenetreAFaire(rappel)}
@@ -280,17 +326,18 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
       </div>
     </div>
     <div class="pf-cols"><div class="pf-g">
-    <div class="pf-identite">
+    <div class="pf-identite"><div class="qui">
       <a class="pf-avatar piece" style="--piece:${echapper(couleurPiece(p.sinistre_depuis ? 'sinistre' : role))}"${p.sinistre_depuis ? ' data-sinistre' : ''} href="/fiche" aria-label="Ma fiche">
         <span class="face">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</span></a>
-      <h1>${echapper(nom)}</h1><p>@${echapper(p.pseudo || '')}</p>
+      <h1>${echapper(nom)}</h1><p>@${echapper(p.pseudo || '')}</p></div>
+      ${salleTrophees(salle)}
     </div>
     <div class="pf-chiffres">
       <div><b>${ICONES.revenus}${dollars(stats.revenusTotal || 0, { centimes: false })}</b><small>Revenus</small></div><span class="sep"></span>
       <div><b>${pastilleRole(p.sinistre_depuis ? 'sinistre' : role)}</b><small>Rang</small></div><span class="sep"></span>
       <div><b>${ICONES.jours}${jourDepuis}</b><small>Jours</small></div>
     </div>
-    ${barreObjectif(objectif, stats.revenusTotal || 0)}
+    ${barreObjectif(objectif)}
     <a class="pf-frise" href="/parcours" aria-label="Mon parcours">${frise(Math.min(p.etape, 5))}</a>
     <div class="roue-cadre"><div class="roue" role="listbox" aria-label="Jours">${roue}</div><button type="button" class="roue-retour" hidden>Revenir à aujourd'hui</button></div>
     ${jours.map((d, i) => panneauJour(d, i, tache)).join('')}
@@ -337,7 +384,7 @@ function pageRevenus(config, { espace, tableau, stats, objectif }) {
   .pf-objectif-barre .barre i { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg, #9fd11f, #c8f23a); } .pf-objectif-barre .bas { font-size:12px; color:var(--doux); }</style>`;
   return page('Mes revenus', `${style}<a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
   <div class="titre-page"><div><p class="etiquette">Mon profil</p><h1>Mes revenus</h1></div><span class="doux petit">Total validé : ${dollars((stats || {}).revenusTotal || 0)}</span></div>
-  ${barreObjectif(objectif, (stats || {}).revenusTotal || 0)}
+  ${barreObjectif(objectif)}
   ${blocTableau(tableau)}`, espace, 'profil', null, SCRIPT_TABLEAU);
 }
 
@@ -724,4 +771,4 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
   </div>${STYLE_COMMU}`, espace, 'coach');
 }
 
-module.exports = { pageGestion, pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
+module.exports = { pageTrophees, pageGestion, pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };

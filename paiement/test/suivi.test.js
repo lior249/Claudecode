@@ -164,7 +164,11 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     // La première update compte entièrement : c'est la base du cumul.
     assert.strictEqual(m.suivi.stats(E1).revenusTotal, 1600);
     assert.deepStrictEqual(m.suivi.gains(E1, { valides: true }).map((g) => [g.jour, g.gain]), [[aujourdhui, 1600]]);
-    assert.deepStrictEqual(m.suivi.stats(E1).objectifs.map((o) => o.atteint), [true, true, true, true]);
+    // Objectifs dans l'ordre : vues et abonnés d'abord, puis les revenus ($50 à $10 000).
+    const objectifs = m.suivi.stats(E1).objectifs;
+    assert.deepStrictEqual(objectifs.map((o) => o.libelle).slice(0, 7), ['10 000 vues', '1 000 abonnés', '100 000 vues', '5 000 abonnés', '10 000 abonnés', '1 000 000 vues', '$50']);
+    assert.deepStrictEqual(objectifs.filter((o) => o.type === 'revenus').map((o) => o.atteint), [true, true, true, true, true, false, false]);
+    assert.ok(objectifs[0].atteint, '54 000 vues : 10K vues atteint');
     assert.strictEqual((await m.get('/fiche', { cookie: membre })).status, 200);
 
     // Mes revenus : le tableau de bord (revenus des vidéos jour par jour), visible par le membre et par le coach.

@@ -255,9 +255,69 @@ function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>${STYLE}</style>
 </head>
-<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});${SCRIPT_NOTIF_APP}${SCRIPT_TRANSITIONS}</script></body>
+<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});${SCRIPT_NOTIF_APP}${SCRIPT_CELEBRATIONS}${SCRIPT_TRANSITIONS}</script></body>
 </html>`;
 }
+
+// Trophées gagnés et « Garde ce qui marche » : une fenêtre façon pièce de récompense, à l'ouverture d'une page de l'élève.
+const SCRIPT_CELEBRATIONS = `(function () {
+  if (!/^\\/(profil|parcours|trophees|classement|communaute|revenus|fiche|coaching|remarques|notifications|reglages|app)(\\/|$)/.test(location.pathname)) return;
+  var DISSUASION = 'Cette vidéo a été conçue pour être regardée encore et encore. D’ici 1 à 2 semaines, tu auras besoin de la revoir pour refaire un banger.\\n\\nVeux-tu quand même désactiver ce message ?';
+  function poster(corps) { return fetch('/api/celebrations/vu', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) }).catch(function () {}); }
+  function style() {
+    if (document.getElementById('ovx-cel-style')) return;
+    var st = document.createElement('style'); st.id = 'ovx-cel-style';
+    st.textContent = '.ovx-cel{position:fixed;inset:0;z-index:9998;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;box-sizing:border-box;place-items:center;padding:20px;overflow:auto;background:rgba(0,0,0,.88);color:#fff;animation:ovxf .25s ease}.ovx-cel[open]{display:grid}.ovx-cel::backdrop{background:transparent}'
+      + '.ovx-cel .boite{position:relative;width:min(380px,100%);text-align:center;color:#fff;font-family:Inter,system-ui,sans-serif}'
+      + '.ovx-cel .rayons{position:absolute;left:50%;top:95px;width:360px;height:360px;margin:-180px 0 0 -180px;border-radius:50%;pointer-events:none;'
+      + 'background:repeating-conic-gradient(from 0deg,rgba(255,214,90,.22) 0 10deg,transparent 10deg 24deg);-webkit-mask:radial-gradient(circle,#000 25%,transparent 70%);mask:radial-gradient(circle,#000 25%,transparent 70%);animation:ovxr 14s linear infinite}'
+      + '.ovx-cel .piece{position:relative;display:inline-block;margin-top:20px;filter:drop-shadow(0 0 28px rgba(255,200,60,.45));animation:ovxp .7s cubic-bezier(.2,1.6,.4,1) both}'
+      + '.ovx-cel .etiq{position:relative;margin:22px 0 4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#f5c518;font-weight:800}'
+      + '.ovx-cel h2{position:relative;margin:0;font-size:28px;letter-spacing:-.02em}.ovx-cel p{position:relative;margin:8px 0 0;color:#cfcfcf;font-size:15px;line-height:1.45}'
+      + '.ovx-cel ul{position:relative;margin:12px 0 0;padding:0;list-style:none;text-align:left;display:grid;gap:8px}.ovx-cel li{padding:10px 12px;border-radius:12px;background:#151515;border:1px solid #2a2a2a;font-size:14px}'
+      + '.ovx-cel .b{position:relative;display:block;width:100%;margin-top:18px;padding:14px;border:0;border-radius:14px;background:#c8f23a;color:#000;font:800 16px Inter,system-ui,sans-serif;cursor:pointer;text-decoration:none;box-sizing:border-box}'
+      + '.ovx-cel .b2{background:#1b1b1b;color:#fff;border:1px solid #333;margin-top:10px}.ovx-cel .off{position:relative;margin-top:14px;background:none;border:0;color:#8c8c8c;font-size:13px;text-decoration:underline;cursor:pointer}'
+      + '@keyframes ovxf{from{opacity:0}}@keyframes ovxr{to{transform:rotate(360deg)}}@keyframes ovxp{from{transform:scale(.2) rotate(-25deg);opacity:0}}'
+      + '@media (prefers-reduced-motion:reduce){.ovx-cel .rayons,.ovx-cel .piece{animation:none}}';
+    document.head.appendChild(st);
+  }
+  function fenetre(html, apres) {
+    style();
+    var d = document.createElement('dialog'); d.className = 'ovx-cel';
+    d.innerHTML = '<div class="boite"><div class="rayons"></div>' + html + '</div>';
+    document.body.appendChild(d);
+    if (d.showModal) d.showModal(); else d.setAttribute('open', '');
+    d.addEventListener('cancel', function (e) { e.preventDefault(); });
+    if (navigator.vibrate) navigator.vibrate([20, 30, 60]);
+    function fermer() { if (d.open && d.close) d.close(); if (d.parentNode) d.parentNode.removeChild(d); if (apres) apres(); }
+    return { el: d, fermer: fermer };
+  }
+  function txt(t) { var e = document.createElement('span'); e.textContent = t == null ? '' : String(t); return e.innerHTML.replace(/"/g, '&quot;'); }
+  function suite(liste, i, banger) {
+    if (i < liste.length) {
+      var t = liste[i];
+      var f = fenetre('<div class="piece">' + t.piece + '</div><p class="etiq">Nouveau trophée</p><h2>' + txt(t.titre) + '</h2><p>' + txt(t.label) + ' !</p>'
+        + '<button class="b" type="button" data-ok>' + (i + 1 < liste.length || banger ? 'Continuer' : 'Génial') + '</button><a class="b b2" href="/trophees">Voir mes trophées</a>', function () { suite(liste, i + 1, banger); });
+      poster({ trophees: [t.cle] });
+      f.el.querySelector('[data-ok]').onclick = f.fermer;
+      return;
+    }
+    if (!banger) return;
+    var g = fenetre('<div class="piece">' + banger.piece + '</div><p class="etiq">Garde ce qui marche</p><h2>Cette vidéo est un banger</h2>'
+      + '<ul>' + banger.raisons.map(function (r) { return '<li>' + txt(r) + '</li>'; }).join('') + '</ul>'
+      + '<p>Regarde la leçon « Garde ce qui marche » pour refaire une vidéo comme celle-là.</p>'
+      + (banger.lecon ? '<a class="b" href="' + txt(banger.lecon) + '" target="_blank" rel="noopener" data-ok>Regarder la leçon</a>' : '')
+      + '<button class="b b2" type="button" data-ok>Compris</button><button class="off" type="button" data-off>Ne plus afficher ce message</button>');
+    poster({ banger: true });
+    g.el.querySelectorAll('[data-ok]').forEach(function (b) { b.addEventListener('click', function () { setTimeout(g.fermer, 50); }); });
+    g.el.querySelector('[data-off]').onclick = function () { if (confirm(DISSUASION)) { poster({ bangersOff: true }); g.fermer(); } };
+  }
+  // Après les autres fenêtres (ex. « Ce qu'il te reste à faire ») : on attend qu'elles soient fermées.
+  function quandLibre(f) { if (document.querySelector('dialog[open]:not(.ovx-cel)')) setTimeout(function () { quandLibre(f); }, 600); else f(); }
+  fetch('/api/celebrations', { credentials: 'include' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (x) {
+    if (x && ((x.trophees && x.trophees.length) || x.banger)) setTimeout(function () { quandLibre(function () { suite(x.trophees || [], 0, x.banger); }); }, 400);
+  }).catch(function () {});
+})();`;
 
 // ---------- Espace de gestion : barre latérale (ordinateur) / menu repliable (téléphone) ----------
 // À chaque ouverture : l'abonnement du téléphone est resynchronisé avec le site (un téléphone peut le changer seul),

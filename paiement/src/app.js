@@ -22,6 +22,7 @@ const { creerNotifsAdmin } = require('./admin-notifs');
 const { creerMessages } = require('./messages');
 const { creerRessources } = require('./ressources');
 const { creerValidations, RAISONS: RAISONS_VALID } = require('./validations-coaching');
+const { creerTrophees, pieceTrophee } = require('./trophees');
 const RS = require('./pages-ressources');
 const { lienCompte } = require('./tiktok');
 const PF = require('./pages-profil');
@@ -60,6 +61,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const messages = creerMessages({ db: commandes.db, parcours });
   const ressources = creerRessources({ db: commandes.db });
   const validations = creerValidations({ db: commandes.db, coaching, maintenant: coaching.maintenant || (() => new Date()) });
+  const trophees = creerTrophees({ db: commandes.db, suivi, parcours });
+  // Nouveaux trophées après un résultat validé : l'élève est prévenu (la fenêtre s'ouvre à sa prochaine visite).
+  const verifierTrophees = (id) => { const n = trophees.verifier(id); if (n.length) prevenir('trophees', parcours.get(id), n); return n; };
   // Qui est l'élève d'une séance (pour les messages).
   const eleveDe = (id) => parcours.get(id) || { discord_id: id, pseudo: ((coaching.profil(id) || {}).pseudo) || null, nom: null };
   // Toutes les minutes (server.js) : les séances finies depuis 5 minutes → « Valider ce coaching », au coach et à l'élève.
@@ -204,12 +208,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   function classement() {
     const maintenant = Date.now();
     const liste = parcours.tous().map((p) => {
+      if (p.etape >= 4) trophees.verifier(p.discord_id);
       const st = suivi.stats(p.discord_id) || {};
       const profil = qProfils.get.get(p.discord_id) || {};
       return {
         id: p.discord_id, nom: profil.prenom || p.pseudo || 'Membre', pseudo: p.pseudo, avatar: profil.avatar || null, elite: true,
         revenus: st.revenusTotal || 0, vues: st.vues || 0, jours: Math.max(1, Math.floor((maintenant - new Date(p.entree_le)) / 864e5) + 1),
-        recompenses: suivi.recompenses(p.discord_id), chaine: communaute.chaine(p.discord_id),
+        recompenses: suivi.recompenses(p.discord_id), chaine: communaute.chaine(p.discord_id), trophee: trophees.dernier(p.discord_id),
       };
     }).sort((a, b) => b.revenus - a.revenus || b.vues - a.vues || a.nom.localeCompare(b.nom, 'fr'));
     liste.forEach((m, i) => { m.rang = i + 1; });
@@ -1339,6 +1344,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const decaler = (jour, n) => new Date(Date.parse(`${jour}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
   function donneesMonProfil(p) {
     const id = p.discord_id;
+    trophees.verifier(id);
     const profil = qProfils.get.get(id) || {};
     const aujourdhui = p.fuseau ? suivi.aujourdhui(p) : new Date().toISOString().slice(0, 10);
     const entree = (p.entree_le || aujourdhui).slice(0, 10);
@@ -1367,6 +1373,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       nbSuivis: suivis.length, nbConcurrents: communaute.concurrents(id).length, activite: activiteDe(id), aujourdhui,
       invitations: communaute.invitationsRecues(id).length, notifications: notifsAdmin.nonLuesMembre(id),
       remarquesNouvelles: commandes.db.prepare('SELECT COUNT(*) n FROM remarques WHERE discord_id = ? AND COALESCE(modifie_le, cree_le) > ?').get(id, profil.remarques_vues_le || '').n,
+      salleTrophees: { moi: { obtenus: trophees.obtenus(id).slice(0, 8), total: trophees.TROPHEES.length },
+        concurrents: suivis.filter((x) => x.type === 'concurrent').map((x) => ({ ...membreVu(x.suivi), trophees: trophees.obtenus(x.suivi).slice(0, 3), nb: trophees.obtenus(x.suivi).length })) },
       ...carrousel(p, aujourdhui), seances: coaching.prochainesSeances(id, 14).filter((x) => !x.touchee)
         .map((x) => ({ date: x.date, heure: x.heure, debut: new Date(x.debut).toISOString(), type: C.NOMS_TYPES[x.type] || 'Coaching' })),
     };
@@ -1560,6 +1568,36 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (r.erreur) return res.redirect(303, `/reglages?erreur=${encodeURIComponent(r.erreur)}`);
     prevenir('activiteEleve', r.parcours, `demande à **changer de compte TikTok** :\n${r.parcours.compte_demande}`, `/admin/membres/${encodeURIComponent(session.id)}#compte`);
     return res.redirect(303, '/reglages?fait=demande');
+  });
+  // ---- Trophées et « Garde ce qui marche » ----
+  // Ce qui attend l'élève à l'ouverture d'une page : trophées pas encore vus, signaux « banger » de ses vidéos.
+  app.get('/api/celebrations', (req, res) => {
+    const session = lireSession(req, config.secretApp);
+    const p = session && parcoursDe(session);
+    if (!p || session.id === config.discord.adminId) return res.json({ trophees: [], banger: null });
+    trophees.verifier(p.discord_id);
+    const banger = p.etape >= 4 ? trophees.bangers(p.discord_id) : null;
+    res.json({ trophees: trophees.nonVus(p.discord_id).slice(0, 6).map((t) => ({ cle: t.cle, titre: t.titre, label: t.label, metal: t.metal, piece: pieceTrophee(t, { taille: 150 }) })),
+      banger: banger ? { ...banger, lecon: config.formation.gardeCeQuiMarche || null, piece: pieceTrophee({ court: '🔥', metal: 'or', titre: 'Banger', famille: 'revenus' }, { taille: 150 }) } : null });
+  });
+  app.post('/api/celebrations/vu', json, (req, res) => {
+    const m = membreApi(req);
+    if (m.erreur) return res.status(m.statut).json({ erreur: m.erreur });
+    const b = req.body || {};
+    trophees.marquerVus(m.session.id, [].concat(b.trophees || []).map(String).slice(0, 30));
+    if (b.banger) trophees.bangersVus(m.session.id);
+    if (b.bangersOff) trophees.couperBangers(m.session.id);
+    res.json({ ok: true });
+  });
+  // La salle des trophées : les siens, ou ceux d'un membre qu'il suit (ou d'un concurrent).
+  app.get('/trophees', (req, res) => {
+    const x = membreParcours(req, res, '/trophees', { sinistreOk: true });
+    if (!x) return;
+    let id = x.p.discord_id;
+    const de = String(req.query.de || '');
+    if (de && de !== id && communaute.suivis(id).some((s) => s.suivi === de) && parcours.get(de)) id = de;
+    trophees.verifier(id);
+    res.send(PF.pageTrophees(config, { espace: x.espace, salle: trophees.salle(id), membre: id === x.p.discord_id ? null : membreVu(id), mesures: trophees.mesures(id) }));
   });
   app.get('/profil', (req, res) => {
     const x = membreParcours(req, res, '/profil', { sinistreOk: true });
@@ -1893,6 +1931,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const p = parcours.get(v.discord_id);
     prevenir('resultatDecide', r.video, p, decision);
     if (r.nouvelles.length) prevenir('recompensesAtteintes', p, r.nouvelles);
+    if (decision === 'valider') verifierTrophees(v.discord_id);
     if (decision === 'valider') {
       const suiveurs = communaute.suiveurs(v.discord_id);
       if (suiveurs.length) prevenir('resultatPartage', membreVu(v.discord_id), communaute.nouvelle(r.video), suiveurs);
@@ -1922,6 +1961,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const p = parcours.get(cr.discord_id);
     prevenir('compteRenduDecide', r.compteRendu, p, decision);
     if (r.nouvelles.length) prevenir('recompensesAtteintes', p, r.nouvelles);
+    if (decision === 'valider') verifierTrophees(cr.discord_id);
     // Les revenus viennent des updates du compte : une update validée peut faire gagner une concurrence.
     if (decision === 'valider') for (const c of communaute.verifierConcurrences(cr.discord_id)) prevenir('concurrenceGagnee', c, membreVu(cr.discord_id), membreVu(c.autre));
     res.redirect(303, '/admin/a-traiter#etape-4');
@@ -2523,6 +2563,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.get('/sante', (req, res) => res.json({ ok: true }));
 
   app.locals.verifierCoachings = verifierCoachings;
+  app.locals.trophees = trophees;
   app.locals.validations = validations;
   return app;
 }

@@ -10,7 +10,11 @@ const { lienVideo } = require('./tiktok');
 //    GOAT (1 000 € sur 28 jours) et les rôles de revenus (1 500, 5 000, 10 000 € au total), confirmés par le coach.
 
 const JOUR = 24 * 3600 * 1000;
-const OBJECTIFS = [50, 500, 1000, 1500];
+// Les objectifs, dans l'ordre : on montre le premier pas encore atteint.
+const OBJECTIFS = [['vues', 1e4], ['abonnes', 1e3], ['vues', 1e5], ['abonnes', 5e3], ['abonnes', 1e4], ['vues', 1e6],
+  ['revenus', 50], ['revenus', 100], ['revenus', 500], ['revenus', 1000], ['revenus', 1500], ['revenus', 5000], ['revenus', 10000]]
+  .map(([type, seuil]) => ({ type, seuil, montant: type === 'revenus' ? seuil : null,
+    libelle: type === 'revenus' ? `$${seuil.toLocaleString('en-US')}` : `${seuil.toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ')} ${type === 'vues' ? 'vues' : 'abonnés'}` }));
 const ROLES_REVENUS = [1500, 5000, 10000];
 const SEUIL_GOAT = 1000;
 const FENETRE_GOAT_JOURS = 28;
@@ -114,6 +118,8 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     revenusVideos: db.prepare('SELECT COALESCE(SUM(ok_revenus), 0) r, COALESCE(SUM(ok_vues), 0) v FROM publications WHERE discord_id = ?'),
     updatesMembre: db.prepare("SELECT jour, etat, vues_28j, revenus_28j FROM comptes_rendus WHERE discord_id = ? AND (revenus_28j IS NOT NULL OR vues_28j IS NOT NULL) AND etat IN ('valide', 'attente') ORDER BY jour"),
     dernierUpdate: db.prepare("SELECT * FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide' AND revenus_28j IS NOT NULL ORDER BY jour DESC LIMIT 1"),
+    dernierVues: db.prepare("SELECT vues_28j FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide' AND vues_28j IS NOT NULL ORDER BY jour DESC LIMIT 1"),
+    abonnesValides: db.prepare("SELECT abonnes FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide' AND abonnes IS NOT NULL ORDER BY jour DESC LIMIT 1"),
     updateEnregistrer: db.prepare(`INSERT INTO comptes_rendus (discord_id, jour, etat, vues_28j, revenus_28j, capture_revenus, question, envoye_le, cree_le)
       VALUES (?, ?, 'attente', ?, ?, ?, ?, ?, ?)
       ON CONFLICT(discord_id, jour) DO UPDATE SET etat = 'attente', vues_28j = excluded.vues_28j, revenus_28j = excluded.revenus_28j,
@@ -357,9 +363,13 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       const serie = api.cumul(discordId, { valides: true });
       const fin = serie[serie.length - 1];
       const total = fin ? fin.revenus : 0;
+      const vues28 = q.dernierVues.get(discordId);
+      const ab = q.abonnesValides.get(discordId);
+      const abonnes = ab ? Number(ab.abonnes) : null;
+      const valeurs = { vues: fin ? fin.vues : 0, abonnes: abonnes || 0, revenus: total };
       return {
-        abonnes: null,
-        vues: dernier ? dernier.vues_28j : null,
+        abonnes,
+        vues: vues28 ? vues28.vues_28j : null,
         vuesTotal: fin ? fin.vues : 0,
         vuesVideos: videos.v,
         paysPrincipal: paysPrincipal ? paysPrincipal[0] : null,
@@ -368,7 +378,7 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
         joursPublies: jours.length,
         videosPubliees: jours.reduce((n, j) => n + j.n, 0),
         joursDepuisEtape4: joursDepuis,
-        objectifs: OBJECTIFS.map((o) => ({ montant: o, atteint: total >= o })),
+        objectifs: OBJECTIFS.map((o) => ({ ...o, valeur: valeurs[o.type], atteint: valeurs[o.type] >= o.seuil })),
       };
     },
 
