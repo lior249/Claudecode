@@ -786,6 +786,38 @@ function migrerV36(db) {
   db.exec('PRAGMA user_version = 36');
 }
 
+// v37 : nouveau parcours (niche en texte et capture d'exemple, compte TikTok par formulaire, abonnés, 10K et monétisation,
+// preuves d'audience et de RPM, axes Hook / Engagement / Watchtime, trophées et signaux « banger »).
+function migrerV37(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 37) return;
+  const ajouter = (table, cols) => { const c = colonnes(db, table); for (const [n, t] of cols) if (!c.includes(n)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${n} ${t}`); };
+  ajouter('parcours', [['niche_capture', 'TEXT'], ['methode_texte', 'TEXT'], ['niche_refus', 'TEXT'], ['compte_methode', 'TEXT'], ['compte_abonnes_depart', 'INTEGER'],
+    ['abonnes_actuels', 'INTEGER'], ['monetisation_etat', 'TEXT'], ['monetisation_capture', 'TEXT'], ['monetisation_le', 'TEXT'], ['monetisation_vue', 'TEXT'],
+    ['audience_etat', 'TEXT'], ['audience_capture', 'TEXT'], ['audience_le', 'TEXT'], ['rpm_etat', 'TEXT'], ['rpm_capture', 'TEXT'], ['rpm_le', 'TEXT'],
+    ['tutos_vus', 'TEXT'], ['bangers_off', 'TEXT']]);
+  ajouter('publications', [['res_abonnes', 'INTEGER'], ['ok_abonnes', 'INTEGER'], ['res_rpm', 'REAL'], ['ok_rpm', 'REAL'], ['revenus_rappel_le', 'TEXT']]);
+  ajouter('comptes_rendus', [['abonnes', 'INTEGER']]);
+  ajouter('soumissions', [['axe', 'TEXT']]);
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS trophees (
+    discord_id   TEXT NOT NULL,
+    cle          TEXT NOT NULL,
+    obtenu_le    TEXT NOT NULL,
+    vu_le        TEXT,
+    publication_id INTEGER,
+    PRIMARY KEY (discord_id, cle)
+  );
+  CREATE TABLE IF NOT EXISTS signaux_bangers (
+    discord_id     TEXT NOT NULL,
+    signal         TEXT NOT NULL,
+    publication_id INTEGER,
+    montre_le      TEXT NOT NULL,
+    vu_le          TEXT,
+    PRIMARY KEY (discord_id, signal)
+  );`);
+  db.exec('PRAGMA user_version = 37');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -831,6 +863,7 @@ function ouvrirBase(fichier) {
   migrerV34(db);
   migrerV35(db);
   migrerV36(db);
+  migrerV37(db);
   return db;
 }
 

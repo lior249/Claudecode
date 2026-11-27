@@ -295,42 +295,45 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
     },
     // Étape 3 : l'élève choisit sa niche (une niche publique, ou la sienne proposée au coach), sa méthode 10K et son pays cible.
     // Visible par le coach seulement (jamais dans le classement ni par les autres élèves).
-    choisirStrategie(discordId, { niche, methode, pays } = {}, { coach = false } = {}) {
+    // Positionnement en texte libre (les Ressources sont cachées) : la niche (et sa capture d'exemple), la méthode 10K, le pays.
+    // L'élève envoie sa niche à l'étape 3 (formulaire « Ma niche ») ; le coach la valide ou la refuse, puis elle est verrouillée.
+    // Le coach peut tout écrire ou corriger lui-même (validé d'office).
+    choisirStrategie(discordId, { niche, methode, pays, capture } = {}, { coach = false } = {}) {
       const p = q.get.get(discordId);
       if (!p) return { erreur: 'Membre introuvable.' };
-      // Validé par le coach : c'est avec ce positionnement qu'on l'accompagne ; seul le coach peut le changer.
-      if (!coach && p.positionnement_valide_le) return { erreur: 'Ton positionnement est validé par ton coach : il ne se change plus. Écris-lui si tu as une vraie raison.' };
-      const ressource = (id, type) => (id === undefined || id === '' ? undefined
-        : db.prepare("SELECT * FROM ressources WHERE id = ? AND type = ? AND (etat = 'public' OR (auteur = ? AND etat != 'refuse'))").get(Number(id), type, discordId) || null);
-      const n = ressource(niche, 'niche'); const m = ressource(methode, 'methode');
-      if (n === null) return { erreur: 'Choisis une niche de la liste.' };
-      // Un profil L1 ne prend pas de niche L2 (commentaire) ; un profil L2 peut tout prendre.
-      if (n && n.categorie === 'L2' && p.niveau === 'L1') return { erreur: 'Cette niche est en L2 (commentaire) : elle est réservée aux profils L2.' };
-      if (m === null) return { erreur: 'Choisis une méthode de la liste.' };
-      const PAYS = require('./ressources').PAYS;
-      if (pays !== undefined && pays !== '' && !PAYS.includes(pays)) return { erreur: 'Choisis un pays de la liste.' };
-      db.prepare(`UPDATE parcours SET niche_id = COALESCE(?, niche_id), niche = COALESCE(?, niche), methode_id = COALESCE(?, methode_id),
-        pays_cible = COALESCE(?, pays_cible), maj_le = ? WHERE discord_id = ?`)
-        .run(n ? n.id : null, n ? n.titre : null, m ? m.id : null, pays || null, iso(), discordId);
-      const apres = q.get.get(discordId);
-      // Complet : envoyé au coach (l'élève) ; validé d'office quand c'est le coach qui le choisit.
-      if (apres.niche_id && apres.methode_id && apres.pays_cible) {
-        if (coach) db.prepare('UPDATE parcours SET positionnement_le = COALESCE(positionnement_le, ?), positionnement_valide_le = ? WHERE discord_id = ?').run(iso(), iso(), discordId);
-        else db.prepare('UPDATE parcours SET positionnement_le = ?, positionnement_valide_le = NULL WHERE discord_id = ?').run(iso(), discordId);
+      if (!coach && p.positionnement_valide_le) return { erreur: 'Ta niche est validée par ton coach : elle ne se change plus. Écris-lui si tu as une vraie raison.' };
+      const t = (v, n) => (v === undefined ? undefined : String(v || '').trim().slice(0, n) || null);
+      const n = t(niche, 100); const m = t(methode, 100); const pa = t(pays, 60);
+      if (!coach) {
+        if (!n) return { erreur: 'Écris le nom de ta niche.' };
+        if (!capture) return { erreur: 'Ajoute une capture d\'un concurrent ou d\'un compte exemple de cette niche.' };
       }
-      return { parcours: q.get.get(discordId), envoye: !coach && Boolean(apres.niche_id && apres.methode_id && apres.pays_cible) };
+      db.prepare(`UPDATE parcours SET niche = COALESCE(?, niche), methode_texte = COALESCE(?, methode_texte), pays_cible = COALESCE(?, pays_cible),
+        niche_capture = COALESCE(?, niche_capture), maj_le = ? WHERE discord_id = ?`).run(n === undefined ? null : n, m === undefined ? null : m, pa === undefined ? null : pa, capture || null, iso(), discordId);
+      const apres = q.get.get(discordId);
+      if (coach) {
+        if (apres.niche) db.prepare('UPDATE parcours SET positionnement_le = COALESCE(positionnement_le, ?), positionnement_valide_le = ?, niche_refus = NULL WHERE discord_id = ?').run(iso(), iso(), discordId);
+        return { parcours: q.get.get(discordId), envoye: false };
+      }
+      db.prepare('UPDATE parcours SET positionnement_le = ?, positionnement_valide_le = NULL, niche_refus = NULL WHERE discord_id = ?').run(iso(), discordId);
+      return { parcours: q.get.get(discordId), envoye: true };
     },
     strategie(discordId) {
       const p = q.get.get(discordId);
       if (!p) return null;
-      const r = (id) => (id ? db.prepare('SELECT id, type, titre, categorie, pour, etat FROM ressources WHERE id = ?').get(id) || null : null);
-      const niche = r(p.niche_id); const methode = r(p.methode_id);
-      return { niche, methode, pays: p.pays_cible || null, complete: Boolean(niche && methode && p.pays_cible),
-        envoye: Boolean(p.positionnement_le), valide: Boolean(p.positionnement_valide_le) };
+      return { niche: p.niche ? { titre: p.niche } : null, methode: p.methode_texte || null, pays: p.pays_cible || null, capture: p.niche_capture || null,
+        complete: Boolean(p.niche), envoye: Boolean(p.positionnement_le), valide: Boolean(p.positionnement_valide_le), refus: p.niche_refus || null };
+    },
+    // Le coach refuse la niche : l'élève en propose une autre (motif obligatoire).
+    refuserNiche(discordId, motif) {
+      const m = String(motif || '').trim().slice(0, 1000);
+      if (m.length < 3) return { erreur: 'Écris pourquoi tu refuses cette niche.' };
+      db.prepare('UPDATE parcours SET positionnement_le = NULL, positionnement_valide_le = NULL, niche_refus = ? WHERE discord_id = ?').run(m, discordId);
+      return { parcours: q.get.get(discordId) };
     },
     validerPositionnement(discordId) {
       const p = q.get.get(discordId);
-      if (!p || !(p.niche_id && p.methode_id && p.pays_cible)) return { erreur: 'Positionnement incomplet.' };
+      if (!p || !p.niche) return { erreur: 'Aucune niche à valider.' };
       db.prepare('UPDATE parcours SET positionnement_valide_le = ?, positionnement_le = COALESCE(positionnement_le, ?) WHERE discord_id = ?').run(iso(), iso(), discordId);
       return { parcours: q.get.get(discordId) };
     },
@@ -383,7 +386,7 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       const r = {
         1: [...['L1', 'L2'].filter((e) => etat(e) !== 'valide').map((e) => `Exercice ${e} pas validé`), ...(p.niveau ? [] : ['Profil type (L1 ou L2) pas choisi'])],
         2: entreeFaite ? [] : ['Coaching d\'entrée pas fait'],
-        3: [...(p.niche_id && p.methode_id && p.pays_cible ? [] : ['Niche, méthode 10K ou pays pas choisis']),
+        3: [...(p.positionnement_le ? [] : ['Niche pas encore envoyée']),
           ...['V1', 'V2', 'V3'].filter((e) => etat(e) !== 'valide').map((e) => `Vidéo ${e.slice(1)} pas validée`)],
       };
       for (const k of [1, 2, 3]) if (p.etape > k) r[k] = []; // étapes déjà franchies
@@ -473,8 +476,8 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
           const s = aCorriger[0];
           return { cle: `correction-${s.emplacement}-${s.decide_le}`, titre: `Corrige ta vidéo ${s.emplacement.slice(1)}`, texte: 'Ton coach demande des modifications : lis sa remarque et renvoie la nouvelle version.', lien: '/parcours/etape-3', bouton: 'Ouvrir l\'étape 3', delai: { fin: s.corriger_avant, duree: DELAIS.correction } };
         }
-        if (!(p.niche_id && p.methode_id && p.pays_cible)) {
-          return { cle: 'strategie', titre: 'Choisis ta niche, ta méthode et ton pays', texte: 'Ta niche, ta méthode pour atteindre 10K abonnés et le pays que tu vises : seul ton coach les voit.', lien: '/parcours/etape-3#strategie', bouton: 'Choisir', delai: fin(DELAIS.etape3) };
+        if (!p.positionnement_le) {
+          return { cle: 'strategie', titre: p.niche_refus ? 'Propose une autre niche' : 'Envoie ta niche', texte: p.niche_refus ? 'Ton coach a refusé ta niche : lis pourquoi et propose-en une autre.' : 'Le nom de ta niche et une capture d’un compte exemple : ton coach la valide.', lien: '/parcours/etape-3#strategie', bouton: 'Ma niche', delai: fin(DELAIS.etape3) };
         }
         const manquantes = ['V1', 'V2', 'V3'].filter((e) => ['vide', 'brouillon'].includes(etatDe(e)));
         return manquantes.length

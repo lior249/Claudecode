@@ -11,6 +11,7 @@ test('ressources : publier, proposer, valider, aimer, remarque ; stratégie de l
   const appels = [];
   const bob = { parcours: new Proxy({}, { get: (o, nom) => async (...a) => { appels.push([nom, ...a]); return true; } }) };
   const m = await monter({ bob });
+  m.config.ressourcesActives = true; // cachées par défaut
   try {
     for (const id of ['A', 'B']) m.parcours.assurer(id, { pseudo: `p_${id}` });
     m.db.prepare("UPDATE parcours SET etape = 3 WHERE discord_id = 'A'").run();
@@ -65,26 +66,6 @@ test('ressources : publier, proposer, valider, aimer, remarque ; stratégie de l
     assert.match((await m.poster(`/ressources/${prop.id}/modifier`, { titre: 'Recettes à 2 euros', description: 'Cuisine pas chère', categorie: 'L2' }, A)).headers.get('location'), /fait=modifie/);
     assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /data-filtre="ressources"[\s\S]*Propose la niche <b>Recettes à 2 euros<\/b>/);
 
-    // Étape 3 : niche (même sa proposition), méthode, pays parmi les 8.
-    assert.match(await (await m.get('/parcours', A)).text(), /Choisis ta niche, ta méthode et ton pays/);
-    const etape3 = await (await m.get('/parcours/etape-3', A)).text();
-    assert.match(etape3, /Mon positionnement[\s\S]*Recettes à 2 euros \(en attente du coach\)[\s\S]*Ajouter ma niche[\s\S]*Corée du Sud/);
-    assert.match(etape3, /<option value="\d+">Faits historiques<\/option>/);
-    assert.match((await m.poster('/parcours/etape-3/strategie', { niche: prop.id, methode: methode.id, pays: 'Belgique' }, A)).headers.get('location'), /erreur=/);
-    assert.match((await m.poster('/parcours/etape-3/strategie', { niche: prop.id, methode: methode.id, pays: 'Japon' }, A)).headers.get('location'), /fait=strategie/);
-    assert.strictEqual(m.parcours.strategie('A').complete, true);
-    assert.ok(appels.some(([n, , t]) => n === 'activiteEleve' && /positionnement/.test(t)), 'le coach est prévenu');
-    // Le coach le voit « à valider » (jaune) dans À traiter et sur la fiche, le formulaire derrière « Modifier » ; il valide → verrouillé.
-    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /data-filtre="positionnement"[\s\S]*Positionnement à valider/);
-    const ficheA = await (await m.get('/admin/membres/A', coach)).text();
-    assert.match(ficheA, /id="positionnement"[\s\S]*Envoyé · à valider[\s\S]*Valider le positionnement[\s\S]*<summary[^>]*>Modifier<\/summary>/);
-    await m.poster('/admin/membres/A/positionnement/valider', {}, coach);
-    assert.strictEqual(m.parcours.strategie('A').valide, true);
-    assert.match(await (await m.get('/parcours/etape-3', A)).text(), /Mon positionnement[\s\S]*Acté[\s\S]*ne se change plus/);
-    assert.match((await m.poster('/parcours/etape-3/strategie', { niche: niche.id, methode: methode.id, pays: 'France' }, A)).headers.get('location'), /erreur=/, 'verrouillé');
-    assert.strictEqual(m.parcours.get('A').pays_cible, 'Japon');
-    assert.match((await m.poster('/parcours/etape-3/strategie', { niche: prop.id, methode: '999', pays: 'Japon' }, B)).headers.get('location'), /parcours|erreur/);
-
     // Le coach valide : publique, l'élève est prévenu ; il ne peut plus la modifier.
     await m.poster(`/admin/ressources/${prop.id}/decision`, { decision: 'valider' }, coach);
     assert.strictEqual(m.db.prepare('SELECT etat FROM ressources WHERE id = ?').get(prop.id).etat, 'public');
@@ -101,10 +82,6 @@ test('ressources : publier, proposer, valider, aimer, remarque ; stratégie de l
     await m.poster(`/ressources/${niche.id}/remarque`, { texte: 'Le compte exemple est privé.' }, B);
     assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /Ressource : Faits historiques[\s\S]*Le compte exemple est privé/);
 
-    // Stratégie : le coach la voit sur le profil de l'élève ; jamais dans le profil public ni le classement.
-    assert.match(await (await m.get('/admin/membres/A/profil', coach)).text(), /Sa stratégie[\s\S]*Recettes à 2 euros[\s\S]*Japon/);
-    assert.doesNotMatch(await (await m.get('/classement/A', B)).text(), /Recettes|Japon/);
-    assert.doesNotMatch(await (await m.get('/classement', B)).text(), /Recettes/);
   } finally { await m.fermer(); }
 });
 
@@ -125,6 +102,7 @@ test('forum Discord : chaque ressource publique y est postée avec ses tags (dou
   // La plateforme poste (coach : tout de suite ; élève : à la validation), puis garde l'identifiant du post.
   const posts = [];
   const m = await monter({ bob: { parcours: { publierRessource: async (r, auteur) => { posts.push([r.id, r.etat, auteur]); return `fil-${r.id}`; }, ressourceProposee: async () => {}, ressourceDecidee: async () => {} } } });
+  m.config.ressourcesActives = true;
   try {
     m.parcours.assurer('A', { pseudo: 'p_A' });
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
@@ -223,5 +201,45 @@ test('import d\'un ancien forum : posts lus (titre, tags, thématique, drapeaux,
     assert.ok(lignes.every((x) => x.discord_fil), 'postées dans le nouveau forum');
     assert.strictEqual(nouveaux.size, 2, 'importées une seule fois malgré 2 lancements');
     assert.ok(dms.some(([, t]) => /Import du forum « niches » terminé/.test(t)));
+  } finally { await m.fermer(); }
+});
+
+test('ressources cachées ; étape 3 : « Ma niche » (une question par page, nom + capture), validée ou refusée par le coach, privée', async () => {
+  const appels = [];
+  const bob = { parcours: new Proxy({}, { get: (o, nom) => async (...a) => { appels.push([nom, ...a]); return true; } }) };
+  const m = await monter({ bob });
+  try {
+    m.parcours.assurer('A', { pseudo: 'p_A' }); m.parcours.assurer('B', { pseudo: 'p_B' });
+    m.db.prepare("UPDATE parcours SET etape = 3 WHERE discord_id IN ('A', 'B')").run();
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const A = { cookie: cookieSession('A', 'p_A') };
+    // Ressources cachées : ni dans le menu, ni accessibles.
+    assert.strictEqual((await m.get('/ressources', A)).headers.get('location'), '/app');
+    assert.doesNotMatch(await (await m.get('/profil', A)).text(), /href="\/ressources"/);
+    // Le formulaire : as-tu une niche ? → non : la leçon ; oui : le nom, puis la capture, avec l'avertissement.
+    assert.match(await (await m.get('/parcours', A)).text(), /Envoie ta niche/);
+    const page = await (await m.get('/parcours/etape-3', A)).text();
+    assert.match(page, /As-tu déjà choisi ta niche[\s\S]*data-page="n"[\s\S]*lesn_R4oKNKL5cKzj3[\s\S]*Quel est le nom de ta niche[\s\S]*compte exemple[\s\S]*qu'une seule vidéo/);
+    const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+    const img = (await (await fetch(`${m.base}/api/parcours/image`, { method: 'POST', headers: { 'Content-Type': 'image/png', cookie: A.cookie }, body: png })).json()).nom;
+    assert.match((await m.poster('/parcours/etape-3/strategie', { niche: 'Tricot' }, A)).headers.get('location'), /erreur=/, 'capture obligatoire');
+    assert.match((await m.poster('/parcours/etape-3/strategie', { niche: 'Tricot', capture: img }, A)).headers.get('location'), /fait=strategie/);
+    assert.ok(appels.some(([n, , t]) => n === 'activiteEleve' && /niche/.test(t)));
+    assert.match(await (await m.get('/parcours/etape-3', A)).text(), /Envoyée · à valider[\s\S]*Tricot[\s\S]*qu'une seule vidéo/);
+    // Le coach : à valider, la capture, refuser (motif) → il en propose une autre ; valider → verrouillée.
+    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /Positionnement à valider : Tricot/);
+    const fiche = await (await m.get('/admin/membres/A', coach)).text();
+    assert.ok(fiche.includes(`/fichiers/images/${img}`));
+    assert.match(fiche, /Valider la niche[\s\S]*Refuser la niche/);
+    await m.poster('/admin/membres/A/niche/refuser', { motif: 'Trop peu de vues dans ton pays.' }, coach);
+    assert.match(await (await m.get('/parcours/etape-3', A)).text(), /Ton coach a refusé ta niche : Trop peu de vues/);
+    await m.poster('/parcours/etape-3/strategie', { niche: 'Faits historiques', capture: img }, A);
+    await m.poster('/admin/membres/A/positionnement/valider', {}, coach);
+    assert.match(await (await m.get('/parcours/etape-3', A)).text(), /Ma niche[\s\S]*Validée[\s\S]*Faits historiques[\s\S]*ne se change plus/);
+    assert.match((await m.poster('/parcours/etape-3/strategie', { niche: 'Autre', capture: img }, A)).headers.get('location'), /erreur=/, 'verrouillée');
+    // Le coach écrit la méthode et le pays (texte) ; jamais dans le classement public.
+    await m.poster('/admin/membres/A/compte', { niche: 'Faits historiques', methode: 'Versus', pays: 'France' }, coach);
+    assert.deepStrictEqual([m.parcours.get('A').methode_texte, m.parcours.get('A').pays_cible], ['Versus', 'France']);
+    assert.doesNotMatch(await (await m.get('/classement/A', { cookie: cookieSession('B', 'p_B') })).text(), /Faits historiques|Versus/);
   } finally { await m.fermer(); }
 });

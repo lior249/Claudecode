@@ -14,6 +14,20 @@ const ID_DISCORD = /^\d{15,22}$/;
 function chargerConfig({ strict = true } = {}) {
   const config = {
     port: Number(lire('PORT', '3000')),
+    // Ressources (niches, méthodes, tutoriels) : cachées pour l'instant, gardées dans la base (RESSOURCES=1 pour les rallumer).
+    ressourcesActives: lire('RESSOURCES', '0') === '1',
+    // Leçons de la formation (Whop) citées dans les formulaires du parcours.
+    formation: {
+      niche: lire('FORMATION_NICHE', 'https://whop.com/overmaxx/exp_6XBW7sJB6mQQwZ/app/courses/cors_oS7MQJzspzkIe/lessons/lesn_R4oKNKL5cKzj3/'),
+      compte: lire('FORMATION_COMPTE', 'https://whop.com/overmaxx/exp_6XBW7sJB6mQQwZ/app/courses/cors_oS7MQJzspzkIe/lessons/lesn_9J723ZxcGblHC/'),
+      partagerCompte: lire('FORMATION_PARTAGER_COMPTE', ''), // vidéo Wistia (identifiant ou lien), à venir
+      monetisation: lire('FORMATION_MONETISATION', 'https://whop.com/overmaxx/exp_6XBW7sJB6mQQwZ/app/courses/cors_oS7MQJzspzkIe/lessons/lesn_5t8uMg8rOVH8K/'),
+      hook: lire('FORMATION_HOOK', 'https://whop.com/overmaxx/exp_6XBW7sJB6mQQwZ/app/courses/cors_oS7MQJzspzkIe/lessons/lesn_7XEb7ags2m67i/'),
+      engagement: lire('FORMATION_ENGAGEMENT', 'https://whop.com/overmaxx/exp_6XBW7sJB6mQQwZ/app/courses/cors_oS7MQJzspzkIe/lessons/lesn_8lGEPQjK12HZd/'),
+      watchtime: lire('FORMATION_WATCHTIME', 'https://whop.com/overmaxx/exp_6XBW7sJB6mQQwZ/app/courses/cors_oS7MQJzspzkIe/lessons/lesn_Z90wzeJeZARZq/'),
+      routine: lire('FORMATION_ROUTINE', 'https://whop.com/overmaxx/exp_6XBW7sJB6mQQwZ/app/courses/cors_oS7MQJzspzkIe/lessons/lesn_DbLBvOppIKmKD/'),
+      gardeCeQuiMarche: lire('FORMATION_GARDE', 'https://whop.com/overmaxx/exp_6XBW7sJB6mQQwZ/app/courses/cors_oS7MQJzspzkIe/lessons/lesn_eLc7dJw5cVt5g/'),
+    },
     baseUrl: lire('BASE_URL', 'http://localhost:3000').replace(/\/+$/, ''),
     fichierBase: lire('FICHIER_BASE', './data/paiement.db'),
     nomFormation: lire('NOM_FORMATION', 'Overmaxx'),

@@ -61,7 +61,7 @@ const STYLE_KANBAN = `<style>
 </style>`;
 
 // Infos à renseigner : le niveau après l'étape 1 ; la niche et le pays à partir de l'étape 3 ; le compte TikTok à partir de l'étape 4.
-const manqueInfos = (e) => (e.etape >= 2 && !e.niveau) || (e.etape >= 3 && (!e.niche || !e.pays)) || (e.etape >= 4 && !e.compte);
+const manqueInfos = (e) => (e.etape >= 2 && !e.niveau) || (e.etape >= 4 && (!e.niche || !e.compte));
 function carte(e) {
   const goat = e.etape >= 5;
   return `<article class="eleve" data-id="${echapper(e.id)}" draggable="${goat ? 'false' : 'true'}">
@@ -168,7 +168,7 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
   const parColonne = (n) => eleves.filter((e) => (n === 5 ? e.etape >= 5 : e.etape === n))
     .sort((a, b) => remplissage(b) - remplissage(a) || a.nom.localeCompare(b.nom, 'fr'));
   const donnees = {};
-  for (const e of eleves) donnees[e.id] = { nom: e.nom, etape: e.etape, compte: e.compte || '', niche: e.nicheId ? String(e.nicheId) : '', methode: e.methodeId ? String(e.methodeId) : '',
+  for (const e of eleves) donnees[e.id] = { nom: e.nom, etape: e.etape, compte: e.compte || '', niche: e.niche || '', methode: e.methode || '',
     pays: e.paysCible || '', niveau: e.niveau || '', manquants: e.manquants };
   const script = `
 (function () {
@@ -275,7 +275,6 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
       di.querySelector('#i-nom').textContent = e.nom;
       ['niche', 'methode', 'pays', 'compte'].forEach(function (k) { di.querySelector('[name=' + k + ']').value = e[k] || ''; });
       // Profil L1 : les niches L2 (commentaire) ne se choisissent pas. Compte TikTok : seulement à partir de l'étape 4.
-      di.querySelectorAll('[name=niche] option[data-cat]').forEach(function (o) { var non = e.niveau === 'L1' && o.getAttribute('data-cat') === 'L2'; o.hidden = non; o.disabled = non; });
       di.querySelector('.i-compte').hidden = e.etape < 4;
       di.querySelector('#i-erreur').textContent = '';
       di.showModal();
@@ -317,15 +316,12 @@ function pageEleves(config, { espace, eleves, sansDiscord = [], message, erreur,
   <dialog id="dlg-infos" class="fenetre">
     <h2 style="margin:0 0 10px">Infos de <span id="i-nom"></span></h2>
     <div class="champs-compte">
-      <div class="champ large"><label for="i-niche">Niche</label><select id="i-niche" name="niche"><option value="">${choix.niches.length ? 'Choisir une niche' : 'Aucune niche dans les Ressources'}</option>
-        ${choix.niches.map((n) => `<option value="${n.id}" data-cat="${echapper(n.categorie || '')}">${echapper(n.titre)}${n.categorie === 'L2' ? ' · L2' : n.categorie === 'L1' ? ' · L1' : ''}</option>`).join('')}</select></div>
-      <div class="champ large"><label for="i-methode">Méthode 10K</label><select id="i-methode" name="methode"><option value="">Choisir une méthode</option>
-        ${choix.methodes.map((x) => `<option value="${x.id}">${echapper(x.titre)}</option>`).join('')}</select></div>
-      <div class="champ large"><label for="i-pays">Pays visé</label><select id="i-pays" name="pays"><option value="">Choisir un pays</option>
-        ${choix.pays.map((x) => `<option value="${echapper(x)}">${choix.drapeaux[x] || ''} ${echapper(x)}</option>`).join('')}</select></div>
+      <div class="champ large"><label for="i-niche">Niche</label><input id="i-niche" name="niche" maxlength="100" placeholder="ex. Faits historiques"></div>
+      <div class="champ large"><label for="i-methode">Méthode 10K</label><input id="i-methode" name="methode" maxlength="100" placeholder="ex. Versus"></div>
+      <div class="champ large"><label for="i-pays">Pays visé</label><input id="i-pays" name="pays" maxlength="60" placeholder="ex. France"></div>
       <div class="champ large i-compte"><label for="i-compte">Lien du compte TikTok</label><input id="i-compte" name="compte" placeholder="https://www.tiktok.com/@compte"></div>
     </div>
-    <p class="doux petit" style="margin:0">Une niche ou une méthode manque ? Ajoute-la dans les <a href="/ressources">Ressources</a>. Profil L1 : les niches L2 ne sont pas proposées.</p>
+    <p class="doux petit" style="margin:0">Ce que tu écris ici est validé d'office.</p>
     <p id="i-erreur" class="erreur-form" style="margin:8px 0 0"></p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
       <button id="i-annuler" class="bouton secondaire" type="button" style="margin:0">Annuler</button>

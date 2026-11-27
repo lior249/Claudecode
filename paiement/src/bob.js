@@ -1814,8 +1814,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
             } else console.warn('[bob] salon des sinistrés :', r.erreur);
           } catch (err) { console.error('[bob] salon des sinistrés :', err.message); }
         }
-        // Forum des ressources : créé s'il manque ; les ressources publiques pas encore postées y sont ajoutées.
-        if (serveur) {
+        // Forum des ressources : créé s'il manque ; les ressources publiques pas encore postées y sont ajoutées (si elles sont actives).
+        if (serveur && config.ressourcesActives) {
           try {
             await forumRessources();
             const { creerRessources } = require('./ressources');

@@ -92,11 +92,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
     const aTraiterParcours = estAdmin
-      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + ressources.enAttente().length + validations.pourCoach().length + (() => { const v = parcours.aValider(); return v.positionnements.length + v.comptes.length + v.demandes.length; })() + aTraiter : 0;
+      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + (config.ressourcesActives ? ressources.enAttente().length : 0) + validations.pourCoach().length + (() => { const v = parcours.aValider(); return v.positionnements.length + v.comptes.length + v.demandes.length; })() + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
     const c = !estAdmin && session ? compteursMembre(session.id) : { notifs: 0, remarques: 0 };
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
-      notifsNonLues: estAdmin ? notifsAdmin.nonLues() : c.notifs, remarquesNouvelles: c.remarques, evenements: session ? evenementsEnCours() : [] };
+      notifsNonLues: estAdmin ? notifsAdmin.nonLues() : c.notifs, remarquesNouvelles: c.remarques, evenements: session ? evenementsEnCours() : [],
+      ressources: Boolean(config.ressourcesActives) };
   };
   // Notifications non lues et nouvelles remarques du coach d'un membre (pastilles rouges, nombre sur l'icône de l'application).
   function compteursMembre(id) {
@@ -1072,17 +1073,16 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       || coaching.occurrences(lundiCourant, coaching.ajouterJours(lundiCourant, 6), { discordId: x.session.id }).filter((o) => o.type === 'semaine').length;
     res.send(V.pageEtape3(config, { ...commun, soumissions: parcours.soumissions(x.session.id, 3), remarquesDe,
       coachings: { reserves, min: config.coaching.minParSemaine, max: config.coaching.maxParSemaine || 7 },
-      strategie: { strategie: parcours.strategie(x.session.id), niches: ressources.liste('niche', { pour: x.session.id }).filter((r) => r.etat !== 'refuse'),
-        methodes: ressources.liste('methode', { pour: x.session.id }).filter((r) => r.etat !== 'refuse'), pays: ressources.PAYS, drapeaux: ressources.DRAPEAUX, niveau: x.p.niveau,
-        message: { strategie: 'Stratégie enregistrée.', niche: 'Ta niche est envoyée au coach, et déjà choisie. Choisis ta méthode et ton pays.' }[req.query.fait] || req.query.erreur || null } }));
+      strategie: { strategie: parcours.strategie(x.session.id), formation: config.formation,
+        message: { strategie: 'Envoyée à ton coach : il te prévient dès qu\'il l\'a validée.' }[req.query.fait] || req.query.erreur || null } }));
   });
 
   app.post('/parcours/etape-3/strategie', formulaire, (req, res) => {
     const x = membreParcours(req, res, '/parcours/etape-3');
     if (!x) return;
     if (x.p.etape < 3) return res.redirect(303, '/parcours');
-    const r = parcours.choisirStrategie(x.session.id, { niche: req.body.niche, methode: req.body.methode, pays: req.body.pays });
-    if (!r.erreur && r.envoye) prevenir('activiteEleve', r.parcours, 'a envoyé son **positionnement** (niche, méthode 10K, pays) : à valider.', `/admin/membres/${encodeURIComponent(x.session.id)}#positionnement`);
+    const r = parcours.choisirStrategie(x.session.id, { niche: req.body.niche, capture: imageDe(req.body.capture, x.session.id) });
+    if (!r.erreur && r.envoye) prevenir('activiteEleve', r.parcours, `a envoyé sa **niche** : ${r.parcours.niche}. À valider.`, `/admin/membres/${encodeURIComponent(x.session.id)}#positionnement`);
     res.redirect(303, r.erreur ? `/parcours/etape-3?erreur=${encodeURIComponent(r.erreur)}#strategie` : '/parcours/etape-3?fait=strategie#strategie');
   });
   // Envoi en deux temps : les informations (note et retour de l'IA à l'étape 1), puis la vidéo.
@@ -1636,6 +1636,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
 
 
   // ================= Ressources (élèves Elite et coach) =================
+  // Cachées pour l'instant (config.ressourcesActives) : les adresses mènent à l'accueil, rien n'est supprimé.
+  app.use(['/ressources', '/admin/ressources'], (req, res, next) => (config.ressourcesActives ? next() : res.redirect(302, '/app')));
   // Qui regarde : le coach, ou un élève de l'accompagnement (sinon la page explique pourquoi).
   function lecteurRessources(req, res, retour) {
     const session = connecte(req, res, retour, 'Ressources');
@@ -1648,6 +1650,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const imagesRessource = (b, x, deja = []) => imagesDe(b).filter((n) => x.coach || deja.includes(n) || parcours.imageDuMembre(n, x.session.id));
   // Double base : une ressource publique est aussi postée (ou mise à jour) dans le forum « ressources » du Discord.
   function versForum(r) {
+    if (!config.ressourcesActives) return;
     if (!r || r.etat !== 'public' || !bob || !bob.parcours || !bob.parcours.publierRessource) return;
     Promise.resolve(bob.parcours.publierRessource(r, r.auteur ? nomAuteur(r.auteur) : null))
       .then((fil) => { if (typeof fil === 'string' && fil !== r.discord_fil) commandes.db.prepare('UPDATE ressources SET discord_fil = ? WHERE id = ?').run(fil, r.id); })
@@ -1794,7 +1797,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     res.send(V.pageATraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), a: parcours.aTraiter(), candidatures: demandes,
       comptesRendus: suivi.enAttente(), resultats: suivi.resultatsEnAttente(), fichesSinistre: sinistres.fichesATraiter(), roles: suivi.aConfirmer(),
       acces: acces.enAttente(), accesRefuses: acces.refuses(), nomsOffres: Object.fromEntries(Object.values(config.offres).map((o) => [o.id, o.nom])),
-      ressources: ressources.enAttente().map((r) => ({ ...r, nom: nomAuteur(r.auteur), titre: RS.titreDe(r) })),
+      ressources: config.ressourcesActives ? ressources.enAttente().map((r) => ({ ...r, nom: nomAuteur(r.auteur), titre: RS.titreDe(r) })) : [],
       aValider: parcours.aValider(),
       coachingsAValider: validations.pourCoach().map((v) => ({ ...v, nom: (qProfils.get.get(v.discord_id) || {}).prenom || eleveDe(v.discord_id).pseudo || v.discord_id })),
       messagesRecus: messages.recusATraiter().map((m) => ({ ...m, nom: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id })),
@@ -1944,7 +1947,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, `/admin/membres/${encodeURIComponent(req.params.id)}`)) return;
     const p = ficheDe(req, res);
     if (!p) return;
-    const message = { positionnement: 'Positionnement validé : verrouillé pour l\'élève, Bob l\'a prévenu.', 'compte-valide': 'Compte TikTok validé : verrouillé pour l\'élève.',
+    const message = { 'niche-refusee': 'Niche refusée : l\'élève est prévenu et en proposera une autre.', positionnement: 'Niche validée : verrouillée pour l\'élève, Bob l\'a prévenu.', 'compte-valide': 'Compte TikTok validé : verrouillé pour l\'élève.',
       changement: 'Changement de compte autorisé : l\'élève peut envoyer un nouveau lien une fois.', refus: 'Changement refusé : il garde son compte.',
       remarque: 'Message envoyé : il le voit dans ses Remarques, et Bob l\'a prévenu.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.',
       recompense: 'Rôle confirmé. Bob le donne et prévient le membre.', precisions: 'Précisions demandées. Bob a prévenu le membre.', rehabiliter: 'Membre réhabilité : Bob lui rend le rôle Elite.',
@@ -1984,8 +1987,17 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!p) return;
     const r = parcours.validerPositionnement(p.discord_id);
     if (r.erreur) return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?erreur=${encodeURIComponent(r.erreur)}#positionnement`);
-    prevenir('messageEleve', r.parcours, '**Ton positionnement est validé** : niche, méthode 10K et pays. C\'est avec lui que ton coach t\'accompagne.', '/parcours/etape-3#strategie');
+    prevenir('messageEleve', r.parcours, `**Ta niche « ${r.parcours.niche} » est validée.** C\'est avec elle que ton coach t\'accompagne.`, '/parcours/etape-3#strategie');
     return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=positionnement#positionnement`);
+  });
+  app.post('/admin/membres/:id/niche/refuser', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const r = parcours.refuserNiche(p.discord_id, req.body.motif);
+    if (r.erreur) return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?erreur=${encodeURIComponent(r.erreur)}#positionnement`);
+    prevenir('messageEleve', r.parcours, `**Ton coach a refusé ta niche « ${p.niche || ''} ».** ${r.parcours.niche_refus}\nPropose-en une autre.`, '/parcours/etape-3#strategie');
+    return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=niche-refusee#positionnement`);
   });
   app.post('/admin/membres/:id/compte/valider', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/a-traiter')) return;
@@ -2070,9 +2082,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     return parcours.tous().map((p) => ({
       id: p.discord_id, nom: p.nom || p.pseudo || p.discord_id, pseudo: p.pseudo, etape: p.etape,
       jour: Math.min(90, Math.max(1, Math.floor((maintenant - new Date(p.entree_le)) / 864e5) + 1)),
-      compte: p.compte_tiktok, niche: p.niche, pays: p.pays_cible || p.pays, niveau: p.niveau, nicheId: p.niche_id, methodeId: p.methode_id, paysCible: p.pays_cible,
+      compte: p.compte_tiktok, niche: p.niche, methode: p.methode_texte, pays: p.pays_cible || p.pays, niveau: p.niveau, paysCible: p.pays_cible,
       // Plus il a rempli (niveau, positionnement, compte, vidéos, revenus), plus il monte dans sa colonne.
-      score: [p.niveau, p.niche_id, p.methode_id, p.pays_cible, p.positionnement_valide_le, p.compte_tiktok, p.compte_valide_le, p.etape3_le].filter(Boolean).length,
+      score: [p.niveau, p.niche, p.methode_texte, p.pays_cible, p.positionnement_valide_le, p.compte_tiktok, p.compte_valide_le, p.etape3_le].filter(Boolean).length,
       sinistre: Boolean(p.sinistre_depuis), sinistres: p.sinistres || 0, retard: retards.has(p.discord_id), aTraiter: compte[p.discord_id] || 0,
       forcees: JSON.parse(p.etapes_forcees || '[]'), tache: p.etape <= 4 ? (parcours.tache(p.discord_id) || {}).titre : null,
       manquants: parcours.manquants(p.discord_id), entree: (p.entree_le || '').slice(0, 10),

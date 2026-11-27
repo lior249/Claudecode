@@ -459,7 +459,8 @@ test('espace de gestion : barre latérale (admin), page Membres réservée à l\
     assert.doesNotMatch(page, /class="sb-lien[^"]*" href="\/admin\/(candidatures|membres|pages)"/);
     assert.match(page, /class="barre-bas"[^>]*repeat\(4[\s\S]*Profil[\s\S]*À traiter[\s\S]*Calendrier[\s\S]*Gestion/, 'barre du bas du coach : Profil, À traiter, Calendrier, Gestion');
     const gestion = await (await m.get('/admin/gestion', { cookie: cookieSession(ADMIN) })).text();
-    assert.match(gestion, /href="\/admin\/planifier"[\s\S]*Planifier[\s\S]*href="\/admin\/eleves"[\s\S]*Gérer les élèves[\s\S]*href="\/ressources"/);
+    assert.match(gestion, /href="\/admin\/planifier"[\s\S]*Planifier[\s\S]*href="\/admin\/eleves"[\s\S]*Gérer les élèves/);
+    assert.doesNotMatch(gestion, /href="\/ressources"/, 'Ressources cachées');
     assert.match(gestion, /class="actif" aria-current="page"[^>]*>[\s\S]{0,400}Gestion/);
     assert.match(await (await m.get('/coach', { cookie: cookieSession(ADMIN) })).text(), /À la une[\s\S]*Classement/);
     assert.strictEqual((await m.get('/admin/membres', { cookie: cookieSession('E1') })).status, 403);

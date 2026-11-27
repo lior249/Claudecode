@@ -623,30 +623,79 @@ function pageEtape2(config, { espace, parcours: p, tache, entree, libres, messag
 }
 
 // ---------- Membre : étape 3 ----------
-// Étape 3 : niche, méthode 10K et pays cible (visibles par le coach seulement).
-function blocStrategie({ strategie: st = {}, niches = [], methodes = [], pays = [], drapeaux = {}, message, niveau = null }) {
-  const opt = (liste, choisi, nom) => liste.map((r) => {
-    const interdite = niveau === 'L1' && r.type === 'niche' && r.categorie === 'L2';
-    return `<option value="${r.id}"${choisi && choisi.id === r.id ? ' selected' : ''}${interdite ? ' disabled' : ''}>${echapper(nom(r))}${interdite ? ' (L2 : pas pour ton profil L1)' : r.etat === 'attente' ? ' (en attente du coach)' : ''}</option>`;
-  }).join('');
-  const nomMethode = (r) => r.titre || `Méthode ${({ video: 'vidéo', carrousel: 'carrousel', cta: 'CTA' })[r.categorie] || ''}${r.pour ? ` · ${r.pour === 'L1L2' ? 'L1 et L2' : r.pour}` : ''}`;
-  // Validé par le coach : affiché, plus modifiable.
+// Formulaires « une question par page » (étapes 3 et 4) : chaque [data-page] s'affiche à son tour.
+// Un bouton [data-aller="n"] montre la page n ; [data-retour] revient à la précédente.
+const STYLE_ETAPES = `<style>
+  .assistant { display:grid; gap:12px; } .assistant [data-page] { display:grid; gap:12px; animation:apparaitre .25s ease; }
+  .assistant [data-page][hidden] { display:none; } .assistant h3 { margin:0; font-size:19px; letter-spacing:-.01em; }
+  .assistant .choix2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; } .assistant .choix2 .bouton { margin:0; }
+  .assistant .points-pages { display:flex; gap:6px; } .assistant .points-pages i { width:22px; height:4px; border-radius:4px; background:#2a2a2a; } .assistant .points-pages i.fait { background:#c8f23a; }
+  .assistant .avert { border:1px solid #6b4316; background:#1d1408; color:#ffd8a8; border-radius:12px; padding:10px 12px; font-size:14px; }
+  .assistant .lien-formation { display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:14px; border:1px solid #2a2a2a; color:#fff; text-decoration:none; font-weight:700; }
+  .assistant .retour-page { background:none; border:0; color:var(--doux); font:600 13px var(--police); cursor:pointer; justify-self:start; padding:0; }
+  @keyframes apparaitre { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+</style>`;
+const SCRIPT_ETAPES = `(function () {
+  document.querySelectorAll('.assistant').forEach(function (a) {
+    var pages = a.querySelectorAll('[data-page]'), pile = [];
+    function montrer(n) {
+      pages.forEach(function (p) { p.hidden = p.getAttribute('data-page') !== String(n); });
+      var points = a.querySelectorAll('.points-pages i'), k = +n;
+      points.forEach(function (x, i) { x.className = i < k ? 'fait' : ''; });
+      var champ = a.querySelector('[data-page="' + n + '"] input:not([type=hidden]), [data-page="' + n + '"] textarea'); if (champ) champ.focus();
+    }
+    a.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-aller], [data-retour]'); if (!b) return;
+      e.preventDefault();
+      if (b.hasAttribute('data-retour')) { montrer(pile.pop() || 1); return; }
+      var courante = a.querySelector('[data-page]:not([hidden])');
+      // Avant d'avancer : les champs obligatoires de la page.
+      var manque = courante && [].filter.call(courante.querySelectorAll('[required]'), function (c) { return !c.value.trim(); })[0];
+      if (manque && !b.hasAttribute('data-sans-verif')) { manque.focus(); manque.reportValidity && manque.reportValidity(); return; }
+      if (courante) pile.push(courante.getAttribute('data-page'));
+      montrer(b.getAttribute('data-aller'));
+    });
+    montrer(a.getAttribute('data-depart') || 1);
+  });
+})();`;
+const lienFormation = (url, texte) => (url ? `<a class="lien-formation" href="${echapper(url)}" target="_blank" rel="noopener">▶ <span>${echapper(texte)}</span><span style="margin-left:auto;color:var(--doux)">↗</span></a>` : '');
+
+// Étape 3 : « Ma niche » (une question par page). Envoyée : à valider par le coach ; validée : verrouillée.
+function blocStrategie({ strategie: st = {}, formation = {}, message }) {
   if (st.valide) {
-    return `<div class="carte" id="strategie"><div class="envoi-tete"><h2>Mon positionnement</h2><span class="etat" data-etat="valide">${ICONE.ok}Acté</span></div>
-      <dl class="details" style="margin-top:8px"><div><dt>Niche</dt><dd>${echapper((st.niche || {}).titre || '—')}</dd></div>
-        <div><dt>Méthode 10K</dt><dd>${echapper(st.methode ? nomMethode(st.methode) : '—')}</dd></div><div><dt>Pays visé</dt><dd>${echapper(st.pays || '—')}</dd></div></dl>
-      <p class="doux petit" style="margin:8px 0 0">Validé par ton coach : c'est avec ce positionnement qu'il t'accompagne. Il ne se change plus.</p></div>`;
+    return `<div class="carte" id="strategie"><div class="envoi-tete"><h2>Ma niche</h2><span class="etat" data-etat="valide">${ICONE.ok}Validée</span></div>
+      <p style="margin:8px 0 0;font-size:18px;font-weight:800">${echapper((st.niche || {}).titre || '—')}</p>
+      <p class="doux petit" style="margin:6px 0 0">Validée par ton coach : c'est avec cette niche qu'il t'accompagne. Elle ne se change plus.</p></div>`;
   }
-  return `<form class="carte" id="strategie" method="post" action="/parcours/etape-3/strategie" style="display:grid;gap:12px">
-    <div class="envoi-tete"><h2>Mon positionnement</h2>${st.envoye ? '<span class="etat" data-etat="attente">Envoyé · à valider</span>' : '<span class="etat" data-etat="corriger">À envoyer</span>'}</div>
-    ${message ? `<p class="message-ok" style="margin:0">${echapper(message)}</p>` : ''}
-    <p class="doux petit" style="margin:0">Seul ton coach voit tes choix. Une fois validés par lui, ils ne se changent plus : regarde bien les <a href="/ressources">Ressources</a> avant.</p>
-    <div class="champ"><label for="niche">Ma niche</label><select id="niche" name="niche" required><option value="">Choisis ta niche</option>${opt(niches, st.niche, (r) => r.titre)}</select>
-      <small><a href="/ressources/nouvelle?type=niche&amp;retour=etape-3">+ Ajouter ma niche</a> : elle sera relue par le coach.</small></div>
-    <div class="champ"><label for="methode">Ma méthode pour 10K abonnés</label><select id="methode" name="methode" required><option value="">Choisis ta méthode</option>${opt(methodes, st.methode, nomMethode)}</select></div>
-    <div class="champ"><label for="pays-cible">Le pays que je vise</label><select id="pays-cible" name="pays" required><option value="">Choisis un pays</option>
-      ${pays.map((x) => `<option value="${echapper(x)}"${st.pays === x ? ' selected' : ''}>${drapeaux[x] || ''} ${echapper(x)}</option>`).join('')}</select></div>
-    <button class="bouton" type="submit" style="margin:0">${st.envoye ? 'Modifier mon positionnement' : 'Envoyer mon positionnement'}</button></form>`;
+  if (st.envoye) {
+    return `<div class="carte" id="strategie"><div class="envoi-tete"><h2>Ma niche</h2><span class="etat" data-etat="attente">Envoyée · à valider</span></div>
+      <p style="margin:8px 0 0;font-size:18px;font-weight:800">${echapper((st.niche || {}).titre || '—')}</p>
+      ${message ? `<p class="message-ok" style="margin:8px 0 0">${echapper(message)}</p>` : ''}
+      <p class="doux" style="margin:8px 0 0">En attendant, commence tes vidéos tests : ce sont elles qui permettront à ton coach de valider ta niche.</p>
+      <p class="avert" style="margin:10px 0 0;border:1px solid #6b4316;background:#1d1408;color:#ffd8a8;border-radius:12px;padding:10px 12px;font-size:14px"><b>Attention :</b> ta niche peut être refusée par ton coach. Ne crée <b>qu'une seule vidéo</b> en attendant sa réponse, pour ne pas avoir à tout refaire.</p></div>`;
+  }
+  return `${STYLE_ETAPES}<form class="carte assistant" id="strategie" method="post" action="/parcours/etape-3/strategie" data-depart="1">
+    <div class="envoi-tete"><h2>Ma niche</h2><div class="points-pages"><i></i><i></i><i></i></div></div>
+    ${st.refus ? `<p class="erreur-form" style="margin:0">Ton coach a refusé ta niche : ${echapper(st.refus)}</p>` : ''}
+    ${message ? `<p class="erreur-form" style="margin:0">${echapper(message)}</p>` : ''}
+    <div data-page="1"><h3>As-tu déjà choisi ta niche ?</h3>
+      <div class="choix2"><button class="bouton secondaire" type="button" data-aller="n">Non, pas encore</button><button class="bouton" type="button" data-aller="2">Oui</button></div></div>
+    <div data-page="n" hidden><h3>Choisis ta niche selon ton niveau</h3>
+      <p class="doux" style="margin:0">Regarde cette leçon de la formation : elle t'explique comment choisir une niche adaptée à ton profil. Reviens ici quand c'est fait.</p>
+      ${lienFormation(formation.niche, 'Comment choisir une niche en fonction de ton niveau')}
+      <button class="bouton" type="button" data-aller="2" style="margin:0">C'est fait, j'ai choisi ma niche</button>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="2" hidden><h3>Quel est le nom de ta niche ?</h3>
+      <input name="niche" maxlength="100" required placeholder="ex. Faits historiques, Tricot, Lego ASMR…">
+      <button class="bouton" type="button" data-aller="3" style="margin:0">Suivant</button>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="3" hidden><h3>Envoie une capture d'un compte exemple</h3>
+      <p class="doux" style="margin:0">Un concurrent ou un compte exemple de cette niche : ton coach la valide avec.</p>
+      ${zoneCapture('capture', 'Ajouter la capture', 'Capture du profil d\'un compte de cette niche')}
+      <p class="avert"><b>Attention :</b> ta niche peut être refusée par ton coach. En attendant sa réponse, ne crée <b>qu'une seule vidéo</b> test, pour ne pas avoir à tout refaire.</p>
+      <button class="bouton" type="submit" style="margin:0">Envoyer à mon coach</button>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+  </form>`;
 }
 function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarquesDe, coachings, maxMo, strategie = null }) {
   const fini = p.etape > 3;
@@ -680,20 +729,15 @@ function pageEtape3(config, { espace, parcours: p, tache, soumissions, remarques
     <div class="envoi-tete"><h2>Mes coachings de la semaine</h2>${coachings.reserves >= coachings.min ? `<span class="etat" data-etat="valide">${ICONE.ok}Réservés</span>` : '<span class="etat" data-etat="corriger">À réserver</span>'}</div>
     <p class="doux" style="margin:8px 0 0">${coachings.reserves} réservé(s) · minimum ${coachings.min}, maximum ${coachings.max} par semaine.</p>
     <a class="bouton secondaire" href="/coaching">Mes coachings</a>
-  </div>`, espace, 'parcours', maxMo);
+  </div>`, espace, 'parcours', maxMo, SCRIPT_ETAPES);
 }
 
 // Niche, méthode 10K et pays visé, choisis dans les listes (ressources publiées, 8 pays).
 // Un profil L1 ne voit pas les niches L2 (commentaire) ; un profil L2 les voit toutes.
 function choixNichePays(choix, p) {
-  if (!choix) return '';
-  const niches = choix.niches.filter((n) => p.niveau !== 'L1' || n.categorie !== 'L2');
-  const opt = (liste, choisi) => liste.map((x) => `<option value="${x.id}"${choisi === x.id ? ' selected' : ''}>${echapper(x.titre)}</option>`).join('');
-  return `<div class="champ"><label for="niche">Niche</label><select id="niche" name="niche"><option value="">${niches.length ? 'Choisir une niche' : 'Aucune niche dans les Ressources'}</option>${opt(niches, p.niche_id)}</select>
-      ${p.niveau === 'L1' ? '<small>Profil L1 : les niches L2 (commentaire) ne sont pas proposées.</small>' : ''}</div>
-    <div class="champ"><label for="methode">Méthode 10K</label><select id="methode" name="methode"><option value="">Choisir une méthode</option>${opt(choix.methodes, p.methode_id)}</select></div>
-    <div class="champ"><label for="pays">Pays visé</label><select id="pays" name="pays"><option value="">Choisir un pays</option>${choix.pays.map((x) => `<option value="${echapper(x)}"${p.pays_cible === x ? ' selected' : ''}>${choix.drapeaux[x] || ''} ${echapper(x)}</option>`).join('')}</select></div>
-    <p class="doux petit" style="margin:0">Pas dans la liste ? Ajoute-la d'abord dans les <a href="/ressources">Ressources</a>.</p>`;
+  return `<div class="champ"><label for="niche">Niche</label><input id="niche" name="niche" maxlength="100" value="${echapper(p.niche || '')}" placeholder="ex. Faits historiques"></div>
+    <div class="champ"><label for="methode">Méthode 10K</label><input id="methode" name="methode" maxlength="100" value="${echapper(p.methode_texte || '')}" placeholder="ex. Versus"></div>
+    <div class="champ"><label for="pays">Pays visé</label><input id="pays" name="pays" maxlength="60" value="${echapper(p.pays_cible || '')}" placeholder="ex. France"></div>`;
 }
 
 // ---------- La fiche (membre ou coach) ----------
@@ -720,13 +764,18 @@ const pastilleEtat = (envoye, valide) => (valide ? '<span class="etat" data-etat
   : envoye ? '<span class="etat" data-etat="attente">Envoyé · à valider</span>' : '<span class="etat" data-etat="corriger">Pas encore envoyé</span>');
 function blocPositionnement({ p, vueCoach, base, choix, strategie: st }) {
   st = st || {};
-  const nomMethode = st.methode ? (st.methode.titre || `Méthode ${st.methode.categorie}`) : null;
+  const nomMethode = st.methode || null;
   const pos = `<div class="carte" id="positionnement"><div class="envoi-tete"><h2>Positionnement</h2>${pastilleEtat(st.envoye, st.valide)}</div>
     <dl class="details" style="margin-top:8px">
-      <div><dt>Niche</dt><dd>${st.niche ? (vueCoach ? `<a href="/ressources/${st.niche.id}">${echapper(st.niche.titre)}</a>` : echapper(st.niche.titre)) : '—'}</dd></div>
+      <div><dt>Niche</dt><dd>${st.niche ? echapper(st.niche.titre) : '—'}</dd></div>
       <div><dt>Méthode 10K</dt><dd>${nomMethode ? echapper(nomMethode) : '—'}</dd></div>
       <div><dt>Pays visé</dt><dd>${echapper(st.pays || '—')}</dd></div></dl>
-    ${vueCoach ? `${st.complete && !st.valide ? `<form method="post" action="${base}/positionnement/valider" style="margin:10px 0 0"><button class="bouton vert" type="submit" style="margin:0">Valider le positionnement</button></form>` : ''}
+    ${st.capture ? `<a href="/fichiers/images/${echapper(st.capture)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(st.capture)}" alt="Compte exemple de la niche" style="max-width:100%;max-height:260px;border-radius:12px;margin-top:10px"></a>` : ''}
+    ${st.refus ? `<p class="doux petit" style="margin:8px 0 0">Dernier refus : ${echapper(st.refus)}</p>` : ''}
+    ${vueCoach ? `${st.envoye && !st.valide ? `<form method="post" action="${base}/positionnement/valider" style="margin:10px 0 0"><button class="bouton vert" type="submit" style="margin:0">Valider la niche</button></form>
+      <details style="margin-top:8px"><summary class="doux petit" style="cursor:pointer">Refuser la niche</summary>
+        <form method="post" action="${base}/niche/refuser" style="display:grid;gap:8px;margin-top:8px"><textarea name="motif" required placeholder="Pourquoi ? Il en proposera une autre."></textarea>
+          <button class="bouton secondaire" type="submit" style="margin:0">Refuser</button></form></details>` : ''}
       <details style="margin-top:10px"><summary class="doux petit" style="cursor:pointer">Modifier</summary>
         <form method="post" action="${base}/compte" style="display:grid;gap:10px;margin-top:10px">${choixNichePays(choix, p)}
           <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer (validé d'office)</button></form></details>`
@@ -1413,8 +1462,8 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
         ${trophees.map((r) => pastilleRole(r.role)).join('')}${pastilleRole('elite')}${chaine >= 3 ? `<span style="border-color:#ff9a3c;color:#ff9a3c">🔥 ${chaine} jours d'affilée</span>` : ''}</div></div></div>
   ${vueCoach && strategie ? `<div class="carte" style="max-width:640px"><div class="envoi-tete"><h2>Sa stratégie</h2><span class="doux petit">🔒 visible par toi seul</span></div>
     <dl class="details" style="margin-top:8px">
-      <div><dt>Niche</dt><dd>${strategie.niche ? `<a href="/ressources/${strategie.niche.id}">${echapper(strategie.niche.titre)}</a>${strategie.niche.etat === 'attente' ? ' <span class="doux">(proposée, à relire)</span>' : ''}` : '<span class="doux">pas encore choisie</span>'}</dd></div>
-      <div><dt>Méthode 10K</dt><dd>${strategie.methode ? `<a href="/ressources/${strategie.methode.id}">${echapper(strategie.methode.titre || `Méthode ${strategie.methode.categorie}`)}</a>` : '<span class="doux">pas encore choisie</span>'}</dd></div>
+      <div><dt>Niche</dt><dd>${strategie.niche ? `${echapper(strategie.niche.titre)}${strategie.valide ? '' : ' <span class="doux">(à valider)</span>'}` : '<span class="doux">pas encore envoyée</span>'}</dd></div>
+      <div><dt>Méthode 10K</dt><dd>${strategie.methode ? echapper(strategie.methode) : '<span class="doux">—</span>'}</dd></div>
       <div><dt>Pays visé</dt><dd>${strategie.pays ? echapper(strategie.pays) : '<span class="doux">pas encore choisi</span>'}</dd></div></dl></div>` : ''}
   ${vueCoach || (espace && espace.estAdmin) ? `<a class="bouton" href="/admin/membres/${encodeURIComponent(p.discord_id)}#remarque" style="width:auto;display:inline-block;margin:-4px 0 18px;padding-left:22px;padding-right:22px">✉️ Envoyer un message</a>` : ''}
   ${relation ? `${relation.message ? `<p class="message-ok">${echapper(relation.message)}</p>` : ''}${relation.erreur ? `<p class="erreur-form">${echapper(relation.erreur)}</p>` : ''}

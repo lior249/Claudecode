@@ -683,7 +683,7 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
   <div class="pf"><div class="pf-cartes" style="grid-template-columns:1fr 1fr">
     ${tuile('/admin/planifier', 'Planifier', `${evenements} événement(s) en cours`, 'Événements, messages aux élèves, accusés de lecture.')}
     ${tuile('/admin/eleves', 'Gérer les élèves', `${nbEleves} élève(s)`, 'Kanban par étape, ou liste triable.', aCompleter ? `${aCompleter} à compléter` : '')}
-    ${tuile('/ressources', 'Ressources', `${ressources} publiée(s)`, 'Niches, méthodes 10K, tutoriels.', aValider ? `${aValider} proposition(s) à relire` : '')}
+    ${espace.ressources ? tuile('/ressources', 'Ressources', `${ressources} publiée(s)`, 'Niches, méthodes 10K, tutoriels.', aValider ? `${aValider} proposition(s) à relire` : '') : ''}
     ${tuile('/notifications?onglet=rappels', 'Mes rappels', 'Tes rappels', 'Une fois, chaque jour ou certains jours.')}
   </div></div>`, espace, 'gestion');
 }

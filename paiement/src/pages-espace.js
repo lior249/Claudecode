@@ -70,7 +70,7 @@ function navEspace(espace = {}) {
       { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
       { cle: 'eleves', libelle: 'Élèves Elite', lien: '/admin/eleves', icone: 'eleves' },
       { cle: 'planifier', libelle: 'Planifier', lien: '/admin/planifier', icone: 'annonces' },
-      { cle: 'ressources', libelle: 'Ressources', lien: '/ressources', icone: 'ressources' });
+      ...(espace.ressources ? [{ cle: 'ressources', libelle: 'Ressources', lien: '/ressources', icone: 'ressources' }] : []));
   }
   // Le coach (admin) ne réserve pas de séance : pas de « Mes coachings » pour lui.
   if (!espace.estAdmin) {
@@ -79,7 +79,7 @@ function navEspace(espace = {}) {
     if (espace.parcours) {
       nav.push({ cle: 'profil', libelle: 'Mon profil', lien: '/profil', icone: 'profil' },
         { cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' },
-        { cle: 'ressources', libelle: 'Ressources', lien: '/ressources', icone: 'ressources' });
+        ...(espace.ressources ? [{ cle: 'ressources', libelle: 'Ressources', lien: '/ressources', icone: 'ressources' }] : []));
     }
     nav.push({ cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });
   }

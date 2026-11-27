@@ -35,7 +35,7 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
     const manque = m.parcours.manquants(E1);
     assert.deepStrictEqual(manque[1], ['Exercice L1 pas validé', 'Exercice L2 pas validé', 'Profil type (L1 ou L2) pas choisi']);
     assert.deepStrictEqual(manque[2], ['Coaching d\'entrée pas fait']);
-    assert.deepStrictEqual(manque[3], ['Niche, méthode 10K ou pays pas choisis', 'Vidéo 1 pas validée', 'Vidéo 2 pas validée', 'Vidéo 3 pas validée']);
+    assert.deepStrictEqual(manque[3], ['Niche pas encore envoyée', 'Vidéo 1 pas validée', 'Vidéo 2 pas validée', 'Vidéo 3 pas validée']);
     assert.match(await (await m.get('/admin/a-traiter', { cookie: coach })).text(), /Exercice L1/);
 
     const deplacer = (corps) => fetch(`${m.base}/admin/eleves/${E1}/etape`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: coach }, body: JSON.stringify(corps) });
@@ -74,26 +74,15 @@ test('tableau des élèves : colonnes 1 à 4 et GOAT, passer de 1 à 4 avec conf
     m.db.prepare('UPDATE parcours SET etape = 5 WHERE discord_id = ?').run(E1);
     assert.match((await (await deplacer({ etape: 3 })).json()).erreur, /GOAT/);
 
-    // Ses infos : niche, méthode et pays choisis dans les listes (ressources publiées, 8 pays) ; un profil L1 ne prend pas de niche L2.
-    const ajouterRes = (x) => m.poster('/ressources/nouvelle', x, { cookie: coach });
-    await ajouterRes({ type: 'niche', titre: 'Voyages pas chers', description: 'Voyager avec peu.', categorie: 'L1' });
-    await ajouterRes({ type: 'niche', titre: 'Débats foot', description: 'Commentaires.', categorie: 'L2' });
-    await ajouterRes({ type: 'methode', description: 'Carrousel', categorie: 'carrousel' });
-    const id = (t) => m.db.prepare('SELECT id FROM ressources WHERE titre = ? OR (titre IS NULL AND type = ?)').get(t, t).id;
+    // Ses infos : niche, méthode et pays en texte libre (les Ressources sont cachées), validés d'office.
     const kanban = await (await m.get('/admin/eleves', { cookie: coach })).text();
-    assert.match(kanban, /<select id="i-niche" name="niche">[\s\S]*Voyages pas chers/);
-    assert.match(kanban, /data-cat="L2">Débats foot/);
-    assert.match(kanban, /<select id="i-pays" name="pays">[\s\S]*Corée du Sud/);
+    assert.match(kanban, /<input id="i-niche" name="niche"[\s\S]*<input id="i-methode" name="methode"[\s\S]*<input id="i-pays" name="pays"/);
     assert.doesNotMatch(kanban, /id="i-niveau"|id="i-entree"/, 'plus de niveau ni de date d\'entrée');
     const infos = (corps) => fetch(`${m.base}/admin/eleves/${E1}/infos`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: coach }, body: JSON.stringify(corps) });
-    m.db.prepare("UPDATE parcours SET niveau = 'L1' WHERE discord_id = ?").run(E1);
-    const l2 = await infos({ niche: String(id('Débats foot')) });
-    assert.strictEqual(l2.status, 400);
-    assert.match((await l2.json()).erreur, /réservée aux profils L2/);
-    assert.strictEqual((await infos({ niche: String(id('Voyages pas chers')), methode: String(id('methode')), pays: 'Japon', compte: 'awa.voyage' })).status, 200);
+    assert.strictEqual((await infos({ niche: 'Voyages pas chers', methode: 'Carrousel', pays: 'Japon', compte: 'awa.voyage' })).status, 200);
     p = m.parcours.get(E1);
-    assert.deepStrictEqual([p.niche, p.pays_cible, p.compte_tiktok], ['Voyages pas chers', 'Japon', 'https://www.tiktok.com/@awa.voyage']);
-    assert.strictEqual((await infos({ pays: 'Belgique' })).status, 400, 'seulement les 8 pays');
+    assert.deepStrictEqual([p.niche, p.methode_texte, p.pays_cible, p.compte_tiktok], ['Voyages pas chers', 'Carrousel', 'Japon', 'https://www.tiktok.com/@awa.voyage']);
+    assert.ok(p.positionnement_valide_le, 'écrit par le coach : validé d\'office');
 
     // Ajouter un élève déjà accompagné, avec sa date d'entrée.
     const inconnu = await m.poster('/admin/eleves/ajouter', { pseudo: 'personne' }, { cookie: coach });
