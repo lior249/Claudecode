@@ -362,11 +362,10 @@ function blocObjectifs(s, { lien, texteLien = 'Voir mon tableau de bord' } = {})
   const suivant = s.objectifs.find((o) => !o.atteint);
   const pct = suivant ? Math.min(100, Math.round((suivant.valeur / suivant.seuil) * 100)) : 100;
   const faits = s.objectifs.filter((o) => o.atteint).length;
-  return `<div class="carte"><div class="envoi-tete"><h2>Objectifs</h2><span class="etat" data-etat="${suivant ? 'attente' : 'valide'}">${faits} / ${s.objectifs.length}</span></div>
-    ${suivant ? `<p style="margin:10px 0 0">Prochain objectif : <b>${echapper(suivant.libelle)}</b> <span class="doux">(${valeurObjectif(suivant, suivant.valeur)})</span></p>` : '<p style="margin:10px 0 0"><b>Tous les objectifs sont atteints.</b></p>'}
+  return `<div class="carte"><div class="envoi-tete"><h2>Prochain objectif</h2><span class="doux petit">${faits} / ${s.objectifs.length} atteints</span></div>
+    ${suivant ? `<p style="margin:10px 0 0;font-size:18px"><b>${echapper(suivant.libelle)}</b></p>` : '<p style="margin:10px 0 0"><b>Tous les objectifs sont atteints.</b></p>'}
     <div class="barre-objectifs"><i style="width:${pct}%"></i></div>
-    <div class="paliers">${s.objectifs.map((o) => `<span data-atteint="${o.atteint ? 1 : 0}"${o === suivant ? ' data-suivant="1" style="border-color:var(--lime, #c8f23a);color:#fff"' : ''}>${o.atteint ? ICONE.ok : ''}${echapper(o.libelle)}</span>`).join('')}</div>
-    <p class="doux petit" style="margin:10px 0 0">D'après tes résultats validés. GOAT : ${dollars(1000, { centimes: false })} sur 28 jours (${euros(s.revenus28)} en ce moment).</p>
+    ${suivant ? `<p class="doux petit" style="margin:0">${valeurObjectif(suivant, suivant.valeur)} · ${pct} %</p>` : ''}
     ${lien ? `<a class="bouton secondaire" href="${echapper(lien)}">${echapper(texteLien)}</a>` : ''}</div>`;
 }
 
@@ -1619,4 +1618,4 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
-module.exports = { STYLE_ETAPES, SCRIPT_ETAPES, valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+module.exports = { blocStats, STYLE_ETAPES, SCRIPT_ETAPES, valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };

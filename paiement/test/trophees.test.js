@@ -101,3 +101,20 @@ test('« Garde ce qui marche » : chaque signal une seule fois, avec ses raisons
     assert.match(page, /conçue pour être regardée encore et encore[\s\S]*\/api\/celebrations/);
   } finally { await m.fermer(); }
 });
+
+test('profil vu depuis le classement : comme Mon profil, sans étape ni objectifs ; ses trophées sont visibles', async () => {
+  const m = await monter({ bob: { parcours: new Proxy({}, { get: () => async () => true }) } });
+  try {
+    for (const [id, pseudo] of [[E1, 'awa_27'], [E2, 'bilal']]) { m.parcours.assurer(id, { pseudo }); m.parcours.changerEtape(id, 4); }
+    video(m, E2, { vues: 15000, revenus: 60 });
+    update(m, E2, { vues: 40000, revenus: 60, abonnes: 600 });
+    const membre = { cookie: cookieSession(E1, 'awa_27') };
+    const page = await (await m.get(`/classement/${E2}`, membre)).text();
+    assert.match(page, /class="pf-identite"[\s\S]*Trophy room[\s\S]*Top : <b[^>]*>Rookie/);
+    assert.match(page, /href="\/trophees\?de=700000000000000032"/);
+    assert.match(page, /Revenus[\s\S]*Rang[\s\S]*Jours/);
+    assert.doesNotMatch(page, /Prochain objectif|Étape 4|sur 90/);
+    const salle = await (await m.get(`/trophees?de=${E2}`, membre)).text();
+    assert.match(salle, /Trophées de bilal[\s\S]*Banger Bronze[\s\S]*Obtenu le/);
+  } finally { await m.fermer(); }
+});

@@ -262,8 +262,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       peutDefier: communaute.peutConcourir(session.id) && communaute.peutConcourir(m.id),
       message: { suivi: 'Tu le suis : tu recevras ses nouveaux résultats.', retire: 'Tu ne le suis plus.', defi: 'Invitation envoyée : Bob le prévient.' }[req.query.fait],
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null } : null;
-    res.send(V.pageProfil(config, { espace: espaceDe(session), parcours: p, tableau: suivi.tableau(m.id), stats: suivi.stats(m.id),
-      recompenses: suivi.recompenses(m.id), vuePublique: true, avatar: m.avatar, relation, chaine: m.chaine }));
+    res.send(PF.pageProfilPublic(config, { espace: espaceDe(session), parcours: p, nom: m.nom, avatar: m.avatar, role: roleLePlusHaut(m.recompenses) || 'elite',
+      stats: suivi.stats(m.id) || {}, jours: m.jours, chaine: m.chaine, trophees: trophees.obtenus(m.id), totalTrophees: trophees.TROPHEES.length,
+      tableau: suivi.tableau(m.id), relation, vueCoach: session.id === config.discord.adminId }));
   });
 
   // ================= Notifications : Bob ou l'application =================
@@ -1608,7 +1609,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!x) return;
     let id = x.p.discord_id;
     const de = String(req.query.de || '');
-    if (de && de !== id && communaute.suivis(id).some((s) => s.suivi === de) && parcours.get(de)) id = de;
+    // Ceux qu'il suit, ses concurrents, et tout profil visible au classement (top 100).
+    const visible = (x) => communaute.suivis(id).some((s) => s.suivi === x) || classement().some((c) => c.id === x && c.rang <= 100);
+    if (de && de !== id && parcours.get(de) && visible(de)) id = de;
     trophees.verifier(id);
     res.send(PF.pageTrophees(config, { espace: x.espace, salle: trophees.salle(id), membre: id === x.p.discord_id ? null : membreVu(id), mesures: trophees.mesures(id) }));
   });

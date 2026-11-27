@@ -4,7 +4,7 @@
 // son résultat), la chaîne 🔥, ceux qu'il suit, la tâche du moment ; puis le tableau de bord des revenus.
 // Et la page Communauté : suivis (10 places), concurrents (3), invitations, suggestions.
 const { echapper } = require('./pages');
-const { valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, page, remarque, listeRemarques, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce, barreMiseEnForme, texteSimple, zoneImages } = require('./pages-parcours');
+const { blocStats, valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, page, remarque, listeRemarques, blocTableau, SCRIPT_TABLEAU, dollars, fenetreAFaire, frise, texteRicheAnnonce, barreMiseEnForme, texteSimple, zoneImages } = require('./pages-parcours');
 const { ICONE } = require('./pages');
 const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
@@ -277,6 +277,44 @@ function salleTrophees(salle) {
   return `<div class="pf-salle"><div class="defile" aria-label="Trophy room">${slides.join('')}</div>${slides.length > 1 ? `<div class="pts" aria-hidden="true">${slides.map(() => '<i></i>').join('')}</div>` : ''}</div>`;
 }
 
+// Le profil d'un membre vu par les autres (classement) : comme Mon profil, sans ce qui ne regarde que lui
+// (étape, prochain objectif, tâches) : photo et nom, sa Trophy room, revenus, rang, jours, puis ses résultats.
+function pageProfilPublic(config, { espace, parcours: p, nom, avatar, role, stats = {}, jours = 1, chaine = 0, trophees = [], totalTrophees = 22, tableau, relation, vueCoach = false }) {
+  const pieces = trophees.slice(0, 4).map((t) => pieceTrophee(t, { taille: 40 })).join('');
+  const salle = `<a class="pf-salle" href="/trophees?de=${encodeURIComponent(p.discord_id)}" style="display:block;color:#fff;text-decoration:none">
+    <div style="padding:12px 12px 10px"><h3 style="margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#f5c518;display:flex;justify-content:space-between;gap:6px">Trophy room <small style="color:var(--doux);letter-spacing:0;text-transform:none;font-weight:600">${trophees.length} / ${totalTrophees}</small></h3>
+      <div class="pieces" style="display:flex;gap:4px;margin:8px 0 4px;min-height:44px;align-items:center">${pieces || '<span class="doux petit">Pas encore de trophée</span>'}</div>
+      <div class="dernier" style="font-size:12px;color:var(--doux);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${trophees.length ? `Top : <b style="color:#fff">${echapper(trophees[0].titre)}</b>` : 'Voir ses trophées'}</div></div></a>`;
+  const boutons = relation ? `${relation.message ? `<p class="message-ok">${echapper(relation.message)}</p>` : ''}${relation.erreur ? `<p class="erreur-form">${echapper(relation.erreur)}</p>` : ''}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 18px">
+    ${relation.concurrent ? `<form method="post" action="/communaute/concurrences/${relation.concurrenceId}/abandon" style="margin:0"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
+      <button class="bouton secondaire" type="submit" style="margin:0">Ton concurrent · abandonner</button></form>`
+    : `<form method="post" action="/communaute/${relation.suit ? 'ne-plus-suivre' : 'suivre'}" style="margin:0"><input type="hidden" name="id" value="${echapper(p.discord_id)}"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
+      <button class="bouton${relation.suit ? ' secondaire' : ''}" type="submit" style="margin:0">${relation.suit ? 'Ne plus suivre' : 'Suivre'}</button></form>`}
+    ${relation.peutDefier && !relation.concurrent ? `<form method="post" action="/communaute/defier" style="margin:0"><input type="hidden" name="id" value="${echapper(p.discord_id)}"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
+      <button class="bouton secondaire" type="submit" style="margin:0">Défier</button></form>` : ''}
+  </div>` : '';
+  return page(`Profil de ${nom}`, `${STYLE_PROFIL}${STYLE_ROLES}
+  <a class="retour" href="/classement"><span aria-hidden="true">‹</span> Classement</a>
+  <div class="pf">
+    <div class="pf-identite"><div class="qui">
+      <span class="pf-avatar piece" style="--piece:${echapper(couleurPiece(p.sinistre_depuis ? 'sinistre' : role))}"${p.sinistre_depuis ? ' data-sinistre' : ''}>
+        <span class="face">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</span></span>
+      <h1>${echapper(nom)}</h1><p>@${echapper(p.pseudo || '')}</p></div>
+      ${salle}
+    </div>
+    <div class="pf-chiffres">
+      <div><b>${ICONES.revenus}${dollars(stats.revenusTotal || 0, { centimes: false })}</b><small>Revenus</small></div><span class="sep"></span>
+      <div><b>${pastilleRole(p.sinistre_depuis ? 'sinistre' : role)}</b><small>Rang</small></div><span class="sep"></span>
+      <div><b>${ICONES.jours}${jours}</b><small>Jours${chaine >= 3 ? ` · 🔥 ${chaine}` : ''}</small></div>
+    </div>
+    ${vueCoach ? `<a class="bouton secondaire" href="/admin/membres/${encodeURIComponent(p.discord_id)}" style="margin:0 0 14px">Sa fiche</a>` : ''}
+    ${boutons}
+    ${blocTableau(tableau)}
+    ${blocStats(stats)}
+  </div>`, espace, 'classement', null, SCRIPT_TABLEAU);
+}
+
 // Salle des trophées : par famille, obtenus en couleur, les autres en gris, avec le seuil.
 function pageTrophees(config, { espace, salle, membre, mesures = {} }) {
   const valeur = { banger: mesures.banger, compte: mesures.compte, abonnes: mesures.abonnes, revenus: mesures.revenus, regularite: mesures.regularite };
@@ -289,7 +327,7 @@ function pageTrophees(config, { espace, salle, membre, mesures = {} }) {
     <div class="tr-grille">${f.trophees.map((t) => `<div class="tr-t" data-obtenu="${t.obtenu ? 1 : 0}">${pieceTrophee(t, { taille: 64, obtenu: !!t.obtenu })}<b>${echapper(t.titre)}</b>
       <small>${t.obtenu ? `Obtenu le ${echapper(jourLisible(t.obtenu.obtenu_le.slice(0, 10)))}` : `Objectif : ${echapper(t.but)}`}</small></div>`).join('')}</div></div>`).join('');
   const total = salle.reduce((n, f) => n + f.trophees.filter((t) => t.obtenu).length, 0);
-  return page(membre ? `Trophées de ${membre.nom}` : 'Mes trophées', `${style}<a class="retour" href="${membre ? '/communaute' : '/profil'}"><span aria-hidden="true">‹</span> ${membre ? 'Communauté' : 'Mon profil'}</a>
+  return page(membre ? `Trophées de ${membre.nom}` : 'Mes trophées', `${style}<a class="retour" href="${membre ? `/classement/${encodeURIComponent(membre.id)}` : '/profil'}"><span aria-hidden="true">‹</span> ${membre ? `Profil de ${echapper(membre.nom)}` : 'Mon profil'}</a>
   <div class="titre-page"><div><p class="etiquette">Trophy room</p><h1>${membre ? `Trophées de ${echapper(membre.nom)}` : 'Mes trophées'}</h1></div><span class="doux petit">${total} / ${salle.reduce((n, f) => n + f.trophees.length, 0)}</span></div>
   <p class="doux" style="margin:0 0 14px">Les trophées se gagnent avec les résultats validés par ton coach : vues d'une vidéo, vues du compte, abonnés et revenus.</p>
   ${familles}`, espace, 'profil');
@@ -772,4 +810,4 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
   </div>${STYLE_COMMU}`, espace, 'coach');
 }
 
-module.exports = { pageTrophees, pageGestion, pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
+module.exports = { pageProfilPublic, pageTrophees, pageGestion, pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
