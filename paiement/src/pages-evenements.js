@@ -2,9 +2,17 @@
 
 // Événements (challenges) : la page d'un événement (élèves) et la création / liste (coach).
 const { echapper, ICONE } = require('./pages');
-const { page } = require('./pages-parcours');
+const { page, STYLE_ETAPES, SCRIPT_ETAPES } = require('./pages-parcours');
 const { pieceTrophee, TROPHEES, FAMILLES } = require('./trophees');
-const { DEBUT_MIN, DEBUT_MAX, DUREE_MIN, DUREE_MAX, MAX_ACTIFS } = require('./evenements');
+const { DEBUT_MIN, DEBUT_MAX, DUREE_MIN, DUREE_MAX, MAX_ACTIFS, STATS, RANGS } = require('./evenements');
+
+// La pièce d'un badge spécial : l'image envoyée par le coach, sinon une pièce dessinée du métal du rang.
+function pieceBadge(b, { taille = 52 } = {}) {
+  if (b.image) return `<img src="/fichiers/images/${echapper(b.image)}" alt="${echapper(b.titre || '')}" width="${taille}" height="${taille}" style="width:${taille}px;height:${taille}px;object-fit:contain;flex:none">`;
+  const mots = String(b.titre || 'E').split(/\s+/).filter(Boolean);
+  return pieceTrophee({ court: (mots.length > 1 ? mots[0][0] + mots[1][0] : mots[0].slice(0, 3)).toUpperCase(), metal: b.metal || 'or', titre: b.titre, famille: 'revenus' }, { taille });
+}
+const valeurStat = (st, v) => (st === 'revenus' ? `$${(Number(v) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}` : `${Math.round(Number(v) || 0).toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ')}`);
 
 const dateFr = (j) => new Date(`${j}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 const dollars = (n) => `$${(Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
@@ -19,33 +27,55 @@ const STYLE_EVT = `<style>
   .ev-rang b.r { margin-left:auto; }
 </style>`;
 
-// Classement d'un événement (inscrits, revenus générés pendant l'événement).
-function classementEvenement(participants = [], moi = null) {
-  if (!participants.length) return '<p class="doux" style="margin:0">Pas encore d\'inscrit.</p>';
-  return `<div class="ev-rang">${participants.map((x, i) => `<a href="/classement/${encodeURIComponent(x.id)}"${x.id === moi ? ' style="border-color:#c8f23a"' : ''}><span class="n">${i + 1}</span>
+// Classement d'un événement : une liste par stat suivie (podium : or, argent, bronze).
+function classementEvenement(classements = {}, moi = null, stats = ['revenus']) {
+  const liste = (st) => {
+    const l = classements[st] || [];
+    if (!l.length) return '<p class="doux" style="margin:0">Pas encore d\'inscrit.</p>';
+    return `<div class="ev-rang">${l.map((x) => `<a href="/classement/${encodeURIComponent(x.id)}"${x.id === moi ? ' style="border-color:#c8f23a"' : ''}><span class="n"${x.rang <= 3 && x.valeur > 0 ? ` style="background:${{ 1: '#e8b923', 2: '#c9ced6', 3: '#c07a3f' }[x.rang]};color:#000;border:0"` : ''}>${x.rang}</span>
     <span class="av">${x.avatar ? `<img src="${echapper(x.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : echapper((x.nom || '?').charAt(0).toUpperCase())}</span>
-    <span>${echapper(x.nom)}</span><b class="r">${dollars(x.revenus)}</b></a>`).join('')}</div>`;
+    <span>${echapper(x.nom)}</span><b class="r">${valeurStat(st, x.valeur)}</b></a>`).join('')}</div>`;
+  };
+  return stats.map((st) => `${stats.length > 1 ? `<h3 style="margin:14px 0 8px;font-size:15px">${echapper(STATS[st])}</h3>` : ''}${liste(st)}`).join('');
 }
 
-function pageEvenement(config, { espace, e, etat, conditions = [], inscrit = false, participants = [], moi = null, estCoach = false, message, erreur }) {
+function pageEvenement(config, { espace, e, etat, conditions = [], inscrit = false, classements = {}, nbInscrits = 0, moi = null, estCoach = false, message, erreur }) {
   const [classeEtat, libelleEtat] = ETATS[etat] || ETATS.a_venir;
   const peut = conditions.every((c) => c.ok);
-  const action = estCoach ? '' : inscrit
-    ? `<p class="message-ok" style="margin:0">${ICONE.ok} Tu es inscrit.</p>${etat === 'a_venir' ? `<form method="post" action="/evenements/${e.id}/desinscrire" style="margin:8px 0 0"><button class="bouton secondaire" type="submit" style="margin:0">Me désinscrire</button></form>` : ''}`
-    : etat === 'termine' ? '' : peut ? `<form method="post" action="/evenements/${e.id}/inscrire" style="margin:0"><button class="bouton" type="submit" style="margin:0">Je participe</button></form>`
-    : '<p class="doux" style="margin:0">Il te manque un trophée pour participer : regarde les conditions ci-dessus.</p>';
+  const badges = [1, 2, 3].map((r) => ({ image: e[`badge_${RANGS[r]}`], metal: RANGS[r], titre: e.badge_nom || e.titre, rang: r }));
+  const recompense = `<div style="display:flex;gap:14px;align-items:flex-end;justify-content:center;margin:6px 0 2px">${[2, 1, 3].map((r) => `<div style="text-align:center">${pieceBadge(badges[r - 1], { taille: r === 1 ? 72 : 54 })}<div class="doux petit">${['', '1er', '2e', '3e'][r]}</div></div>`).join('')}</div>`;
+  const statsTxt = e.stats.map((x) => STATS[x]).join(', ');
+  const listeConditions = (bleu) => (conditions.length ? `<div class="ev-cond">${conditions.map((c) => `<div${bleu && c.ok ? ' style="border-color:#3b82f6;background:#0b1730"' : ''}>${pieceTrophee(c.trophee, { taille: 40, obtenu: c.ok })}
+      <span><b>${echapper(c.trophee.titre)}</b><small>${echapper(c.trophee.but)} (ou mieux)</small></span>${estCoach ? '' : `<span class="ok" style="color:${c.ok ? '#3b82f6' : '#ff4d4d'}">${c.ok ? '✓' : '✗'}</span>`}</div>`).join('')}</div>`
+    : '<p class="doux" style="margin:0">Ouvert à tous les élèves de l\'accompagnement.</p>');
+  const regles = `<div class="carte"><h2>Pour gagner</h2><p style="margin:0;white-space:pre-line">${echapper(e.regles_points || '')}</p>
+    <p class="doux petit" style="margin:8px 0 0">Classement${e.stats.length > 1 ? 's' : ''} : ${echapper(statsTxt)}, à partir de 0 le ${echapper(dateFr(e.debut))}. Les 3 premiers ${e.stats.length > 1 ? 'de chaque classement ' : ''}gagnent le badge.</p>${recompense}
+    ${e.regles_validation ? `<h3 style="margin:14px 0 4px;font-size:15px">Validation des résultats</h3><p style="margin:0;white-space:pre-line">${echapper(e.regles_validation)}</p>` : ''}</div>`;
+  // Rejoindre : 1. présentation lue et comprise ; 2. trophées demandés ; 3. règles pour gagner, puis « Je participe ».
+  const rejoindre = estCoach || inscrit || etat === 'termine' ? '' : `${STYLE_ETAPES}<form class="carte assistant" method="post" action="/evenements/${e.id}/inscrire" data-depart="1">
+    <div class="envoi-tete"><h2>Rejoindre le challenge</h2><div class="points-pages"><i></i><i></i><i></i></div></div>
+    <div data-page="1"><h3>La présentation</h3><p style="margin:0">Lis bien la présentation ci-dessus : le défi, les dates et ce qui est suivi (${echapper(statsTxt)}).</p>
+      <button class="bouton" type="button" data-aller="2" style="margin:0">J'ai lu, j'ai compris</button></div>
+    <div data-page="2" hidden><h3>Pour participer, il te faut ces trophées</h3>${listeConditions(true)}
+      ${peut ? '<button class="bouton" type="button" data-aller="3" style="margin:0">Continuer</button>'
+    : '<button class="bouton" type="button" disabled style="margin:0;opacity:.4;cursor:not-allowed">Continuer</button><p style="margin:0;color:#ff4d4d;font-size:13.5px">Tu n\'as pas les prédispositions nécessaires pour participer à ce challenge.</p>'}
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="3" hidden><h3>Pour gagner</h3><p style="margin:0;white-space:pre-line">${echapper(e.regles_points || '')}</p>
+      ${e.regles_validation ? `<p class="doux" style="margin:0"><b>Validation des résultats :</b> ${echapper(e.regles_validation)}</p>` : ''}${recompense}
+      <button class="bouton" type="submit" style="margin:0">Je participe</button>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div></form>`;
   return page(e.titre, `${STYLE_EVT}<a class="retour" href="/classement"><span aria-hidden="true">‹</span> Classement</a>
   ${e.affiche ? `<img class="ev-affiche" src="/fichiers/images/${echapper(e.affiche)}" alt="">` : ''}
   <div class="titre-page"><div><p class="etiquette">Événement</p><h1>${echapper(e.titre)}</h1></div><span class="etat" data-etat="${classeEtat}">${libelleEtat}</span></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   <div class="carte">${e.objectif ? `<p style="margin:0 0 8px;font-size:17px"><b>${echapper(e.objectif)}</b></p>` : ''}
     <p style="margin:0;white-space:pre-line">${echapper(e.description)}</p>
-    <p class="doux petit" style="margin:10px 0 0">Du ${echapper(dateFr(e.debut))} au ${echapper(dateFr(e.fin))} · ${participants.length} participant${participants.length > 1 ? 's' : ''}</p></div>
-  <div class="carte"><h2>Pour participer</h2>${conditions.length ? `<div class="ev-cond">${conditions.map((c) => `<div>${pieceTrophee(c.trophee, { taille: 40, obtenu: c.ok })}
-      <span><b>${echapper(c.trophee.titre)}</b><small>${echapper(c.trophee.but)} (ou mieux)</small></span>${estCoach ? '' : `<span class="ok" style="color:${c.ok ? 'var(--ok)' : '#ff9a3c'}">${c.ok ? '✓' : '✗'}</span>`}</div>`).join('')}</div>`
-    : '<p class="doux" style="margin:0">Ouvert à tous les élèves de l\'accompagnement.</p>'}
-    <div style="margin-top:12px">${action}</div></div>
-  <div class="carte"><h2>Classement de l'événement</h2><p class="doux petit" style="margin:0 0 10px">Revenus générés pendant l'événement (updates validées).</p>${classementEvenement(participants, moi)}</div>`, espace, 'classement');
+    <p class="doux petit" style="margin:10px 0 0">Du ${echapper(dateFr(e.debut))} au ${echapper(dateFr(e.fin))} · suivi : ${echapper(statsTxt)} · ${nbInscrits} participant${nbInscrits > 1 ? 's' : ''}</p></div>
+  ${rejoindre}
+  ${inscrit ? `<p class="message-ok">${ICONE.ok} Tu participes à ce challenge.</p>${etat === 'a_venir' ? `<form method="post" action="/evenements/${e.id}/desinscrire" style="margin:0 0 14px"><button class="bouton secondaire" type="submit" style="margin:0">Me désinscrire</button></form>` : ''}` : ''}
+  ${inscrit || estCoach || etat === 'termine' ? `${regles}<div class="carte"><h2>Pour participer</h2>${listeConditions(false)}</div>` : ''}
+  <div class="carte"><h2>Classement de l'événement</h2><p class="doux petit" style="margin:0 0 10px">Depuis le début de l'événement (tout le monde part de 0), d'après les updates du soir validées.</p>${classementEvenement(classements, moi, e.stats)}</div>`,
+  espace, 'classement', null, SCRIPT_ETAPES);
 }
 
 // Coach : créer un événement et voir ceux en cours.
@@ -72,6 +102,14 @@ function pageEvenementsCoach(config, { espace, evenements = [], etats = {}, nbIn
       <input type="hidden" name="banniere" value=""><div class="apercus" style="margin-top:8px"></div></div></div>
     <div class="champ"><label>Affiche (la page de l'événement)</label><div data-images="/admin/images" data-une><label class="fichier">${ICONE.plus}<span><b>Ajouter l'affiche</b><br>Format portrait ou carré</span><input type="file" accept="image/*" hidden></label>
       <input type="hidden" name="affiche" value=""><div class="apercus" style="margin-top:8px"></div></div></div>
+    <div><h3 style="margin:0 0 4px;font-size:15px">Ce qui est suivi</h3><p class="doux petit" style="margin:0 0 8px">Une stat (monostat) ou plusieurs (un classement et un podium par stat). Les 3 : challenge global, ses rappels remplacent les rappels habituels des inscrits.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(STATS).map(([k, l], i) => `<label style="display:flex;gap:8px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid #2a2a2a;margin:0;font-weight:600"><input type="checkbox" name="stats" value="${k}"${i === 0 ? ' checked' : ''} style="width:auto;margin:0">${echapper(l)}</label>`).join('')}</div></div>
+    <div class="champ"><label for="ev-points">Pour gagner (attribution des points)</label><textarea id="ev-points" name="regles_points" maxlength="2000" required placeholder="ex. Celui qui génère le plus d'argent entre le début et la fin gagne."></textarea></div>
+    <div class="champ"><label for="ev-valid">Validation des résultats (facultatif)</label><textarea id="ev-valid" name="regles_validation" maxlength="2000" placeholder="ex. Seuls les résultats validés par le coach comptent ; capture obligatoire à chaque update."></textarea></div>
+    <div class="champ"><label for="ev-badge">Nom du badge de récompense</label><input id="ev-badge" name="badge_nom" maxlength="60" placeholder="ex. Overmaxx 1000"></div>
+    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px">${['or', 'argent', 'bronze'].map((m) => `<div class="champ"><label>Badge ${m === 'or' ? 'or (1er)' : m === 'argent' ? 'argent (2e)' : 'bronze (3e)'}</label>
+      <div data-images="/admin/images" data-une><label class="fichier" style="padding:10px">${ICONE.plus}<span><b>Image</b></span><input type="file" accept="image/*" hidden></label>
+      <input type="hidden" name="badge_${m}" value=""><div class="apercus" style="margin-top:6px"></div></div></div>`).join('')}</div>
     <div class="champ"><label for="ev-couleur">Couleur dominante</label><input id="ev-couleur" name="couleur" type="color" value="#e8174f" style="width:64px;height:44px;padding:2px"></div>
     <div><h3 style="margin:0 0 4px;font-size:15px">Conditions de participation</h3><p class="doux petit" style="margin:0 0 8px">Pour chaque famille, le trophée minimum (ou aucun).</p><div style="display:grid;gap:8px">${choixConditions}</div></div>
     <button class="bouton" type="submit" style="margin:0">Créer l'événement</button>
@@ -84,4 +122,4 @@ function pageEvenementsCoach(config, { espace, evenements = [], etats = {}, nbIn
     var s = document.querySelector('[data-choisi="' + r.name.slice(5) + '"]'); if (s) s.textContent = r.value ? '· ' + r.getAttribute('data-titre') + ' minimum' : '· aucun'; }); });`);
 }
 
-module.exports = { pageEvenement, pageEvenementsCoach, classementEvenement };
+module.exports = { pageEvenement, pageEvenementsCoach, classementEvenement, pieceBadge, valeurStat };

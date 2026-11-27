@@ -1235,6 +1235,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   // Le salon des résultats : chaque résultat de vidéo envoyé (une fois) et chaque preuve de monétisation acceptée ;
   // le forum « Testimonials » : les deux updates de fin de mois, un post chacune (titre, texte, images).
   const updatesMois = require('./updates-mois').creerUpdatesMois({ db, maintenant });
+  const evenementsBob = require('./evenements').creerEvenements({ db, maintenant });
   const fichiersDe = (noms = []) => noms.map((n) => parcours && parcours.cheminImage(n)).filter((c) => c && require('fs').existsSync(c)).slice(0, 5);
   async function salonDiscord(id) {
     if (!id || !client || !client.channels) return null;
@@ -1616,9 +1617,13 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         marquer(cle);
         const lien = (chemin) => lienPerso(p.discord_id, p.pseudo, chemin);
         let contenu = null;
-        if (r.type === 'creation') contenu = avecBoutons('**C\'est l\'heure de créer ta vidéo du jour.** Le montage prend 1 h maximum.', [{ label: 'Étape 4', url: lien('/parcours/etape-4') }]);
+        // Inscrit à un challenge global (argent, vues et abonnés suivis) : les rappels deviennent ceux du challenge.
+        const ch = evenementsBob.enCoursPour(p.discord_id).find((e) => evenementsBob.estGlobal(e));
+        const avecBoutonsDe = (texte, boutons) => avecBoutons(ch ? `🏁 **Challenge ${ch.titre}** · ${texte.replace(/^\*\*(.+?)\*\*/, '$1')}\nPoste tes résultats et ton update pour gagner des places au classement.` : texte,
+          ch ? [...boutons, { label: 'Le challenge', url: lien(`/evenements/${ch.id}`) }] : boutons);
+        if (r.type === 'creation') contenu = avecBoutonsDe('**C\'est l\'heure de créer ta vidéo du jour.** Le montage prend 1 h maximum.', [{ label: 'Étape 4', url: lien('/parcours/etape-4') }]);
         if (r.type === 'publication' && !suivi.publications(p.discord_id, r.jour).length) {
-          contenu = avecBoutons('**C\'est l\'heure de publier.** Une fois ta vidéo en ligne, colle son lien sur le site, c\'est tout.', [{ label: 'Déclarer ma vidéo', url: lien('/parcours/etape-4') }]);
+          contenu = avecBoutonsDe('**C\'est l\'heure de publier.** Une fois ta vidéo en ligne, colle son lien sur le site, c\'est tout.', [{ label: 'Déclarer ma vidéo', url: lien('/parcours/etape-4') }]);
         }
         if (r.type === 'compte-rendu') {
           // À son heure de résultats : les vidéos de plus de 24 h à remplir, et l'update du compte du jour.
@@ -1630,7 +1635,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
             if (videos.length) lignes.push(videos.length === 1 ? `Les résultats de ta vidéo du ${jourLisible(videos[0].jour)} (capture, vues, revenus).` : `Les résultats de **${videos.length} vidéos** (capture, vues, revenus).`);
             if (updates.length) lignes.push('L\'update de ton compte : capture des 28 derniers jours, vues et revenus.');
             if (dimanche) lignes.push('**C\'est la fin de la semaine** : tes vidéos bangers ont fait plus de stats ? Mets-les à jour depuis l\'étape 4.');
-            contenu = avecBoutons(`**C'est l'heure de tes résultats.**\n${lignes.map((l) => `- ${l}`).join('\n')}`,
+            contenu = avecBoutonsDe(`**C'est l'heure de tes résultats.**\n${lignes.map((l) => `- ${l}`).join('\n')}`,
               [...videos.slice(0, 5).map((v) => ({ label: `Vidéo du ${jourLisible(v.jour)}`, url: lien(`/parcours/videos/${v.id}`) })),
                 ...(updates.length ? [{ label: 'Update du compte', url: lien(`/parcours/compte-rendu/${updates[0].jour}`) }] : []),
                 ...(dimanche && !videos.length && !updates.length ? [{ label: 'Mes vidéos', url: lien('/parcours/etape-4') }] : [])]);

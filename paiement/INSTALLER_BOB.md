@@ -699,3 +699,12 @@ ou sur **overmaxx.online/admin/candidatures**.
 - La bannière défile en haut des pages et ouvre la page de l'événement (affiche, description, conditions, « Je participe »,
   classement de l'événement : revenus générés pendant l'événement par les inscrits, d'après les updates validées).
 - Classement : les événements en haut, puis « Classement all-time » et « Classement événement ». Toute la carte d'un membre est cliquable.
+- Chaque événement : les stats suivies (argent, vues, abonnés : une = monostat, plusieurs = un classement et un podium par stat),
+  « Pour gagner », « Validation des résultats », le badge de récompense (nom + 3 images : or, argent, bronze).
+- Rejoindre : 1. « J'ai lu, j'ai compris » ; 2. les trophées demandés (en bleu s'il les a ; sinon « Continuer » est bloqué) ;
+  3. les règles pour gagner, puis « Je participe ».
+- Calcul : tout le monde part de 0 au début de l'événement, d'après les updates du soir validées.
+- Challenge global (les 3 stats) : les rappels quotidiens des inscrits deviennent ceux du challenge.
+- À la fin : le podium de chaque stat reçoit le badge (fenêtre de victoire, message de Bob). Trophy room : 3 trophées, une barre,
+  le dernier badge spécial. Page des trophées : « Badges spéciaux » (cadre bleu foncé, 5 visibles, « Voir tous mes badges »),
+  seulement pour ceux qui en ont gagné.

@@ -325,11 +325,20 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     },
     // Revenus et vues gagnés entre deux jours (inclus), d'après le cumul des updates validées (classement d'un événement).
     entre(discordId, debut, fin) {
+      // Tout le monde part de 0 au début : la base est la dernière update validée avant le début, sinon la première de la période.
       const serie = api.cumul(discordId, { valides: true });
-      const base = serie.filter((x) => x.jour < debut).pop();
-      const haut = serie.filter((x) => x.jour <= fin).pop();
-      if (!haut || (base && haut.jour === base.jour)) return { revenus: 0, vues: 0 };
-      return { revenus: Math.round((haut.revenus - (base ? base.revenus : 0)) * 100) / 100, vues: haut.vues - (base ? base.vues : 0) };
+      const dans = serie.filter((x) => x.jour >= debut && x.jour <= fin);
+      const base = serie.filter((x) => x.jour < debut).pop() || dans[0];
+      const haut = dans[dans.length - 1];
+      const ab = db.prepare("SELECT jour, abonnes FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide' AND abonnes IS NOT NULL AND jour <= ? ORDER BY jour").all(discordId, fin);
+      const abDans = ab.filter((x) => x.jour >= debut);
+      const abBase = ab.filter((x) => x.jour < debut).pop() || abDans[0];
+      const abHaut = abDans[abDans.length - 1];
+      return {
+        revenus: haut && base ? Math.max(0, Math.round((haut.revenus - base.revenus) * 100) / 100) : 0,
+        vues: haut && base ? Math.max(0, haut.vues - base.vues) : 0,
+        abonnes: abHaut && abBase ? Math.max(0, Number(abHaut.abonnes) - Number(abBase.abonnes)) : 0,
+      };
     },
     // Gains jour par jour (différence de cumul d'une update à l'autre), total du mois.
     gains(discordId, { valides = false } = {}) {

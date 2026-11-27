@@ -252,21 +252,29 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     liste.forEach((m, i) => { m.rang = i + 1; });
     return liste;
   }
-  // Classement d'un événement : ses inscrits, par revenus générés pendant l'événement.
-  function participantsDe(e) {
-    return evenements.inscrits(e.id).map((i) => {
-      const pr = qProfils.get.get(i.discord_id) || {}; const p = parcours.get(i.discord_id) || {};
-      return { id: i.discord_id, nom: pr.prenom || p.pseudo || 'Membre', avatar: pr.avatar || null, ...suivi.entre(i.discord_id, e.debut, e.fin) };
-    }).sort((a, b) => b.revenus - a.revenus || b.vues - a.vues);
+  // Classement d'un événement : par stat suivie, depuis le début (tout le monde part de 0).
+  const profilCourt = (id) => { const pr = qProfils.get.get(id) || {}; const p = parcours.get(id) || {}; return { nom: pr.prenom || p.pseudo || 'Membre', avatar: pr.avatar || null }; };
+  function classementsDe(e) {
+    const c = evenements.classements(e, (id) => suivi.entre(id, e.debut, e.fin));
+    for (const st of Object.keys(c)) c[st] = c[st].map((x) => ({ ...x, ...profilCourt(x.id) }));
+    return c;
+  }
+  // Les événements terminés : badges au podium, et chaque gagnant est prévenu.
+  function cloturerEvenements() {
+    for (const d of evenements.cloturer((e, id) => suivi.entre(id, e.debut, e.fin))) {
+      const p = parcours.get(d.discordId);
+      if (p) prevenir('messageEleve', p, `🏅 **Bravo : ${['', '1er', '2e', '3e'][d.rang]} du challenge ${d.evenement.titre}** (${evenements.STATS[d.stat]}) ! Ton badge spécial est dans ta Trophy room.`, '/trophees');
+    }
   }
   app.get('/evenements/:id', (req, res) => {
+    try { cloturerEvenements(); } catch (err) { console.warn('[evenements] clôture :', err.message); }
     const session = connecte(req, res, `/evenements/${encodeURIComponent(req.params.id)}`, 'Événement');
     if (!session) return;
     const e = evenements.un(req.params.id);
     if (!e) return res.status(404).send(P.pageMessage(config, 'Introuvable', 'Cet événement n\'existe pas.', { lien: '/classement', texteLien: 'Classement' }));
     const estCoach = session.id === config.discord.adminId;
     res.send(EV.pageEvenement(config, { espace: espaceDe(session), e, etat: evenements.etat(e), conditions: evenements.conditionsRemplies(e, trophees.obtenus(session.id)),
-      inscrit: evenements.estInscrit(e.id, session.id), participants: participantsDe(e), moi: session.id, estCoach,
+      inscrit: evenements.estInscrit(e.id, session.id), classements: classementsDe(e), nbInscrits: evenements.inscrits(e.id).length, moi: session.id, estCoach,
       message: { inscrit: 'Inscription enregistrée. Bonne chance !', desinscrit: 'Tu n\'es plus inscrit.' }[req.query.fait] || null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
   app.post('/evenements/:id/inscrire', formulaire, (req, res) => {
@@ -297,7 +305,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const image = (v) => { const n = String(v || '').split(',')[0].trim(); return n && parcours.cheminImage(n) ? n : null; };
     const conditions = Object.fromEntries(Object.keys(b).filter((k) => k.startsWith('cond_')).map((k) => [k.slice(5), b[k]]));
     const r = evenements.creer({ titre: b.titre, description: b.description, objectif: b.objectif, banniere: image(b.banniere), affiche: image(b.affiche),
-      couleur: b.couleur, debut: b.debut, fin: b.fin, conditions });
+      couleur: b.couleur, debut: b.debut, fin: b.fin, conditions, stats: [].concat(b.stats || []), reglesPoints: b.regles_points, reglesValidation: b.regles_validation,
+      badgeNom: b.badge_nom, badges: { or: image(b.badge_or), argent: image(b.badge_argent), bronze: image(b.badge_bronze) } });
     res.redirect(303, r.erreur ? `/admin/evenements?erreur=${encodeURIComponent(r.erreur)}` : '/admin/evenements?fait=1');
   });
   app.post('/admin/evenements/:id/retirer', formulaire, (req, res) => {
@@ -317,7 +326,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const choisi = req.query.vue === 'evenement' ? (actifs.find((e) => String(e.id) === String(req.query.e)) || actifs.find((e) => e.etat === 'en_cours') || actifs[0]) : null;
     res.send(T.pageClassement(config, { espace: espaceDe(session), top: liste.slice(0, 100), total: liste.length, monRang: moi ? moi.rang : null,
       totalRevenus: liste.reduce((t, m) => t + m.revenus, 0), totalMembres: membres.size,
-      evenements: actifs, evenementChoisi: choisi, participants: choisi ? participantsDe(choisi) : [], moi: session.id }));
+      evenements: actifs, evenementChoisi: choisi, classements: choisi ? classementsDe(choisi) : {}, moi: session.id }));
   });
   // Profil d'un membre du top 100 (le sien, ou n'importe lequel pour le coach).
   app.get('/classement/:id', (req, res) => {
@@ -339,7 +348,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null } : null;
     res.send(PF.pageProfilPublic(config, { espace: espaceDe(session), parcours: p, nom: m.nom, avatar: m.avatar, role: roleLePlusHaut(m.recompenses) || 'elite',
       stats: suivi.stats(m.id) || {}, jours: m.jours, chaine: m.chaine, trophees: trophees.obtenus(m.id), totalTrophees: trophees.TROPHEES.length,
-      tableau: suivi.tableau(m.id), relation, vueCoach: session.id === config.discord.adminId }));
+      tableau: suivi.tableau(m.id), relation, vueCoach: session.id === config.discord.adminId, badges: evenements.badgesDe(m.id) }));
   });
 
   // ================= Notifications : Bob ou l'application =================
@@ -1480,7 +1489,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       nbSuivis: suivis.length, nbConcurrents: communaute.concurrents(id).length, activite: activiteDe(id), aujourdhui,
       invitations: communaute.invitationsRecues(id).length, notifications: notifsAdmin.nonLuesMembre(id),
       remarquesNouvelles: commandes.db.prepare('SELECT COUNT(*) n FROM remarques WHERE discord_id = ? AND COALESCE(modifie_le, cree_le) > ?').get(id, profil.remarques_vues_le || '').n,
-      salleTrophees: { moi: { obtenus: trophees.obtenus(id).slice(0, 8), total: trophees.TROPHEES.length },
+      salleTrophees: { moi: { obtenus: trophees.obtenus(id), total: trophees.TROPHEES.length }, badges: evenements.badgesDe(id),
         concurrents: suivis.filter((x) => x.type === 'concurrent').map((x) => ({ ...membreVu(x.suivi), trophees: trophees.obtenus(x.suivi).slice(0, 3), nb: trophees.obtenus(x.suivi).length })) },
       ...carrousel(p, aujourdhui), seances: coaching.prochainesSeances(id, 14).filter((x) => !x.touchee)
         .map((x) => ({ date: x.date, heure: x.heure, debut: new Date(x.debut).toISOString(), type: C.NOMS_TYPES[x.type] || 'Coaching' })),
@@ -1687,14 +1696,18 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!p || session.id === config.discord.adminId) return res.json({ trophees: [], banger: null });
     trophees.verifier(p.discord_id);
     const banger = p.etape >= 4 ? trophees.bangers(p.discord_id) : null;
-    res.json({ trophees: trophees.nonVus(p.discord_id).slice(0, 6).map((t) => ({ cle: t.cle, titre: t.titre, label: t.label, metal: t.metal, piece: pieceTrophee(t, { taille: 150 }) })),
+    const speciaux = evenements.badgesDe(p.discord_id).filter((b) => !b.vu_le).map((b) => ({ cle: `badge:${b.evenement_id}:${b.stat}`, titre: b.titre,
+      label: `${['', '1er', '2e', '3e'][b.rang]} du challenge ${b.badge_nom ? b.titre : b.titre} (${evenements.STATS[b.stat]})`, metal: b.metal, piece: EV.pieceBadge(b, { taille: 150 }) }));
+    res.json({ trophees: [...speciaux, ...trophees.nonVus(p.discord_id).slice(0, 6).map((t) => ({ cle: t.cle, titre: t.titre, label: t.label, metal: t.metal, piece: pieceTrophee(t, { taille: 150 }) }))],
       banger: banger ? { ...banger, lecon: config.formation.gardeCeQuiMarche || null, piece: pieceTrophee({ court: '🔥', metal: 'or', titre: 'Banger', famille: 'revenus', image: 'regularite-or' }, { taille: 150 }) } : null });
   });
   app.post('/api/celebrations/vu', json, (req, res) => {
     const m = membreApi(req);
     if (m.erreur) return res.status(m.statut).json({ erreur: m.erreur });
     const b = req.body || {};
-    trophees.marquerVus(m.session.id, [].concat(b.trophees || []).map(String).slice(0, 30));
+    const vus = [].concat(b.trophees || []).map(String).slice(0, 30);
+    if (vus.some((c) => c.startsWith('badge:'))) evenements.badgesVus(m.session.id);
+    trophees.marquerVus(m.session.id, vus.filter((c) => !c.startsWith('badge:')));
     if (b.banger) trophees.bangersVus(m.session.id);
     if (b.bangersOff) trophees.couperBangers(m.session.id);
     res.json({ ok: true });
@@ -1713,7 +1726,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const eleves = parcours.tous();
     const membres = Object.fromEntries(eleves.map((e) => { const pr = qProfils.get.get(e.discord_id) || {}; return [e.discord_id, { nom: pr.prenom || e.pseudo || 'Membre', avatar: pr.avatar || null }]; }));
     res.send(PF.pageTrophees(config, { espace: x.espace, salle: trophees.salle(id), membre: id === x.p.discord_id ? null : membreVu(id), mesures: trophees.mesures(id),
-      detenteurs: trophees.detenteurs(), membres, totalMembres: eleves.length, formation: config.formation }));
+      detenteurs: trophees.detenteurs(), membres, totalMembres: eleves.length, formation: config.formation, badges: evenements.badgesDe(id) }));
   });
   app.get('/profil', (req, res) => {
     const x = membreParcours(req, res, '/profil', { sinistreOk: true });
@@ -2760,6 +2773,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
 
   app.locals.verifierCoachings = verifierCoachings;
   app.locals.trophees = trophees;
+  // Appelé chaque minute avec les coachings (server.js) : les événements finis donnent leurs badges.
+  const verifierAvant = app.locals.verifierCoachings;
+  app.locals.verifierCoachings = async () => { try { cloturerEvenements(); } catch (err) { console.warn('[evenements] clôture :', err.message); } return verifierAvant(); };
   app.locals.validations = validations;
   return app;
 }

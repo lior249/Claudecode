@@ -10,6 +10,7 @@ const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
 const { vuesCourtes } = require('./pages-classement');
 const { pieceTrophee, vitrine, LECONS } = require('./trophees');
+const pieceBadge = (...a) => require('./pages-evenements').pieceBadge(...a);
 
 const JOURS_COURTS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const ENCOURAGEMENTS = [
@@ -59,6 +60,7 @@ const STYLE_PROFIL = `<style>
   .pf-salle .vitrine { flex:1; display:flex; flex-direction:column; justify-content:center; padding:12px 14px; }
   .pf-salle .vitrine h3 { font-size:18px; letter-spacing:-.01em; }
   .pf-salle .vitrine .pieces { display:flex; align-items:center; gap:2px; margin:10px 0 6px; min-height:52px; overflow:hidden; }
+  .pf-salle .vitrine .sep-badge { width:1px; height:40px; background:#3a3a3a; margin:0 6px; flex:none; }
   .pf-salle .vitrine .absent { display:block; height:52px; line-height:52px; font-size:34px; font-weight:800; letter-spacing:-.02em; color:#3a3a3a; }
   .pf-salle .defile { flex:1; display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
   .pf-salle .defile::-webkit-scrollbar { display:none; }
@@ -274,24 +276,26 @@ function barreObjectif(objectif) {
 // Trophy room (Mon profil) : mes derniers trophées, puis ceux de mes concurrents (on fait défiler).
 // Trophy room : le titre en grand, 4 pièces alignées (les plus récentes, puis la plus prestigieuse, plus grosse, en dernier)
 // et son nom ; « Aucun » s'il n'y en a pas. On touche la carte pour voir tous les trophées.
-function vitrineTrophees(obtenus = [], { lien = '/trophees', total = 22 } = {}) {
+function vitrineTrophees(obtenus = [], { lien = '/trophees', total = 22, badge = null } = {}) {
   const v = vitrine(obtenus);
+  // Avec un badge spécial (événement gagné) : 3 trophées, une barre, puis le dernier badge spécial.
+  if (badge && v.top) v.pieces = v.pieces.slice(0, 3);
   return `<a class="pf-salle" href="${echapper(lien)}" aria-label="Trophy room : ${obtenus.length} trophée(s)"><div class="vitrine">
     <h3>Trophy room <small>${obtenus.length} / ${total}</small></h3>
-    ${v.top ? `<div class="pieces">${v.pieces.map((t) => pieceTrophee(t, { taille: t === v.top ? 52 : 39 })).join('')}</div>
-      <div class="dernier"><b>${echapper(v.top.titre)}</b></div>`
+    ${v.top || badge ? `<div class="pieces">${v.pieces.map((t) => pieceTrophee(t, { taille: t === v.top ? 52 : 39 })).join('')}${badge ? `${v.top ? '<span class="sep-badge" aria-hidden="true"></span>' : ''}${pieceBadge(badge, { taille: 52 })}` : ''}</div>
+      <div class="dernier"><b>${echapper((v.top || badge).titre)}</b></div>`
     : '<div class="pieces"><span class="absent" aria-label="Aucun trophée">N/A</span></div><div class="dernier"><b>–</b></div>'}</div></a>`;
 }
 function salleTrophees(salle) {
   if (!salle) return '';
   const moi = salle.moi || { obtenus: [] };
-  return vitrineTrophees(moi.obtenus, { total: moi.total || 22 });
+  return vitrineTrophees(moi.obtenus, { total: moi.total || 22, badge: (salle.badges || [])[0] || null });
 }
 
 // Le profil d'un membre vu par les autres (classement) : comme Mon profil, sans ce qui ne regarde que lui
 // (étape, prochain objectif, tâches) : photo et nom, sa Trophy room, revenus, rang, jours, puis ses résultats.
-function pageProfilPublic(config, { espace, parcours: p, nom, avatar, role, stats = {}, jours = 1, chaine = 0, trophees = [], totalTrophees = 22, tableau, relation, vueCoach = false }) {
-  const salle = vitrineTrophees(trophees, { lien: `/trophees?de=${encodeURIComponent(p.discord_id)}`, total: totalTrophees });
+function pageProfilPublic(config, { espace, parcours: p, nom, avatar, role, stats = {}, jours = 1, chaine = 0, trophees = [], totalTrophees = 22, tableau, relation, vueCoach = false, badges = [] }) {
+  const salle = vitrineTrophees(trophees, { lien: `/trophees?de=${encodeURIComponent(p.discord_id)}`, total: totalTrophees, badge: badges[0] || null });
   const boutons = relation ? `${relation.message ? `<p class="message-ok">${echapper(relation.message)}</p>` : ''}${relation.erreur ? `<p class="erreur-form">${echapper(relation.erreur)}</p>` : ''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 18px">
     ${relation.concurrent ? `<form method="post" action="/communaute/concurrences/${relation.concurrenceId}/abandon" style="margin:0"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
@@ -323,7 +327,7 @@ function pageProfilPublic(config, { espace, parcours: p, nom, avatar, role, stat
 }
 
 // Salle des trophées : par famille, obtenus en couleur, les autres en gris, avec le seuil.
-function pageTrophees(config, { espace, salle, membre, mesures = {}, detenteurs = {}, membres = {}, totalMembres = 0, formation = {} }) {
+function pageTrophees(config, { espace, salle, membre, mesures = {}, detenteurs = {}, membres = {}, totalMembres = 0, formation = {}, badges = [] }) {
   const valeur = { banger: mesures.banger, compte: mesures.compte, abonnes: mesures.abonnes, revenus: mesures.revenus, regularite: mesures.regularite };
   const style = `<style>.tr-fam { margin:0 0 14px; } .tr-fam h2 { margin:0; } .tr-grille { display:grid; grid-template-columns:repeat(auto-fill, minmax(98px, 1fr)); gap:8px; margin-top:12px; }
   .tr-t { width:100%; text-align:center; padding:10px 6px; border-radius:16px; background:#111; border:1px solid #222; color:#fff; font:inherit; cursor:pointer; }
@@ -358,6 +362,10 @@ function pageTrophees(config, { espace, salle, membre, mesures = {}, detenteurs 
   return page(membre ? `Trophées de ${membre.nom}` : 'Mes trophées', `${style}<a class="retour" href="${membre ? `/classement/${encodeURIComponent(membre.id)}` : '/profil'}"><span aria-hidden="true">‹</span> ${membre ? `Profil de ${echapper(membre.nom)}` : 'Mon profil'}</a>
   <div class="titre-page"><div><p class="etiquette">Trophy room</p><h1>${membre ? `Trophées de ${echapper(membre.nom)}` : 'Mes trophées'}</h1></div><span class="doux petit">${total} / ${salle.reduce((n, f) => n + f.trophees.length, 0)}</span></div>
   <p class="doux" style="margin:0 0 14px">Touche un trophée pour voir comment l'obtenir, les leçons conseillées et qui l'a déjà.</p>
+  ${badges.length ? `<div class="carte" style="background:#0b1730;border-color:#1e3a8a"><div class="envoi-tete"><h2>Badges spéciaux</h2><span class="doux petit">${badges.length}</span></div>
+    <p class="doux petit" style="margin:4px 0 0">Gagnés aux événements.</p>
+    <div class="tr-grille">${badges.map((b, i) => `<div class="tr-t" data-obtenu="1" style="cursor:default;background:#0f1f42;border-color:#1e3a8a"${i >= 5 ? ' data-plus-badge hidden' : ''}>${pieceBadge(b, { taille: 60 })}<b>${echapper(b.titre)}</b><small>${echapper(b.sous)}</small></div>`).join('')}</div>
+    ${badges.length > 5 ? `<button class="bouton secondaire" type="button" onclick="document.querySelectorAll('[data-plus-badge]').forEach(function (x) { x.hidden = false; }); this.remove();">Voir tous mes badges (${badges.length})</button>` : ''}</div>` : ''}
   ${familles}
   <dialog class="fenetre" id="tr-detail" aria-label="Trophée"><button class="fermer" type="button" aria-label="Fermer" data-fermer>×</button><div data-corps></div></dialog>`, espace, 'profil', null,
   `(function () { var d = document.getElementById('tr-detail'); if (!d) return; var c = d.querySelector('[data-corps]');

@@ -136,7 +136,7 @@ const STYLE_EVENEMENTS = `<style>
 const dateCourte = (j) => j.split('-').reverse().slice(0, 2).join('/');
 const ETAT_EVT = { a_venir: 'À venir', en_cours: 'En cours', termine: 'Terminé' };
 
-function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRang, total, evenements = [], evenementChoisi = null, participants = [], moi: moiId = null }) {
+function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRang, total, evenements = [], evenementChoisi = null, classements = {}, moi: moiId = null }) {
   const { classementEvenement } = require('./pages-evenements');
   const evts = evenements.length ? `<section class="cl-evts" aria-label="Événements">${evenements.map((e) => `<a class="cl-evt" href="/evenements/${e.id}" style="--c:${echapper(e.couleur || '#1a1a1a')}">
       ${e.banniere ? `<img src="/fichiers/images/${echapper(e.banniere)}" alt="">` : ''}<span class="txt"><b>${echapper(e.titre)}</b>
@@ -149,8 +149,8 @@ function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRa
   <div class="titre-page"><div><p class="etiquette">Overmaxx</p><h1>Classement</h1></div></div>
   ${evts}${vues}
   ${evenements.length > 1 ? `<nav class="cl-vues" aria-label="Événement">${evenements.map((e) => `<a href="/classement?vue=evenement&amp;e=${e.id}"${e.id === evenementChoisi.id ? ' aria-current="page"' : ''}>${echapper(e.titre)}</a>`).join('')}</nav>` : ''}
-  <section class="classement"><h2>${echapper(evenementChoisi.titre)}</h2><p class="doux petit" style="margin:-8px 0 12px">Revenus générés du ${dateCourte(evenementChoisi.debut)} au ${dateCourte(evenementChoisi.fin)} par les inscrits.</p>
-    ${classementEvenement(participants, moiId)}</section>`, espace, 'classement');
+  <section class="classement"><h2>${echapper(evenementChoisi.titre)}</h2><p class="doux petit" style="margin:-8px 0 12px">Du ${dateCourte(evenementChoisi.debut)} au ${dateCourte(evenementChoisi.fin)}, tout le monde part de 0.</p>
+    ${classementEvenement(classements, moiId, evenementChoisi.stats)}</section>`, espace, 'classement');
   }
 
   const podium = top.slice(0, 3);
