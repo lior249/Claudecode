@@ -36,7 +36,7 @@ test('trophées : gagnés sur les résultats validés, fenêtre une seule fois, 
     assert.deepStrictEqual(c.trophees.map((t) => t.cle).sort(),
       ['abonnes_junior', 'banger_argent', 'banger_bronze', 'compte_bronze', 'revenus_amateur', 'revenus_rookie']);
     assert.match(c.trophees.find((t) => t.cle === 'abonnes_junior').label, /Tu viens d'obtenir 1 000 abonnés/);
-    assert.match(c.trophees[0].piece, /<svg/);
+    assert.match(c.trophees[0].piece, /<img[^>]*src="\/static\/trophees\/[a-z0-9-]+\.png"/);
     // Vus : ils ne reviennent pas.
     await fetch(`${m.base}/api/celebrations/vu`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: membre.cookie }, body: JSON.stringify({ trophees: c.trophees.map((t) => t.cle), banger: true }) });
     assert.deepStrictEqual((await (await m.get('/api/celebrations', membre)).json()).trophees, []);
