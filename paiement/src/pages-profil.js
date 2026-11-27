@@ -50,16 +50,17 @@ const STYLE_PROFIL = `<style>
   .pf-chaine { display:inline-flex; align-items:center; gap:6px; padding:7px 12px 7px 9px; border-radius:999px; background:#141414; border:1px solid #242424; font-weight:700; font-size:15px; text-decoration:none; color:#fff; }
   .flamme { width:20px; height:20px; fill:#3a3a3a; } .flamme .coeur { fill:#242424; }
   .flamme.allumee { fill:#ff7a1a; filter:drop-shadow(0 0 6px rgba(255,122,26,.55)); } .flamme.allumee .coeur { fill:#ffd23f; }
-  .pf-identite { display:flex; align-items:center; gap:14px; text-align:left; }
-  .pf-identite .qui { flex:none; width:118px; text-align:center; min-width:0; }
-  .pf-identite .qui h1 { font-size:19px; overflow-wrap:anywhere; } .pf-identite .qui p { font-size:12.5px; overflow-wrap:anywhere; }
-  .pf-salle { flex:1; min-width:0; border-radius:20px; background:radial-gradient(120% 120% at 100% 0%, #2a1f05 0%, #121212 55%); border:1px solid #2b2410; overflow:hidden; }
-  .pf-salle .defile { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
+  .pf-identite { display:flex; align-items:stretch; gap:12px; text-align:left; }
+  .pf-identite .qui { flex:none; width:112px; text-align:center; min-width:0; display:flex; flex-direction:column; align-items:center; }
+  .pf-identite .qui .pf-avatar { margin:0 0 8px; }
+  .pf-identite .qui h1 { font-size:17px; overflow-wrap:anywhere; } .pf-identite .qui p { font-size:12px; overflow-wrap:anywhere; }
+  .pf-salle { flex:1; min-width:0; display:flex; flex-direction:column; border-radius:20px; background:#141414; border:1px solid #1f1f1f; overflow:hidden; }
+  .pf-salle .defile { flex:1; display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
   .pf-salle .defile::-webkit-scrollbar { display:none; }
-  .pf-salle a { flex:0 0 100%; scroll-snap-align:start; display:block; padding:12px 12px 10px; color:#fff; text-decoration:none; box-sizing:border-box; }
-  .pf-salle h3 { margin:0; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:#f5c518; display:flex; justify-content:space-between; gap:6px; }
-  .pf-salle h3 small { color:var(--doux); letter-spacing:0; text-transform:none; font-weight:600; }
-  .pf-salle .pieces { display:flex; gap:4px; margin:8px 0 4px; min-height:44px; align-items:center; }
+  .pf-salle a { flex:0 0 100%; scroll-snap-align:start; display:flex; flex-direction:column; justify-content:center; padding:12px 14px; color:#fff; text-decoration:none; box-sizing:border-box; }
+  .pf-salle h3 { margin:0; font-size:15px; display:flex; justify-content:space-between; align-items:baseline; gap:6px; }
+  .pf-salle h3 small { color:var(--lime); font-size:12.5px; font-weight:600; }
+  .pf-salle .pieces { display:flex; gap:4px; margin:10px 0 8px; min-height:44px; align-items:center; }
   .pf-salle .dernier { font-size:12px; color:var(--doux); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .pf-salle .dernier b { color:#fff; }
   .pf-salle .pts { display:flex; justify-content:center; gap:5px; padding:0 0 8px; } .pf-salle .pts i { width:5px; height:5px; border-radius:50%; background:#444; }
@@ -69,7 +70,7 @@ const STYLE_PROFIL = `<style>
   .pf-identite p { margin:2px 0 0; color:var(--doux); font-size:14px; }
   .pf-chiffres { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; align-items:center; margin:20px 0 18px; text-align:center; }
   .pf-chiffres .sep { width:1px; height:34px; background:#262626; }
-  .pf-chiffres b { display:inline-flex; align-items:center; justify-content:center; gap:6px; font-size:18px; white-space:nowrap; }
+  .pf-chiffres b { display:inline-flex; align-items:center; justify-content:center; gap:6px; font-size:16px; white-space:nowrap; }
   .pf-chiffres b svg { width:22px; height:22px; fill:none; stroke:var(--lime); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
   .pf-chiffres small { display:block; color:var(--doux); font-size:13px; margin-top:2px; }
   .pf-chiffres .role-d { font-size:12px; }
@@ -123,12 +124,15 @@ const STYLE_PROFIL = `<style>
     font:800 11px/19px var(--police); text-align:center; border:2px solid #000; box-sizing:content-box; }
   /* La photo dans une pièce de monnaie : bord cranté de la couleur du rang, sans brillance fixe ;
      seul un reflet passe, du coin bas gauche au coin haut droit, découpé à la forme de la pièce. */
-  .pf-avatar.piece { position:relative; width:104px; height:104px; padding:6px; border:0; border-radius:50%; isolation:isolate;
-    clip-path:polygon(100.00% 50.00%,98.68% 51.27%,99.93% 52.62%,98.55% 53.82%,99.73% 55.23%,98.28% 56.36%,99.38% 57.82%,97.88% 58.87%,98.91% 60.40%,97.35% 61.37%,98.30% 62.94%,96.69% 63.83%,97.55% 65.45%,95.91% 66.26%,96.68% 67.92%,94.99% 68.64%,95.68% 70.34%,93.96% 70.97%,94.55% 72.70%,92.80% 73.24%,93.30% 75.00%,91.52% 75.45%,91.93% 77.23%,90.13% 77.58%,90.45% 79.39%,88.64% 79.65%,88.86% 81.47%,87.03% 81.63%,87.16% 83.46%,85.33% 83.52%,85.36% 85.36%,83.52% 85.33%,83.46% 87.16%,81.63% 87.03%,81.47% 88.86%,79.65% 88.64%,79.39% 90.45%,77.58% 90.13%,77.23% 91.93%,75.45% 91.52%,75.00% 93.30%,73.24% 92.80%,72.70% 94.55%,70.97% 93.96%,70.34% 95.68%,68.64% 94.99%,67.92% 96.68%,66.26% 95.91%,65.45% 97.55%,63.83% 96.69%,62.94% 98.30%,61.37% 97.35%,60.40% 98.91%,58.87% 97.88%,57.82% 99.38%,56.36% 98.28%,55.23% 99.73%,53.82% 98.55%,52.62% 99.93%,51.27% 98.68%,50.00% 100.00%,48.73% 98.68%,47.38% 99.93%,46.18% 98.55%,44.77% 99.73%,43.64% 98.28%,42.18% 99.38%,41.13% 97.88%,39.60% 98.91%,38.63% 97.35%,37.06% 98.30%,36.17% 96.69%,34.55% 97.55%,33.74% 95.91%,32.08% 96.68%,31.36% 94.99%,29.66% 95.68%,29.03% 93.96%,27.30% 94.55%,26.76% 92.80%,25.00% 93.30%,24.55% 91.52%,22.77% 91.93%,22.42% 90.13%,20.61% 90.45%,20.35% 88.64%,18.53% 88.86%,18.37% 87.03%,16.54% 87.16%,16.48% 85.33%,14.64% 85.36%,14.67% 83.52%,12.84% 83.46%,12.97% 81.63%,11.14% 81.47%,11.36% 79.65%,9.55% 79.39%,9.87% 77.58%,8.07% 77.23%,8.48% 75.45%,6.70% 75.00%,7.20% 73.24%,5.45% 72.70%,6.04% 70.97%,4.32% 70.34%,5.01% 68.64%,3.32% 67.92%,4.09% 66.26%,2.45% 65.45%,3.31% 63.83%,1.70% 62.94%,2.65% 61.37%,1.09% 60.40%,2.12% 58.87%,0.62% 57.82%,1.72% 56.36%,0.27% 55.23%,1.45% 53.82%,0.07% 52.62%,1.32% 51.27%,0.00% 50.00%,1.32% 48.73%,0.07% 47.38%,1.45% 46.18%,0.27% 44.77%,1.72% 43.64%,0.62% 42.18%,2.12% 41.13%,1.09% 39.60%,2.65% 38.63%,1.70% 37.06%,3.31% 36.17%,2.45% 34.55%,4.09% 33.74%,3.32% 32.08%,5.01% 31.36%,4.32% 29.66%,6.04% 29.03%,5.45% 27.30%,7.20% 26.76%,6.70% 25.00%,8.48% 24.55%,8.07% 22.77%,9.87% 22.42%,9.55% 20.61%,11.36% 20.35%,11.14% 18.53%,12.97% 18.37%,12.84% 16.54%,14.67% 16.48%,14.64% 14.64%,16.48% 14.67%,16.54% 12.84%,18.37% 12.97%,18.53% 11.14%,20.35% 11.36%,20.61% 9.55%,22.42% 9.87%,22.77% 8.07%,24.55% 8.48%,25.00% 6.70%,26.76% 7.20%,27.30% 5.45%,29.03% 6.04%,29.66% 4.32%,31.36% 5.01%,32.08% 3.32%,33.74% 4.09%,34.55% 2.45%,36.17% 3.31%,37.06% 1.70%,38.63% 2.65%,39.60% 1.09%,41.13% 2.12%,42.18% 0.62%,43.64% 1.72%,44.77% 0.27%,46.18% 1.45%,47.38% 0.07%,48.73% 1.32%,50.00% 0.00%,51.27% 1.32%,52.62% 0.07%,53.82% 1.45%,55.23% 0.27%,56.36% 1.72%,57.82% 0.62%,58.87% 2.12%,60.40% 1.09%,61.37% 2.65%,62.94% 1.70%,63.83% 3.31%,65.45% 2.45%,66.26% 4.09%,67.92% 3.32%,68.64% 5.01%,70.34% 4.32%,70.97% 6.04%,72.70% 5.45%,73.24% 7.20%,75.00% 6.70%,75.45% 8.48%,77.23% 8.07%,77.58% 9.87%,79.39% 9.55%,79.65% 11.36%,81.47% 11.14%,81.63% 12.97%,83.46% 12.84%,83.52% 14.67%,85.36% 14.64%,85.33% 16.48%,87.16% 16.54%,87.03% 18.37%,88.86% 18.53%,88.64% 20.35%,90.45% 20.61%,90.13% 22.42%,91.93% 22.77%,91.52% 24.55%,93.30% 25.00%,92.80% 26.76%,94.55% 27.30%,93.96% 29.03%,95.68% 29.66%,94.99% 31.36%,96.68% 32.08%,95.91% 33.74%,97.55% 34.55%,96.69% 36.17%,98.30% 37.06%,97.35% 38.63%,98.91% 39.60%,97.88% 41.13%,99.38% 42.18%,98.28% 43.64%,99.73% 44.77%,98.55% 46.18%,99.93% 47.38%,98.68% 48.73%);
-    background:repeating-conic-gradient(from 0deg, var(--piece) 0deg 1.5deg, color-mix(in srgb, var(--piece) 75%, #000) 1.5deg 3deg); }
+  .pf-avatar.piece { position:relative; width:100px; height:100px; padding:12px; border:0; border-radius:50%; isolation:isolate; overflow:hidden;
+    background:
+      linear-gradient(135deg, transparent 17%, rgba(255,255,255,.7) 17% 25%, transparent 25% 30%, rgba(255,255,255,.45) 30% 33%, transparent 33% 70%, rgba(255,255,255,.5) 70% 77%, transparent 78%),
+      linear-gradient(160deg, color-mix(in srgb, var(--piece) 45%, #fff) 0%, var(--piece) 55%, color-mix(in srgb, var(--piece) 80%, #000) 100%);
+    box-shadow:inset 0 -3px 0 color-mix(in srgb, var(--piece) 65%, #000), inset 0 2px 0 color-mix(in srgb, var(--piece) 40%, #fff), 0 6px 18px -8px color-mix(in srgb, var(--piece) 70%, transparent); }
   .pf-avatar.piece .face { position:relative; z-index:1; display:block; width:100%; height:100%; border-radius:50%; overflow:hidden;
-    box-shadow:0 0 0 2px color-mix(in srgb, var(--piece) 55%, #000); }
-  .pf-avatar.piece::after { content:""; position:absolute; inset:0; z-index:2; pointer-events:none;
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--piece) 60%, #000), inset 0 3px 8px rgba(0,0,0,.45); }
+  .pf-avatar.piece .face img, .pf-avatar.piece .face > span { position:relative; z-index:-1; }
+  .pf-avatar.piece::after { content:""; position:absolute; inset:0; z-index:2; pointer-events:none; border-radius:50%;
     background:linear-gradient(45deg, transparent 35%, rgba(255,255,255,.55) 50%, transparent 65%) no-repeat;
     background-size:250% 250%; background-position:120% -20%; animation:ovx-piece 3.6s ease-in-out infinite; }
   @keyframes ovx-piece { 0% { background-position:100% 0%; } 50%, 100% { background-position:0% 100%; } }
@@ -281,10 +285,10 @@ function salleTrophees(salle) {
 // (étape, prochain objectif, tâches) : photo et nom, sa Trophy room, revenus, rang, jours, puis ses résultats.
 function pageProfilPublic(config, { espace, parcours: p, nom, avatar, role, stats = {}, jours = 1, chaine = 0, trophees = [], totalTrophees = 22, tableau, relation, vueCoach = false }) {
   const pieces = trophees.slice(0, 4).map((t) => pieceTrophee(t, { taille: 40 })).join('');
-  const salle = `<a class="pf-salle" href="/trophees?de=${encodeURIComponent(p.discord_id)}" style="display:block;color:#fff;text-decoration:none">
-    <div style="padding:12px 12px 10px"><h3 style="margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#f5c518;display:flex;justify-content:space-between;gap:6px">Trophy room <small style="color:var(--doux);letter-spacing:0;text-transform:none;font-weight:600">${trophees.length} / ${totalTrophees}</small></h3>
-      <div class="pieces" style="display:flex;gap:4px;margin:8px 0 4px;min-height:44px;align-items:center">${pieces || '<span class="doux petit">Pas encore de trophée</span>'}</div>
-      <div class="dernier" style="font-size:12px;color:var(--doux);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${trophees.length ? `Top : <b style="color:#fff">${echapper(trophees[0].titre)}</b>` : 'Voir ses trophées'}</div></div></a>`;
+  const salle = `<a class="pf-salle" href="/trophees?de=${encodeURIComponent(p.discord_id)}" style="color:#fff;text-decoration:none">
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:12px 14px"><h3>Trophy room <small>${trophees.length} / ${totalTrophees}</small></h3>
+      <div class="pieces">${pieces || '<span class="doux petit">Pas encore de trophée</span>'}</div>
+      <div class="dernier">${trophees.length ? `Top : <b>${echapper(trophees[0].titre)}</b>` : 'Voir ses trophées'}</div></div></a>`;
   const boutons = relation ? `${relation.message ? `<p class="message-ok">${echapper(relation.message)}</p>` : ''}${relation.erreur ? `<p class="erreur-form">${echapper(relation.erreur)}</p>` : ''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 18px">
     ${relation.concurrent ? `<form method="post" action="/communaute/concurrences/${relation.concurrenceId}/abandon" style="margin:0"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
@@ -398,7 +402,10 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
         <div class="pf-points" aria-hidden="true">${slides.map((x, i) => `<i${i ? '' : ' class="actif"'}></i>`).join('')}</div>
       </div>
     </div>
-    <a class="bouton secondaire" href="/parcours" style="margin:4px 0 18px">Mon parcours</a>
+    <div class="pf-carte" style="min-height:0;margin:0 0 4px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><h3>Ma régularité</h3>
+      <span class="doux petit">${chaine >= 3 ? `🔥 ${chaine} jours d'affilée` : 'Chaque jour, tes tâches faites'}</span></div>
+      <div style="margin-top:10px">${blocHeatmap(activite, aujourdhui, { id: 'regularite-page' })}</div></div>
+    <a class="bouton secondaire" href="/parcours" style="margin:10px 0 18px">Mon parcours</a>
     ${seances.length ? `<h2 class="section">Mes prochains coachings</h2><div class="carte">${seances.slice(0, 3).map((x) => `<div class="pf-seance"><b data-quand="${echapper(x.debut)}">${echapper(x.date)} à ${echapper(x.heure)} GMT</b><span>${echapper(x.type)}</span></div>`).join('')}
       <a class="bouton secondaire" href="/coaching" style="margin-top:10px">Mes coachings</a></div>` : ''}
     </div></div>

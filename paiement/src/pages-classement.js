@@ -30,7 +30,7 @@ const MEDAILLE = `<svg class="medaille" viewBox="0 0 64 96" aria-label="Médaill
   <path d="M14 0h14l10 34H24z" fill="#c62828"/><path d="M36 0h14L40 34H26z" fill="#1e3a8a"/><path d="M27 0h10l-4 30h-2z" fill="#fff"/>
   <circle cx="32" cy="62" r="26" fill="url(#or-medaille)" stroke="#7a5200" stroke-width="2"/>
   <circle cx="32" cy="62" r="19" fill="none" stroke="#fff6cf" stroke-opacity=".6" stroke-width="2"/>
-  <text x="32" y="72" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="26" fill="#6b4700">1</text></svg>`;
+  <text x="32" y="72" text-anchor="middle" font-family="Helvetica Neue,Helvetica,Arial,sans-serif" font-weight="800" font-size="26" fill="#6b4700">1</text></svg>`;
 
 const STYLE_CLASSEMENT = `<style>
   .feu { color:#ff9a3c; font-weight:700; white-space:nowrap; }

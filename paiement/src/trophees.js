@@ -157,6 +157,6 @@ function pieceTrophee(t, { taille = 64, obtenu = true } = {}) {
     <polygon points="32,10 51,21 51,43 32,54 13,43 13,21" fill="none" stroke="${m3}" stroke-opacity=".55" stroke-width="2" stroke-linejoin="round"/>`
     : `<circle cx="32" cy="32" r="30" fill="url(#${id})" stroke="${m1}" stroke-width="2"/>
     <circle cx="32" cy="32" r="23" fill="none" stroke="${m3}" stroke-opacity=".55" stroke-width="2" stroke-dasharray="${t.famille === 'revenus' ? '0' : '3 3'}"/>`}
-    <text x="32" y="${32 + fs * 0.36}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="${fs}" fill="${obtenu ? m1 : '#777'}">${texte.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text></svg>`;
+    <text x="32" y="${32 + fs * 0.36}" text-anchor="middle" font-family="Helvetica Neue,Helvetica,Arial,sans-serif" font-weight="800" font-size="${fs}" fill="${obtenu ? m1 : '#777'}">${texte.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text></svg>`;
 }
 module.exports.pieceTrophee = pieceTrophee;
