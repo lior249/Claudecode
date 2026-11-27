@@ -7,7 +7,8 @@
 //      Compte (vues au total)            : Bronze 100K, Argent 1M, Or 5M, Platine 15M.
 //      Abonnés                           : Junior 1K, Sophomore 5K, Créateur 10K.
 //      Revenus                           : Rookie 50 $ ($ bronze), Amateur 100 $ ($ argent), Pro 500 $ ($ or),
-//                                          GOAT 1 000 $ sur 28 jours ($$ or), 1K5 Club ($$ platine), 5K Club ($$$ or), 10K Club ($$$ émeraude).
+//                                          GOAT 1 000 $ sur 28 jours ($$ or), 1K5 Club ($$ platine), 5K Club ($$$ or), 10K Club ($$$ émeraude) ;
+//                                          à partir de 1 000 $, la pièce est un hexagone.
 //      Régularité (updates d'affilée)    : Bronze 10 jours, Argent 30, Or 50, Platine 99.
 //  Chaque trophée a son image (public/trophees/<image>.png) ; tant qu'elle n'est pas là, une pièce dessinée la remplace.
 //  - Signaux « banger » (« Garde ce qui marche ») : dès que l'élève donne les résultats d'une vidéo, s'ils dépassent
@@ -30,7 +31,7 @@ const TROPHEES = [
     titre: t, image: `abonnes-${m}`, court: court(s), label: `Tu viens d'obtenir ${nombre(s)} abonnés`, but: `${nombre(s)} abonnés`, icone: '👥' })),
   ...[['rookie', 'Rookie', 50, 'bronze', 1], ['amateur', 'Amateur', 100, 'argent', 1], ['pro', 'Pro', 500, 'or', 1], ['goat', 'GOAT', 1000, 'or', 2],
     ['1k5', '1K5 Club', 1500, 'platine', 2], ['5k', '5K Club', 5000, 'or', 3], ['10k', '10K Club', 10000, 'emeraude', 3]].map(([c, t, s, m, d]) => ({ cle: `revenus_${c}`, famille: 'revenus', metal: m, seuil: s,
-    titre: t, image: `revenus${d > 1 ? d : ''}-${m}`, court: c === 'goat' ? 'GOAT' : `$${s >= 1000 ? `${s / 1000}K` : s}`, icone: '💰',
+    titre: t, image: `revenus${d > 1 ? d : ''}-${m}`, forme: s >= 1000 ? 'hexagone' : 'cercle', court: c === 'goat' ? 'GOAT' : `$${s >= 1000 ? `${s / 1000}K` : s}`, icone: '💰',
     label: c === 'goat' ? 'Tu as gagné 1 000 $ sur les 28 derniers jours' : `Tu as gagné ${nombre(s)} $ au total`,
     but: c === 'goat' ? '1 000 $ sur 28 jours' : `${nombre(s)} $ au total` })),
   ...[['bronze', 10], ['argent', 30], ['or', 50], ['platine', 99]].map(([m, s]) => ({ cle: `regularite_${m}`, famille: 'regularite', metal: m, seuil: s,
@@ -152,8 +153,10 @@ function pieceTrophee(t, { taille = 64, obtenu = true } = {}) {
   const fs = texte.length > 4 ? 15 : texte.length > 3 ? 17 : 20;
   return `<svg class="piece-trophee" width="${taille}" height="${taille}" style="width:${taille}px;height:${taille}px;flex:none;stroke:none;fill:none" viewBox="0 0 64 64" role="img" aria-label="${t.titre}"><defs>
     <linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${m3}"/><stop offset=".45" stop-color="${m2}"/><stop offset="1" stop-color="${m1}"/></linearGradient></defs>
-    <circle cx="32" cy="32" r="30" fill="url(#${id})" stroke="${m1}" stroke-width="2"/>
-    <circle cx="32" cy="32" r="23" fill="none" stroke="${m3}" stroke-opacity=".55" stroke-width="2" stroke-dasharray="${t.famille === 'revenus' ? '0' : '3 3'}"/>
+    ${t.forme === 'hexagone' ? `<polygon points="32,2 58,17 58,47 32,62 6,47 6,17" fill="url(#${id})" stroke="${m1}" stroke-width="2" stroke-linejoin="round"/>
+    <polygon points="32,10 51,21 51,43 32,54 13,43 13,21" fill="none" stroke="${m3}" stroke-opacity=".55" stroke-width="2" stroke-linejoin="round"/>`
+    : `<circle cx="32" cy="32" r="30" fill="url(#${id})" stroke="${m1}" stroke-width="2"/>
+    <circle cx="32" cy="32" r="23" fill="none" stroke="${m3}" stroke-opacity=".55" stroke-width="2" stroke-dasharray="${t.famille === 'revenus' ? '0' : '3 3'}"/>`}
     <text x="32" y="${32 + fs * 0.36}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="${fs}" fill="${obtenu ? m1 : '#777'}">${texte.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text></svg>`;
 }
 module.exports.pieceTrophee = pieceTrophee;
