@@ -691,3 +691,11 @@ ou sur **overmaxx.online/admin/candidatures**.
   1. Update du mois : « As-tu fait de l'argent sur TikTok ce mois-ci ? ». Oui : le total, une capture, et 3 questions (comment ça a commencé, ton conseil, ton prochain objectif). Non : rien à publier.
   2. Plus gros résultat du mois : vues sur une vidéo, abonnés gagnés en une vidéo, revenus d'une vidéo (désactivé sans revenus ce mois-ci), ou autre ; son ressenti ; des images.
 - Bob doit pouvoir écrire et joindre des fichiers dans le salon, et créer des posts dans le forum.
+
+## Événements (challenges)
+
+- Gestion → Événements : nom, défi en une phrase, description, début (dans 3 à 15 jours), fin (durée 3 à 30 jours), bannière, affiche,
+  couleur, conditions (pour chaque famille de trophées : le trophée minimum, ou aucun). Au plus 5 événements à venir ou en cours.
+- La bannière défile en haut des pages et ouvre la page de l'événement (affiche, description, conditions, « Je participe »,
+  classement de l'événement : revenus générés pendant l'événement par les inscrits, d'après les updates validées).
+- Classement : les événements en haut, puis « Classement all-time » et « Classement événement ». Toute la carte d'un membre est cliquable.

@@ -27,6 +27,8 @@ const RS = require('./pages-ressources');
 const AIDE = require('./aide');
 const { pageAide } = require('./pages-aide');
 const { pageMois } = require('./pages-mois');
+const EV = require('./pages-evenements');
+const { creerEvenements } = require('./evenements');
 const { creerUpdatesMois } = require('./updates-mois');
 const { lienCompte } = require('./tiktok');
 const PF = require('./pages-profil');
@@ -67,6 +69,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const validations = creerValidations({ db: commandes.db, coaching, maintenant: coaching.maintenant || (() => new Date()) });
   const trophees = creerTrophees({ db: commandes.db, suivi, parcours });
   const updatesMois = creerUpdatesMois({ db: commandes.db });
+  const evenements = creerEvenements({ db: commandes.db });
   // Nouveaux trophées après un résultat validé : l'élève est prévenu (la fenêtre s'ouvre à sa prochaine visite).
   const verifierTrophees = (id) => { const n = trophees.verifier(id); if (n.length) prevenir('trophees', parcours.get(id), n); return n; };
   // Qui est l'élève d'une séance (pour les messages).
@@ -109,7 +112,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const p = !estAdmin && session ? parcours.get(session.id) : null;
     const c = !estAdmin && session ? compteursMembre(session.id) : { notifs: 0, remarques: 0 };
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
-      notifsNonLues: estAdmin ? notifsAdmin.nonLues() : c.notifs, remarquesNouvelles: c.remarques, evenements: session ? evenementsEnCours() : [],
+      notifsNonLues: estAdmin ? notifsAdmin.nonLues() : c.notifs, remarquesNouvelles: c.remarques, evenements: session ? [...challengesBanniere(), ...evenementsEnCours()] : [],
       ressources: Boolean(config.ressourcesActives) };
   };
   // Notifications non lues et nouvelles remarques du coach d'un membre (pastilles rouges, nombre sur l'icône de l'application).
@@ -123,6 +126,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     return commandes.db.prepare(`SELECT * FROM annonces WHERE (fin_le IS NOT NULL AND fin_le > ?) OR (fin_le IS NULL AND cree_le > ?) ORDER BY id DESC LIMIT 6`)
       .all(now, new Date(Date.now() - 7 * 864e5).toISOString());
   };
+  // Les événements (challenges) à venir ou en cours, dans le défilé en haut des pages : leur bannière ouvre leur page.
+  const challengesBanniere = () => (typeof evenements === 'undefined' ? [] : evenements.actifs().map((e) => ({ titre: e.titre,
+    texte: e.objectif || `Du ${e.debut.split('-').reverse().join('/')} au ${e.fin.split('-').reverse().join('/')}`, image: e.banniere, couleur: e.couleur, lien: `/evenements/${e.id}` })));
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -246,6 +252,59 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     liste.forEach((m, i) => { m.rang = i + 1; });
     return liste;
   }
+  // Classement d'un événement : ses inscrits, par revenus générés pendant l'événement.
+  function participantsDe(e) {
+    return evenements.inscrits(e.id).map((i) => {
+      const pr = qProfils.get.get(i.discord_id) || {}; const p = parcours.get(i.discord_id) || {};
+      return { id: i.discord_id, nom: pr.prenom || p.pseudo || 'Membre', avatar: pr.avatar || null, ...suivi.entre(i.discord_id, e.debut, e.fin) };
+    }).sort((a, b) => b.revenus - a.revenus || b.vues - a.vues);
+  }
+  app.get('/evenements/:id', (req, res) => {
+    const session = connecte(req, res, `/evenements/${encodeURIComponent(req.params.id)}`, 'Événement');
+    if (!session) return;
+    const e = evenements.un(req.params.id);
+    if (!e) return res.status(404).send(P.pageMessage(config, 'Introuvable', 'Cet événement n\'existe pas.', { lien: '/classement', texteLien: 'Classement' }));
+    const estCoach = session.id === config.discord.adminId;
+    res.send(EV.pageEvenement(config, { espace: espaceDe(session), e, etat: evenements.etat(e), conditions: evenements.conditionsRemplies(e, trophees.obtenus(session.id)),
+      inscrit: evenements.estInscrit(e.id, session.id), participants: participantsDe(e), moi: session.id, estCoach,
+      message: { inscrit: 'Inscription enregistrée. Bonne chance !', desinscrit: 'Tu n\'es plus inscrit.' }[req.query.fait] || null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.post('/evenements/:id/inscrire', formulaire, (req, res) => {
+    const x = membreParcours(req, res, `/evenements/${encodeURIComponent(req.params.id)}`);
+    if (!x) return;
+    const e = evenements.un(req.params.id);
+    const r = evenements.inscrire(e, x.p.discord_id, trophees.obtenus(x.p.discord_id));
+    if (!r.erreur && e) prevenir('activiteEleve', x.p, `s'est inscrit à l'événement **${e.titre}**.`, `/evenements/${e.id}`);
+    res.redirect(303, `/evenements/${encodeURIComponent(req.params.id)}?${r.erreur ? `erreur=${encodeURIComponent(r.erreur)}` : 'fait=inscrit'}`);
+  });
+  app.post('/evenements/:id/desinscrire', formulaire, (req, res) => {
+    const x = membreParcours(req, res, `/evenements/${encodeURIComponent(req.params.id)}`);
+    if (!x) return;
+    evenements.desinscrire(evenements.un(req.params.id), x.p.discord_id);
+    res.redirect(303, `/evenements/${encodeURIComponent(req.params.id)}?fait=desinscrit`);
+  });
+  // Coach : créer un événement, le retirer.
+  const pageEvenementsCoach = (req, res, extra = {}) => {
+    const liste = evenements.tous();
+    res.send(EV.pageEvenementsCoach(config, { espace: espaceDe(lireSession(req, config.secretApp)), evenements: liste, bornes: evenements.bornes(),
+      etats: Object.fromEntries(liste.map((e) => [e.id, evenements.etat(e)])), nbInscrits: Object.fromEntries(liste.map((e) => [e.id, evenements.inscrits(e.id).length])),
+      message: req.query.fait ? 'Événement créé : sa bannière défile déjà en haut des pages.' : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null, ...extra }));
+  };
+  app.get('/admin/evenements', (req, res) => { if (estAdmin(req, res, '/admin/evenements')) pageEvenementsCoach(req, res); });
+  app.post('/admin/evenements', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/evenements')) return;
+    const b = req.body || {};
+    const image = (v) => { const n = String(v || '').split(',')[0].trim(); return n && parcours.cheminImage(n) ? n : null; };
+    const conditions = Object.fromEntries(Object.keys(b).filter((k) => k.startsWith('cond_')).map((k) => [k.slice(5), b[k]]));
+    const r = evenements.creer({ titre: b.titre, description: b.description, objectif: b.objectif, banniere: image(b.banniere), affiche: image(b.affiche),
+      couleur: b.couleur, debut: b.debut, fin: b.fin, conditions });
+    res.redirect(303, r.erreur ? `/admin/evenements?erreur=${encodeURIComponent(r.erreur)}` : '/admin/evenements?fait=1');
+  });
+  app.post('/admin/evenements/:id/retirer', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/evenements')) return;
+    evenements.retirer(req.params.id);
+    res.redirect(303, '/admin/evenements');
+  });
   app.get('/classement', (req, res) => {
     const session = connecte(req, res, '/classement', 'Classement');
     if (!session) return;
@@ -254,8 +313,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const membres = new Set(liste.map((m) => m.id));
     for (const m of commandes.db.prepare("SELECT DISTINCT discord_id FROM membres WHERE statut = 'actif' AND discord_id IS NOT NULL").all()) membres.add(m.discord_id);
     for (const m of commandes.db.prepare('SELECT DISTINCT discord_id FROM abonnes_carte WHERE termine_le IS NULL').all()) membres.add(m.discord_id);
+    const actifs = evenements.actifs().map((e) => ({ ...e, etat: evenements.etat(e), nb: evenements.inscrits(e.id).length }));
+    const choisi = req.query.vue === 'evenement' ? (actifs.find((e) => String(e.id) === String(req.query.e)) || actifs.find((e) => e.etat === 'en_cours') || actifs[0]) : null;
     res.send(T.pageClassement(config, { espace: espaceDe(session), top: liste.slice(0, 100), total: liste.length, monRang: moi ? moi.rang : null,
-      totalRevenus: liste.reduce((t, m) => t + m.revenus, 0), totalMembres: membres.size }));
+      totalRevenus: liste.reduce((t, m) => t + m.revenus, 0), totalMembres: membres.size,
+      evenements: actifs, evenementChoisi: choisi, participants: choisi ? participantsDe(choisi) : [], moi: session.id }));
   });
   // Profil d'un membre du top 100 (le sien, ou n'importe lequel pour le coach).
   app.get('/classement/:id', (req, res) => {

@@ -59,7 +59,7 @@ const STYLE_PROFIL = `<style>
   .pf-salle .vitrine { flex:1; display:flex; flex-direction:column; justify-content:center; padding:12px 14px; }
   .pf-salle .vitrine h3 { font-size:18px; letter-spacing:-.01em; }
   .pf-salle .vitrine .pieces { display:flex; align-items:center; gap:2px; margin:10px 0 6px; min-height:52px; overflow:hidden; }
-  .pf-salle .vitrine .absent { display:block; height:52px; line-height:52px; font-size:44px; font-weight:300; color:#3a3a3a; }
+  .pf-salle .vitrine .absent { display:block; height:52px; line-height:52px; font-size:34px; font-weight:800; letter-spacing:-.02em; color:#3a3a3a; }
   .pf-salle .defile { flex:1; display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
   .pf-salle .defile::-webkit-scrollbar { display:none; }
   .pf-salle a { flex:0 0 100%; scroll-snap-align:start; display:flex; flex-direction:column; justify-content:center; padding:12px 14px; color:#fff; text-decoration:none; box-sizing:border-box; }
@@ -280,7 +280,7 @@ function vitrineTrophees(obtenus = [], { lien = '/trophees', total = 22 } = {}) 
     <h3>Trophy room <small>${obtenus.length} / ${total}</small></h3>
     ${v.top ? `<div class="pieces">${v.pieces.map((t) => pieceTrophee(t, { taille: t === v.top ? 52 : 39 })).join('')}</div>
       <div class="dernier"><b>${echapper(v.top.titre)}</b></div>`
-    : '<div class="pieces"><span class="absent" aria-label="Aucun trophée">—</span></div><div class="dernier"><b>–</b></div>'}</div></a>`;
+    : '<div class="pieces"><span class="absent" aria-label="Aucun trophée">N/A</span></div><div class="dernier"><b>–</b></div>'}</div></a>`;
 }
 function salleTrophees(salle) {
   if (!salle) return '';
@@ -809,6 +809,7 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
     ${tuile('/admin/eleves', 'Gérer les élèves', `${nbEleves} élève(s)`, 'Kanban par étape, ou liste triable.', aCompleter ? `${aCompleter} à compléter` : '')}
     ${espace.ressources ? tuile('/ressources', 'Ressources', `${ressources} publiée(s)`, 'Niches, méthodes 10K, tutoriels.', aValider ? `${aValider} proposition(s) à relire` : '') : ''}
     ${tuile('/notifications?onglet=rappels', 'Mes rappels', 'Tes rappels', 'Une fois, chaque jour ou certains jours.')}
+    ${tuile('/admin/evenements', 'Événements', 'Challenges', 'Inscriptions, conditions, classement de l\'événement.')}
   </div>
   ${serveurGratuit ? `<div class="carte" style="margin-top:14px"><div class="envoi-tete"><h2>Serveur gratuit (ancien serveur)</h2>
       <span class="etat" data-etat="${serveurGratuit.actif ? 'valide' : 'attente'}">${serveurGratuit.actif ? 'Actif' : 'Pas encore'}</span></div>

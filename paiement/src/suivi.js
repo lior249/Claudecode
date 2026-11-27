@@ -323,6 +323,14 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       return { revenus: Math.round((dernier.revenus - (base ? base.revenus : 0)) * 100) / 100, vues: dernier.vues - (base ? base.vues : 0),
         updates: serie.filter((x) => x.jour >= depuis).length };
     },
+    // Revenus et vues gagnés entre deux jours (inclus), d'après le cumul des updates validées (classement d'un événement).
+    entre(discordId, debut, fin) {
+      const serie = api.cumul(discordId, { valides: true });
+      const base = serie.filter((x) => x.jour < debut).pop();
+      const haut = serie.filter((x) => x.jour <= fin).pop();
+      if (!haut || (base && haut.jour === base.jour)) return { revenus: 0, vues: 0 };
+      return { revenus: Math.round((haut.revenus - (base ? base.revenus : 0)) * 100) / 100, vues: haut.vues - (base ? base.vues : 0) };
+    },
     // Gains jour par jour (différence de cumul d'une update à l'autre), total du mois.
     gains(discordId, { valides = false } = {}) {
       let mois = null; let cumulMois = 0; let precedent = 0;

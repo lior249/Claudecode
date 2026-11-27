@@ -113,7 +113,7 @@ test('profil vu depuis le classement : comme Mon profil, sans étape ni objectif
     assert.match(page, /class="pf-identite"[\s\S]*Trophy room <small>2 \/ 22[\s\S]*class="dernier"><b>(Rookie|Banger Bronze)<\/b>/);
     // Sans trophée : « Aucun », rien d'autre.
     // Sans trophée : le titre et le compteur restent à leur place ; un tiret à la place des pièces et du nom.
-    assert.match(await (await m.get('/profil', membre)).text(), /<h3>Trophy room <small>0 \/ 22<\/small><\/h3>\s*<div class="pieces"><span class="absent"[^>]*>—<\/span><\/div><div class="dernier"><b>–<\/b><\/div>/);
+    assert.match(await (await m.get('/profil', membre)).text(), /<h3>Trophy room <small>0 \/ 22<\/small><\/h3>\s*<div class="pieces"><span class="absent"[^>]*>N\/A<\/span><\/div><div class="dernier"><b>–<\/b><\/div>/);
     assert.match(page, /href="\/trophees\?de=700000000000000032"/);
     assert.match(page, /Revenus[\s\S]*Rang[\s\S]*Jours/);
     assert.doesNotMatch(page, /Prochain objectif|Étape 4|sur 90/);

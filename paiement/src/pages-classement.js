@@ -111,7 +111,7 @@ function roles(m) {
   return `<div class="roles">${haut ? pastilleRole(haut) : ''}${pastilleRole(m.elite ? 'elite' : 'membre')}</div>`;
 }
 function cartePodium(m, metal) {
-  return `<article class="metal ${metal}"><div class="interieur">
+  return `<article class="metal ${metal}" data-lien="/classement/${encodeURIComponent(m.id)}"><div class="interieur">
     ${metal === 'or' ? MEDAILLE : ''}
     <div class="qui">${avatar(m, true)}<div style="min-width:0"><a class="nom" href="/classement/${encodeURIComponent(m.id)}">${echapper(m.nom)}</a>
       <span class="pseudo">@${echapper(m.pseudo || '')}</span>${trophee(m) ? `<br>${trophee(m)}` : ''}</div></div>
@@ -121,28 +121,62 @@ function cartePodium(m, metal) {
   </div></article>`;
 }
 
-function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRang, total }) {
+const STYLE_EVENEMENTS = `<style>
+  .cl-evts { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(260px, 86%); gap:10px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; margin:0 0 16px; }
+  .cl-evts::-webkit-scrollbar { display:none; }
+  .cl-evt { position:relative; scroll-snap-align:start; display:flex; flex-direction:column; justify-content:flex-end; min-height:130px; padding:14px; border-radius:18px; overflow:hidden;
+    color:#fff; text-decoration:none; background:var(--c, #1a1a1a); border:1px solid #2a2a2a; }
+  .cl-evt img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .cl-evt .txt { position:relative; background:linear-gradient(0deg, rgba(0,0,0,.75), transparent); margin:-14px; padding:30px 14px 14px; }
+  .cl-evt b { display:block; font-size:17px; } .cl-evt small { color:rgba(255,255,255,.8); }
+  .cl-vues { display:flex; gap:4px; padding:4px; border-radius:999px; background:#141414; border:1px solid #242424; margin:0 0 14px; width:max-content; max-width:100%; }
+  .cl-vues a { padding:8px 14px; border-radius:999px; color:var(--doux); text-decoration:none; font-weight:700; font-size:13px; white-space:nowrap; } .cl-vues a[aria-current] { background:#fff; color:#000; }
+  [data-lien] { cursor:pointer; }
+</style>`;
+const dateCourte = (j) => j.split('-').reverse().slice(0, 2).join('/');
+const ETAT_EVT = { a_venir: 'À venir', en_cours: 'En cours', termine: 'Terminé' };
+
+function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRang, total, evenements = [], evenementChoisi = null, participants = [], moi: moiId = null }) {
+  const { classementEvenement } = require('./pages-evenements');
+  const evts = evenements.length ? `<section class="cl-evts" aria-label="Événements">${evenements.map((e) => `<a class="cl-evt" href="/evenements/${e.id}" style="--c:${echapper(e.couleur || '#1a1a1a')}">
+      ${e.banniere ? `<img src="/fichiers/images/${echapper(e.banniere)}" alt="">` : ''}<span class="txt"><b>${echapper(e.titre)}</b>
+      <small>${ETAT_EVT[e.etat] || ''} · du ${dateCourte(e.debut)} au ${dateCourte(e.fin)} · ${e.nb} inscrit${e.nb > 1 ? 's' : ''}</small></span></a>`).join('')}</section>`
+    : '<div class="cl-stat evenements" style="margin:0 0 16px"><b>Événements</b><p>Aucun événement pour le moment.</p></div>';
+  const vues = evenements.length ? `<nav class="cl-vues" aria-label="Classement"><a href="/classement"${evenementChoisi ? '' : ' aria-current="page"'}>Classement all-time</a>
+    <a href="/classement?vue=evenement"${evenementChoisi ? ' aria-current="page"' : ''}>Classement événement</a></nav>` : '';
+  if (evenementChoisi) {
+    return pageEspace('Classement', `${STYLE_CLASSEMENT}${STYLE_EVENEMENTS}${STYLE_ROLES}
+  <div class="titre-page"><div><p class="etiquette">Overmaxx</p><h1>Classement</h1></div></div>
+  ${evts}${vues}
+  ${evenements.length > 1 ? `<nav class="cl-vues" aria-label="Événement">${evenements.map((e) => `<a href="/classement?vue=evenement&amp;e=${e.id}"${e.id === evenementChoisi.id ? ' aria-current="page"' : ''}>${echapper(e.titre)}</a>`).join('')}</nav>` : ''}
+  <section class="classement"><h2>${echapper(evenementChoisi.titre)}</h2><p class="doux petit" style="margin:-8px 0 12px">Revenus générés du ${dateCourte(evenementChoisi.debut)} au ${dateCourte(evenementChoisi.fin)} par les inscrits.</p>
+    ${classementEvenement(participants, moiId)}</section>`, espace, 'classement');
+  }
+
   const podium = top.slice(0, 3);
   const reste = top.slice(3);
   const metaux = ['or', 'argent', 'bronze'];
   const moi = espace && espace.session && espace.session.id;
-  return pageEspace('Classement', `${STYLE_CLASSEMENT}${STYLE_ROLES}
+  return pageEspace('Classement', `${STYLE_CLASSEMENT}${STYLE_EVENEMENTS}${STYLE_ROLES}
   <div class="titre-page"><div><p class="etiquette">Overmaxx</p><h1>Classement</h1></div><span class="doux petit">Top 100</span></div>
-  <div class="cl-stats">
+  ${evts}
+  <div class="cl-stats" style="grid-template-columns:1fr 1fr">
     <div class="cl-stat"><b>${dollars(totalRevenus)}</b><span>Revenus générés sur Overmaxx</span></div>
     <div class="cl-stat"><b>${Number(totalMembres).toLocaleString('fr-FR')}</b><span>Membres</span></div>
-    <div class="cl-stat evenements"><b>Événements</b><p>Aucun événement pour le moment.</p></div>
   </div>
+  ${vues}
   ${monRang && monRang > 100 ? `<p class="ma-place">Tu es <b>${monRang}<sup>e</sup></b> sur ${total}. Entre dans le top 100 pour apparaître ici. <a href="/profil">Mon profil</a></p>` : ''}
   ${podium.length ? `<section class="podium" aria-label="Podium">${podium.map((m, i) => cartePodium(m, metaux[i])).join('')}</section>`
     : '<div class="carte"><p class="doux" style="margin:0">Le classement apparaîtra avec les premiers comptes rendus validés.</p></div>'}
   ${reste.length ? `<section class="classement"><h2>Classement général</h2>
     <table class="cl"><thead><tr><th>Rang</th><th>Membre</th><th>Revenus générés</th><th class="optionnel">Vues</th><th class="optionnel">Jours</th><th class="optionnel">Rôle</th></tr></thead><tbody>
-    ${reste.map((m) => `<tr${m.id === moi ? ' class="moi"' : ''}><td><span class="n">${m.rang}</span></td>
+    ${reste.map((m) => `<tr${m.id === moi ? ' class="moi"' : ''} data-lien="/classement/${encodeURIComponent(m.id)}"><td><span class="n">${m.rang}</span></td>
       <td><div class="membre-cl">${avatar(m)}<div><a href="/classement/${encodeURIComponent(m.id)}">${echapper(m.nom)}</a><small>@${echapper(m.pseudo || '')}</small>${trophee(m)}</div></div></td>
       <td><b>${dollars(m.revenus)}</b></td><td class="optionnel">${vuesCourtes(m.vues)}</td><td class="optionnel">${feu(m.chaine)}${m.jours}</td>
       <td class="optionnel">${pastilleRole(roleLePlusHaut(m.recompenses) || (m.elite ? 'elite' : 'membre'))}</td></tr>`).join('')}
-    </tbody></table></section>` : ''}`, espace, 'classement');
+    </tbody></table></section>` : ''}
+  <script>document.querySelectorAll('[data-lien]').forEach(function (el) { el.addEventListener('click', function (e) {
+    if (e.target.closest('a, button, form')) return; location.href = el.getAttribute('data-lien'); }); });</script>`, espace, 'classement');
 }
 
 module.exports = { pageClassement, vuesCourtes, roleLePlusHaut, nomRole };
