@@ -648,7 +648,9 @@ ou sur **overmaxx.online/admin/candidatures**.
   - Banger (vues d'une vidéo en 24 h) : Bronze 10K, Argent 100K, Or 1M, Platine 5M.
   - Compte (vues au total) : Bronze 100K, Argent 1M, Or 5M, Platine 15M.
   - Abonnés : Junior 1K, Sophomore 5K, Créateur 10K.
-  - Revenus : Rookie $50, Amateur $100, Pro $500, GOAT ($1 000 sur 28 jours), 1K5 Club, 5K Club, 10K Club.
+  - Revenus : Rookie $50 ($ bronze), Amateur $100 ($ argent), Pro $500 ($ or), GOAT $1 000 sur 28 jours ($$ or), 1K5 Club ($$ platine), 5K Club ($$$ or), 10K Club ($$$ émeraude).
+  - Régularité (updates envoyées jour après jour, meilleure série) : Bronze 10 jours, Argent 30, Or 50, Platine 99.
+  - Images : déposer les PNG dans `public/trophees/` (banger-bronze.png, compte-or.png, abonnes-argent.png, revenus-bronze.png, revenus2-or.png, revenus2-platine.png, revenus3-or.png, revenus3-emeraude.png, regularite-platine.png…). Tant qu'une image manque, une pièce dessinée la remplace.
   - Une fenêtre « pièce » s'ouvre une seule fois par trophée. Bob prévient l'élève et le coach.
   - Page « Mes trophées », Trophy room sur le profil (avec les concurrents en faisant défiler), dernier trophée au classement.
 - **« Garde ce qui marche »** : dès que l'élève donne les résultats d'une vidéo, si elle dépasse 10K vues, 5 % d'abonnés par rapport aux vues, $1 de RPM ou $50 de revenus. Chaque signal s'affiche une seule fois, avec la leçon. « Ne plus afficher ce message » coupe tout, après un message dissuasif.

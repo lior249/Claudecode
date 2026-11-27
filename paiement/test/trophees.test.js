@@ -42,16 +42,21 @@ test('trophées : gagnés sur les résultats validés, fenêtre une seule fois, 
     assert.deepStrictEqual((await (await m.get('/api/celebrations', membre)).json()).trophees, []);
     // La salle des trophées.
     const salle = await (await m.get('/trophees', membre)).text();
-    assert.match(salle, /Mes trophées[\s\S]*6 \/ 18/);
+    assert.match(salle, /Mes trophées[\s\S]*6 \/ 22/);
     assert.match(salle, /Banger Argent[\s\S]*Obtenu le/);
     assert.match(salle, /Sophomore[\s\S]*Objectif : 5 000 abonnés/);
+    assert.match(salle, /Régularité Bronze[\s\S]*Objectif : 10 jours d.{1,6}affilée/);
     assert.match(salle, /GOAT[\s\S]*Objectif : 1 000 \$ sur 28 jours/);
     // Profil : identité à gauche, Trophy room à droite ; prochain objectif = 5 000 abonnés (10K et 100K vues, 1K abonnés atteints).
     const profil = await (await m.get('/profil', membre)).text();
-    assert.match(profil, /class="pf-identite"><div class="qui">[\s\S]*class="pf-salle"[\s\S]*Trophy room <small>6 \/ 18/);
+    assert.match(profil, /class="pf-identite"><div class="qui">[\s\S]*class="pf-salle"[\s\S]*Trophy room <small>6 \/ 22/);
     assert.match(profil, /Prochain objectif<\/span><b>5 000 abonnés/);
     // Classement : le dernier trophée à côté du nom.
     assert.match(await (await m.get('/classement', membre)).text(), /class="tr-cl"/);
+    // Régularité : 10 updates envoyées d'affilée.
+    for (let k = 1; k <= 10; k++) m.db.prepare("INSERT INTO comptes_rendus (discord_id, jour, etat, envoye_le, cree_le) VALUES (?, ?, 'attente', ?, ?)")
+      .run(E1, new Date(Date.now() - (k + 1) * 864e5).toISOString().slice(0, 10), now, now);
+    assert.ok((await (await m.get('/api/celebrations', membre)).json()).trophees.some((x) => x.cle === 'regularite_bronze'));
     // Après une décision du coach, Bob prévient l'élève des nouveaux trophées.
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
     const id = video(m, E1, { vues: 1200000, revenus: 10, valide: false });

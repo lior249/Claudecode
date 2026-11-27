@@ -268,7 +268,7 @@ function salleTrophees(salle) {
   const pieces = (liste) => liste.slice(0, 4).map((t) => pieceTrophee(t, { taille: 40 })).join('');
   const vide = pieceTrophee({ court: '10K', metal: 'bronze', titre: 'Premier trophée', famille: 'banger' }, { taille: 40, obtenu: false });
   const moi = salle.moi || { obtenus: [] };
-  const slides = [`<a href="/trophees"><h3>Trophy room <small>${moi.obtenus.length} / ${moi.total || 18}</small></h3>
+  const slides = [`<a href="/trophees"><h3>Trophy room <small>${moi.obtenus.length} / ${moi.total || 22}</small></h3>
       <div class="pieces">${moi.obtenus.length ? pieces(moi.obtenus) : vide}</div>
       <div class="dernier">${moi.obtenus.length ? `Dernier : <b>${echapper(moi.obtenus[0].titre)}</b>` : 'Premier trophée : 10K vues sur une vidéo'}</div></a>`,
     ...(salle.concurrents || []).map((c) => `<a href="/trophees?de=${encodeURIComponent(c.id)}"><h3>${echapper(c.nom)} <small>${c.nb} trophée${c.nb > 1 ? 's' : ''}</small></h3>
@@ -279,13 +279,13 @@ function salleTrophees(salle) {
 
 // Salle des trophées : par famille, obtenus en couleur, les autres en gris, avec le seuil.
 function pageTrophees(config, { espace, salle, membre, mesures = {} }) {
-  const valeur = { banger: mesures.banger, compte: mesures.compte, abonnes: mesures.abonnes, revenus: mesures.revenus };
+  const valeur = { banger: mesures.banger, compte: mesures.compte, abonnes: mesures.abonnes, revenus: mesures.revenus, regularite: mesures.regularite };
   const style = `<style>.tr-fam { margin:0 0 14px; } .tr-fam h2 { margin:0; } .tr-grille { display:grid; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); gap:10px; margin-top:12px; }
   .tr-t { text-align:center; padding:12px 6px; border-radius:16px; background:#111; border:1px solid #222; } .tr-t[data-obtenu="1"] { background:radial-gradient(100% 100% at 50% 0%, #2a2108, #111 70%); border-color:#3a3112; }
   .tr-t b { display:block; margin-top:6px; font-size:14px; } .tr-t small { display:block; color:var(--doux); font-size:11.5px; line-height:1.35; margin-top:2px; }</style>`;
   const nombre = (n) => Math.round(Number(n) || 0).toLocaleString('fr-FR');
   const familles = salle.map((f) => `<div class="carte tr-fam"><div class="envoi-tete"><h2>${echapper(f.titre)}</h2><span class="doux petit">${f.trophees.filter((t) => t.obtenu).length} / ${f.trophees.length}</span></div>
-    <p class="doux petit" style="margin:4px 0 0">${echapper(f.texte)}${valeur[f.cle] !== undefined ? ` : <b style="color:#fff">${f.cle === 'revenus' ? dollars(valeur[f.cle]) : nombre(valeur[f.cle])}</b>${f.cle === 'banger' ? ' (meilleure vidéo)' : ''}` : ''}</p>
+    <p class="doux petit" style="margin:4px 0 0">${echapper(f.texte)}${valeur[f.cle] !== undefined ? ` : <b style="color:#fff">${f.cle === 'revenus' ? dollars(valeur[f.cle]) : f.cle === 'regularite' ? `${nombre(valeur[f.cle])} jour${valeur[f.cle] > 1 ? 's' : ''}` : nombre(valeur[f.cle])}</b>${f.cle === 'banger' ? ' (meilleure vidéo)' : ''}` : ''}</p>
     <div class="tr-grille">${f.trophees.map((t) => `<div class="tr-t" data-obtenu="${t.obtenu ? 1 : 0}">${pieceTrophee(t, { taille: 64, obtenu: !!t.obtenu })}<b>${echapper(t.titre)}</b>
       <small>${t.obtenu ? `Obtenu le ${echapper(jourLisible(t.obtenu.obtenu_le.slice(0, 10)))}` : `Objectif : ${echapper(t.but)}`}</small></div>`).join('')}</div></div>`).join('');
   const total = salle.reduce((n, f) => n + f.trophees.filter((t) => t.obtenu).length, 0);

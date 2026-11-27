@@ -1578,7 +1578,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     trophees.verifier(p.discord_id);
     const banger = p.etape >= 4 ? trophees.bangers(p.discord_id) : null;
     res.json({ trophees: trophees.nonVus(p.discord_id).slice(0, 6).map((t) => ({ cle: t.cle, titre: t.titre, label: t.label, metal: t.metal, piece: pieceTrophee(t, { taille: 150 }) })),
-      banger: banger ? { ...banger, lecon: config.formation.gardeCeQuiMarche || null, piece: pieceTrophee({ court: '🔥', metal: 'or', titre: 'Banger', famille: 'revenus' }, { taille: 150 }) } : null });
+      banger: banger ? { ...banger, lecon: config.formation.gardeCeQuiMarche || null, piece: pieceTrophee({ court: '🔥', metal: 'or', titre: 'Banger', famille: 'revenus', image: 'regularite-or' }, { taille: 150 }) } : null });
   });
   app.post('/api/celebrations/vu', json, (req, res) => {
     const m = membreApi(req);
