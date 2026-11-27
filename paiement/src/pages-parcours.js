@@ -161,6 +161,7 @@ const scriptEnvoi = (maxMo) => `
       if (!fichier) { err.textContent = 'Choisis ta vidéo.'; return; }
       if (fichier.size > ${maxMo} * 1048576) { err.textContent = 'Vidéo trop lourde (${maxMo} Mo maximum).'; return; }
       var corps = { emplacement: f.getAttribute('data-envoi') };
+      if (f.getAttribute('data-axe')) corps.axe = f.getAttribute('data-axe');
       var note = f.querySelector('[name=note]'), retour = f.querySelector('[name=retour]');
       if (note) corps.note = note.value;
       if (retour) corps.retour = retour.value;
@@ -324,8 +325,8 @@ const zoneCapture = (nom, titre, aide, deja) => `<div data-images="/api/parcours
 const champsFacultatifs = (id) => `<div class="ajouts-envoi">
     <details><summary>+ Ajouter une remarque</summary><textarea name="remarque" maxlength="2000" placeholder="Ce que tu veux que ton coach regarde, une question…" id="remarque-${id}"></textarea></details>
     <details><summary>+ Coller le script de la vidéo</summary><textarea name="script" maxlength="8000" placeholder="Colle ici le script français de ta vidéo : ton coach le relit aussi." id="script-${id}" style="min-height:140px"></textarea></details></div>`;
-function formVideo(emplacement, { etape1 = false, libelle, ajouts = false } = {}) {
-  return `<form data-envoi="${emplacement}">
+function formVideo(emplacement, { etape1 = false, libelle, ajouts = false, axe = null } = {}) {
+  return `<form data-envoi="${emplacement}"${axe ? ` data-axe="${axe}"` : ''}>
     ${etape1 ? `<div class="champ"><label for="note-${emplacement}">Note donnée par l'IA</label><input id="note-${emplacement}" name="note" type="number" min="0" max="100" inputmode="numeric" placeholder="ex. 84" required><small>Sur 100, telle que l'IA te l'a donnée.</small></div>
     <div class="champ"><label for="retour-${emplacement}">Retour de l'IA</label><textarea id="retour-${emplacement}" name="retour" placeholder="Colle ici tout le retour de l'IA." required></textarea></div>` : ''}
     <label class="fichier">${ICONE.plus}<span><b>${echapper(libelle || 'Choisir la vidéo')}</b><br><span data-nom>MP4, MOV ou WEBM</span></span><input type="file" accept="video/*" hidden></label>
@@ -1073,11 +1074,12 @@ const SCRIPT_FUSEAU = `
   var f = ''; try { f = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { f = ''; }
   document.querySelectorAll('input[name=fuseau]').forEach(function (i) { if (!i.value) i.value = f; });
 })();`;
-function formHeures(p, { titre = 'Choisis tes 3 heures' } = {}) {
+function formHeures(p, { titre = 'Choisis tes 3 heures', routine = '' } = {}) {
   const h = (nom, val, label, conseil) => `<div class="champ"><label for="${nom}">${label}</label><input id="${nom}" name="${nom}" type="time" value="${echapper(val || '')}" required><small>${conseil}</small></div>`;
   return `<form method="post" action="/parcours/etape-4/heures" style="display:grid;gap:14px">
     ${titre ? `<h2 style="margin:0">${echapper(titre)}</h2>` : ''}
     <p class="doux" style="margin:0">Des heures fixes, chaque jour. Bob te les rappelle, à ton heure (<span data-fuseau>GMT</span>).</p>
+    ${routine ? `<a href="${echapper(routine)}" target="_blank" rel="noopener" style="display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:14px;border:1px solid #2a2a2a;color:#fff;text-decoration:none;font-weight:700">▶ <span>Améliorer ta routine de travail</span><span style="margin-left:auto;color:var(--doux)">↗</span></a>` : ''}
     ${h('creation', p.heure_creation, 'Création de ta vidéo', 'Le moment où tu es le plus libre et le plus en forme. Il n\'y a pas de bon moment : le meilleur est celui que tu décides d\'y consacrer.')}
     ${h('publication', p.heure_publication, 'Publication', 'Je te conseille 1 h après la création : le montage prend 1 h maximum.')}
     ${h('compte_rendu', p.heure_compte_rendu, 'Compte rendu', '24 h après la publication : tu envoies les résultats de la veille.')}
@@ -1130,21 +1132,39 @@ function blocPreuves(p, dues = {}) {
 }
 
 // Étape 4 : faire relire une vidéo avant de la publier (facultatif, 3 en attente au plus).
-function blocAvis(avis = [], remarquesDe = () => []) {
+// Progresser (étape 4) : 3 axes conseillés, dans l'ordre (Hook, puis Engagement, puis Watchtime). Pour chacun : la leçon
+// (« J'ai regardé »), puis une vidéo à faire relire sur cet axe. Facultatif : le coach posera ces questions quand l'élève demande de l'aide.
+const AXES = [
+  ['hook', 'Améliorer ton hook', 'L\'accroche : ce qui donne envie de regarder.'],
+  ['engagement', 'Améliorer l\'engagement', 'Faire réagir : commenter, partager, interagir.'],
+  ['watchtime', 'Améliorer le watchtime', 'Le rythme : garder les gens le plus longtemps possible.'],
+];
+function blocAvis(avis = [], remarquesDe = () => [], { formation = {}, tutosVus = [] } = {}) {
   const envoyees = avis.filter((s) => s.etat !== 'brouillon');
   const enAttente = envoyees.filter((s) => s.etat === 'attente').length;
   const ETATS = { attente: ['attente', 'En attente du coach'], valide: ['valide', 'Prête à publier'], corriger: ['corriger', 'À retravailler'] };
+  const ligne = (sv) => {
+    const rem = remarquesDe(sv.id)[0];
+    const [e, l] = ETATS[sv.etat] || ['attente', sv.etat];
+    return `<div class="ligne-envoi" style="display:block;margin-top:8px"><div class="envoi-tete"><b>Envoyée le ${echapper(formatDate(sv.envoye_le))}</b><span class="etat" data-etat="${e}">${l}</span></div>${rem ? remarque(rem) : ''}</div>`;
+  };
+  const axes = AXES.map(([cle, titre, texte], i) => {
+    const vu = tutosVus.includes(cle);
+    const sienne = envoyees.filter((sv) => sv.axe === cle);
+    return `<div class="carte" style="margin:0"><div class="envoi-tete"><h3 style="margin:0">${i + 1}. ${titre}</h3>${vu ? `<span class="etat" data-etat="valide">${ICONE.ok}Vu</span>` : ''}</div>
+      <p class="doux petit" style="margin:4px 0 8px">${texte}</p>
+      ${formation[cle] ? `<a href="${echapper(formation[cle])}" target="_blank" rel="noopener" data-tuto="${cle}" style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid #2a2a2a;color:#fff;text-decoration:none;font-weight:700">▶ <span>Regarder la leçon</span><span style="margin-left:auto;color:var(--doux)">↗</span></a>` : ''}
+      ${vu ? '' : `<form method="post" action="/parcours/etape-4/tuto" style="margin:8px 0 0"><input type="hidden" name="axe" value="${cle}"><button class="bouton secondaire" type="submit" style="margin:0">J'ai regardé cette leçon</button></form>`}
+      ${enAttente < 3 ? `<details style="margin-top:8px"><summary class="doux petit" style="cursor:pointer">Envoyer une vidéo « ${titre.replace(/^Améliorer (ton |l')/, '')} » à relire</summary><div style="margin-top:10px">${formVideo('avis', { libelle: 'Choisir la vidéo', ajouts: true, axe: cle })}</div></details>` : ''}
+      ${sienne.slice(0, 2).map(ligne).join('')}</div>`;
+  }).join('');
+  const libres = envoyees.filter((sv) => !sv.axe);
   return `<div class="carte" id="avis">
-    <div class="envoi-tete"><h2>Faire relire une vidéo</h2><span class="doux petit">facultatif · ${enAttente} / 3 en attente</span></div>
-    <p class="doux" style="margin:8px 0 12px">Pas sûr d'une vidéo ? Envoie-la à ton coach <b>avant de la publier</b> pour avoir son avis. Ce qui est obligatoire, c'est de publier chaque jour.</p>
-    ${enAttente < 3 ? `<details${envoyees.length ? '' : ' open'}><summary class="bouton secondaire" style="list-style:none;text-align:center">Envoyer une vidéo à relire</summary><div style="margin-top:12px">${formVideo('avis', { libelle: 'Choisir la vidéo', ajouts: true })}</div></details>`
-    : '<p class="doux petit" style="margin:0">3 vidéos attendent déjà l\'avis de ton coach : tu pourras en envoyer une autre après sa réponse.</p>'}
-    ${envoyees.slice(0, 6).map((s) => {
-      const rem = remarquesDe(s.id)[0];
-      const [e, l] = ETATS[s.etat] || ['attente', s.etat];
-      return `<div class="ligne-envoi" style="display:block;margin-top:10px"><div class="envoi-tete"><b>Envoyée le ${echapper(formatDate(s.envoye_le))}</b><span class="etat" data-etat="${e}">${l}</span></div>
-        ${rem ? remarque(rem) : ''}</div>`;
-    }).join('')}
+    <div class="envoi-tete"><h2>Progresser</h2><span class="doux petit">${enAttente} / 3 vidéos en attente</span></div>
+    <p class="doux" style="margin:8px 0 12px">Regarde ces 3 leçons <b>avant</b> de faire tes prochaines vidéos, dans l'ordre. Puis fais une vidéo sur chaque point et envoie-la à ton coach : il te posera ces questions quand tu lui demanderas de l'aide.</p>
+    <div style="display:grid;gap:10px">${axes}</div>
+    <details style="margin-top:12px"><summary class="doux petit" style="cursor:pointer">Faire relire une autre vidéo avant de la publier</summary><div style="margin-top:10px">${enAttente < 3 ? formVideo('avis', { libelle: 'Choisir la vidéo', ajouts: true }) : '<p class="doux petit" style="margin:0">3 vidéos attendent déjà l\'avis de ton coach.</p>'}</div></details>
+    ${libres.slice(0, 3).map(ligne).join('')}
   </div>`;
 }
 function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publications, videos = [], aFaire = [], updateDuJour, stats, message, avis = [], remarquesDe, maxMo, formation = null, preuves = {} }) {
@@ -1185,7 +1205,7 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
   </form>`;
   const etatCompte = p.compte_tiktok && !p.compte_valide_le ? `<div class="carte"><div class="envoi-tete"><h2>Mon compte TikTok</h2><span class="etat" data-etat="attente">En cours d'examen</span></div>
     <p style="margin:8px 0 0">${lienTikTok(p.compte_tiktok)}</p><p class="doux petit" style="margin:6px 0 0">Ta soumission est en cours d'examen. Tu recevras une notification quand ton coach l'aura approuvée.</p></div>` : '';
-  const corps = !p.compte_tiktok ? formCompte : !p.heure_creation ? `${etatCompte}<div class="carte">${formHeures(p)}</div>` : `${etatCompte}
+  const corps = !p.compte_tiktok ? formCompte : !p.heure_creation ? `${etatCompte}<div class="carte">${formHeures(p, { routine: f.routine })}</div>` : `${etatCompte}
   <div class="carte">
     <div class="envoi-tete"><h2>Aujourd'hui</h2>${publications.length ? `<span class="etat" data-etat="valide">${ICONE.ok}${publications.length} vidéo(s) déclarée(s)</span>` : '<span class="etat" data-etat="attente">À déclarer</span>'}</div>
     <p class="doux" style="margin:8px 0 12px">Au moins une vidéo par jour. Après avoir publié, colle son lien : c'est tout.</p>
@@ -1211,7 +1231,7 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
   </div>
   <div class="carte"><div class="envoi-tete"><h2>Mes heures</h2><span class="doux petit">à ton heure</span></div>
     <div class="recap" style="grid-template-columns:repeat(3,1fr)"><div><b>${echapper(p.heure_creation)}</b><span>création</span></div><div><b>${echapper(p.heure_publication)}</b><span>publication</span></div><div><b>${echapper(p.heure_compte_rendu)}</b><span>résultats</span></div></div>
-    <details style="margin-top:12px"><summary>Modifier mes heures</summary><div style="margin-top:12px">${formHeures(p, { titre: '' })}</div></details></div>
+    <details style="margin-top:12px"><summary>Modifier mes heures</summary><div style="margin-top:12px">${formHeures(p, { titre: '', routine: (formation || {}).routine })}</div></details></div>
   ${blocObjectifs(stats, { lien: '/revenus' })}`;
   return page('Étape 4 · Publication et suivi', `
   <div class="titre-page"><div><p class="etiquette">Étape 4 sur 4${aujourdhui ? ` · ${echapper(jourLisible(aujourdhui))}` : ''}</p><h1>Publication et suivi</h1></div>${delai(tache && tache.delai)}</div>
@@ -1219,7 +1239,7 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
   ${message ? `<p class="${message.erreur ? 'erreur-form' : 'message-ok'}">${echapper(message.texte)}</p>` : ''}
   ${blocMonetisation(p, formation || {})}${blocPreuves(p, preuves)}
   ${corps}
-  ${blocAvis(avis, remarquesDe)}`, espace, 'parcours', maxMo, SCRIPT_FUSEAU + SCRIPT_ETAPES);
+  ${blocAvis(avis, remarquesDe, { formation: formation || {}, tutosVus: (() => { try { return JSON.parse(p.tutos_vus || '[]'); } catch { return []; } })() })}`, espace, 'parcours', maxMo, SCRIPT_FUSEAU + SCRIPT_ETAPES);
 }
 
 // ---------- Membre : l'update du compte (28 derniers jours) ----------

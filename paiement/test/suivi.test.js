@@ -387,17 +387,22 @@ test('étape 4 : faire relire une vidéo avant de publier (facultatif, 3 en atte
     const membre = { cookie: cookieSession(E1, 'awa_27') };
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
     const page = await (await m.get('/parcours/etape-4', membre)).text();
-    assert.match(page, /Faire relire une vidéo[\s\S]*facultatif[\s\S]*\+ Ajouter une remarque[\s\S]*\+ Coller le script de la vidéo/);
+    assert.match(page, /Progresser[\s\S]*Améliorer ton hook[\s\S]*Regarder la leçon[\s\S]*\+ Ajouter une remarque[\s\S]*\+ Coller le script de la vidéo/);
     const envoyer = async (corps) => fetch(`${m.base}/api/parcours/envoi`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: membre.cookie }, body: JSON.stringify(corps) });
     const video = async (id) => fetch(`${m.base}/api/parcours/envoi/${id}/video`, { method: 'POST', headers: { 'Content-Type': 'video/mp4', cookie: membre.cookie }, body: Buffer.from('0000') });
     const ids = [];
     for (let k = 0; k < 3; k++) {
-      const r = await (await envoyer({ emplacement: 'avis', remarque: `Ma remarque ${k}`, script: k === 0 ? 'Le script de ma vidéo.' : '' })).json();
+      const r = await (await envoyer({ emplacement: 'avis', remarque: `Ma remarque ${k}`, script: k === 0 ? 'Le script de ma vidéo.' : '', axe: k === 0 ? 'hook' : undefined })).json();
       assert.ok(r.id, JSON.stringify(r));
       assert.strictEqual((await video(r.id)).status, 200);
       ids.push(r.id);
     }
     assert.deepStrictEqual(m.parcours.soumissions(E1, 4).map((s) => s.emplacement).sort(), ['R1', 'R2', 'R3']);
+    assert.strictEqual(m.parcours.soumission(ids[0]).axe, 'hook', 'la vidéo du point « hook »');
+    // « J'ai regardé » : la leçon est cochée.
+    await m.poster('/parcours/etape-4/tuto', { axe: 'hook' }, membre);
+    assert.deepStrictEqual(JSON.parse(m.parcours.get(E1).tutos_vus), ['hook']);
+    assert.match(await (await m.get('/parcours/etape-4', membre)).text(), /Améliorer ton hook<\/h3><span class="etat" data-etat="valide">/);
     const quatre = await envoyer({ emplacement: 'avis' });
     assert.strictEqual(quatre.status, 400);
     assert.match((await quatre.json()).erreur, /déjà 3 vidéos en attente/);

@@ -134,7 +134,7 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
     // Étape 1 : note et retour de l'IA d'abord, la vidéo ensuite (envoi en deux temps, avec la barre de progression).
     // Étapes 3 et 4 : une remarque et le script de la vidéo peuvent l'accompagner (facultatifs).
     // Étape 4 : emplacement « avis » = une nouvelle vidéo à relire (R1, R2…), 3 en attente au plus.
-    preparerEnvoi(discordId, emplacement, { note, retour, remarque, script } = {}) {
+    preparerEnvoi(discordId, emplacement, { note, retour, remarque, script, axe } = {}) {
       const p = q.get.get(discordId);
       if (!p) return { erreur: 'Ton parcours Elite n\'est pas encore ouvert.' };
       if (p.etape >= 4 && (emplacement === 'avis' || /^R\d+$/.test(emplacement))) {
@@ -150,6 +150,7 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
         }
         const t = (v, n) => String(v || '').trim().slice(0, n) || null;
         q.nouvelleSoumission.run(discordId, 4, emplacement, null, null, t(remarque, 2000), t(script, 8000), iso());
+        db.prepare('UPDATE soumissions SET axe = ? WHERE discord_id = ? AND emplacement = ?').run(['hook', 'engagement', 'watchtime'].includes(axe) ? axe : null, discordId, emplacement);
         return { soumission: q.soumissionDe.get(discordId, emplacement) };
       }
       if (!(EMPLACEMENTS[p.etape] || []).includes(emplacement)) return { erreur: 'Cet envoi n\'est pas ouvert à ton étape.' };
@@ -371,6 +372,16 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       const p = q.get.get(discordId);
       if (!p) return { erreur: 'Membre introuvable.' };
       db.prepare('UPDATE parcours SET compte_change_autorise = ?, compte_demande = NULL, compte_demande_le = NULL WHERE discord_id = ?').run(autoriser ? 1 : null, discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    // Leçons de progression regardées (Hook, Engagement, Watchtime).
+    marquerTuto(discordId, axe) {
+      if (!['hook', 'engagement', 'watchtime'].includes(axe)) return { erreur: 'Leçon inconnue.' };
+      const p = q.get.get(discordId);
+      if (!p) return { erreur: 'Membre introuvable.' };
+      let vus = []; try { vus = JSON.parse(p.tutos_vus || '[]'); } catch { vus = []; }
+      if (!vus.includes(axe)) vus.push(axe);
+      db.prepare('UPDATE parcours SET tutos_vus = ? WHERE discord_id = ?').run(JSON.stringify(vus), discordId);
       return { parcours: q.get.get(discordId) };
     },
     // ---- Monétisation (10 000 abonnés) et preuves (audience après 5 résultats ; RPM 5 vidéos après la monétisation) ----

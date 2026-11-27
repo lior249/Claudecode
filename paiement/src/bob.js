@@ -1164,7 +1164,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     // Le membre a envoyé un exercice ou une vidéo : le coach est prévenu.
     async envoiRecu(s, p) {
       if (!config.discord.adminId) return;
-      await notifier.admin(avecBoutons(`**${(p && (p.nom || p.pseudo)) || s.discord_id}** (<@${s.discord_id}>) a envoyé ${s.etape === 1 ? `l'exercice ${s.emplacement}` : s.etape === 4 ? 'une vidéo à relire avant de la publier' : `la vidéo ${s.emplacement.slice(1)}`} (étape ${s.etape}).${s.remarque_eleve ? `\nSa remarque : ${String(s.remarque_eleve).slice(0, 300)}` : ''}${s.script ? '\nScript joint.' : ''}`,
+      await notifier.admin(avecBoutons(`**${(p && (p.nom || p.pseudo)) || s.discord_id}** (<@${s.discord_id}>) a envoyé ${s.etape === 1 ? `l'exercice ${s.emplacement}` : s.etape === 4 ? `une vidéo à relire avant de la publier${s.axe ? ` (${({ hook: 'Hook', engagement: 'Engagement', watchtime: 'Watchtime' })[s.axe]})` : ''}` : `la vidéo ${s.emplacement.slice(1)}`} (étape ${s.etape}).${s.remarque_eleve ? `\nSa remarque : ${String(s.remarque_eleve).slice(0, 300)}` : ''}${s.script ? '\nScript joint.' : ''}`,
         [{ label: 'Ouvrir', url: lienCoach(`/admin/envois/${s.id}`) }]));
     },
     // Décision du coach : le membre est prévenu, avec la suite.

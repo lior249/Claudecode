@@ -1095,7 +1095,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (m.erreur) return res.status(m.statut).json({ erreur: m.erreur });
     const { session } = m;
     const b = req.body || {};
-    const r = parcours.preparerEnvoi(session.id, String(b.emplacement || ''), { note: b.note, retour: b.retour, remarque: b.remarque, script: b.script });
+    const r = parcours.preparerEnvoi(session.id, String(b.emplacement || ''), { note: b.note, retour: b.retour, remarque: b.remarque, script: b.script, axe: b.axe });
     if (r.erreur) return res.status(400).json(r);
     return res.json({ id: r.soumission.id });
   });
@@ -1181,6 +1181,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
     prevenir('activiteEleve', parcours.get(x.session.id), `a choisi ses **3 heures** : création ${b.creation}, publication ${b.publication}, résultats ${b.compte_rendu}.`);
     res.redirect(303, '/parcours/etape-4?ok=heures');
+  });
+  app.post('/parcours/etape-4/tuto', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-4');
+    if (!x) return;
+    parcours.marquerTuto(x.session.id, String(req.body.axe || ''));
+    res.redirect(303, '/parcours/etape-4#avis');
   });
   // 10K : la preuve de monétisation ; les preuves d'audience et de RPM (captures), validées par le coach.
   app.post('/parcours/etape-4/monetisation', formulaire, (req, res) => {
