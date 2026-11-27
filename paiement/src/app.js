@@ -291,13 +291,6 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     evenements.desinscrire(evenements.un(req.params.id), x.p.discord_id);
     res.redirect(303, `/evenements/${encodeURIComponent(req.params.id)}?fait=desinscrit`);
   });
-  // Coach : créer un événement, le retirer.
-  const pageEvenementsCoach = (req, res, extra = {}) => {
-    const liste = evenements.tous();
-    res.send(EV.pageEvenementsCoach(config, { espace: espaceDe(lireSession(req, config.secretApp)), evenements: liste, bornes: evenements.bornes(),
-      etats: Object.fromEntries(liste.map((e) => [e.id, evenements.etat(e)])), nbInscrits: Object.fromEntries(liste.map((e) => [e.id, evenements.inscrits(e.id).length])),
-      message: req.query.fait ? 'Événement créé : sa bannière défile déjà en haut des pages.' : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null, ...extra }));
-  };
   // Gestion : les salons du serveur gratuit où Bob publie aussi les résultats (liens Discord collés).
   app.post('/admin/discord/salons', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/gestion')) return;
@@ -309,16 +302,49 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     ecrire('salon_resultats_gratuit', r); ecrire('forum_testimonials_gratuit', t);
     return res.redirect(303, '/admin/gestion?fait=salons');
   });
+  // Coach : les 3 derniers événements (ou tous), créer en brouillon, publier avec les dates, supprimer un brouillon.
+  const pageEvenementsCoach = (req, res) => {
+    const tous = req.query.tous === '1';
+    const liste = evenements.tous();
+    const vus = tous ? liste : liste.slice(0, 3);
+    res.send(EV.pageEvenementsCoach(config, { espace: espaceDe(lireSession(req, config.secretApp)), evenements: vus, total: liste.length, tous,
+      etats: Object.fromEntries(liste.map((e) => [e.id, evenements.etat(e)])), nbInscrits: Object.fromEntries(vus.map((e) => [e.id, evenements.inscrits(e.id).length])),
+      message: { brouillon: 'Brouillon enregistré : ouvre-le pour choisir les dates et le publier.', publie: 'Événement publié : sa bannière défile déjà en haut des pages.', supprime: 'Brouillon supprimé.' }[req.query.fait] || null,
+      erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  };
   app.get('/admin/evenements', (req, res) => { if (estAdmin(req, res, '/admin/evenements')) pageEvenementsCoach(req, res); });
+  app.get('/admin/evenements/nouveau', (req, res) => {
+    if (!estAdmin(req, res, '/admin/evenements/nouveau')) return;
+    res.send(EV.pageNouvelEvenement(config, { espace: espaceDe(lireSession(req, config.secretApp)), erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.get('/admin/evenements/:id', (req, res) => {
+    if (!estAdmin(req, res, `/admin/evenements/${encodeURIComponent(req.params.id)}`)) return;
+    const e = evenements.un(req.params.id);
+    if (!e) return res.status(404).send(P.pageMessage(config, 'Introuvable', 'Cet événement n\'existe pas.', { lien: '/admin/evenements', texteLien: 'Événements' }));
+    if (e.statut !== 'brouillon') return res.redirect(302, `/evenements/${e.id}`);
+    res.send(EV.pageBrouillon(config, { espace: espaceDe(lireSession(req, config.secretApp)), e, bornes: evenements.bornes(), conditions: evenements.conditionsRemplies(e, []),
+      erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
   app.post('/admin/evenements', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/evenements')) return;
     const b = req.body || {};
     const image = (v) => { const n = String(v || '').split(',')[0].trim(); return n && parcours.cheminImage(n) ? n : null; };
     const conditions = Object.fromEntries(Object.keys(b).filter((k) => k.startsWith('cond_')).map((k) => [k.slice(5), b[k]]));
     const r = evenements.creer({ titre: b.titre, description: b.description, objectif: b.objectif, banniere: image(b.banniere), affiche: image(b.affiche),
-      couleur: b.couleur, debut: b.debut, fin: b.fin, conditions, stats: [].concat(b.stats || []), reglesPoints: b.regles_points, reglesValidation: b.regles_validation,
+      couleur: b.couleur, debut: b.debut || '', fin: b.fin || '', conditions, stats: [].concat(b.stats || []), reglesPoints: b.regles_points, reglesValidation: b.regles_validation,
       badgeNom: b.badge_nom, badges: { or: image(b.badge_or), argent: image(b.badge_argent), bronze: image(b.badge_bronze) } });
-    res.redirect(303, r.erreur ? `/admin/evenements?erreur=${encodeURIComponent(r.erreur)}` : '/admin/evenements?fait=1');
+    if (r.erreur) return res.redirect(303, `/admin/evenements/nouveau?erreur=${encodeURIComponent(r.erreur)}`);
+    return res.redirect(303, r.evenement.statut === 'brouillon' ? `/admin/evenements?fait=brouillon` : '/admin/evenements?fait=publie');
+  });
+  app.post('/admin/evenements/:id/publier', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/evenements')) return;
+    const r = evenements.publier(req.params.id, String(req.body.debut || ''), String(req.body.fin || ''));
+    res.redirect(303, r.erreur ? `/admin/evenements/${encodeURIComponent(req.params.id)}?erreur=${encodeURIComponent(r.erreur)}` : '/admin/evenements?fait=publie');
+  });
+  app.post('/admin/evenements/:id/supprimer', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/evenements')) return;
+    evenements.supprimerBrouillon(req.params.id);
+    res.redirect(303, '/admin/evenements?fait=supprime');
   });
   app.post('/admin/evenements/:id/retirer', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/evenements')) return;

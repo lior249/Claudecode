@@ -37,7 +37,7 @@ test('inscription en 3 étapes (présentation, trophées, règles), classements 
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
     const r = await m.poster('/admin/evenements', { titre: 'Overmaxx 1000', objectif: 'Le premier à $1 000', description: 'Challenge de lancement.', debut: j(3), fin: j(20),
       cond_revenus: 'revenus_rookie', stats: ['revenus', 'vues', 'abonnes'], regles_points: 'Le plus d\'argent, de vues ou d\'abonnés.', regles_validation: 'Capture à chaque update.', badge_nom: 'Overmaxx 1000' }, coach);
-    assert.strictEqual(r.headers.get('location'), '/admin/evenements?fait=1');
+    assert.strictEqual(r.headers.get('location'), '/admin/evenements?fait=publie', 'avec des dates : publié directement');
     const e = m.db.prepare('SELECT * FROM evenements').get();
     m.db.prepare("INSERT INTO trophees (discord_id, cle, obtenu_le) VALUES (?, 'revenus_amateur', ?)").run(E1, new Date().toISOString());
     const awa = { cookie: cookieSession(E1, 'awa_27') }; const bilal = { cookie: cookieSession(E2, 'bilal') };
@@ -91,7 +91,39 @@ test('fin d\'événement : tout le monde part de 0 ; le podium de chaque stat re
 test('formulaire d\'événement : détourage des badges dans le navigateur (planche de 3 ou une image par badge)', async () => {
   const m = await monter();
   try {
-    const page = await (await m.get('/admin/evenements', { cookie: cookieSession(ADMIN, 'coach') })).text();
+    const page = await (await m.get('/admin/evenements/nouveau', { cookie: cookieSession(ADMIN, 'coach') })).text();
     assert.match(page, /data-planche[\s\S]*data-apercu="or"[\s\S]*name="badge_or"[\s\S]*data-slot="argent"[\s\S]*name="badge_bronze"/);
+  } finally { await m.fermer(); }
+});
+
+test('coach : bouton « Créer un événement », brouillon sans dates, publication avec les dates, les 3 derniers puis « Voir tous »', async () => {
+  const m = await monter();
+  try {
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const liste0 = await (await m.get('/admin/evenements', coach)).text();
+    assert.match(liste0, /href="\/admin\/evenements\/nouveau"[^>]*>\+ Créer un événement/);
+    assert.doesNotMatch(liste0, /name="titre"/, 'le formulaire n\'est pas ouvert d\'office');
+    const form = await (await m.get('/admin/evenements/nouveau', coach)).text();
+    assert.match(form, /1\. L.{1,6}événement[\s\S]*2\. Les règles[\s\S]*Ce qui est suivi[\s\S]*Conditions de participation[\s\S]*name="cond_banger"[\s\S]*3\. La récompense[\s\S]*Enregistrer en brouillon/);
+    for (let k = 1; k <= 4; k++) {
+      const r = await m.poster('/admin/evenements', { titre: `Défi ${k}`, description: 'x', stats: ['vues'], regles_points: 'Le plus de vues.' }, coach);
+      assert.strictEqual(r.headers.get('location'), '/admin/evenements?fait=brouillon');
+    }
+    const e = m.db.prepare("SELECT * FROM evenements WHERE titre = 'Défi 1'").get();
+    assert.strictEqual(e.statut, 'brouillon');
+    const liste = await (await m.get('/admin/evenements', coach)).text();
+    assert.strictEqual((liste.match(/class="ev-ligne"/g) || []).length, 3);
+    assert.match(liste, /Voir tous les événements \(4\)/);
+    assert.strictEqual((((await (await m.get('/admin/evenements?tous=1', coach)).text()).match(/class="ev-ligne"/g)) || []).length, 4);
+    // Le brouillon n'est visible par personne d'autre (pas de bannière), puis publié avec les dates.
+    assert.doesNotMatch(await (await m.get('/classement', coach)).text(), /Défi 1/);
+    const page = await (await m.get(`/admin/evenements/${e.id}`, coach)).text();
+    assert.match(page, /Brouillon[\s\S]*Pour gagner[\s\S]*Publier l.{1,6}événement[\s\S]*Supprimer le brouillon/);
+    assert.match((await m.poster(`/admin/evenements/${e.id}/publier`, { debut: j(1), fin: j(5) }, coach)).headers.get('location'), /erreur=/);
+    assert.strictEqual((await m.poster(`/admin/evenements/${e.id}/publier`, { debut: j(4), fin: j(10) }, coach)).headers.get('location'), '/admin/evenements?fait=publie');
+    assert.strictEqual(m.db.prepare('SELECT statut FROM evenements WHERE id = ?').get(e.id).statut, 'publie');
+    assert.match(await (await m.get('/classement', coach)).text(), /Défi 1/);
+    await m.poster('/admin/evenements/2/supprimer', {}, coach);
+    assert.strictEqual(m.db.prepare('SELECT COUNT(*) n FROM evenements').get().n, 3);
   } finally { await m.fermer(); }
 });

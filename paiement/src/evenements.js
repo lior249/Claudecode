@@ -28,7 +28,7 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
   CREATE TABLE IF NOT EXISTS inscriptions_evenement (evenement_id INTEGER NOT NULL, discord_id TEXT NOT NULL, inscrit_le TEXT NOT NULL,
     PRIMARY KEY (evenement_id, discord_id));`);
   const cols = db.prepare('PRAGMA table_info(evenements)').all().map((c) => c.name);
-  for (const [n, t] of [['stats', 'TEXT'], ['regles_points', 'TEXT'], ['regles_validation', 'TEXT'], ['badge_nom', 'TEXT'], ['badge_or', 'TEXT'], ['badge_argent', 'TEXT'], ['badge_bronze', 'TEXT'], ['cloture_le', 'TEXT']]) {
+  for (const [n, t] of [['statut', "TEXT NOT NULL DEFAULT 'publie'"], ['stats', 'TEXT'], ['regles_points', 'TEXT'], ['regles_validation', 'TEXT'], ['badge_nom', 'TEXT'], ['badge_or', 'TEXT'], ['badge_argent', 'TEXT'], ['badge_bronze', 'TEXT'], ['cloture_le', 'TEXT']]) {
     if (!cols.includes(n)) db.exec(`ALTER TABLE evenements ADD COLUMN ${n} ${t}`);
   }
   db.exec(`CREATE TABLE IF NOT EXISTS badges_evenement (discord_id TEXT NOT NULL, evenement_id INTEGER NOT NULL, stat TEXT NOT NULL, rang INTEGER NOT NULL,
@@ -37,8 +37,10 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
   const lire = (e) => (e ? { ...e, conditions: JSON.parse(e.conditions || '{}'), stats: JSON.parse(e.stats || '["revenus"]') } : null);
   const q = {
     un: db.prepare('SELECT * FROM evenements WHERE id = ?'),
-    actifs: db.prepare('SELECT * FROM evenements WHERE retire_le IS NULL AND fin >= ? ORDER BY debut, id'),
-    tous: db.prepare('SELECT * FROM evenements ORDER BY id DESC LIMIT 50'),
+    actifs: db.prepare("SELECT * FROM evenements WHERE retire_le IS NULL AND statut = 'publie' AND fin >= ? ORDER BY debut, id"),
+    tous: db.prepare('SELECT * FROM evenements ORDER BY id DESC LIMIT ?'),
+    publier: db.prepare("UPDATE evenements SET statut = 'publie', debut = ?, fin = ? WHERE id = ? AND statut = 'brouillon'"),
+    supprimer: db.prepare("DELETE FROM evenements WHERE id = ? AND statut = 'brouillon'"),
     creer: db.prepare(`INSERT INTO evenements (titre, description, objectif, banniere, affiche, couleur, debut, fin, conditions, cree_le, stats, regles_points, regles_validation,
       badge_nom, badge_or, badge_argent, badge_bronze) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
     badges: db.prepare(`SELECT b.*, e.titre, e.badge_nom, e.badge_or, e.badge_argent, e.badge_bronze, e.couleur FROM badges_evenement b JOIN evenements e ON e.id = b.evenement_id
@@ -46,9 +48,9 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
     donner: db.prepare('INSERT OR IGNORE INTO badges_evenement (discord_id, evenement_id, stat, rang, valeur, obtenu_le) VALUES (?, ?, ?, ?, ?, ?)'),
     vus: db.prepare('UPDATE badges_evenement SET vu_le = ? WHERE discord_id = ? AND vu_le IS NULL'),
     cloturer: db.prepare('UPDATE evenements SET cloture_le = ? WHERE id = ? AND cloture_le IS NULL'),
-    aCloturer: db.prepare('SELECT * FROM evenements WHERE retire_le IS NULL AND cloture_le IS NULL AND fin < ?'),
+    aCloturer: db.prepare("SELECT * FROM evenements WHERE retire_le IS NULL AND cloture_le IS NULL AND statut = 'publie' AND fin < ?"),
     enCoursDe: db.prepare(`SELECT e.* FROM evenements e JOIN inscriptions_evenement i ON i.evenement_id = e.id
-      WHERE i.discord_id = ? AND e.retire_le IS NULL AND e.debut <= ? AND e.fin >= ? ORDER BY e.debut`),
+      WHERE i.discord_id = ? AND e.retire_le IS NULL AND e.statut = 'publie' AND e.debut <= ? AND e.fin >= ? ORDER BY e.debut`),
     retirer: db.prepare('UPDATE evenements SET retire_le = ? WHERE id = ?'),
     inscrire: db.prepare('INSERT OR IGNORE INTO inscriptions_evenement (evenement_id, discord_id, inscrit_le) VALUES (?, ?, ?)'),
     desinscrire: db.prepare('DELETE FROM inscriptions_evenement WHERE evenement_id = ? AND discord_id = ?'),
@@ -59,23 +61,18 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
     DEBUT_MIN, DEBUT_MAX, DUREE_MIN, DUREE_MAX, MAX_ACTIFS,
     bornes() { const a = aujourdhui(); return { debutMin: ajouter(a, DEBUT_MIN), debutMax: ajouter(a, DEBUT_MAX) }; },
     // État d'un événement : à venir, en cours, terminé.
-    etat(e) { const a = aujourdhui(); return e.retire_le ? 'retire' : a < e.debut ? 'a_venir' : a > e.fin ? 'termine' : 'en_cours'; },
+    etat(e) { const a = aujourdhui(); return e.statut === 'brouillon' ? 'brouillon' : e.retire_le ? 'retire' : a < e.debut ? 'a_venir' : a > e.fin ? 'termine' : 'en_cours'; },
     un(id) { return lire(q.un.get(Number(id))); },
     actifs() { return q.actifs.all(aujourdhui()).map(lire); },
-    tous() { return q.tous.all().map(lire); },
+    tous(n = 200) { return q.tous.all(n).map(lire); },
     STATS, RANGS,
     estGlobal(e) { return Object.keys(STATS).every((x) => (e.stats || []).includes(x)); },
     creer({ titre, description, objectif, banniere, affiche, couleur, debut, fin, conditions = {}, stats = [], reglesPoints, reglesValidation, badgeNom, badges = {} }) {
       const t = String(titre || '').trim().slice(0, 80); const d = String(description || '').trim().slice(0, 3000);
       if (!t || !d) return { erreur: 'Donne un titre et une description.' };
-      if (!DATE.test(String(debut)) || !DATE.test(String(fin))) return { erreur: 'Choisis la date de début et la date de fin.' };
-      const a = aujourdhui();
-      if (ecart(a, debut) < DEBUT_MIN) return { erreur: `L'événement commence au plus tôt dans ${DEBUT_MIN} jours (le temps de s'y préparer).` };
-      if (ecart(a, debut) > DEBUT_MAX) return { erreur: `L'événement commence au plus tard dans ${DEBUT_MAX} jours.` };
-      const duree = ecart(debut, fin) + 1;
-      if (duree < DUREE_MIN) return { erreur: `Un événement dure au moins ${DUREE_MIN} jours.` };
-      if (duree > DUREE_MAX) return { erreur: `Un événement dure au plus ${DUREE_MAX} jours.` };
-      if (api.actifs().length >= MAX_ACTIFS) return { erreur: `Il y a déjà ${MAX_ACTIFS} événements à venir ou en cours.` };
+      // Sans dates : un brouillon (les dates se choisissent à la publication).
+      const brouillon = !debut && !fin;
+      if (!brouillon) { const v = api.verifierDates(debut, fin); if (v.erreur) return v; }
       // Conditions : au plus un trophée par famille.
       const cond = {};
       for (const [fam] of FAMILLES) { const c = String(conditions[fam] || ''); if (TROPHEES.some((x) => x.cle === c && x.famille === fam)) cond[fam] = c; }
@@ -85,11 +82,34 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
       if (!rp) return { erreur: 'Écris comment on gagne (attribution des points).' };
       const bn = String(badgeNom || '').trim().slice(0, 60) || t;
       const r = q.creer.run(t, d, String(objectif || '').trim().slice(0, 200) || null, banniere || null, affiche || null,
-        /^#[0-9a-f]{6}$/i.test(String(couleur || '')) ? couleur : '#1a1a1a', debut, fin, JSON.stringify(cond), maintenant().toISOString(),
+        /^#[0-9a-f]{6}$/i.test(String(couleur || '')) ? couleur : '#1a1a1a', debut || '', fin || '', JSON.stringify(cond), maintenant().toISOString(),
         JSON.stringify(st), rp, rv || null, bn, badges.or || null, badges.argent || null, badges.bronze || null);
-      return { evenement: api.un(Number(r.lastInsertRowid)) };
+      const id = Number(r.lastInsertRowid);
+      if (brouillon) db.prepare("UPDATE evenements SET statut = 'brouillon', debut = '', fin = '' WHERE id = ?").run(id);
+      return { evenement: api.un(id) };
     },
     retirer(id) { q.retirer.run(maintenant().toISOString(), Number(id)); },
+    // Les dates : début dans 3 à 15 jours, durée 3 à 30 jours, au plus 5 événements à venir ou en cours.
+    verifierDates(debut, fin) {
+      if (!DATE.test(String(debut)) || !DATE.test(String(fin))) return { erreur: 'Choisis la date de début et la date de fin.' };
+      const a = aujourdhui();
+      if (ecart(a, debut) < DEBUT_MIN) return { erreur: `L'événement commence au plus tôt dans ${DEBUT_MIN} jours (le temps de s'y préparer).` };
+      if (ecart(a, debut) > DEBUT_MAX) return { erreur: `L'événement commence au plus tard dans ${DEBUT_MAX} jours.` };
+      const duree = ecart(debut, fin) + 1;
+      if (duree < DUREE_MIN) return { erreur: `Un événement dure au moins ${DUREE_MIN} jours.` };
+      if (duree > DUREE_MAX) return { erreur: `Un événement dure au plus ${DUREE_MAX} jours.` };
+      if (api.actifs().length >= MAX_ACTIFS) return { erreur: `Il y a déjà ${MAX_ACTIFS} événements à venir ou en cours.` };
+      return { ok: true };
+    },
+    publier(id, debut, fin) {
+      const e = api.un(id);
+      if (!e || e.statut !== 'brouillon') return { erreur: 'Ce brouillon n\'existe plus.' };
+      const v = api.verifierDates(debut, fin);
+      if (v.erreur) return v;
+      q.publier.run(debut, fin, e.id);
+      return { evenement: api.un(e.id) };
+    },
+    supprimerBrouillon(id) { q.supprimer.run(Number(id)); },
     // Conditions : pour chaque famille, avoir le trophée demandé ou un plus élevé de la même famille.
     conditionsRemplies(e, obtenus = []) {
       const cles = new Set(obtenus.map((t) => t.cle));
