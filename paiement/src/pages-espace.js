@@ -79,6 +79,7 @@ function navEspace(espace = {}) {
     if (espace.parcours) {
       nav.push({ cle: 'profil', libelle: 'Mon profil', lien: '/profil', icone: 'profil' },
         { cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' },
+        { cle: 'aide', libelle: 'Demander de l\'aide', lien: '/aide', icone: 'aide' },
         ...(espace.ressources ? [{ cle: 'ressources', libelle: 'Ressources', lien: '/ressources', icone: 'ressources' }] : []));
     }
     nav.push({ cle: 'coaching', libelle: 'Mes coachings', lien: '/coaching', icone: 'coaching' });

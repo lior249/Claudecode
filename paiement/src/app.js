@@ -24,6 +24,8 @@ const { creerRessources } = require('./ressources');
 const { creerValidations, RAISONS: RAISONS_VALID } = require('./validations-coaching');
 const { creerTrophees, pieceTrophee } = require('./trophees');
 const RS = require('./pages-ressources');
+const AIDE = require('./aide');
+const { pageAide } = require('./pages-aide');
 const { lienCompte } = require('./tiktok');
 const PF = require('./pages-profil');
 const { roleLePlusHaut } = require('./pages-classement');
@@ -1667,6 +1669,26 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       ON CONFLICT(discord_id) DO UPDATE SET remarques_vues_le = excluded.remarques_vues_le`).run(x.p.discord_id, new Date().toISOString(), new Date().toISOString());
     res.send(PF.pageRemarques(config, { espace: { ...x.espace, remarquesNouvelles: 0 }, remarques: parcours.remarques(x.p.discord_id),
       envoyes: messages.envoyesPar(x.p.discord_id), fait: req.query.fait === 'envoye', erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  // Demander de l'aide : une demande guidée, rangée avec les messages des élèves (À traiter, Bob).
+  const donneesAide = (p) => ({ parcours: p, axes: AIDE.etatAxes(p, parcours.soumissions(p.discord_id, 4)), formation: config.formation,
+    videos: suivi.videos(p.discord_id).slice(0, 10), envoyees: messages.envoyesPar(p.discord_id, 20).filter((m) => String(m.sujet || '').startsWith('Demande d\'aide')) });
+  app.get('/aide', (req, res) => {
+    const x = membreParcours(req, res, '/aide', { sinistreOk: true });
+    if (!x) return;
+    res.send(pageAide(config, { espace: x.espace, ...donneesAide(x.p), fait: req.query.fait === '1', erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.post('/aide', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/aide', { sinistreOk: true });
+    if (!x) return;
+    const b = req.body || {};
+    const c = AIDE.composer({ categorie: String(b.categorie || ''), axe: String(b.axe || ''), video: b.video, texte: b.texte }, donneesAide(x.p).axes);
+    if (c.erreur) return res.redirect(303, `/aide?erreur=${encodeURIComponent(c.erreur)}`);
+    const imgs = imagesDe(b).filter((n) => parcours.imageDuMembre(n, x.p.discord_id));
+    const r = messages.ecrireAuCoach(x.p.discord_id, { texte: c.texte, images: imgs, sujet: c.sujet });
+    if (r.erreur) return res.redirect(303, `/aide?erreur=${encodeURIComponent(r.erreur)}`);
+    prevenir('messageAuCoach', r.message, x.p);
+    return res.redirect(303, '/aide?fait=1');
   });
   // L'élève écrit au coach : rangé dans À traiter, et Bob prévient le coach.
   app.post('/remarques/ecrire', formulaire, (req, res) => {

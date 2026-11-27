@@ -654,3 +654,12 @@ ou sur **overmaxx.online/admin/candidatures**.
   - Une fenêtre « pièce » s'ouvre une seule fois par trophée. Bob prévient l'élève et le coach.
   - Page « Mes trophées », Trophy room sur le profil (avec les concurrents en faisant défiler), dernier trophée au classement.
 - **« Garde ce qui marche »** : dès que l'élève donne les résultats d'une vidéo, si elle dépasse 10K vues, 5 % d'abonnés par rapport aux vues, $1 de RPM ou $50 de revenus. Chaque signal s'affiche une seule fois, avec la leçon. « Ne plus afficher ce message » coupe tout, après un message dissuasif.
+
+## Demander de l'aide
+
+- L'élève ouvre « Demander de l'aide » : menu (☰ sur Mon profil), page Remarques, ou section Progresser de l'étape 4.
+- Une question par page : le problème (vues, abonnés, compte bloqué, revenus, application ou Bob, autre).
+  - Vues ou abonnés : il voit où il en est sur les 3 points (Hook, Engagement, Watchtime : leçon regardée, vidéo relue), dit ce qui bloque selon lui, et choisit la vidéo concernée.
+  - Compte bloqué : lien pour demander à changer de compte (si son compte est validé).
+  - Enfin : son explication et des captures.
+- Le coach la reçoit comme un message d'élève (« Demande d'aide · Vues »…), dans À traiter et par Bob, avec un résumé : problème, ce qui bloque, vidéo, leçons regardées, vidéos relues. Il répond comme à un message ; l'élève lit la réponse dans ses Remarques.

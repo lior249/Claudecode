@@ -494,6 +494,7 @@ function pageCommunaute(config, { espace, suivis, concurrents, recues, envoyees,
 function pageRemarques(config, { espace, remarques, envoyes = [], fait, erreur }) {
   return page('Remarques du coach', `<div class="titre-page"><div><p class="etiquette">Mon accompagnement</p><h1>Remarques du coach</h1></div><span class="doux petit">${remarques.length} au total</span></div>
   ${fait ? '<p class="message-ok">Message envoyé : ton coach le reçoit dans ses notifications.</p>' : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <a class="bouton secondaire" href="/aide" style="margin:0 0 10px">Un problème ? Demander de l'aide</a>
   <details class="carte ecrire-coach"${erreur ? ' open' : ''} style="margin:0 0 14px"><summary style="cursor:pointer;font-weight:700;list-style:none">✉️ Écrire au coach</summary>
     <form method="post" action="/remarques/ecrire" style="display:grid;gap:10px;margin-top:10px">
       <textarea name="texte" maxlength="4000" required placeholder="Ta question, ta demande… Ton coach te répond ici, dans tes remarques."></textarea>

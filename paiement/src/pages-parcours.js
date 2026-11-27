@@ -659,6 +659,9 @@ const SCRIPT_ETAPES = `(function () {
       var manque = courante && [].filter.call(courante.querySelectorAll('[required]'), function (c) { return !c.value.trim(); })[0];
       if (manque && !b.hasAttribute('data-sans-verif')) { manque.focus(); manque.reportValidity && manque.reportValidity(); return; }
       if (courante) pile.push(courante.getAttribute('data-page'));
+      // Un choix qui remplit un champ caché (ex. data-valeur="categorie=vues").
+      var v = b.getAttribute('data-valeur');
+      if (v) { var i = v.indexOf('='), c = a.querySelector('[name="' + v.slice(0, i) + '"]'); if (c) c.value = v.slice(i + 1); }
       montrer(b.getAttribute('data-aller'));
     });
     montrer(a.getAttribute('data-depart') || 1);
@@ -1168,6 +1171,7 @@ function blocAvis(avis = [], remarquesDe = () => [], { formation = {}, tutosVus 
     <div class="envoi-tete"><h2>Progresser</h2><span class="doux petit">${enAttente} / 3 vidéos en attente</span></div>
     <p class="doux" style="margin:8px 0 12px">Regarde ces 3 leçons <b>avant</b> de faire tes prochaines vidéos, dans l'ordre. Puis fais une vidéo sur chaque point et envoie-la à ton coach : il te posera ces questions quand tu lui demanderas de l'aide.</p>
     <div style="display:grid;gap:10px">${axes}</div>
+    <a class="bouton secondaire" href="/aide" style="margin:12px 0 0">Bloqué ? Demander de l'aide</a>
     <details style="margin-top:12px"><summary class="doux petit" style="cursor:pointer">Faire relire une autre vidéo avant de la publier</summary><div style="margin-top:10px">${enAttente < 3 ? formVideo('avis', { libelle: 'Choisir la vidéo', ajouts: true }) : '<p class="doux petit" style="margin:0">3 vidéos attendent déjà l\'avis de ton coach.</p>'}</div></details>
     ${libres.slice(0, 3).map(ligne).join('')}
   </div>`;
@@ -1615,4 +1619,4 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
-module.exports = { valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+module.exports = { STYLE_ETAPES, SCRIPT_ETAPES, valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
