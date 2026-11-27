@@ -212,8 +212,10 @@ test('élève → coach : message direct, rangé dans À traiter avec les notifi
     await attendre();
     assert.deepStrictEqual(envois, [['Ta question', 'A']]);
     const apres = await (await m.get('/admin/a-traiter', coach)).text();
-    assert.match(apres, /Déjà traité[\s\S]*class="tr-carte fait" data-cat="messages"[\s\S]*Comment garder mes viewers/, 'répondu : en noir, dans « Déjà traité »');
-    assert.doesNotMatch(apres.split('Déjà traité')[0], /Comment garder mes viewers/);
+    // Répondu : il quitte À traiter et part dans les archives.
+    assert.doesNotMatch(apres, /Comment garder mes viewers/);
+    assert.match(apres, /href="\/admin\/a-traiter\/archives"[^>]*>Voir toutes les archives/);
+    assert.match(await (await m.get('/admin/a-traiter/archives?filtre=messages', coach)).text(), /Archives : Messages[\s\S]*class="tr-carte fait" data-cat="messages"[\s\S]*Comment garder mes viewers/);
     assert.match(traiter, /class="tr-carte a-traiter" data-cat="messages"/, 'à traiter : fond orange');
     assert.match(await (await m.get('/remarques', eleve)).text(), /Coupe les 2 premières secondes[\s\S]*|répondu/);
   } finally { await m.fermer(); }
@@ -233,15 +235,20 @@ test('remarques compactes : 3 bien visibles, les suivantes en fondu, « Tout aff
   } finally { await m.fermer(); }
 });
 
-test('notifications du coach : les 5 dernières, non lues en haut, « Afficher plus »', async () => {
+test('notifications du coach : seulement celles à lire (5 puis « Afficher plus ») ; les lues dans les archives ; ouvrir la page concernée les archive', async () => {
   const m = await monter();
   try {
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
-    for (let k = 1; k <= 8; k++) m.db.prepare('INSERT INTO notifications_admin (texte, lien, cree_le, lu_le) VALUES (?, ?, ?, ?)').run(`Notif ${k}`, '/admin', new Date().toISOString(), k === 8 ? new Date().toISOString() : null);
+    for (let k = 1; k <= 8; k++) m.db.prepare('INSERT INTO notifications_admin (texte, lien, cree_le, lu_le) VALUES (?, ?, ?, ?)').run(`Notif ${k}`, k === 7 ? '/admin/eleves' : '/admin', new Date().toISOString(), k === 8 ? new Date().toISOString() : null);
     const page = await (await m.get('/notifications', coach)).text();
     const ordre = [...page.matchAll(/Notif (\d)/g)].map((x) => Number(x[1]));
-    assert.deepStrictEqual(ordre, [7, 6, 5, 4, 3, 2, 1, 8], 'la notification déjà ouverte (8) descend en bas');
-    assert.strictEqual((page.match(/data-plus hidden/g) || []).length, 3);
-    assert.match(page, /Afficher plus \(3\)/);
+    assert.deepStrictEqual(ordre, [7, 6, 5, 4, 3, 2, 1], 'la notification déjà ouverte (8) n\'est plus là');
+    assert.strictEqual((page.match(/data-plus hidden/g) || []).length, 2);
+    assert.match(page, /Afficher plus \(2\)[\s\S]*Voir les archives des notifications/);
+    assert.match(await (await m.get('/notifications?archives=1', coach)).text(), /Archives des notifications[\s\S]*Notif 8/);
+    // Le coach ouvre la page de la notification 7 (par le téléphone, ou ailleurs) : elle passe dans les archives.
+    await m.get('/admin/eleves', coach);
+    assert.ok(m.db.prepare("SELECT lu_le FROM notifications_admin WHERE texte = 'Notif 7'").get().lu_le);
+    assert.doesNotMatch(await (await m.get('/notifications', coach)).text(), /Notif 7/);
   } finally { await m.fermer(); }
 });

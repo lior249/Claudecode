@@ -246,7 +246,7 @@ const SCRIPT_RAPPELS = `(function () {
     maj(); f.texte.focus();
   }); });
 })();`;
-function pageNotificationsAdmin(config, { espace, onglet, notifications = [], nonLues = 0, rappels = [], modeles = [], JOURS = [], pagesRappel = [], message, erreur }) {
+function pageNotificationsAdmin(config, { espace, onglet, notifications = [], nonLues = 0, archives = false, rappels = [], modeles = [], JOURS = [], pagesRappel = [], message, erreur }) {
   const formatHeure = (iso) => new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' GMT';
   const tabs = `<nav class="onglets-admin" aria-label="Notifications">
     <a href="/notifications"${onglet === 'notifications' ? ' aria-current="page"' : ''}>Notifications${nonLues ? `<b>${nonLues}</b>` : ''}</a>
@@ -277,11 +277,12 @@ function pageNotificationsAdmin(config, { espace, onglet, notifications = [], no
       || '<p class="vide-traiter">Aucun rappel. Crée-en un avec le formulaire, ou une des idées en un clic.</p>'}</div>`
     : `<div class="nf-liste">${notifications.map((n, i) => `<div class="nf${n.lu_le ? '' : ' nouvelle'}"${i >= 5 ? ' data-plus hidden' : ''}><span class="pt"></span>
       <div class="corps"><p>${gras(echapper(n.texte))}</p><small>${echapper(formatHeure(n.cree_le))}</small></div>
-      ${n.lien || !n.lu_le ? `<a class="ouvrir" href="/admin/notifications/${n.id}/ouvrir">${n.lien ? 'Ouvrir' : 'Lue'}</a>` : ''}</div>`).join('') || '<p class="vide-traiter">Aucune notification pour le moment.</p>'}</div>
+      ${n.lien || !n.lu_le ? `<a class="ouvrir" href="/admin/notifications/${n.id}/ouvrir">${n.lien ? 'Ouvrir' : 'Lue'}</a>` : ''}</div>`).join('') || `<p class="vide-traiter">${archives ? 'Aucune notification archivée.' : 'Rien à lire : tout est archivé.'}</p>`}</div>
     ${notifications.length > 5 ? `<button class="bouton secondaire" type="button" style="max-width:760px;margin-top:10px" onclick="document.querySelectorAll('.nf[data-plus]').forEach(function (n) { n.hidden = false; }); this.remove();">Afficher plus (${notifications.length - 5})</button>` : ''}
+    <a class="bouton secondaire" href="${archives ? '/notifications' : '/notifications?archives=1'}" style="max-width:760px;margin-top:12px">${archives ? '‹ Notifications à lire' : 'Voir les archives des notifications'}</a>
     <p class="doux petit" style="margin:18px 0 0"><a href="/notifications?onglet=reglages">Réglages : application et notifications sur ce téléphone</a></p>`;
   return pageEspace('Notifications', `${STYLE_ADMIN_NOTIF}
-  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Notifications</h1></div></div>
+  <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>${archives ? 'Archives des notifications' : 'Notifications'}</h1></div></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${tabs}${corps}`, espace, 'notifications', onglet === 'rappels' ? { script: SCRIPT_RAPPELS } : {});
 }
 

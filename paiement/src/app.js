@@ -142,6 +142,16 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     next();
   });
 
+  // Le coach ouvre une page : les notifications qui y menaient sont lues (archivées). Les listes elles-mêmes n'en lisent aucune.
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !/^\/(a\/|static\/|api\/|fichiers\/|sw\.js|manifest)/.test(req.path) && !['/admin/a-traiter', '/notifications'].includes(req.path)
+      && !req.path.startsWith('/admin/a-traiter/') && !/^\/admin\/notifications\//.test(req.path)) {
+      const session = lireSession(req, config.secretApp);
+      if (session && session.id === config.discord.adminId) { try { notifsAdmin.lireParPage(req.path); } catch (err) { console.warn('[notifs] lecture :', err.message); } }
+    }
+    next();
+  });
+
   // ================= Application installable (PWA) =================
   const SERVICE_WORKER = require('fs').readFileSync(require('path').join(__dirname, 'service-worker.js'), 'utf8');
   app.get('/manifest.webmanifest', (req, res) => {
@@ -276,10 +286,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (session.id === config.discord.adminId && onglet !== 'reglages') {
       const espace = espaceDe(session);
       // Les non lues en haut (les plus récentes d'abord), puis celles déjà ouvertes.
-      const notifications = onglet === 'notifications' ? notifsAdmin.liste().slice().sort((a, b) => (a.lu_le ? 1 : 0) - (b.lu_le ? 1 : 0) || b.id - a.id) : [];
+      // Seulement celles à lire ; les lues sont dans les archives (les plus récentes en haut).
+      const archives = req.query.archives === '1';
+      const notifications = onglet === 'notifications' ? (archives ? notifsAdmin.archives() : notifsAdmin.nonLuesListe(300)) : [];
       // Le coach lit chaque notification une à une : seule l'ouverture d'une notification la marque lue.
       const nonLues = notifsAdmin.nonLues();
-      return res.send(N.pageNotificationsAdmin(config, { espace, onglet, notifications, nonLues,
+      return res.send(N.pageNotificationsAdmin(config, { espace, onglet, notifications, nonLues, archives,
         rappels: notifsAdmin.rappels(), modeles: notifsAdmin.MODELES, JOURS: notifsAdmin.JOURS, pagesRappel: notifsAdmin.PAGES_RAPPEL,
         message: { ajoute: 'Rappel ajouté : Bob te l\'enverra à l\'heure choisie.', supprime: 'Rappel supprimé.' }[req.query.fait],
         erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
@@ -1933,16 +1945,34 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       aValider: parcours.aValider(),
       coachingsAValider: validations.pourCoach().map((v) => ({ ...v, nom: (qProfils.get.get(v.discord_id) || {}).prenom || eleveDe(v.discord_id).pseudo || v.discord_id })),
       messagesRecus: messages.recusATraiter().map((m) => ({ ...m, nom: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id })),
-      // Toutes les notifications non lues du coach (sauf les messages d'élèves, déjà dans la liste).
-      notifications: notifsAdmin.nonLuesListe(100).filter((n) => !String(n.lien || '').startsWith('/admin/messages-recus/')),
-      // Déjà traité (7 derniers jours) : notifications lues et messages d'élèves traités, les plus récents d'abord.
-      dejaTraites: [
-        ...notifsAdmin.luesRecentes(20).map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le, quoi: n.texte,
-          quoiHtml: require('./admin-notifs').gras(require('./pages').echapper(n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte)),
-          lien: n.lien ? `/admin/notifications/${n.id}/ouvrir` : null, bouton: n.lien ? 'Rouvrir' : null })),
-        ...messages.traitesRecents(10).map((m) => ({ cat: 'messages', qui: (qProfils.get.get(m.discord_id) || {}).prenom || (m.parcours && m.parcours.pseudo) || m.discord_id, ficheId: m.discord_id,
-          quand: m.traite_le, quoi: m.texte.length > 140 ? `${m.texte.slice(0, 140)}…` : m.texte, lien: `/admin/messages-recus/${m.id}`, bouton: 'Revoir' })),
-      ].sort((x, y) => String(y.quand).localeCompare(String(x.quand))).slice(0, 25) }));
+      // Les notifications non lues du coach, sauf celles qui mènent à un élément déjà dans la liste (même page).
+      notifications: notifsAdmin.nonLuesListe(300).filter((n) => !String(n.lien || '').startsWith('/admin/messages-recus/')),
+    }));
+  });
+  // Archives d'À traiter : tout ce qui a été traité (décidé, lu, répondu), du plus récent au plus ancien, filtrable.
+  app.get('/admin/a-traiter/archives', (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter/archives')) return;
+    const db = commandes.db;
+    const nomDe = (id) => (qProfils.get.get(id) || {}).prenom || ((parcours.get(id) || {}).pseudo) || id;
+    const items = [
+      ...notifsAdmin.archives(300).map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le, quoi: n.texte,
+        quoiHtml: require('./admin-notifs').gras(require('./pages').echapper(n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte)),
+        lien: n.lien ? `/admin/notifications/${n.id}/ouvrir` : null, bouton: n.lien ? 'Rouvrir' : null })),
+      ...db.prepare("SELECT * FROM messages_coach WHERE traite_le IS NOT NULL ORDER BY traite_le DESC LIMIT 200").all().map((m) => ({ cat: 'messages', qui: nomDe(m.discord_id), ficheId: m.discord_id,
+        quand: m.traite_le, quoi: `${m.sujet ? `${m.sujet} : ` : ''}${m.texte.length > 140 ? `${m.texte.slice(0, 140)}…` : m.texte}`, lien: `/admin/messages-recus/${m.id}`, bouton: 'Revoir' })),
+      ...db.prepare("SELECT * FROM soumissions WHERE etat IN ('valide', 'corriger') AND decide_le IS NOT NULL ORDER BY decide_le DESC LIMIT 200").all().map((x) => ({
+        cat: x.etape === 1 ? 'etape-1' : x.etape === 4 ? 'avis' : 'etape-3', qui: nomDe(x.discord_id), ficheId: x.discord_id, quand: x.decide_le,
+        quoi: `${x.etape === 1 ? `Exercice ${x.emplacement}` : x.etape === 4 ? 'Vidéo à relire' : `Vidéo ${String(x.emplacement).slice(1)}`} · ${x.etat === 'valide' ? 'validé' : 'modifications demandées'}`, lien: `/admin/envois/${x.id}`, bouton: 'Revoir' })),
+      ...db.prepare("SELECT * FROM publications WHERE res_decide_le IS NOT NULL ORDER BY res_decide_le DESC LIMIT 200").all().map((v) => ({ cat: 'videos', qui: nomDe(v.discord_id), ficheId: v.discord_id,
+        quand: v.res_decide_le, quoi: `Résultats de la vidéo du ${jourLisible(v.jour)} · ${v.res_etat === 'valide' ? 'validés' : 'à corriger'}`, lien: `/admin/resultats/${v.id}`, bouton: 'Revoir' })),
+      ...db.prepare("SELECT * FROM comptes_rendus WHERE decide_le IS NOT NULL ORDER BY decide_le DESC LIMIT 200").all().map((c) => ({ cat: 'etape-4', qui: nomDe(c.discord_id), ficheId: c.discord_id,
+        quand: c.decide_le, quoi: `Update du compte du ${jourLisible(c.jour)} · ${c.etat === 'valide' ? 'validé' : 'à corriger'}`, lien: `/admin/comptes-rendus/${c.id}`, bouton: 'Revoir' })),
+      ...db.prepare("SELECT * FROM validations_coaching WHERE statut IN ('valide', 'reporte', 'classe') ORDER BY COALESCE(decide_le, cree_le) DESC LIMIT 200").all().map((v) => ({ cat: 'coachings', qui: nomDe(v.discord_id), ficheId: v.discord_id,
+        quand: v.decide_le || v.cree_le, quoi: `Coaching du ${v.date.split('-').reverse().join('/')} à ${v.heure} GMT · ${{ valide: 'validé', reporte: 'coaching en réserve donné', classe: 'classé' }[v.statut]}` })),
+      ...(candidatures ? candidatures.liste().filter((c) => !['examen', 'video', 'formulaire', 'brouillon'].includes(c.statut)).slice(0, 200)
+        .map((c) => ({ cat: 'candidatures', qui: c.pseudo || c.discord_id, quand: c.maj_le, quoi: `Candidature · ${c.statut}`, lien: `/admin/candidatures/${c.id}`, bouton: 'Revoir' })) : []),
+    ].sort((x, y) => String(y.quand || '').localeCompare(String(x.quand || '')));
+    res.send(V.pageArchivesTraiter(config, { espace: espaceDe(lireSession(req, config.secretApp)), items, filtre: String(req.query.filtre || '') }));
   });
   // Le membre cité dans une notification : sa fiche s'il est dans l'accompagnement, sinon la liste des élèves.
   app.get('/admin/qui/:id', (req, res) => {

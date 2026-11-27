@@ -101,6 +101,20 @@ function creerNotifsAdmin({ db, maintenant = () => new Date() }) {
     toutLu() { q.toutLu.run(iso()); },
     luesRecentes(n = 20) { return q.luesRecentes.all(new Date(maintenant().getTime() - 7 * 86400000).toISOString(), n); },
     nonLuesListe(n = 100) { return q.nonLuesListe.all(n); },
+    // Le coach ouvre une page (depuis la notification du téléphone, À traiter ou ailleurs) : les notifications
+    // non lues qui menaient à cette page passent en archive (lues). Renvoie leur nombre.
+    lireParPage(chemin) {
+      const p = String(chemin || '').split('#')[0].split('?')[0];
+      if (!p || p === '/') return 0;
+      let n = 0;
+      for (const x of q.nonLuesListe.all(500)) {
+        const l = String(x.lien || '').split('#')[0].split('?')[0];
+        if (l && l === p) { q.lire.run(iso(), x.id); n++; }
+      }
+      return n;
+    },
+    // Archives : les notifications lues, les plus récentes d'abord.
+    archives(n = 300) { return db.prepare('SELECT * FROM notifications_admin WHERE lu_le IS NOT NULL ORDER BY id DESC LIMIT ?').all(n); },
     // Ouvre une notification : marquée lue ; renvoie la page à ouvrir.
     lire(id) { const x = q.une.get(Number(id)); if (x) q.lire.run(iso(), x.id); return x || null; },
 

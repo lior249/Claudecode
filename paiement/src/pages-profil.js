@@ -59,7 +59,7 @@ const STYLE_PROFIL = `<style>
   .pf-salle .vitrine { flex:1; display:flex; flex-direction:column; justify-content:center; padding:12px 14px; }
   .pf-salle .vitrine h3 { font-size:18px; letter-spacing:-.01em; }
   .pf-salle .vitrine .pieces { display:flex; align-items:center; gap:2px; margin:10px 0 6px; min-height:52px; overflow:hidden; }
-  .pf-salle .vitrine .aucun { margin-top:8px; color:var(--doux); font-size:14px; }
+  .pf-salle .vitrine .absent { display:block; height:52px; line-height:52px; font-size:44px; font-weight:300; color:#3a3a3a; }
   .pf-salle .defile { flex:1; display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
   .pf-salle .defile::-webkit-scrollbar { display:none; }
   .pf-salle a { flex:0 0 100%; scroll-snap-align:start; display:flex; flex-direction:column; justify-content:center; padding:12px 14px; color:#fff; text-decoration:none; box-sizing:border-box; }
@@ -277,9 +277,10 @@ function barreObjectif(objectif) {
 function vitrineTrophees(obtenus = [], { lien = '/trophees', total = 22 } = {}) {
   const v = vitrine(obtenus);
   return `<a class="pf-salle" href="${echapper(lien)}" aria-label="Trophy room : ${obtenus.length} trophée(s)"><div class="vitrine">
-    <h3>Trophy room${obtenus.length ? ` <small>${obtenus.length} / ${total}</small>` : ''}</h3>
+    <h3>Trophy room <small>${obtenus.length} / ${total}</small></h3>
     ${v.top ? `<div class="pieces">${v.pieces.map((t) => pieceTrophee(t, { taille: t === v.top ? 52 : 39 })).join('')}</div>
-      <div class="dernier"><b>${echapper(v.top.titre)}</b></div>` : '<div class="aucun">Aucun</div>'}</div></a>`;
+      <div class="dernier"><b>${echapper(v.top.titre)}</b></div>`
+    : '<div class="pieces"><span class="absent" aria-label="Aucun trophée">—</span></div><div class="dernier"><b>–</b></div>'}</div></a>`;
 }
 function salleTrophees(salle) {
   if (!salle) return '';

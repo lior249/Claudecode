@@ -1000,27 +1000,32 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   const retards = a.retards.map((x) => ({ cat: 'retards', qui: nom(x.parcours), ficheId: x.parcours && x.parcours.discord_id, pseudo: x.parcours.pseudo, quand: x.tache.delai && x.tache.delai.fin,
     quoi: `Étape ${x.parcours.etape} : ${x.tache.titre}`, lien: `/admin/membres/${encodeURIComponent(x.parcours.discord_id)}`, bouton: 'Voir sa fiche' }));
   // Notifications non lues (pour information) : la plus récente d'abord ; l'ouvrir la marque lue.
-  const notifs = notifications.map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le,
+  // Une notification qui mène à la même page qu'un élément de la liste ne s'affiche pas deux fois.
+  const chemin = (l) => String(l || '').split('#')[0].split('?')[0];
+  const pagesItems = new Set(items.map((x) => chemin(x.lien)).filter(Boolean));
+  const notifs = notifications.filter((n) => !pagesItems.has(chemin(n.lien))).map((n) => ({ cat: 'notifications', qui: 'Notification', quand: n.cree_le,
     quoi: n.texte, quoiHtml: gras(echapper(n.texte.length > 160 ? `${n.texte.slice(0, 160)}…` : n.texte)), lien: `/admin/notifications/${n.id}/ouvrir`, bouton: n.lien ? 'Ouvrir' : 'Marquer comme lue' }));
   items.sort((x, y) => String(x.quand || '').localeCompare(String(y.quand || '')));
-  // À traiter (fond orange) d'abord ; puis, pour mémoire, ce qui est déjà traité ou lu (fond noir, comme une notification lue).
+  // Seulement ce qui reste à traiter. Ce qui est traité part dans les archives ; les retards (Bob les relance) ne s'affichent
+  // qu'avec leur filtre.
   for (const x of [...items, ...notifs]) x.aTraiter = true;
-  const faits = dejaTraites.map((n) => ({ ...n, fait: true }));
-  const tous = [...items, ...notifs, ...retards, ...faits];
+  for (const x of retards) x.info = true;
+  const tous = [...items, ...notifs, ...retards];
   const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['avis', 'Vidéos à relire'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
     ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['coachings', 'Coachings à valider'], ['positionnement', 'Niche, compte et preuves'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
   const nb = (c) => tous.filter((x) => x.cat === c).length;
   const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
   const libelle = Object.fromEntries(CATS);
-  const carte = (x) => `<div class="tr-carte${x.aTraiter ? ' a-traiter' : ''}${x.fait ? ' fait' : ''}" data-cat="${x.cat}">
+  const carte = (x) => `<div class="tr-carte${x.aTraiter ? ' a-traiter' : ''}${x.fait ? ' fait' : ''}" data-cat="${x.cat}"${x.info ? ' data-info hidden' : ''}>
     <div class="tr-corps">${x.ficheId ? `<a href="/admin/membres/${encodeURIComponent(x.ficheId)}" style="color:#fff"><b>${echapper(x.qui)}</b></a>` : `<b>${echapper(x.qui)}</b>`}${x.pseudo ? `<span class="doux petit">${echapper(x.pseudo)}</span>` : ''}<p>${x.quoiHtml || echapper(x.quoi)}</p>
       <span class="tr-bas"><span class="tr-tag" data-cat="${x.cat}">${echapper(libelle[x.cat])}</span>${x.quand ? `<span class="doux petit">${echapper(formatDate(x.quand))}</span>` : ''}</span></div>
     ${x.actions || (x.lien ? `<a class="bouton${x.bouton || x.fait ? ' secondaire' : ''} tr-ouvrir" href="${echapper(x.lien)}">${echapper(x.bouton || 'Ouvrir')}</a>` : '')}</div>`;
   return page('À traiter', `${STYLE_TRAITER}
   <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>À traiter</h1></div><span class="doux petit">${items.length} en attente de ta décision</span></div>
-  <nav class="puces-traiter" aria-label="Filtres"><a href="#" data-filtre="" aria-pressed="true">Tout<b>${items.length}</b></a>${filtres.map((x) => `<a href="#" data-filtre="${x.c}"${x.n ? '' : ' data-vide'}>${echapper(x.l)}<b>${x.n}</b></a>`).join('')}</nav>
+  <nav class="puces-traiter" aria-label="Filtres"><a href="#" data-filtre="" aria-pressed="true">Tout<b>${items.length + notifs.length}</b></a>${filtres.map((x) => `<a href="#" data-filtre="${x.c}" data-libelle="${echapper(x.l)}"${x.n ? '' : ' data-vide'}>${echapper(x.l)}<b>${x.n}</b></a>`).join('')}</nav>
   ${items.length + notifs.length ? '' : '<p class="vide-traiter">Rien à traiter. Bravo !</p>'}
-  <div class="tr-file">${tous.map((x, i) => `${x.fait && !(tous[i - 1] || {}).fait ? '<h2 class="tr-sep" data-cat="__">Déjà traité</h2>' : ''}${carte(x)}`).join('')}</div>
+  <div class="tr-file">${tous.map(carte).join('')}</div>
+  <a class="bouton secondaire" id="voir-archives" href="/admin/a-traiter/archives" style="margin-top:16px">Voir toutes les archives</a>
   ${accesRefuses.length ? `<details class="carte" style="margin-top:18px"><summary>Accès au site refusés (${accesRefuses.length})</summary><div style="display:grid;gap:8px;margin-top:10px">
     ${accesRefuses.map((x) => `<div class="tr-carte"><div class="tr-corps"><b>${echapper(x.pseudo || x.discord_id)}</b><span class="doux petit">Rôle ${echapper(nomsOffres[x.programme] || x.programme)} · refusé le ${echapper(formatDate(x.decide_le))}</span></div>
       ${decision(x, [['oui', 'Donner l\'accès', 'secondaire']])}</div>`).join('')}</div></details>` : ''}
@@ -1029,8 +1034,9 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
     puces.forEach(function (p) { p.addEventListener('click', function (e) {
       e.preventDefault(); var f = p.getAttribute('data-filtre');
       puces.forEach(function (x) { x.setAttribute('aria-pressed', x === p ? 'true' : 'false'); });
-      cartes.forEach(function (c) { c.hidden = Boolean(f) && c.getAttribute('data-cat') !== f; });
-      document.querySelectorAll('.tr-sep').forEach(function (h) { h.hidden = Boolean(f); });
+      cartes.forEach(function (c) { c.hidden = f ? c.getAttribute('data-cat') !== f : c.hasAttribute('data-info'); });
+      var a = document.getElementById('voir-archives');
+      if (a) { a.href = '/admin/a-traiter/archives' + (f ? '?filtre=' + encodeURIComponent(f) : ''); a.textContent = f ? 'Voir les archives : ' + p.getAttribute('data-libelle') : 'Voir toutes les archives'; }
     }); });
     var demande = new URLSearchParams(location.search).get('filtre');
     if (demande) { var p = document.querySelector('[data-filtre="' + demande.replace(/[^a-z0-9-]/g, '') + '"]'); if (p) p.click(); }
@@ -1038,6 +1044,22 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
 }
 
 // ---------- Coach : valider un envoi ----------
+// Archives d'À traiter : ce qui a été traité, du plus récent (en haut) au plus ancien, avec les mêmes filtres.
+function pageArchivesTraiter(config, { espace, items = [], filtre = '' }) {
+  const CATS = [['etape-1', 'Étape 1'], ['etape-3', 'Étape 3'], ['avis', 'Vidéos à relire'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'],
+    ['candidatures', 'Candidatures'], ['messages', 'Messages'], ['coachings', 'Coachings'], ['notifications', 'Notifications']];
+  const libelle = Object.fromEntries(CATS);
+  const vus = filtre ? items.filter((x) => x.cat === filtre) : items;
+  const carte = (x) => `<div class="tr-carte fait" data-cat="${x.cat}">
+    <div class="tr-corps">${x.ficheId ? `<a href="/admin/membres/${encodeURIComponent(x.ficheId)}" style="color:#fff"><b>${echapper(x.qui)}</b></a>` : `<b>${echapper(x.qui)}</b>`}<p>${x.quoiHtml || echapper(x.quoi)}</p>
+      <span class="tr-bas"><span class="tr-tag" data-cat="${x.cat}">${echapper(libelle[x.cat] || x.cat)}</span>${x.quand ? `<span class="doux petit">${echapper(formatDate(x.quand))}</span>` : ''}</span></div>
+    ${x.lien ? `<a class="bouton secondaire tr-ouvrir" href="${echapper(x.lien)}">${echapper(x.bouton || 'Ouvrir')}</a>` : ''}</div>`;
+  return page('Archives', `${STYLE_TRAITER}<a class="retour" href="/admin/a-traiter${filtre ? `?filtre=${encodeURIComponent(filtre)}` : ''}"><span aria-hidden="true">‹</span> À traiter</a>
+  <div class="titre-page"><div><p class="etiquette">À traiter</p><h1>Archives${filtre ? ` : ${echapper(libelle[filtre] || filtre)}` : ''}</h1></div><span class="doux petit">${vus.length} élément(s)</span></div>
+  <nav class="puces-traiter" aria-label="Filtres"><a href="/admin/a-traiter/archives"${filtre ? '' : ' aria-pressed="true"'}>Tout<b>${items.length}</b></a>${CATS.map(([c, l]) => `<a href="/admin/a-traiter/archives?filtre=${c}"${filtre === c ? ' aria-pressed="true"' : ''}>${echapper(l)}<b>${items.filter((x) => x.cat === c).length}</b></a>`).join('')}</nav>
+  ${vus.length ? `<div class="tr-file">${vus.slice(0, 300).map(carte).join('')}</div>` : '<p class="vide-traiter">Rien dans les archives.</p>'}`, espace, 'traiter');
+}
+
 function pageEnvoi(config, { espace, s, parcours: p, remarques, niveauPropose, message }) {
   const etape1 = s.etape === 1;
   const avis = s.etape === 4;
@@ -1621,4 +1643,4 @@ function pageProfil(config, { espace, parcours: p, tableau, stats, recompenses =
   </div>`, espace, vueCoach ? 'membres' : vuePublique ? 'classement' : 'profil', null, SCRIPT_TABLEAU);
 }
 
-module.exports = { blocStats, STYLE_ETAPES, SCRIPT_ETAPES, valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
+module.exports = { pageArchivesTraiter, blocStats, STYLE_ETAPES, SCRIPT_ETAPES, valeurObjectif, blocHeatmap, STYLE_HEATMAP, SCRIPT_HEATMAP, barreMiseEnForme, texteSimple, zoneImages, pageResultatVideo, pageResultatCoach, listeRemarques, texteRicheAnnonce: (t) => texteRiche(t), fenetreAFaire, page, remarque, SCRIPT_TABLEAU, dollars, ETAPES, pageProfil, blocTableau, pageParcours, pageEtape1, pageEtape2, pageEtape3, pageEtape4, pageCompteRendu, pageSinistre, pageCompteRenduCoach, pageFiche, pageATraiter, pageEnvoi, delai, frise, texteRiche };
