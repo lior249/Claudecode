@@ -1166,6 +1166,14 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       for (const x of suivi.comptesRendusAFaire(id)) ajouter(x.cr && x.cr.etat === 'corriger' ? `Corrige ton update du compte du ${jourLisible(x.jour)}` : 'Fais l\'update de ton compte', `/parcours/compte-rendu/${x.jour}`);
       if (!suivi.publications(id, suivi.aujourdhui(p)).length) ajouter('Publie ta vidéo du jour', '/parcours/etape-4');
     }
+    // Ce qui est obligatoire, même pour un élève passé à une étape par le coach (seuls L1, L2 et les 3 vidéos tests
+    // peuvent être sautés) : niche, compte TikTok, 3 heures, programme de coaching, dans l'ordre du parcours.
+    if (p.etape >= 4) {
+      const st = parcours.strategie(id);
+      if (!st.envoye && !st.valide) ajouter(p.niche_refus ? 'Propose une autre niche' : 'Envoie ta niche', '/parcours/etape-3#strategie');
+      if (!p.compte_tiktok) ajouter('Ajoute ton compte TikTok', '/parcours/etape-4#compte');
+      if (!p.heure_creation) ajouter('Choisis tes 3 heures', '/parcours/etape-4');
+    }
     if ([3, 4].includes(p.etape) && !coaching.aUnPlanning(id)) ajouter('Réserve tes coachings de la semaine', '/coaching');
     const e = config.offres.elite;
     const video = [null, e.wistiaEtape1, e.wistiaEtape2, e.wistiaEtape3, e.wistiaEtape4, e.wistiaGoat][Math.min(p.etape, 5)] || null;

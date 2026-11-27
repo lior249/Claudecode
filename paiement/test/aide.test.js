@@ -68,3 +68,22 @@ test('rappels du coach : la notification ouvre la page concernée', () => {
   assert.strictEqual(n.pageDuRappel(a), '/admin?vue=jour&date=2026-12-01');
   assert.strictEqual(n.pageDuRappel(b), '/admin/eleves');
 });
+
+test('élève passé à l\'étape 4 par le coach : niche, compte, heures et coachings demandés dans l\'ordre (pas L1, L2 ni les vidéos tests)', async () => {
+  const m = await monter({ bob: { parcours: new Proxy({}, { get: () => async () => true }) } });
+  try {
+    m.parcours.assurer(E1, { pseudo: 'awa_27' });
+    m.parcours.changerEtape(E1, 4);
+    m.db.prepare('INSERT INTO profils_membres (discord_id, maj_le, accueil_fini_le) VALUES (?, ?, ?)').run(E1, new Date().toISOString(), new Date().toISOString());
+    const membre = { cookie: cookieSession(E1, 'awa_27') };
+    const profil = await (await m.get('/profil', membre)).text();
+    assert.match(profil, /Envoie ta niche[\s\S]*Ajoute ton compte TikTok[\s\S]*Choisis tes 3 heures[\s\S]*Réserve tes coachings de la semaine/);
+    assert.doesNotMatch(profil, /exercices L1 et L2|Envoie tes 3 vidéos/);
+    // Sa fiche : un bouton pour envoyer sa niche, un pour son compte.
+    const fiche = await (await m.get('/fiche', membre)).text();
+    assert.match(fiche, /href="\/parcours\/etape-3#strategie"[^>]*>Envoyer ma niche/);
+    assert.match(fiche, /href="\/parcours\/etape-4#compte"[^>]*>Ajouter mon compte TikTok/);
+    // L'étape 3 reste ouverte pour la niche.
+    assert.match(await (await m.get('/parcours/etape-3', membre)).text(), /Ma niche[\s\S]*As-tu déjà choisi ta niche/);
+  } finally { await m.fermer(); }
+});

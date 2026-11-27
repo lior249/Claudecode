@@ -405,6 +405,12 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
 
     // La tâche du moment à l'étape 4 (Mon parcours, rappels de Bob).
     tache(p) {
+      // Passé à l'étape 4 par le coach sans avoir envoyé sa niche : on la lui demande d'abord (dans l'ordre du parcours).
+      const st = parcours.strategie ? parcours.strategie(p.discord_id) : null;
+      if (st && !st.envoye && !st.valide) {
+        return { cle: 'strategie', titre: p.niche_refus ? 'Propose une autre niche' : 'Envoie ta niche', texte: 'Le nom de ta niche et une capture d’un compte exemple : ton coach la valide.',
+          lien: '/parcours/etape-3#strategie', bouton: 'Ma niche' };
+      }
       if (!p.compte_tiktok) {
         return { cle: 'tiktok', titre: 'Ajoute le lien de ton compte TikTok', texte: 'Il le faut pour commencer l\'étape 4 : c\'est le compte que ton coach suit.', lien: '/parcours/etape-4#compte', bouton: 'Ajouter mon compte' };
       }

@@ -132,7 +132,10 @@ test('parcours Elite : étape 1 (exercices), étape 2 (coaching d\'entrée), ét
     p = parcours.get(E1);
     assert.strictEqual(p.etape, 4);
     assert.strictEqual(parcours.soumission(v.V1).fichier, null, 'vidéos de l\'étape 3 supprimées');
-    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Ajoute le lien de ton compte TikTok/, 'étape 4 : le compte TikTok d\'abord');
+    // Arrivé à l'étape 4 sans niche : elle est demandée d'abord (obligatoire), puis le compte TikTok.
+    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Envoie ta niche/, 'étape 4 sans niche : la niche d\'abord');
+    m.db.prepare("UPDATE parcours SET niche = 'Test', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE discord_id = ?").run(E1);
+    assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Ajoute le lien de ton compte TikTok/, 'étape 4 : ensuite le compte TikTok');
 
     // Remarque avec lien et image : le membre la voit, Bob le prévient ; l'image n'est visible que par lui et le coach.
     const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');

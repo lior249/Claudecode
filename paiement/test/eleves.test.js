@@ -107,6 +107,7 @@ test('compte TikTok : jamais demandé avant l\'étape 4 (réglages, fiche, étap
       assert.doesNotMatch(await (await m.get(url, c)).text(), /Lien de (mon|ton|son) (compte|profil)|Mon compte TikTok|name="compte"/, url);
     }
     m.db.prepare("UPDATE parcours SET etape = 4 WHERE discord_id = 'X'").run();
+    m.db.prepare("UPDATE parcours SET niche = 'Test', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE etape >= 4").run();
     assert.match(await (await m.get('/reglages', c)).text(), /Mon compte TikTok/);
     assert.match(await (await m.get('/parcours', c)).text(), /Ajoute le lien de ton compte TikTok/);
   } finally { await m.fermer(); }
@@ -118,6 +119,7 @@ test('compte TikTok : envoyé par l\'élève, validé par le coach, verrouillé 
   try {
     m.parcours.assurer('X', { pseudo: 'x' });
     m.db.prepare("UPDATE parcours SET etape = 4 WHERE discord_id = 'X'").run();
+    m.db.prepare("UPDATE parcours SET niche = 'Test', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE etape >= 4").run();
     const eleve = { cookie: cookieSession('X', 'x') };
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
     await m.poster('/parcours/etape-4/compte', { compte: '@premier' }, eleve);

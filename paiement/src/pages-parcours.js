@@ -787,12 +787,14 @@ function blocPositionnement({ p, vueCoach, base, choix, strategie: st }) {
       <details style="margin-top:10px"><summary class="doux petit" style="cursor:pointer">Modifier</summary>
         <form method="post" action="${base}/compte" style="display:grid;gap:10px;margin-top:10px">${choixNichePays(choix, p)}
           <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer (validé d'office)</button></form></details>`
-    : st.valide ? '<p class="doux petit" style="margin:8px 0 0">Validé par ton coach : c\'est avec lui qu\'il t\'accompagne.</p>' : ''}
+    : st.valide ? '<p class="doux petit" style="margin:8px 0 0">Validé par ton coach : c\'est avec lui qu\'il t\'accompagne.</p>'
+      : st.envoye ? '' : `<a class="bouton" href="/parcours/etape-3#strategie" style="margin:10px 0 0">${st.refus ? 'Proposer une autre niche' : 'Envoyer ma niche'}</a>`}
     ${vueCoach && p.etape === 2 ? `<form method="post" action="${base}/compte" style="margin:10px 0 0"><button class="bouton" type="submit" name="ouvrir" value="3" style="margin:0">Ouvrir l'étape 3</button></form>` : ''}</div>`;
   if (p.etape < 4) return pos;
   const valide = Boolean(p.compte_valide_le);
   const compte = `<div class="carte" id="compte"><div class="envoi-tete"><h2>Compte TikTok</h2>${pastilleEtat(Boolean(p.compte_tiktok), valide)}</div>
     <p style="margin:8px 0 0">${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : '<span class="doux">pas encore envoyé</span>'}</p>
+    ${!vueCoach && !p.compte_tiktok ? '<a class="bouton" href="/parcours/etape-4#compte" style="margin:10px 0 0">Ajouter mon compte TikTok</a>' : ''}
     ${p.compte_methode || p.compte_abonnes_depart !== null && p.compte_abonnes_depart !== undefined ? `<p class="doux petit" style="margin:6px 0 0">${{ oui: 'Créé avec la méthode de la formation', verifie: 'Méthode vérifiée par l\'élève', nouveau: 'Nouveau compte, créé avec la méthode' }[p.compte_methode] || ''}${p.compte_abonnes_depart !== null && p.compte_abonnes_depart !== undefined ? ` · ${Number(p.compte_abonnes_depart).toLocaleString('fr-FR')} abonnés au départ` : ''}</p>` : ''}
     ${p.compte_demande_le ? `<div class="manquants" style="margin:10px 0 0;border:1px solid #5a4a1a;background:#1d1708;color:#f1d38a;border-radius:12px;padding:10px 12px"><b>Demande de changement de compte</b><p style="margin:4px 0 0">${echapper(p.compte_demande)}</p></div>` : ''}
     ${p.compte_change_autorise ? '<p class="doux petit" style="margin:8px 0 0">Changement autorisé : en attente du nouveau lien.</p>' : ''}
@@ -811,7 +813,8 @@ function blocPositionnement({ p, vueCoach, base, choix, strategie: st }) {
     ${p.monetisation_capture ? img(p.monetisation_capture) : ''}
     ${vueCoach && String(p.monetisation_etat || '').startsWith('envoyee_') ? `<form method="post" action="${base}/monetisation" class="deux-boutons" style="margin-top:10px">
       <button class="bouton secondaire" type="submit" name="decision" value="refusee">Refusée : je l'aide à contester</button><button class="bouton vert" type="submit" name="decision" value="acceptee">Acceptée : débloquer les revenus</button></form>` : ''}
-    ${preuve('audience', 'Preuve d\'audience')}${preuve('rpm', 'Preuve de RPM')}</div>` : '';
+    ${preuve('audience', 'Preuve d\'audience')}${preuve('rpm', 'Preuve de RPM')}
+    ${vueCoach ? '' : '<a class="bouton secondaire" href="/revenus" style="margin:12px 0 0">Mon tableau de bord</a>'}</div>` : '';
   return pos + compte + monet;
 }
 function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0, choix = null, realisations = [], strategie = null }) {

@@ -55,6 +55,7 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     const coach = cookieSession(ADMIN, 'overmaxx');
     m.parcours.assurer(E1, { pseudo: 'awa_27' });
     m.parcours.changerEtape(E1, 4);
+    m.db.prepare("UPDATE parcours SET niche = 'Test', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE etape >= 4").run();
 
     // Le lien du compte TikTok d'abord : obligatoire à l'étape 4 (plus à l'étape 3).
     assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Ajoute le lien de ton compte TikTok/);
@@ -80,6 +81,7 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     assert.strictEqual((await image(m, cookieSession('AUTRE', 'x'))).statut, 401);
     m.parcours.assurer(E2, { pseudo: 'kodjo' });
     m.parcours.changerEtape(E2, 4);
+    m.db.prepare("UPDATE parcours SET niche = 'Test', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE etape >= 4").run();
     m.suivi.choisirHeures(E2, { creation: '09:00', publication: '10:00', compteRendu: '10:00', fuseau: 'Africa/Lome' });
     const img2 = await image(m, cookieSession(E2, 'kodjo'));
     assert.strictEqual((await m.get(`/fichiers/images/${img.nom}`, { cookie: membre })).status, 200);
@@ -203,6 +205,7 @@ test('rappels quotidiens à l\'heure du membre (création, publication, compte r
   try {
     m.parcours.assurer(E1, { pseudo: 'awa_27' });
     m.parcours.changerEtape(E1, 4);
+    m.db.prepare("UPDATE parcours SET niche = 'Test', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE etape >= 4").run();
     m.parcours.majCompte(E1, { compte: '@awa_27' });
     const vers = () => dms.filter(([id]) => id === E1);
     now = new Date('2026-12-01T13:00:00Z'); await bob.relancerParcours();
@@ -388,6 +391,7 @@ test('étape 4 : faire relire une vidéo avant de publier (facultatif, 3 en atte
   try {
     m.parcours.assurer(E1, { pseudo: 'awa_27' });
     m.parcours.changerEtape(E1, 4);
+    m.db.prepare("UPDATE parcours SET niche = 'Test', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE etape >= 4").run();
     const membre = { cookie: cookieSession(E1, 'awa_27') };
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
     const page = await (await m.get('/parcours/etape-4', membre)).text();
@@ -435,6 +439,7 @@ test('réalisations sur la fiche (coach et élève) ; étape 4 : seules les 3 de
   try {
     m.parcours.assurer(E1, { pseudo: 'awa_27' });
     m.parcours.changerEtape(E1, 4);
+    m.db.prepare("UPDATE parcours SET niche = 'Test', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE etape >= 4").run();
     const membre = { cookie: cookieSession(E1, 'awa_27') };
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
     const envoyer = async () => {
@@ -464,6 +469,7 @@ test('étape 4 : sans revenus avant les 10K ; 10K → formulaire de monétisatio
   try {
     m.parcours.assurer(E1, { pseudo: 'awa' });
     m.parcours.changerEtape(E1, 4);
+    m.db.prepare("UPDATE parcours SET niche = 'Test', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE etape >= 4").run();
     m.db.prepare("UPDATE parcours SET compte_tiktok = 'https://www.tiktok.com/@awa', heure_creation = '09:00', heure_publication = '12:00', heure_compte_rendu = '00:01', fuseau = 'Africa/Lome' WHERE discord_id = ?").run(E1);
     const membre = { cookie: cookieSession(E1, 'awa') };
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
