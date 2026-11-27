@@ -217,7 +217,7 @@ test('import d\'un ancien forum : posts lus (titre, tags, thématique, drapeaux,
     assert.match((await bob.parcours.importerForum('https://discord.com/channels/1/999')).erreur, /ne voit pas ce forum/);
     const r = await bob.parcours.importerForum('https://discord.com/channels/123/777888999000111222');
     assert.strictEqual(r.importes, 2);
-    assert.strictEqual((await bob.parcours.importerForum('777888999000111222')).deja, 2, 'relancé : rien en double');
+    assert.strictEqual((await bob.parcours.importerForum('777888999000111222')).misAJour, 2, 'relancé : mis à jour, rien en double');
     const lignes = m.db.prepare('SELECT type, titre, categorie, etat, source_discord, discord_fil FROM ressources ORDER BY id').all();
     assert.deepStrictEqual(lignes.map((x) => [x.type, x.titre, x.etat, x.source_discord]), [['niche', 'Lego ASMR', 'public', 'P1'], ['methode', 'Versus #1', 'public', 'P2']]);
     assert.ok(lignes.every((x) => x.discord_fil), 'postées dans le nouveau forum');

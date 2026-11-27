@@ -203,6 +203,12 @@ function pageImport(config, { espace, invite, lance, erreur }) {
   <div class="titre-page"><div><p class="etiquette">Ressources</p><h1>Importer un ancien forum</h1></div></div>
   ${lance ? '<p class="message-ok">Import lancé : Bob lit le forum, copie les images, puis poste chaque ressource dans le nouveau forum. Il t\'envoie le bilan quand c\'est fini.</p>' : ''}
   ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
+  <div class="carte" style="max-width:720px;display:grid;gap:8px;border-color:#ff8a00">
+    <h2 style="margin:0">0. Une seule fois : autoriser Bob à lire le contenu des posts</h2>
+    <p class="doux" style="margin:0">Sans ça, Discord ne lui donne que les titres : ni le texte, ni les images.</p>
+    <ol style="margin:0;padding-left:20px;display:grid;gap:4px"><li>Ouvre <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">discord.com/developers/applications</a> et choisis l'application de Bob.</li>
+      <li>Menu <b>Bot</b> › active <b>Message Content Intent</b> › <b>Save Changes</b>.</li>
+      <li>Relance le site (la commande de mise en ligne), puis importe.</li></ol></div>
   <div class="carte" style="max-width:720px;display:grid;gap:10px">
     <h2 style="margin:0">1. Invite Bob sur l'ancien serveur</h2>
     <p class="doux" style="margin:0">Il lui faut seulement « Voir les salons » et « Lire l'historique des messages ».</p>
@@ -214,7 +220,7 @@ function pageImport(config, { espace, invite, lance, erreur }) {
     <p class="doux" style="margin:0">Sur Discord : clic droit (ou appui long) sur le forum › <b>Copier le lien</b>.</p>
     <input name="lien" required inputmode="url" placeholder="https://discord.com/channels/…/…">
     <p class="doux petit" style="margin:0">Chaque post devient une ressource publique : 10k Abos → méthode, repost → niche L1, Cmtry → niche L2, le reste → tutoriel.
-      « Thématique : … » donne le nom, les drapeaux les pays, les liens TikTok les comptes. Un post déjà importé ne l'est pas deux fois.</p>
+      « Thématique : … » donne le nom, les drapeaux les pays, les liens TikTok les comptes. Un post déjà importé n'est pas recréé : il est mis à jour (texte et images).</p>
     <button class="bouton" type="submit" style="margin:0">Importer</button></form>`, espace, 'ressources');
 }
 

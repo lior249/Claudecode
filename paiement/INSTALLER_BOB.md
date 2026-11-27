@@ -627,4 +627,5 @@ ou sur **overmaxx.online/admin/candidatures**.
   - « Thématique : … » donne le nom, les drapeaux les pays, les liens TikTok les comptes (après « Comptes sources » : les sources).
   - Il copie les images (5 au plus) et poste chaque ressource dans le nouveau forum.
 - **Bilan** : Bob te l'envoie quand c'est fini, avec les posts à reprendre à la main s'il y en a.
-- **Relancer** n'importe jamais deux fois le même post.
+- **Relancer** ne crée jamais deux fois le même post : il met à jour ceux déjà importés (texte, images).
+- **Prérequis** : sur discord.com/developers › application de Bob › Bot, active « Message Content Intent », puis relance le site. Sans ça, Bob ne lit que les titres.

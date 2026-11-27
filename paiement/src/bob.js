@@ -34,10 +34,14 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   const acces = accesManuels || creerAccesManuels({ db, parcours, coaching, maintenant });
   const notifsAdmin = creerNotifsAdmin({ db, maintenant });
   const actif = config.discordActif || Boolean(clientInjecte);
-  const client = clientInjecte || (actif ? new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+  // Le client Discord. « Contenu des messages » (pour lire les posts d'un ancien forum) n'est demandé que si
+  // le portail Discord l'autorise : sinon Discord refuserait la connexion de Bob (voir demarrer()).
+  const nouveauClient = (contenu) => new Client({
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, ...(contenu ? [GatewayIntentBits.MessageContent] : [])],
     partials: [Partials.Channel, Partials.GuildMember],
-  }) : null);
+  });
+  let client = clientInjecte || (actif ? nouveauClient(false) : null);
+  let contenuLisible = Boolean(clientInjecte);
 
   const q = {
     deja: db.prepare('SELECT 1 FROM envois WHERE cle = ?'),
@@ -1094,13 +1098,17 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       avant = [...arch.threads.values()].pop();
     }
     const tagsDe = (f) => (f.appliedTags || []).map((t) => ((forum.availableTags || []).find((x) => x.id === t) || {}).name).filter(Boolean);
-    const res = { importes: 0, deja: 0, ignores: 0, erreurs: [] };
+    if (!contenuLisible) {
+      return { erreur: 'Bob ne peut pas lire le contenu des posts (ni le texte ni les images). Sur discord.com/developers › ton application › Bot, '
+        + 'active « Message Content Intent », enregistre, puis relance le site et recommence l\'import.' };
+    }
+    const res = { importes: 0, misAJour: 0, deja: 0, ignores: 0, erreurs: [] };
     for (const f of fils.values()) {
-      if (db.prepare('SELECT 1 FROM ressources WHERE source_discord = ?').get(f.id)) { res.deja++; continue; }
+      const existante = db.prepare('SELECT id FROM ressources WHERE source_discord = ?').get(f.id);
       try {
         const premier = await f.fetchStarterMessage().catch(() => null);
         const a = analyserPost({ nomFil: f.name, tags: tagsDe(f), contenu: premier ? premier.content : '' });
-        if (!a) { res.ignores++; continue; }
+        if (!a) { res.ignores++; res.erreurs.push(`${f.name} : post vide ou illisible`); continue; }
         // Images du post (5 au plus), copiées sur la plateforme.
         const images = [];
         for (const pj of premier ? [...premier.attachments.values()] : []) {
@@ -1110,6 +1118,16 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
           const img = await parcours.recevoirImage(Readable.fromWeb(r.body), { type: pj.contentType, taille: pj.size || 0 }).catch(() => null);
           if (img && img.nom) images.push(img.nom);
         }
+        // Déjà importée (par exemple sans son contenu, avant) : mise à jour avec le texte et les images.
+        if (existante) {
+          const ancienne = rs.une(existante.id);
+          const md = rs.modifier(existante.id, a.champs, { coach: true, images: images.length ? images : ancienne.images });
+          if (md.erreur) { res.erreurs.push(`${f.name} : ${md.erreur}`); continue; }
+          const fil = await publierRessource(rs.une(existante.id), null).catch(() => null);
+          if (fil) db.prepare('UPDATE ressources SET discord_fil = ? WHERE id = ?').run(fil, existante.id);
+          res.misAJour++;
+          continue;
+        }
         const c = rs.creer(a.type, a.champs, { images });
         if (c.erreur) { res.erreurs.push(`${f.name} : ${c.erreur}`); continue; }
         db.prepare('UPDATE ressources SET source_discord = ? WHERE id = ?').run(f.id, c.ressource.id);
@@ -1118,8 +1136,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         res.importes++;
       } catch (err) { res.erreurs.push(`${f.name} : ${err.message}`); }
     }
-    log(`import du forum ${forum.name} : ${res.importes} importé(s), ${res.deja} déjà là, ${res.erreurs.length} erreur(s)`);
-    await notifier.admin(avecBoutons(`📥 **Import du forum « ${forum.name} » terminé** : ${res.importes} ressource(s) importée(s)${res.deja ? `, ${res.deja} déjà importée(s)` : ''}${res.ignores ? `, ${res.ignores} vide(s)` : ''}.`
+    log(`import du forum ${forum.name} : ${fils.size} post(s), ${res.importes} importé(s), ${res.misAJour} mis à jour, ${res.erreurs.length} à reprendre`);
+    await notifier.admin(avecBoutons(`📥 **Import du forum « ${forum.name} » terminé** : ${fils.size} post(s) lus, ${res.importes} ressource(s) importée(s)${res.misAJour ? `, ${res.misAJour} mise(s) à jour` : ''}${res.ignores ? `, ${res.ignores} vide(s)` : ''}.`
       + (res.erreurs.length ? `\nÀ reprendre à la main :\n${res.erreurs.slice(0, 10).map((x) => `- ${x}`).join('\n')}` : ''), [{ label: 'Voir les ressources', url: lienCoach('/ressources') }])).catch(() => {});
     return res;
   }
@@ -1730,6 +1748,16 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
 
     async demarrer() {
       if (!actif) { log('désactivé : DISCORD_BOT_TOKEN ou DISCORD_GUILD_ID manquant.'); return; }
+      // « Message Content Intent » activé sur le portail Discord ? (drapeaux de l'application) Alors Bob lit le contenu des posts.
+      if (!clientInjecte) {
+        try {
+          const r = await fetch('https://discord.com/api/v10/applications/@me', { headers: { Authorization: `Bot ${config.discord.jetonBot}` } });
+          const appli = r.ok ? await r.json() : {};
+          contenuLisible = Boolean(Number(appli.flags || 0) & ((1 << 18) | (1 << 19)));
+        } catch (err) { console.warn('[bob] lecture des réglages de l\'application :', err.message); }
+        client = nouveauClient(contenuLisible);
+        log(`contenu des messages : ${contenuLisible ? 'lisible' : 'non autorisé (Message Content Intent désactivé)'}`);
+      }
       client.on('interactionCreate', (i) => surInteraction(i).catch((e) => console.error('[bob] interaction :', e)));
       // Nouveau venu : message privé de bienvenue dès qu'il a le rôle En Attente.
       client.on('guildMemberAdd', (m) => accueillir(m).catch((e) => console.warn('[bob] arrivée :', e.message)));
