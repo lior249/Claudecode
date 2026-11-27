@@ -467,7 +467,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     const ligne = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(idCall(s.date, s.heure, s.discordId)).setLabel('Oui, envoyer l\'invitation').setStyle(ButtonStyle.Success),
       new ButtonBuilder().setLabel('La séance').setStyle(ButtonStyle.Link).setURL(lienCoach(`/admin/creneau?date=${s.date}&heure=${encodeURIComponent(s.heure)}`)));
-    await notifier.admin({ content: `📞 **Call avec ${nom} dans 10 minutes** (${s.heure} GMT). J'envoie l'invitation au call à l'élève ?`, components: [ligne] });
+    await notifier.admin({ content: `📞 **Call avec ${nom} dans 10 minutes** (${s.heure} GMT). J'envoie l'invitation au call maintenant ? Sinon, le lien part tout seul 5 minutes avant, à l'élève et à toi.`, components: [ligne] });
   }
   // L'invitation à l'élève (une seule fois), et la confirmation au coach en privé.
   async function envoyerInvitationCall(discordId, date, heure) {
@@ -475,10 +475,10 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     if (dejaEnvoye(cle)) return { deja: true };
     const lien = lienCall();
     const boutons = lien ? [{ label: 'Rejoindre le call', url: lien }] : [];
-    const ok = await notifier.membre(discordId, avecBoutons(`📞 **Ton coaching commence** (${heure} GMT) : ton coach t'attend dans le call.${lien ? '' : ' Rejoins le salon vocal du coaching sur le serveur.'}`, boutons));
+    const ok = await notifier.membre(discordId, avecBoutons(`📞 **Ton coaching commence dans 5 minutes** (${heure} GMT) : rejoins le salon de coaching privé, ton coach t'y attend.${lien ? '' : ' Rejoins le salon vocal du coaching sur le serveur.'}`, boutons));
     marquer(cle);
     const nom = (parcours && parcours.get(discordId) && nomDe(parcours.get(discordId))) || 'ton élève';
-    await notifier.admin(avecBoutons(`✅ **Invitation envoyée à ${nom}.** C'est l'heure du call (${heure} GMT).`, boutons));
+    await notifier.admin(avecBoutons(`✅ **Lien du call envoyé à ${nom}.** Ton coaching commence à ${heure} GMT : rejoins le salon de coaching privé.`, boutons));
     log(`invitation de call envoyée à ${discordId} (${date} ${heure})`);
     return { ok, lien };
   }
@@ -508,6 +508,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         marquer(cleCall);
         await demanderLancementCall(s);
       }
+      // 5 minutes avant : le lien du call part tout seul, à l'élève et au coach (si le coach ne l'a pas déjà envoyé).
+      if (avant <= 5 * 60 * 1000 && !dejaEnvoye(`call-envoye:${s.date}:${s.heure}:${s.discordId}`)) await envoyerInvitationCall(s.discordId, s.date, s.heure);
       if (avant <= 60 * 60 * 1000 && !dejaEnvoye(cleAuto)) {
         if (await notifier.membre(s.discordId, avecBoutons(`Ta séance de coaching privé commence dans **1 heure** (${heureLocale(s.discordId, s.debut)}).`, boutonSalon))) marquer(cleAuto);
       }

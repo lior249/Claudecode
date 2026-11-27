@@ -119,7 +119,7 @@ function chargerConfig({ strict = true } = {}) {
       attenteNouveauxHeures: Number(lire('ATTENTE_NOUVEAUX_HEURES', lire('DISCORD_GUILD_ATTENTE_ID', '') ? '24' : '0')),
       attenteNouveauxHeuresChoisi: lire('ATTENTE_NOUVEAUX_HEURES', '') !== '',
       adminId: lire('DISCORD_ADMIN_ID'),
-      salonCoaching: lire('DISCORD_SALON_COACHING_URL', ''),
+      salonCoaching: lire('DISCORD_SALON_COACHING_URL', 'https://discord.com/channels/1573126841491787916/1573298701202362398'),
       // Résultats publiés par Bob sur le serveur de l'accompagnement : le salon des résultats (vidéos, monétisation)
       // et le forum « Testimonials » (updates de fin de mois : un post par résultat).
       salonResultats: lire('DISCORD_SALON_RESULTATS_ID', '1573859057654046781'),

@@ -898,9 +898,15 @@ test('lancement du call : 10 min avant, Bob demande au coach (bouton Oui) ; l\'i
     await b.bob.envoyerInvitationCall('E1', '2026-11-23', '15:00');
     const r2 = await b.bob.envoyerInvitationCall('E1', '2026-11-23', '15:00');
     assert.ok(r2.deja, 'une seule invitation');
-    const invit = b.d.dms.filter(([id, t]) => id === 'E1' && /Ton coaching commence/.test(t));
+    const invit = b.d.dms.filter(([id, t]) => id === 'E1' && /Ton coaching commence dans 5 minutes/.test(t));
     assert.strictEqual(invit.length, 1);
     assert.deepStrictEqual(urls(invit[0][2]), ['https://discord.com/channels/1/2']);
-    assert.ok(b.d.dms.some(([id, t]) => id === ADMIN && /Invitation envoyée à .*C'est l'heure du call/.test(t)));
+    assert.ok(b.d.dms.some(([id, t]) => id === ADMIN && /Lien du call envoyé à .*rejoins le salon de coaching privé/.test(t)));
+    // Sans réponse du coach : 5 minutes avant, le lien part tout seul (élève et coach), une seule fois.
+    b.aller('2026-11-24T14:55:30.000Z'); await b.bob.rappelsCoaching(); await b.bob.rappelsCoaching();
+    const auto = b.d.dms.filter(([id, t]) => id === 'E1' && /Ton coaching commence dans 5 minutes[\s\S]*15:00/.test(t));
+    assert.strictEqual(auto.length, 2, 'lundi (bouton) et mardi (automatique)');
+    assert.deepStrictEqual(urls(auto[1][2]), ['https://discord.com/channels/1/2']);
+    assert.strictEqual(b.d.dms.filter(([id, t]) => id === ADMIN && /Lien du call envoyé/.test(t)).length, 2);
   } finally { await m.fermer(); }
 });

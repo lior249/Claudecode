@@ -730,7 +730,8 @@ ou sur **overmaxx.online/admin/candidatures**.
 
 ## Lancement des calls de coaching
 
-- Gestion → « Lancement des calls » : colle le lien du salon vocal des coachings (sinon DISCORD_SALON_COACHING_URL).
+- Le lien du salon de coaching privé est réglé par défaut ; Gestion → « Lancement des calls » permet de le changer.
 - 10 minutes avant chaque séance, Bob t'écrit en privé : « Call avec X dans 10 minutes. J'envoie l'invitation au call ? » (bouton Oui).
 - Oui : l'élève reçoit « Ton coaching commence » avec le bouton « Rejoindre le call », une seule fois ; Bob te confirme en privé
-  (« Invitation envoyée. C'est l'heure du call »). Le même bouton existe sur la page de la séance (Calendrier → la séance).
+  (« Lien du call envoyé »). Sans réponse, 5 minutes avant, Bob envoie tout seul le lien du salon à l'élève et à toi.
+  Le même bouton existe sur la page de la séance (Calendrier → la séance).
