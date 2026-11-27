@@ -940,6 +940,9 @@ const STYLE_TRAITER = `<style>
   .tr-tag[data-cat="etape-1"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="etape-2"] { color:#c8f23a; border-color:#4a5a15; }
   .tr-tag[data-cat="etape-3"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="etape-4"] { color:#7ee0b0; border-color:#1f5a3d; } .tr-tag[data-cat="videos"] { color:#ff9ad5; border-color:#6b1f4a; }
   .tr-tag[data-cat="roles"] { color:#f5c518; border-color:#6b5414; } .tr-tag[data-cat="sinistres"] { color:#ff8f8f; border-color:#7a1d1d; } .tr-tag[data-cat="messages"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="notifications"] { color:#bbb; border-color:#3a3a3a; } .tr-tag[data-cat="ressources"] { color:#9ec5ff; border-color:#284a7a; } .tr-tag[data-cat="avis"] { color:#ffb26b; border-color:#6b4316; } .tr-tag[data-cat="positionnement"] { color:#c8f23a; border-color:#4a5a15; } .tr-tag[data-cat="coachings"] { color:#9ec5ff; border-color:#284a7a; }
+  details.invalider > summary { list-style:none; margin:0; cursor:pointer; } details.invalider > summary::-webkit-details-marker { display:none; }
+  details.invalider[open] > summary { display:none; } details.invalider .radio { display:block; font-size:14px; line-height:1.4; padding:8px 10px; border:1px solid #2a2a2a; border-radius:12px; cursor:pointer; }
+  details.invalider .radio .doux { display:block; font-size:12.5px; margin-left:24px; } details.invalider .radio input { width:auto; margin:0 8px 0 0; vertical-align:-2px; } .bouton.rouge { background:#c62828; color:#fff; border-color:#c62828; }
   .tr-tag[data-cat="candidatures"] { color:#d4b3ff; border-color:#4b2b7a; } .tr-tag[data-cat="acces"] { color:#fff; } .tr-tag[data-cat="retards"] { color:#ffcf6b; border-color:#6b4a0e; }
   .tr-ouvrir { flex:none; width:auto !important; margin:0 !important; min-height:40px; padding:8px 16px; }
   .tr-carte .choix-acces { flex:none; } .tr-carte .choix-acces .bouton { min-height:40px; padding:8px 14px; }
@@ -984,7 +987,15 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   for (const v of coachingsAValider) {
     const quand = `${v.date.split('-').reverse().join('/')} à ${v.heure} GMT`;
     const form = (boutons) => `<form method="post" action="/admin/validations/${v.id}" class="choix-acces">${boutons.map(([d, t, c]) => `<button class="bouton ${c}" type="submit" name="decision" value="${d}">${t}</button>`).join('')}</form>`;
-    if (v.statut === 'attente') ajouter('coachings', { qui: v.nom, ficheId: v.discord_id, quand: `${v.date}T${v.heure}:00.000Z`, quoi: `Coaching du ${quand} : a-t-il bien eu lieu ?${v.eleve_ok_le ? ' (l\'élève l\'a validé)' : ''}`, actions: form([['valider', 'Valider ce coaching', 'vert']]) });
+    const invalider = `<details class="invalider"><summary class="bouton secondaire">Invalider</summary>
+      <form method="post" action="/admin/validations/${v.id}" style="display:grid;gap:8px;margin-top:8px"><input type="hidden" name="decision" value="invalider">
+        <p class="doux petit" style="margin:0">Pourquoi ce coaching n'a pas eu lieu ?</p>
+        <label class="radio"><input type="radio" name="raison" value="coach" required> Je n'ai pas été disponible <span class="doux">(l'élève reçoit un coaching exceptionnel)</span></label>
+        <label class="radio"><input type="radio" name="raison" value="eleve"> L'élève ne s'est pas présenté <span class="doux">(il reçoit un avertissement)</span></label>
+        <label class="radio"><input type="radio" name="raison" value="autre"> Autre <span class="doux">(l'élève reçoit un coaching exceptionnel)</span></label>
+        <textarea name="texte" maxlength="500" placeholder="Autre : écris la raison (l'élève la lira)"></textarea>
+        <button class="bouton rouge" type="submit" style="margin:0">Invalider ce coaching</button></form></details>`;
+    if (v.statut === 'attente') ajouter('coachings', { qui: v.nom, ficheId: v.discord_id, quand: `${v.date}T${v.heure}:00.000Z`, quoi: `Coaching du ${quand} : a-t-il bien eu lieu ?${v.eleve_ok_le ? ' (l\'élève l\'a validé)' : ''}`, actions: `${form([['valider', 'Valider', 'vert']])}${invalider}` });
     else if (v.statut === 'conteste') ajouter('coachings', { qui: v.nom, ficheId: v.discord_id, quand: v.decide_le || v.cree_le, quoi: `Conteste le coaching du ${quand} : « ${v.reponse} »`, actions: form([['classer', 'Classer', 'secondaire'], ['reserve', 'Donner un coaching en réserve', 'vert']]) });
     else ajouter('coachings', { qui: v.nom, ficheId: v.discord_id, quand: v.decide_le || v.cree_le, quoi: `Refuse la validation en avance (${RAISONS[v.raison] || ''}) du coaching du ${quand} : « ${v.reponse} »`, actions: form([['classer', 'Garder la séance', 'secondaire']]) });
   }

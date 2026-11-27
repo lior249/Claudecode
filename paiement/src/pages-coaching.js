@@ -113,7 +113,7 @@ function blocValidations(liste) {
       </form></div>`).join('')}</div>`;
 }
 function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semaine, lundis = [], seances = [], touchees = [], reserves = 0, libres = [],
-  aDesFixes = false, message, interdit, versParcours, espace = { session }, validations = [] }) {
+  aDesFixes = false, message, interdit, versParcours, espace = { session }, validations = [], exceptionnels = [] }) {
   if (interdit) {
     return pageEspace('Coaching privé', `
     <h1>Coaching privé</h1>
@@ -351,11 +351,10 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
   document.getElementById('choix-fermer').onclick = function () { dlgC.close(); };
   document.getElementById('choix-ok').onclick = function () { if (choisi && action) { this.disabled = true; action(choisi); } };
 
-  var ur = document.getElementById('utiliser-reserve');
-  if (ur) ur.onclick = function () {
+  document.querySelectorAll('#utiliser-reserve, [data-utiliser-reserve]').forEach(function (ur) { ur.onclick = function () {
     ouvrirChoix('Utiliser un coaching en réserve', 'En vert : les créneaux libres des 14 prochains jours, à ton heure. Il s\\'ajoute à tes coachings habituels.', true, 'Réserver ce coaching',
       function (x) { envoyer('/api/coaching/reserve', { date: x.date, heure: x.heure }, '/coaching?ok=reserve'); });
-  };
+  }; });
   document.querySelectorAll('[data-reprogrammer]').forEach(function (b) {
     b.onclick = function () {
       var t = b.getAttribute('data-reprogrammer').split('|');
@@ -406,6 +405,11 @@ function pageCoaching(config, { session, coaching, mode = 'fixe', grille, semain
   <p class="doux petit" style="margin-bottom:10px">${echapper(session.pseudo || '')} · ${min} à ${max} par semaine, 1 par jour · heures à ton heure (<span data-fuseau>GMT</span>)</p>
   ${message ? `<p class="ok petit" style="margin-bottom:10px">${echapper(message)}</p>` : ''}
   ${blocValidations(validations)}
+  ${exceptionnels.length ? `<div class="carte" id="exceptionnel" style="border-color:#1f8f4e;background:#0d1f14">
+    <h2 style="margin:0;color:#3ddc84">Coaching exceptionnel à replanifier</h2>
+    ${exceptionnels.map((v) => `<p style="margin:8px 0 0">Ton coaching du <b data-quand="${echapper(`${v.date}T${v.heure}:00.000Z`)}">${echapper(v.date.split('-').reverse().join('/'))} à ${echapper(v.heure)} GMT</b> n'a pas eu lieu${v.raison === 'coach' ? ' : ton coach n\'a pas été disponible' : v.texte ? ` : ${echapper(v.texte)}` : ''}.</p>`).join('')}
+    <p class="doux petit" style="margin:6px 0 0">${reserves ? 'Choisis un nouveau créneau : il s\'ajoute à tes coachings habituels.' : 'Tu as déjà utilisé ce coaching exceptionnel.'}</p>
+    ${reserves ? '<button class="bouton" type="button" data-utiliser-reserve style="background:#3ddc84;border-color:#3ddc84;color:#000;margin:10px 0 0">Replanifier mon coaching</button>' : ''}</div>` : ''}
   ${blocTouchees}
   <div class="colonnes">
     <div>

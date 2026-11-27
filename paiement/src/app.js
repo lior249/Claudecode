@@ -84,9 +84,28 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       const p = eleveDe(v.discord_id);
       const quand = `${v.date.split('-').reverse().join('/')} à ${v.heure} GMT`;
       prevenir('messageEleve', p, `**Valide ton coaching du ${quand}.** Seulement s'il a vraiment eu lieu ; sinon, conteste-le.`, '/coaching#a-confirmer');
-      prevenir('activiteEleve', p, `: **valider le coaching du ${quand}** (s'il a bien eu lieu).`, '/admin/a-traiter?filtre=coachings');
+      prevenir('coachingAValider', p, v, quand);
     }
   }
+  // Le coach tranche une séance passée : validée, ou invalidée (avec la raison). Depuis le site ou les boutons de Bob.
+  function deciderCoaching(id, decision, raison, texte) {
+    if (decision === 'valider') return validations.validerCoach(id);
+    if (decision !== 'invalider') return validations.traiter(id, decision);
+    const r = validations.invaliderCoach(id, raison, texte);
+    if (r.erreur) return r;
+    const v = r.validation;
+    const quand = `${v.date.split('-').reverse().join('/')} à ${v.heure} GMT`;
+    const replanifier = r.credite ? 'Tu reçois un **coaching exceptionnel** : replanifie-le quand tu veux, en vert dans Mes coachings.'
+      : 'Tu as déjà le maximum de coachings en réserve : utilise-en un dans Mes coachings pour le replanifier.';
+    const texteEleve = {
+      coach: `😔 **Ton coaching du ${quand} n'a pas eu lieu : ton coach n'a pas été disponible.** C'est de sa faute, désolé !\n${replanifier}`,
+      eleve: `⚠️ **Tu ne t'es pas présenté à ton coaching du ${quand}.**\nLes horaires de coaching ont été créés pour toi, et c'est toi qui as choisi cet horaire : présente-toi aux prochains. Si tu ne peux pas venir, annule ou reporte à l'avance dans Mes coachings.`,
+      autre: `**Ton coaching du ${quand} n'a pas eu lieu.**\n${v.texte ? `Ton coach : « ${v.texte} »\n` : ''}${replanifier}`,
+    }[v.raison];
+    prevenir('messageEleve', eleveDe(v.discord_id), texteEleve, v.raison === 'eleve' ? '/coaching' : '/coaching#exceptionnel');
+    return r;
+  }
+  if (bob) bob.decisionCoaching = deciderCoaching;
   // Notifie chaque destinataire d'un message du coach, l'un après l'autre, et note s'il a été délivré (👍) ou non (👎).
   function diffuser(envoi, remarques, options = {}) {
     const envoyer = bob && bob.parcours && bob.parcours.message;
@@ -937,7 +956,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       return res.send(C.pageCoaching(config, {
         session, coaching, message, mode, lundis, grille: coaching.grille(id), semaine: mode === 'semaine' ? coaching.grilleSemaine(id, lundi) : null,
         seances: coaching.prochainesSeances(id, 14), touchees: coaching.toucheesAChoisir(id), reserves: coaching.reserves(id),
-        libres: coaching.creneauxLibres(14), aDesFixes: coaching.creneauxFixes(id).length > 0, espace: espaceDe(session), validations: validations.pourEleve(id),
+        libres: coaching.creneauxLibres(14), aDesFixes: coaching.creneauxFixes(id).length > 0, espace: espaceDe(session), validations: validations.pourEleve(id), exceptionnels: validations.exceptionnels(id),
       }));
     } catch (err) {
       console.error('[coaching]', err.message);
@@ -2197,8 +2216,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
         quand: v.res_decide_le, quoi: `Résultats de la vidéo du ${jourLisible(v.jour)} · ${v.res_etat === 'valide' ? 'validés' : 'à corriger'}`, lien: `/admin/resultats/${v.id}`, bouton: 'Revoir' })),
       ...db.prepare("SELECT * FROM comptes_rendus WHERE decide_le IS NOT NULL ORDER BY decide_le DESC LIMIT 200").all().map((c) => ({ cat: 'etape-4', qui: nomDe(c.discord_id), ficheId: c.discord_id,
         quand: c.decide_le, quoi: `Update du compte du ${jourLisible(c.jour)} · ${c.etat === 'valide' ? 'validé' : 'à corriger'}`, lien: `/admin/comptes-rendus/${c.id}`, bouton: 'Revoir' })),
-      ...db.prepare("SELECT * FROM validations_coaching WHERE statut IN ('valide', 'reporte', 'classe') ORDER BY COALESCE(decide_le, cree_le) DESC LIMIT 200").all().map((v) => ({ cat: 'coachings', qui: nomDe(v.discord_id), ficheId: v.discord_id,
-        quand: v.decide_le || v.cree_le, quoi: `Coaching du ${v.date.split('-').reverse().join('/')} à ${v.heure} GMT · ${{ valide: 'validé', reporte: 'coaching en réserve donné', classe: 'classé' }[v.statut]}` })),
+      ...db.prepare("SELECT * FROM validations_coaching WHERE statut IN ('valide', 'reporte', 'classe', 'invalide') ORDER BY COALESCE(decide_le, cree_le) DESC LIMIT 200").all().map((v) => ({ cat: 'coachings', qui: nomDe(v.discord_id), ficheId: v.discord_id,
+        quand: v.decide_le || v.cree_le, quoi: `Coaching du ${v.date.split('-').reverse().join('/')} à ${v.heure} GMT · ${{ valide: 'validé', reporte: 'coaching en réserve donné', classe: 'classé', invalide: `invalidé (${({ coach: 'tu n\'étais pas disponible', eleve: 'élève absent', autre: v.texte || 'autre' })[v.raison] || ''})` }[v.statut]}` })),
       ...(candidatures ? candidatures.liste().filter((c) => !['examen', 'video', 'formulaire', 'brouillon'].includes(c.statut)).slice(0, 200)
         .map((c) => ({ cat: 'candidatures', qui: c.pseudo || c.discord_id, quand: c.maj_le, quoi: `Candidature · ${c.statut}`, lien: `/admin/candidatures/${c.id}`, bouton: 'Revoir' })) : []),
     ].sort((x, y) => String(y.quand || '').localeCompare(String(x.quand || '')));
@@ -2614,8 +2633,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.post('/admin/validations/:id', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/a-traiter')) return;
     const d = String(req.body.decision || '');
-    const r = d === 'valider' ? validations.validerCoach(req.params.id) : validations.traiter(req.params.id, d);
+    const r = deciderCoaching(req.params.id, d, String(req.body.raison || ''), req.body.texte);
     if (r.erreur) return res.redirect(303, `/admin/a-traiter?filtre=coachings&erreur=${encodeURIComponent(r.erreur)}`);
+    if (d === 'invalider') return res.redirect(303, '/admin/a-traiter?filtre=coachings');
     const v = r.validation; const quand = `${v.date.split('-').reverse().join('/')} à ${v.heure} GMT`;
     if (v.statut === 'reporte') prevenir('messageEleve', eleveDe(v.discord_id), `**Ta contestation est acceptée** : tu as un coaching en réserve pour remplacer celui du ${quand}. Reprogramme-le dans Mes coachings.`, '/coaching');
     if (v.statut === 'classe' && v.type === 'apres') prevenir('messageEleve', eleveDe(v.discord_id), `Ton coach a traité ta contestation du coaching du ${quand} : elle est classée. Écris-lui si tu as une question.`, '/remarques');

@@ -910,3 +910,32 @@ test('lancement du call : 10 min avant, Bob demande au coach (bouton Oui) ; l\'i
     assert.strictEqual(b.d.dms.filter(([id, t]) => id === ADMIN && /Lien du call envoyé/.test(t)).length, 2);
   } finally { await m.fermer(); }
 });
+
+test('coaching à valider : Bob envoie Valider / Invalider ; Invalider → les 3 raisons ; Autre → fenêtre pour écrire', async () => {
+  const m = await monter();
+  try {
+    const b = await monterBob(m, '2026-11-30T15:40:00.000Z');
+    const decisions = [];
+    b.bob.decisionCoaching = (...a) => { decisions.push(a); return { validation: { raison: a[2] } }; };
+    await b.bob.parcours.coachingAValider({ discord_id: 'E1', pseudo: 'awa' }, { id: 7 }, '30/11/2026 à 15:00 GMT');
+    const dm = b.d.dms.filter(([id]) => id === ADMIN).pop();
+    assert.match(dm[1], /valider le coaching du 30\/11\/2026 à 15:00 GMT/);
+    assert.deepStrictEqual(idsBoutons(dm[2]).filter(Boolean), ['valid:ok:7', 'valid:non:7']);
+    const maj = [];
+    const inter = (customId, extra = {}) => ({ user: { id: ADMIN }, customId, isButton: () => true, isModalSubmit: () => false, isChatInputCommand: () => false,
+      message: { content: dm[1] }, update: async (o) => maj.push(o), reply: async (o) => maj.push(o), showModal: async (o) => maj.push({ modal: o }), ...extra });
+    await b.bob.surInteraction(inter('valid:non:7'));
+    const ids = maj[0].components[0].toJSON().components.map((c) => c.custom_id);
+    assert.deepStrictEqual(ids, ['valid:r:7:coach', 'valid:r:7:eleve', 'valid:r:7:autre', 'valid:ok:7']);
+    await b.bob.surInteraction(inter('valid:r:7:coach'));
+    assert.deepStrictEqual(decisions[0], ['7', 'invalider', 'coach', '']);
+    assert.match(maj[1].content, /Invalidé : tu n'étais pas disponible/);
+    await b.bob.surInteraction(inter('valid:r:7:autre'));
+    assert.ok(maj[2].modal, 'Autre : une fenêtre pour écrire la raison');
+    await b.bob.surInteraction(inter('valid:autre:7', { isButton: () => false, isModalSubmit: () => true, fields: { getTextInputValue: () => 'Coupure internet' } }));
+    assert.deepStrictEqual(decisions[1], ['7', 'invalider', 'autre', 'Coupure internet']);
+    await b.bob.surInteraction(inter('valid:ok:7'));
+    assert.deepStrictEqual(decisions[2], ['7', 'valider']);
+    assert.match(maj.pop().content, /\*\*Validé\.\*\*/);
+  } finally { await m.fermer(); }
+});

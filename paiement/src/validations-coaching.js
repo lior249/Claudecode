@@ -15,6 +15,12 @@ const RAISONS = {
   live_groupe: 'Ce coaching est remplacé par un live de groupe',
   autre: 'Autre raison',
 };
+// Le coach invalide une séance passée (elle n'a pas eu lieu) : pourquoi.
+const RAISONS_INVALID = {
+  coach: 'Je n\'ai pas été disponible',
+  eleve: 'L\'élève ne s\'est pas présenté',
+  autre: 'Autre',
+};
 
 function creerValidations({ db, coaching, maintenant = () => new Date() }) {
   const q = {
@@ -32,6 +38,7 @@ function creerValidations({ db, coaching, maintenant = () => new Date() }) {
 
   const api = {
     RAISONS,
+    RAISONS_INVALID,
     une(id) { return q.une.get(Number(id)) || null; },
     // Séances finies depuis 5 minutes (3 derniers jours), pas encore à valider : une validation pour chacune.
     echues() {
@@ -80,6 +87,24 @@ function creerValidations({ db, coaching, maintenant = () => new Date() }) {
       q.maj.run(v.eleve_ok_le ? 'valide' : 'attente', iso(), null, null, v.eleve_ok_le ? iso() : null, v.id);
       return { validation: q.une.get(v.id) };
     },
+    // Le coach invalide une séance passée (elle n'a pas eu lieu). Coach indisponible ou autre raison :
+    // l'élève reçoit un coaching exceptionnel (en réserve) à replanifier. Élève absent : un simple avertissement.
+    invaliderCoach(id, raison, texte) {
+      const v = q.une.get(Number(id));
+      if (!v || v.type !== 'apres' || !['attente', 'conteste'].includes(v.statut)) return { erreur: 'Rien à invalider.' };
+      if (!RAISONS_INVALID[raison]) return { erreur: 'Choisis la raison.' };
+      const t = String(texte || '').trim().slice(0, 500);
+      if (raison === 'autre' && t.length < 3) return { erreur: 'Écris la raison.' };
+      const credite = raison === 'eleve' ? false : coaching.crediterReserve(v.discord_id);
+      db.prepare("UPDATE validations_coaching SET statut = 'invalide', raison = ?, texte = ?, coach_ok_le = ?, decide_le = ? WHERE id = ?")
+        .run(raison, t || null, iso(), iso(), v.id);
+      return { validation: q.une.get(v.id), credite };
+    },
+    // Les coachings exceptionnels récents (14 jours) de l'élève : séances invalidées qui lui donnent une réserve.
+    exceptionnels(discordId) {
+      const depuis = new Date(maintenant().getTime() - 14 * 864e5).toISOString();
+      return db.prepare("SELECT * FROM validations_coaching WHERE discord_id = ? AND statut = 'invalide' AND raison IN ('coach', 'autre') AND decide_le >= ? ORDER BY decide_le DESC").all(String(discordId), depuis);
+    },
     // Contestation (ou refus) traitée par le coach : un coaching en réserve à reprogrammer, ou classée.
     traiter(id, decision) {
       const v = q.une.get(Number(id));
@@ -95,4 +120,4 @@ function creerValidations({ db, coaching, maintenant = () => new Date() }) {
   return api;
 }
 
-module.exports = { creerValidations, RAISONS };
+module.exports = { creerValidations, RAISONS, RAISONS_INVALID };

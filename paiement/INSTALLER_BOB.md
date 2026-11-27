@@ -610,6 +610,10 @@ ou sur **overmaxx.online/admin/candidatures**.
 - **Après chaque coaching**, 5 minutes après la fin des 30 minutes, toi et l'élève recevez « **Valider ce coaching** ».
   - Toi : dans À traiter, filtre « Coachings à valider ».
   - L'élève : dans Mes coachings, carte « À confirmer ». Il valide seulement si le coaching a vraiment eu lieu ; sinon, il **conteste** en expliquant (« j'ai attendu pendant tout le coaching »).
+- **Valider ou Invalider** : sur Discord (boutons de Bob) ou dans À traiter. « Invalider » demande pourquoi le coaching n'a pas eu lieu :
+  - « Je n'ai pas été disponible » : l'élève reçoit des excuses et un **coaching exceptionnel**. Il le replanifie avec le bouton vert de Mes coachings.
+  - « L'élève ne s'est pas présenté » : l'élève reçoit un avertissement (c'est lui qui a choisi l'horaire). Pas de nouveau coaching.
+  - « Autre » : tu écris la raison (sur Discord, une fenêtre s'ouvre). L'élève la lit et reçoit aussi un coaching exceptionnel.
 - **Contestation** : tu la traites dans À traiter.
   - « Donner un coaching en réserve » : il le reprogramme dans Mes coachings.
   - Ou « Classer ».

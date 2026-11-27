@@ -276,7 +276,7 @@ test('validation des coachings : après la séance (coach et élève, contestati
     now = new Date('2026-11-30T15:36:00Z');
     await m.verifierCoachings();
     assert.ok(appels.some(([n, , t]) => n === 'messageEleve' && /Valide ton coaching du 30\/11\/2026 à 15:00 GMT/.test(t)), 'l\'élève est prévenu');
-    assert.ok(appels.some(([n, , t]) => n === 'activiteEleve' && /valider le coaching/.test(t)), 'le coach aussi');
+    assert.ok(appels.some(([n, , v, quand]) => n === 'coachingAValider' && v.id && quand === '30/11/2026 à 15:00 GMT'), 'le coach aussi (boutons Valider / Invalider)');
     assert.strictEqual(valid.echues().length, 0, 'une seule fois');
     const page = await (await m.get('/coaching', eleve)).text();
     assert.match(page, /À confirmer[\s\S]*seulement s'il a vraiment eu lieu[\s\S]*Valider ce coaching[\s\S]*Contester/);
@@ -303,5 +303,48 @@ test('validation des coachings : après la séance (coach et élève, contestati
     await m.poster(`/coaching/validations/${r.id}`, { reponse: 'non', texte: 'J\'en ai besoin cette semaine.' }, eleve);
     assert.ok(appels.some(([n, , t]) => n === 'activiteEleve' && /refuse/.test(t)));
     assert.ok(m.coaching.occurrences('2026-12-02', '2026-12-02', { discordId: 'A' }).length, 'refusé : la séance reste');
+  } finally { await m.fermer(); }
+});
+
+test('invalider un coaching : coach indisponible (coaching exceptionnel, en vert), élève absent (avertissement), autre (raison écrite) ; boutons de Bob', async () => {
+  let now = new Date('2026-11-30T09:00:00Z'); // lundi
+  const appels = [];
+  const bob = { parcours: new Proxy({}, { get: (o, nom) => async (...a) => { appels.push([nom, ...a]); return true; } }) };
+  const m = await monter({ maintenant: () => now, bob, oauth: fauxOAuth({ A: [ROLES.elite] }) });
+  try {
+    m.parcours.assurer('A', { pseudo: 'awa_27' });
+    m.db.prepare("UPDATE parcours SET fin_le = '2027-03-01T00:00:00.000Z' WHERE discord_id = 'A'").run();
+    m.coaching.enregistrer('A', [0, 1, 2, 3].map((jour) => ({ jour, heure: '15:00' })), 240, 'awa_27');
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const eleve = { cookie: cookieSession('A', 'awa_27') };
+    now = new Date('2026-12-02T15:36:00Z');
+    await m.verifierCoachings(); // lundi, mardi et mercredi
+    const ids = m.db.prepare("SELECT id, date FROM validations_coaching ORDER BY date").all();
+    assert.strictEqual(ids.length, 3);
+    const traiter = await (await m.get('/admin/a-traiter', coach)).text();
+    assert.match(traiter, /Valider<\/button>[\s\S]*Invalider[\s\S]*Je n'ai pas été disponible[\s\S]*L'élève ne s'est pas présenté[\s\S]*Autre/);
+    // Coach indisponible : l'élève reçoit un coaching exceptionnel.
+    const avant = m.coaching.reserves('A');
+    assert.match((await m.poster(`/admin/validations/${ids[0].id}`, { decision: 'invalider' }, coach)).headers.get('location'), /erreur=/, 'la raison est obligatoire');
+    await m.poster(`/admin/validations/${ids[0].id}`, { decision: 'invalider', raison: 'coach' }, coach);
+    assert.strictEqual(m.coaching.reserves('A'), avant + 1);
+    const msg = appels.filter(([n]) => n === 'messageEleve').pop();
+    assert.match(msg[2], /n'a pas eu lieu : ton coach n'a pas été disponible[\s\S]*coaching exceptionnel/);
+    assert.strictEqual(msg[3], '/coaching#exceptionnel');
+    const page = await (await m.get('/coaching', eleve)).text();
+    assert.match(page, /id="exceptionnel"[\s\S]*Coaching exceptionnel[\s\S]*ton coach n'a pas été disponible[\s\S]*data-utiliser-reserve[^>]*>Replanifier mon coaching/);
+    assert.ok(!/30\/11\/2026 à 15:00 GMT<\/b> a-t-il bien eu lieu/.test(page), 'plus à valider par l\'élève');
+    // Élève absent : un avertissement, pas de coaching exceptionnel.
+    await m.poster(`/admin/validations/${ids[1].id}`, { decision: 'invalider', raison: 'eleve' }, coach);
+    assert.strictEqual(m.coaching.reserves('A'), avant + 1);
+    assert.match(appels.filter(([n]) => n === 'messageEleve').pop()[2], /Tu ne t'es pas présenté[\s\S]*c'est toi qui as choisi cet horaire/);
+    // Autre, depuis les boutons de Bob : la raison écrite (fenêtre), puis un coaching exceptionnel.
+    assert.strictEqual(typeof bob.decisionCoaching, 'function');
+    const r = bob.decisionCoaching(ids[2].id, 'invalider', 'autre', 'Coupure internet');
+    assert.ok(!r.erreur);
+    assert.match(appels.filter(([n]) => n === 'messageEleve').pop()[2], /n'a pas eu lieu[\s\S]*Coupure internet[\s\S]*coaching exceptionnel/);
+    assert.strictEqual(m.coaching.reserves('A'), avant + 2);
+    // Archives : invalidés, avec la raison.
+    assert.match(await (await m.get('/admin/a-traiter/archives', coach)).text(), /invalidé \(tu n(&#39;|')étais pas disponible\)[\s\S]*invalidé \(élève absent\)[\s\S]*invalidé \(Coupure internet\)/);
   } finally { await m.fermer(); }
 });

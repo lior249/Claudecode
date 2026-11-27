@@ -3,6 +3,7 @@
 const {
   Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle,
   SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType, AuditLogEvent,
+  ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const FR = require('./forum-ressources');
 
@@ -733,6 +734,36 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       const r = await envoyerInvitationCall(id, date, heure);
       return i.update({ content: `${i.message.content}\n\n**${r.deja ? 'Invitation déjà envoyée.' : 'Invitation envoyée à l\'élève.'}**`, components: [] });
     }
+    // Valider / invalider un coaching passé (la décision est prise par la plateforme : api.decisionCoaching).
+    if ((i.isButton() && i.customId.startsWith('valid:')) || (i.isModalSubmit && i.isModalSubmit() && i.customId.startsWith('valid:'))) {
+      if (!estAdmin) return i.reply({ content: 'Réservé au coach.', flags: MessageFlags.Ephemeral });
+      const [, action, id, raison] = i.customId.split(':');
+      const decider = api.decisionCoaching;
+      if (!decider) return i.reply({ content: 'La plateforme est indisponible : réessaie depuis le site.', flags: MessageFlags.Ephemeral });
+      const contenu = String((i.message && i.message.content) || '').split('\n\n**')[0];
+      if (action === 'non') {
+        const ligne = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`valid:r:${id}:coach`).setLabel('Je n\'ai pas été disponible').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId(`valid:r:${id}:eleve`).setLabel('L\'élève ne s\'est pas présenté').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId(`valid:r:${id}:autre`).setLabel('Autre').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId(`valid:ok:${id}`).setLabel('Finalement, valider').setStyle(ButtonStyle.Success));
+        return i.update({ content: `${contenu}\n\n**Pourquoi ce coaching n'a pas eu lieu ?**`, components: [ligne] });
+      }
+      if (action === 'r' && raison === 'autre' && i.isButton()) {
+        const modal = new ModalBuilder().setCustomId(`valid:autre:${id}`).setTitle('Coaching invalidé').addComponents(
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('texte').setLabel('La raison (l\'élève la lira)')
+            .setStyle(TextInputStyle.Paragraph).setMinLength(3).setMaxLength(500).setRequired(true)));
+        return i.showModal(modal);
+      }
+      const r = action === 'ok' ? decider(id, 'valider')
+        : decider(id, 'invalider', action === 'autre' ? 'autre' : raison, action === 'autre' ? i.fields.getTextInputValue('texte') : '');
+      if (r.erreur) return i.reply({ content: r.erreur, flags: MessageFlags.Ephemeral });
+      const libelle = action === 'ok' ? 'Validé.'
+        : { coach: 'Invalidé : tu n\'étais pas disponible. L\'élève reçoit un coaching exceptionnel à replanifier.',
+          eleve: 'Invalidé : l\'élève ne s\'est pas présenté. Il reçoit un avertissement.',
+          autre: 'Invalidé. L\'élève reçoit ta raison et un coaching exceptionnel à replanifier.' }[r.validation.raison];
+      return i.update({ content: `${contenu}\n\n**${libelle}**`, components: [] });
+    }
     if (i.isButton() && i.customId.startsWith('recompense:')) {
       if (!estAdmin) return i.reply({ content: 'Réservé à l\'admin.', flags: MessageFlags.Ephemeral });
       const [, role, id] = i.customId.split(':');
@@ -1410,6 +1441,15 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       if (!p) return;
       await notifier.membre(p.discord_id, avecBoutons(texte, [{ label: 'Ouvrir', url: lienPerso(p.discord_id, p.pseudo, chemin || '/parcours') }]));
     },
+    // Séance finie : le coach la valide ou l'invalide directement depuis Discord (avec la raison).
+    async coachingAValider(p, v, quand) {
+      if (!p || !v) return;
+      const ligne = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`valid:ok:${v.id}`).setLabel('Valider').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`valid:non:${v.id}`).setLabel('Invalider').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setLabel('Ouvrir').setStyle(ButtonStyle.Link).setURL(lienCoach('/admin/a-traiter?filtre=coachings')));
+      await notifier.admin({ content: `**${p.nom || p.pseudo || p.discord_id}** (<@${p.discord_id}>) : **valider le coaching du ${quand}** ? Valide s'il a bien eu lieu, sinon invalide-le.`, components: [ligne] });
+    },
     async activiteEleve(p, texte, chemin) {
       if (!p) return;
       await notifier.admin(avecBoutons(`**${p.nom || p.pseudo || p.discord_id}** (<@${p.discord_id}>) ${texte}`,
@@ -1927,7 +1967,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     } finally { enCours = false; }
   }
 
-  return {
+  const api = {
     notifier,
     notifsAdmin,
     // Pour le test de notification de l'admin : boutons-liens et lien personnel.
@@ -2155,6 +2195,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         [{ label: 'Voir les candidatures', url: lienCoach('/admin/a-traiter?filtre=candidatures') }]));
     },
   };
+  return api;
 }
 
 module.exports = { creerBob, formatPrix, PALIERS_JOURS };
