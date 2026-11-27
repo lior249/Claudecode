@@ -298,6 +298,17 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       etats: Object.fromEntries(liste.map((e) => [e.id, evenements.etat(e)])), nbInscrits: Object.fromEntries(liste.map((e) => [e.id, evenements.inscrits(e.id).length])),
       message: req.query.fait ? 'Événement créé : sa bannière défile déjà en haut des pages.' : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null, ...extra }));
   };
+  // Gestion : les salons du serveur gratuit où Bob publie aussi les résultats (liens Discord collés).
+  app.post('/admin/discord/salons', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/gestion')) return;
+    const idDe = (v) => { const t = String(v || '').trim(); if (!t) return ''; const m = /discord(?:app)?\.com\/channels\/\d+\/(\d{15,22})/.exec(t) || /^(\d{15,22})$/.exec(t); return m ? m[1] : null; };
+    const r = idDe(req.body.salon_resultats); const t = idDe(req.body.forum_testimonials);
+    if (r === null || t === null) return res.redirect(303, `/admin/gestion?erreur=${encodeURIComponent('Colle le lien Discord du salon (https://discord.com/channels/…/…).')}`);
+    const ecrire = (cle, v) => (v ? commandes.db.prepare('INSERT INTO reglages (cle, valeur, maj_le) VALUES (?, ?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, maj_le = excluded.maj_le').run(cle, v, new Date().toISOString())
+      : commandes.db.prepare('DELETE FROM reglages WHERE cle = ?').run(cle));
+    ecrire('salon_resultats_gratuit', r); ecrire('forum_testimonials_gratuit', t);
+    return res.redirect(303, '/admin/gestion?fait=salons');
+  });
   app.get('/admin/evenements', (req, res) => { if (estAdmin(req, res, '/admin/evenements')) pageEvenementsCoach(req, res); });
   app.post('/admin/evenements', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/evenements')) return;
@@ -1567,9 +1578,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.get('/admin/gestion', (req, res) => {
     if (!estAdmin(req, res, '/admin/gestion')) return;
     // Inviter Bob sur l'ancien serveur : gérer les rôles (attente) et créer une invitation.
+    const lienSalon = (cle) => { const r = commandes.db.prepare('SELECT valeur FROM reglages WHERE cle = ?').get(cle); return r ? `https://discord.com/channels/${config.discord.serveurAttenteId || '@me'}/${r.valeur}` : ''; };
     const serveurGratuit = { actif: Boolean(config.discord.serveurAttenteId), lien: config.discord.serveurAttenteId ? config.lienDiscord : null,
+      salonResultats: lienSalon('salon_resultats_gratuit'), forumTestimonials: lienSalon('forum_testimonials_gratuit'),
       invitationBob: config.discord.clientId ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(config.discord.clientId)}&scope=bot&permissions=268436481` : null };
-    res.send(PF.pageGestion(config, { espace: espaceDe(lireSession(req, config.secretApp)), serveurGratuit, nbEleves: parcours.tous().length, evenements: evenementsEnCours().length,
+    res.send(PF.pageGestion(config, { espace: espaceDe(lireSession(req, config.secretApp)), serveurGratuit,
+      message: req.query.fait === 'salons' ? 'Salons du serveur gratuit enregistrés : Bob y publie les prochains résultats.' : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null, nbEleves: parcours.tous().length, evenements: evenementsEnCours().length,
       ressources: commandes.db.prepare("SELECT COUNT(*) n FROM ressources WHERE etat = 'public'").get().n, aValider: ressources.enAttente().length }));
   });
   // Profil du coach.

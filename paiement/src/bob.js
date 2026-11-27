@@ -1242,41 +1242,54 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     try { return await client.channels.fetch(id); } catch (err) { console.warn('[bob] salon introuvable :', id, err.message); return null; }
   }
   const nombreFr = (n) => Math.round(Number(n) || 0).toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ');
+  // Où publier : le serveur de l'accompagnement (mention de l'élève) et, s'il est réglé dans Gestion, le serveur gratuit
+  // (son prénom, sans mention, et un lien pour rejoindre l'accompagnement).
+  const ciblesResultats = () => [{ id: config.discord.salonResultats, gratuit: false }, { id: reglage('salon_resultats_gratuit'), gratuit: true }].filter((c) => c.id);
+  const ciblesTestimonials = () => [{ id: config.discord.forumTestimonials, gratuit: false }, { id: reglage('forum_testimonials_gratuit'), gratuit: true }].filter((c) => c.id);
+  const qui = (discordId, p, gratuit, nom) => (gratuit ? `**${nom || nomDe(p)}** (élève Overmaxx)` : `<@${discordId}>`);
+  const appel = (gratuit) => (gratuit ? `\n👉 Toi aussi, rejoins l'accompagnement : ${config.baseUrl}${config.offres.elite.base}` : '');
+  async function envoyerDans(cibles, cle, fabriquer) {
+    let n = 0;
+    for (const c of cibles) {
+      const k = `${cle}:${c.id}`;
+      if (dejaEnvoye(k)) continue;
+      const salon = await salonDiscord(c.id);
+      if (!salon) continue;
+      try { await fabriquer(salon, c.gratuit); marquer(k); n++; } catch (err) { console.warn('[bob] publication :', c.id, err.message); }
+    }
+    return n;
+  }
   async function publierResultatVideo(v, p) {
-    const cle = `publie-video:${v.id}`;
-    if (!v || dejaEnvoye(cle)) return false;
-    const salon = await salonDiscord(config.discord.salonResultats);
-    if (!salon || !salon.send) return false;
+    if (!v) return 0;
     let captures = []; try { captures = JSON.parse(v.res_captures || '[]'); } catch { captures = []; }
     const chiffres = [`${nombreFr(v.res_vues)} vues`];
     if (v.res_abonnes !== null && v.res_abonnes !== undefined) chiffres.push(`+${nombreFr(v.res_abonnes)} abonnés`);
     if (Number(v.res_revenus) > 0) chiffres.push(`$${Number(v.res_revenus).toFixed(2)}`);
     if (Number(v.res_rpm) > 0) chiffres.push(`RPM $${Number(v.res_rpm).toFixed(2)}`);
-    await salon.send({ content: `🎬 <@${v.discord_id}> : résultats de sa vidéo du ${jourLisible(v.jour)} (24 h)\n**${chiffres.join(' · ')}**\n${v.lien}`.slice(0, 1990),
-      files: fichiersDe(captures), allowedMentions: { users: [v.discord_id] } });
-    marquer(cle);
-    log(`résultat publié : vidéo ${v.id}`);
-    return true;
+    const n = await envoyerDans(ciblesResultats(), `publie-video:${v.id}`, (salon, gratuit) => salon.send({
+      content: `🎬 ${qui(v.discord_id, p, gratuit)} : résultats de sa vidéo du ${jourLisible(v.jour)} (24 h)\n**${chiffres.join(' · ')}**\n${v.lien}${appel(gratuit)}`.slice(0, 1990),
+      files: fichiersDe(captures), allowedMentions: { users: gratuit ? [] : [v.discord_id] } }));
+    if (n) log(`résultat publié : vidéo ${v.id} (${n} salon(s))`);
+    return n;
   }
   async function publierMonetisation(p) {
-    const cle = `publie-monet:${p.discord_id}:${p.monetisation_le}`;
-    if (dejaEnvoye(cle) || p.monetisation_etat !== 'envoyee_acceptee') return false;
-    const salon = await salonDiscord(config.discord.salonResultats);
-    if (!salon || !salon.send) return false;
-    await salon.send({ content: `🎉 <@${p.discord_id}> vient d'être **accepté dans le programme de monétisation TikTok** !`,
-      files: fichiersDe([p.monetisation_capture].filter(Boolean)), allowedMentions: { users: [p.discord_id] } });
-    marquer(cle);
-    return true;
+    if (p.monetisation_etat !== 'envoyee_acceptee') return 0;
+    return envoyerDans(ciblesResultats(), `publie-monet:${p.discord_id}:${p.monetisation_le}`, (salon, gratuit) => salon.send({
+      content: `🎉 ${qui(p.discord_id, p, gratuit)} vient d'être **accepté dans le programme de monétisation TikTok** !${appel(gratuit)}`,
+      files: fichiersDe([p.monetisation_capture].filter(Boolean)), allowedMentions: { users: gratuit ? [] : [p.discord_id] } }));
   }
   async function publierUpdateMois(u, p, nom) {
-    if (!u || u.discord_post || (u.type === 'revenus' && !u.a_gagne)) return null;
-    const forum = await salonDiscord(config.discord.forumTestimonials);
-    if (!forum || !forum.threads) return null;
-    const { titre, texte } = updatesMois.post(u, { nom: nom || nomDe(p), discordId: u.discord_id });
-    const fil = await forum.threads.create({ name: titre, message: { content: texte, files: fichiersDe(u.images), allowedMentions: { users: [u.discord_id] } } });
-    updatesMois.marquerPoste(u.id, fil.id);
+    if (!u || (u.type === 'revenus' && !u.a_gagne)) return null;
+    let premier = null;
+    await envoyerDans(ciblesTestimonials(), `publie-mois:${u.id}`, async (forum, gratuit) => {
+      if (!forum.threads) throw new Error('ce salon n\'est pas un forum');
+      const { titre, texte } = updatesMois.post(u, { nom: nom || nomDe(p), discordId: gratuit ? null : u.discord_id });
+      const fil = await forum.threads.create({ name: titre, message: { content: `${texte}${appel(gratuit)}`.slice(0, 1990), files: fichiersDe(u.images), allowedMentions: { users: gratuit ? [] : [u.discord_id] } } });
+      if (!gratuit) premier = fil.id;
+    });
+    if (premier) updatesMois.marquerPoste(u.id, premier);
     log(`testimonial publié : ${u.type} ${u.mois} de ${u.discord_id}`);
-    return fil.id;
+    return premier;
   }
   // Du 28 au 5 : un rappel par jour (à partir de l'heure de son update du soir) tant que les deux updates du mois manquent.
   async function rappelsMois() {

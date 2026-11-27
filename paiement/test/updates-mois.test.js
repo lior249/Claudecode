@@ -77,3 +77,30 @@ test('page des updates du mois : fermée hors du 28 au 5 ; résultat de vidéo e
     assert.match(page, /Updates du mois/);
   } finally { await m.fermer(); }
 });
+
+test('serveur gratuit : liens des salons collés dans Gestion ; Bob y publie aussi (prénom, sans mention, lien vers l\'accompagnement)', async () => {
+  const { ADMIN } = require('./aide');
+  const m = await monter();
+  try {
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const r0 = await m.poster('/admin/discord/salons', { salon_resultats: 'n\'importe quoi', forum_testimonials: '' }, coach);
+    assert.match(r0.headers.get('location'), /erreur=/);
+    await m.poster('/admin/discord/salons', { salon_resultats: 'https://discord.com/channels/111111111111111111/222222222222222222', forum_testimonials: 'https://discord.com/channels/111111111111111111/333333333333333333' }, coach);
+    assert.strictEqual(m.db.prepare("SELECT valeur FROM reglages WHERE cle = 'salon_resultats_gratuit'").get().valeur, '222222222222222222');
+    assert.match(await (await m.get('/admin/gestion', coach)).text(), /Gestion/);
+    m.parcours.assurer(E1, { pseudo: 'awa_27' });
+    const recu = {};
+    const salon = (id) => ({ send: async (x) => { (recu[id] = recu[id] || []).push(x); }, threads: { create: async (x) => { (recu[id] = recu[id] || []).push(x); return { id: `P${id}` }; } } });
+    const client = { isReady: () => true, users: { fetch: async () => ({ send: async () => true }) }, channels: { fetch: async (id) => salon(id) } };
+    const bob = creerBob({ config: m.config, db: m.db, commandes: m.commandes, coaching: m.coaching, parcours: m.parcours, suivi: m.suivi, client });
+    const p = m.parcours.get(E1);
+    await bob.parcours.resultatPublic({ id: 9, discord_id: E1, jour: '2026-11-26', lien: 'https://www.tiktok.com/@awa/video/1', res_vues: 5000, res_captures: '[]' }, p);
+    assert.match(recu[m.config.discord.salonResultats][0].content, /<@700000000000000051>/);
+    const g = recu['222222222222222222'][0];
+    assert.doesNotMatch(g.content, /<@/);
+    assert.match(g.content, /\*\*awa_27\*\* \(élève Overmaxx\)[\s\S]*Toi aussi, rejoins l'accompagnement/);
+    const u = creerUpdatesMois({ db: m.db }).enregistrerResultat(E1, '2026-11', { modele: 'vues', valeur: '20000', ressenti: 'Top.' }).update;
+    await bob.parcours.updateMoisPublique(u, p, 'Awa');
+    assert.ok(recu['333333333333333333'][0].name.includes('Awa'));
+  } finally { await m.fermer(); }
+});

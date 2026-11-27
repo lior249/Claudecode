@@ -690,7 +690,9 @@ ou sur **overmaxx.online/admin/candidatures**.
 - **Updates du mois** (page « Updates du mois », du 28 au 5 du mois suivant ; rappel chaque jour tant qu'elles manquent) :
   1. Update du mois : « As-tu fait de l'argent sur TikTok ce mois-ci ? ». Oui : le total, une capture, et 3 questions (comment ça a commencé, ton conseil, ton prochain objectif). Non : rien à publier.
   2. Plus gros résultat du mois : vues sur une vidéo, abonnés gagnés en une vidéo, revenus d'une vidéo (désactivé sans revenus ce mois-ci), ou autre ; son ressenti ; des images.
-- Bob doit pouvoir écrire et joindre des fichiers dans le salon, et créer des posts dans le forum.
+- Serveur gratuit : Gestion → « Serveur gratuit » → colle les liens Discord du salon des résultats et du forum Testimonials. Bob y publie
+  aussi chaque résultat (prénom de l'élève, sans mention, et un lien pour rejoindre l'accompagnement).
+- Bob doit pouvoir écrire et joindre des fichiers dans les salons, et créer des posts dans les forums.
 
 ## Événements (challenges)
 

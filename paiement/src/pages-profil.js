@@ -807,11 +807,12 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
 }
 
 // Gestion (coach) : Planifier, Élèves Elite et Ressources, en cases côte à côte (la barre du bas reste courte).
-function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources = 0, aValider = 0, aCompleter = 0, serveurGratuit = null }) {
+function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources = 0, aValider = 0, aCompleter = 0, serveurGratuit = null, message = null, erreur = null }) {
   const tuile = (lien, titre, ligne, texte, alerte) => `<a class="pf-carte" href="${lien}" style="min-height:140px"><h3>${titre}</h3>
     <p class="vert">${ligne}</p><p>${texte}</p>${alerte ? `<p style="color:#ffb35c;font-weight:700;margin-top:6px">${alerte}</p>` : ''}</a>`;
   return page('Gestion', `${STYLE_PROFIL}
   <div class="titre-page"><div><p class="etiquette">Coach</p><h1>Gestion</h1></div></div>
+  ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   <div class="pf"><div class="pf-cartes" style="grid-template-columns:1fr 1fr">
     ${tuile('/admin/planifier', 'Planifier', `${evenements} événement(s) en cours`, 'Événements, messages aux élèves, accusés de lecture.')}
     ${tuile('/admin/eleves', 'Gérer les élèves', `${nbEleves} élève(s)`, 'Kanban par étape, ou liste triable.', aCompleter ? `${aCompleter} à compléter` : '')}
@@ -825,7 +826,13 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
     ? 'Les candidats et les membres dont l\'accès a expiré y vont ; le serveur des membres est réservé à ceux qui ont payé (Community, Elite).'
     : 'Invite Bob sur l\'ancien serveur : il le reconnaît tout seul, y crée une invitation, et s\'en sert comme serveur gratuit / d\'attente.'}</p>
     ${serveurGratuit.invitationBob && !serveurGratuit.actif ? `<a class="bouton" href="${echapper(serveurGratuit.invitationBob)}" target="_blank" rel="noopener">Inviter Bob sur l'ancien serveur</a>` : ''}
-    ${serveurGratuit.lien ? `<p class="doux petit" style="margin:8px 0 0">Lien public : ${echapper(serveurGratuit.lien)}</p>` : ''}</div>` : ''}
+    ${serveurGratuit.lien ? `<p class="doux petit" style="margin:8px 0 0">Lien public : ${echapper(serveurGratuit.lien)}</p>` : ''}
+    <form method="post" action="/admin/discord/salons" style="display:grid;gap:10px;margin-top:12px">
+      <p style="margin:0"><b>Résultats publiés aussi sur le serveur gratuit</b></p>
+      <p class="doux petit" style="margin:-6px 0 0">Colle les liens Discord (clic droit ou appui long sur le salon → Copier le lien). Laisse vide pour ne rien publier.</p>
+      <div class="champ"><label for="sg-res">Salon des résultats (salon texte)</label><input id="sg-res" name="salon_resultats" inputmode="url" value="${echapper(serveurGratuit.salonResultats || '')}" placeholder="https://discord.com/channels/…/…"></div>
+      <div class="champ"><label for="sg-tes">Forum Testimonials</label><input id="sg-tes" name="forum_testimonials" inputmode="url" value="${echapper(serveurGratuit.forumTestimonials || '')}" placeholder="https://discord.com/channels/…/…"></div>
+      <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer</button></form></div>` : ''}
   </div>`, espace, 'gestion');
 }
 
