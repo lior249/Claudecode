@@ -292,6 +292,14 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     res.redirect(303, `/evenements/${encodeURIComponent(req.params.id)}?fait=desinscrit`);
   });
   // Gestion : les salons du serveur gratuit où Bob publie aussi les résultats (liens Discord collés).
+  app.post('/admin/discord/call', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/gestion')) return;
+    const l = String(req.body.lien_call || '').trim().slice(0, 300);
+    if (l && !/^https:\/\/(discord\.com|discord\.gg|discordapp\.com)\//.test(l)) return res.redirect(303, `/admin/gestion?erreur=${encodeURIComponent('Colle le lien Discord du salon vocal (https://discord.com/channels/…).')}`);
+    if (l) commandes.db.prepare('INSERT INTO reglages (cle, valeur, maj_le) VALUES (?, ?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, maj_le = excluded.maj_le').run('lien_call', l, new Date().toISOString());
+    else commandes.db.prepare("DELETE FROM reglages WHERE cle = 'lien_call'").run();
+    return res.redirect(303, '/admin/gestion?fait=call');
+  });
   app.post('/admin/discord/salons', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/gestion')) return;
     const idDe = (v) => { const t = String(v || '').trim(); if (!t) return ''; const m = /discord(?:app)?\.com\/channels\/\d+\/(\d{15,22})/.exec(t) || /^(\d{15,22})$/.exec(t); return m ? m[1] : null; };
@@ -1639,7 +1647,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       salonResultats: lienSalon('salon_resultats_gratuit'), forumTestimonials: lienSalon('forum_testimonials_gratuit'),
       invitationBob: config.discord.clientId ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(config.discord.clientId)}&scope=bot&permissions=268436481` : null };
     res.send(PF.pageGestion(config, { espace: espaceDe(lireSession(req, config.secretApp)), serveurGratuit,
-      message: req.query.fait === 'salons' ? 'Salons du serveur gratuit enregistrés : Bob y publie les prochains résultats.' : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null, nbEleves: parcours.tous().length, evenements: evenementsEnCours().length,
+      lienCall: (commandes.db.prepare("SELECT valeur FROM reglages WHERE cle = 'lien_call'").get() || {}).valeur || config.discord.salonCoaching || '',
+      message: { salons: 'Salons du serveur gratuit enregistrés : Bob y publie les prochains résultats.', call: 'Lien du call enregistré.' }[req.query.fait] || null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null, nbEleves: parcours.tous().length, evenements: evenementsEnCours().length,
       ressources: commandes.db.prepare("SELECT COUNT(*) n FROM ressources WHERE etat = 'public'").get().n, aValider: ressources.enAttente().length }));
   });
   // Profil du coach.
@@ -2571,6 +2580,15 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!o) return null;
     return { o, date, heure, jourNom: coaching.JOURS[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7] };
   }
+  app.post('/admin/creneau/call', formulaire, async (req, res) => {
+    if (!estAdmin(req, res, '/admin')) return;
+    const c = creneauReserve(String(req.body.date || ''), String(req.body.heure || ''));
+    const retour = `/admin/creneau?date=${encodeURIComponent(String(req.body.date || ''))}&heure=${encodeURIComponent(String(req.body.heure || ''))}`;
+    if (!c) return res.redirect(303, retour);
+    if (!bob || !bob.envoyerInvitationCall) return res.redirect(303, `${retour}&erreur=${encodeURIComponent('Bob est indisponible : réessaie.')}`);
+    try { await bob.envoyerInvitationCall(c.o.discordId, c.date, c.heure); } catch (err) { console.error('[call]', err.message); }
+    return res.redirect(303, `${retour}&fait=call`);
+  });
   app.get('/admin/creneau', (req, res) => {
     if (!estAdmin(req, res, `/admin/creneau?date=${encodeURIComponent(String(req.query.date || ''))}&heure=${encodeURIComponent(String(req.query.heure || ''))}`)) return;
     const c = creneauReserve(String(req.query.date || ''), String(req.query.heure || ''));
@@ -2578,7 +2596,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const membre = { ...infoMembre(c.o.discordId), type: C.NOMS_TYPES[c.o.type] || c.o.type,
       etat: c.o.touchee ? (c.o.touchee.type === 'imprevu' ? 'Annulée (imprévu)' : 'Annulée (tu es absent)') : 'Prévue' };
     res.send(C.pageCreneau(config, { espace: espaceDe(lireSession(req, config.secretApp)), ...c, id: c.o.discordId, membre, libres: coaching.creneauxLibres(14),
-      message: req.query.fait ? 'Demande envoyée : l\'élève la voit dans ses Remarques, et Bob l\'a prévenu.' : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+      message: req.query.fait === 'call' ? 'Invitation de call envoyée à l\'élève (Bob te l\'a confirmé en privé).' : req.query.fait ? 'Demande envoyée : l\'élève la voit dans ses Remarques, et Bob l\'a prévenu.' : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
   // Valider en avance (fait en avance, annulé car non nécessaire…) : l'élève approuve, le créneau se libère.
   app.post('/admin/creneau/avance', formulaire, (req, res) => {

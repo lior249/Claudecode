@@ -807,7 +807,7 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
 }
 
 // Gestion (coach) : Planifier, Élèves Elite et Ressources, en cases côte à côte (la barre du bas reste courte).
-function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources = 0, aValider = 0, aCompleter = 0, serveurGratuit = null, message = null, erreur = null }) {
+function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources = 0, aValider = 0, aCompleter = 0, serveurGratuit = null, lienCall = '', message = null, erreur = null }) {
   const tuile = (lien, titre, ligne, texte, alerte) => `<a class="pf-carte" href="${lien}" style="min-height:140px"><h3>${titre}</h3>
     <p class="vert">${ligne}</p><p>${texte}</p>${alerte ? `<p style="color:#ffb35c;font-weight:700;margin-top:6px">${alerte}</p>` : ''}</a>`;
   return page('Gestion', `${STYLE_PROFIL}
@@ -820,6 +820,11 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
     ${tuile('/notifications?onglet=rappels', 'Mes rappels', 'Tes rappels', 'Une fois, chaque jour ou certains jours.')}
     ${tuile('/admin/evenements', 'Événements', 'Challenges', 'Inscriptions, conditions, classement de l\'événement.')}
   </div>
+  <form class="carte" method="post" action="/admin/discord/call" style="margin-top:14px;display:grid;gap:10px">
+    <div class="envoi-tete"><h2>Lancement des calls</h2><span class="etat" data-etat="${lienCall ? 'valide' : 'attente'}">${lienCall ? 'Prêt' : 'Lien à ajouter'}</span></div>
+    <p class="doux petit" style="margin:0">10 minutes avant chaque coaching, Bob te demande en privé s'il envoie l'invitation ; tu appuies sur Oui, l'élève reçoit ce lien.</p>
+    <div class="champ"><label for="lien-call">Lien du salon vocal des coachings</label><input id="lien-call" name="lien_call" inputmode="url" value="${echapper(lienCall)}" placeholder="https://discord.com/channels/…/…"></div>
+    <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer</button></form>
   ${serveurGratuit ? `<div class="carte" style="margin-top:14px"><div class="envoi-tete"><h2>Serveur gratuit (ancien serveur)</h2>
       <span class="etat" data-etat="${serveurGratuit.actif ? 'valide' : 'attente'}">${serveurGratuit.actif ? 'Actif' : 'Pas encore'}</span></div>
     <p class="doux" style="margin:8px 0 0">${serveurGratuit.actif

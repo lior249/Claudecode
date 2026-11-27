@@ -727,3 +727,10 @@ ou sur **overmaxx.online/admin/candidatures**.
 - L'élève voit « En préparation » (et peut annuler s'il a finalement son compte) ; la demande arrive dans À traiter et par Bob.
 - Fiche de l'élève → Compte TikTok → « Livrer le compte » : le lien et un message. Le compte est validé d'office, l'élève est prévenu
   et passe au choix de ses 3 heures. Jamais de mot de passe sur la plateforme : les identifiants s'envoient en message privé.
+
+## Lancement des calls de coaching
+
+- Gestion → « Lancement des calls » : colle le lien du salon vocal des coachings (sinon DISCORD_SALON_COACHING_URL).
+- 10 minutes avant chaque séance, Bob t'écrit en privé : « Call avec X dans 10 minutes. J'envoie l'invitation au call ? » (bouton Oui).
+- Oui : l'élève reçoit « Ton coaching commence » avec le bouton « Rejoindre le call », une seule fois ; Bob te confirme en privé
+  (« Invitation envoyée. C'est l'heure du call »). Le même bouton existe sur la page de la séance (Calendrier → la séance).

@@ -460,6 +460,9 @@ function pageCreneau(config, { espace, date, heure, jourNom, membre, id, libres 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
       ${membre.fiche ? `<a class="bouton" href="${echapper(membre.fiche)}" style="width:auto;margin:0;padding-left:20px;padding-right:20px">Voir sa fiche</a>
       <a class="bouton secondaire" href="${echapper(membre.fiche)}#remarque" style="width:auto;margin:0;padding-left:20px;padding-right:20px">✉️ Message</a>` : ''}</div></div>
+  <form class="carte" method="post" action="/admin/creneau/call" style="max-width:640px;display:grid;gap:8px"><input type="hidden" name="date" value="${echapper(date)}"><input type="hidden" name="heure" value="${echapper(heure)}">
+    <p style="margin:0"><b>Lancer le call</b></p><p class="doux petit" style="margin:0">Bob envoie à l'élève l'invitation avec le lien du call (une seule fois), et te le confirme en privé.</p>
+    <button class="bouton vert" type="submit" style="margin:0">📞 Envoyer l'invitation de call</button></form>
   <form class="carte" method="post" action="/admin/creneau/demande" style="display:grid;gap:12px;max-width:640px">
     <input type="hidden" name="date" value="${echapper(date)}"><input type="hidden" name="heure" value="${echapper(heure)}"><input type="hidden" name="id" value="${echapper(id)}">
     <h2 style="margin:0">Demander à l'élève</h2>

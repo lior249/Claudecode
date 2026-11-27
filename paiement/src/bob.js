@@ -458,6 +458,31 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     }
   }
 
+  // ---------- Lancement des calls de coaching ----------
+  // Le lien du call : réglé dans Gestion (salon vocal), sinon DISCORD_SALON_COACHING_URL.
+  const lienCall = () => reglage('lien_call') || config.discord.salonCoaching || '';
+  const idCall = (date, heure, id) => `call:${date}_${String(heure).replace(':', '')}_${id}`;
+  async function demanderLancementCall(s) {
+    const nom = (parcours && parcours.get(s.discordId) && nomDe(parcours.get(s.discordId))) || (coaching.profil(s.discordId) || {}).pseudo || 'ton élève';
+    const ligne = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(idCall(s.date, s.heure, s.discordId)).setLabel('Oui, envoyer l\'invitation').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setLabel('La séance').setStyle(ButtonStyle.Link).setURL(lienCoach(`/admin/creneau?date=${s.date}&heure=${encodeURIComponent(s.heure)}`)));
+    await notifier.admin({ content: `📞 **Call avec ${nom} dans 10 minutes** (${s.heure} GMT). J'envoie l'invitation au call à l'élève ?`, components: [ligne] });
+  }
+  // L'invitation à l'élève (une seule fois), et la confirmation au coach en privé.
+  async function envoyerInvitationCall(discordId, date, heure) {
+    const cle = `call-envoye:${date}:${heure}:${discordId}`;
+    if (dejaEnvoye(cle)) return { deja: true };
+    const lien = lienCall();
+    const boutons = lien ? [{ label: 'Rejoindre le call', url: lien }] : [];
+    const ok = await notifier.membre(discordId, avecBoutons(`📞 **Ton coaching commence** (${heure} GMT) : ton coach t'attend dans le call.${lien ? '' : ' Rejoins le salon vocal du coaching sur le serveur.'}`, boutons));
+    marquer(cle);
+    const nom = (parcours && parcours.get(discordId) && nomDe(parcours.get(discordId))) || 'ton élève';
+    await notifier.admin(avecBoutons(`✅ **Invitation envoyée à ${nom}.** C'est l'heure du call (${heure} GMT).`, boutons));
+    log(`invitation de call envoyée à ${discordId} (${date} ${heure})`);
+    return { ok, lien };
+  }
+
   async function rappelsCoaching() {
     const now = maintenant();
     const aujourdhui = dateISO(now);
@@ -476,6 +501,12 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         // Un problème en ce moment ? Il le dit avant la séance (Demander de l'aide) : le coach le voit dans la fiche de la séance.
         const aide = [{ label: 'Un problème ? Le dire au coach', url: lienPerso(s.discordId, null, '/aide') }];
         if (await notifier.membre(s.discordId, avecBoutons(`Rappel : ta séance de coaching privé est ${quand}.\nTu as un problème en ce moment ? Dis-le à ton coach dans « Demander de l'aide » : il le traitera pendant la séance.`, [...boutonSalon, ...aide]))) marquer(clePerso);
+      }
+      // Lancement du call : 10 minutes avant, le coach confirme (bouton), puis Bob invite l'élève.
+      const cleCall = `call-prompt:${s.date}:${s.heure}:${s.discordId}`;
+      if (avant <= 10 * 60 * 1000 && !dejaEnvoye(cleCall) && !dejaEnvoye(`call-envoye:${s.date}:${s.heure}:${s.discordId}`)) {
+        marquer(cleCall);
+        await demanderLancementCall(s);
       }
       if (avant <= 60 * 60 * 1000 && !dejaEnvoye(cleAuto)) {
         if (await notifier.membre(s.discordId, avecBoutons(`Ta séance de coaching privé commence dans **1 heure** (${heureLocale(s.discordId, s.debut)}).`, boutonSalon))) marquer(cleAuto);
@@ -693,6 +724,13 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       return i.update({ content: `${i.message.content}\n\n**${libelle}**.`, components: [] });
     }
 
+    if (i.isButton() && i.customId.startsWith('call:')) {
+      if (!estAdmin) return i.reply({ content: 'Réservé au coach.', flags: MessageFlags.Ephemeral });
+      const [date, h, id] = i.customId.slice(5).split('_');
+      const heure = `${h.slice(0, 2)}:${h.slice(2)}`;
+      const r = await envoyerInvitationCall(id, date, heure);
+      return i.update({ content: `${i.message.content}\n\n**${r.deja ? 'Invitation déjà envoyée.' : 'Invitation envoyée à l\'élève.'}**`, components: [] });
+    }
     if (i.isButton() && i.customId.startsWith('recompense:')) {
       if (!estAdmin) return i.reply({ content: 'Réservé à l\'admin.', flags: MessageFlags.Ephemeral });
       const [, role, id] = i.customId.split(':');
@@ -1895,6 +1933,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     lienPerso,
     rappelsAdmin,
     detecterServeurAttente,
+    envoyerInvitationCall,
     rappelsMois,
     cycle,
     surInteraction,

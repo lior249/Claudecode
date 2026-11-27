@@ -10,6 +10,7 @@ const { creerCommandes } = require('../src/commandes');
 
 const JOUR = 86400000;
 const urls = (composants) => (composants || []).flatMap((r) => r.components.map((b) => b.data.url));
+const idsBoutons = (composants) => (composants || []).flatMap((r) => r.components.map((b) => b.data.custom_id)).filter(Boolean);
 const ref = (s) => s.metadata.ref;
 
 // Paiement en étant connecté avec un compte Discord à part ; sans discordId, le membre reste sans compte relié.
@@ -878,5 +879,28 @@ test('Deux serveurs : Bob détecte l\'ancien serveur tout seul, y crée une invi
     const n = b.d.dms.length;
     await b.bob.detecterServeurAttente();
     assert.strictEqual(b.d.dms.length, n);
+  } finally { await m.fermer(); }
+});
+
+test('lancement du call : 10 min avant, Bob demande au coach (bouton Oui) ; l\'invitation part une seule fois, avec le lien, et le coach est prévenu', async () => {
+  const m = await monter();
+  try {
+    await inscrire(m, 'elite@example.com', { programme: 'elite', discordId: 'E1' });
+    const b = await monterBob(m, '2026-11-23T09:00:00.000Z');
+    b.coaching.enregistrer('E1', [0, 1, 2, 3].map((jour) => ({ jour, heure: '15:00' })), 180, 'elite1');
+    m.db.prepare("INSERT INTO reglages (cle, valeur, maj_le) VALUES ('lien_call', 'https://discord.com/channels/1/2', ?)").run(new Date().toISOString());
+    b.aller('2026-11-23T14:45:00.000Z'); await b.bob.rappelsCoaching();
+    assert.ok(!b.d.dms.some(([id, t]) => id === ADMIN && /Call avec/.test(t)), '15 min avant : pas encore');
+    b.aller('2026-11-23T14:50:30.000Z'); await b.bob.rappelsCoaching(); await b.bob.rappelsCoaching();
+    const demandes = b.d.dms.filter(([id, t]) => id === ADMIN && /Call avec .* dans 10 minutes/.test(t));
+    assert.strictEqual(demandes.length, 1, 'une seule demande');
+    assert.ok(idsBoutons(demandes[0][2]).includes('call:2026-11-23_1500_E1'));
+    await b.bob.envoyerInvitationCall('E1', '2026-11-23', '15:00');
+    const r2 = await b.bob.envoyerInvitationCall('E1', '2026-11-23', '15:00');
+    assert.ok(r2.deja, 'une seule invitation');
+    const invit = b.d.dms.filter(([id, t]) => id === 'E1' && /Ton coaching commence/.test(t));
+    assert.strictEqual(invit.length, 1);
+    assert.deepStrictEqual(urls(invit[0][2]), ['https://discord.com/channels/1/2']);
+    assert.ok(b.d.dms.some(([id, t]) => id === ADMIN && /Invitation envoyée à .*C'est l'heure du call/.test(t)));
   } finally { await m.fermer(); }
 });
