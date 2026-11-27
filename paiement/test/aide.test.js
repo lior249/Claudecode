@@ -87,3 +87,29 @@ test('élève passé à l\'étape 4 par le coach : niche, compte, heures et coac
     assert.match(await (await m.get('/parcours/etape-3', membre)).text(), /Ma niche[\s\S]*As-tu déjà choisi ta niche/);
   } finally { await m.fermer(); }
 });
+
+test('profil du coach : carrousel À la une / Classement, programme des coachings (semaine, mois, jour) et fiche d\'une séance', async () => {
+  const m = await monter({ bob: { parcours: new Proxy({}, { get: () => async () => true }) } });
+  try {
+    m.parcours.assurer(E1, { pseudo: 'awa_27' });
+    m.parcours.changerEtape(E1, 4);
+    const demain = m.coaching.ajouterJours(m.coaching.dateISO(new Date()), 1);
+    assert.ok(m.coaching.reserverPonctuelle(E1, demain, m.config.coaching.creneaux[0], 'entree').ok);
+    m.parcours.ajouterRemarque(E1, { texte: 'Travaille ton hook.', type: 'remarque' });
+    const membre = { cookie: cookieSession(E1, 'awa_27') };
+    // L'élève : son coaching approche → « Un problème ? Dis-le à ton coach ».
+    assert.match(await (await m.get('/profil', membre)).text(), /Ton coaching approche : un problème/);
+    await m.poster('/aide', { categorie: 'vues', axe: 'hook', texte: 'Je bloque à 200 vues depuis 5 jours.' }, membre);
+    assert.doesNotMatch(await (await m.get('/profil', membre)).text(), /Ton coaching approche : un problème/);
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const semaine = await (await m.get('/coach', coach)).text();
+    assert.match(semaine, /class="pf-identite"[\s\S]*class="qui"[\s\S]*pf-carrousel[\s\S]*À la une[\s\S]*Classement/);
+    if (m.coaching.lundiDe(new Date()) === m.coaching.lundiDe(new Date(`${demain}T12:00:00Z`))) {
+      assert.match(semaine, /class="pg-semaine"[\s\S]*data-e="reserve" data-seance=/);
+    }
+    const jour = await (await m.get(`/coach?vue=jour&date=${demain}`, coach)).text();
+    assert.match(jour, /class="pg-jour"[\s\S]*awa_27/);
+    assert.match(jour, /<template data-fiche="[^"]+">[\s\S]*Niveau[\s\S]*Étape 4[\s\S]*Dernière remarque[\s\S]*Travaille ton hook[\s\S]*Ses questions et demandes récentes[\s\S]*Demande d.{1,6}aide · Vues[\s\S]*Je bloque à 200 vues/);
+    assert.match(await (await m.get('/coach?vue=mois', coach)).text(), /class="pg-mois"/);
+  } finally { await m.fermer(); }
+});

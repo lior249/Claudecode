@@ -473,7 +473,9 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       const clePerso = `coach-perso:${s.date}:${s.heure}:${s.discordId}`;
       const cleAuto = `coach-1h:${s.date}:${s.heure}:${s.discordId}`;
       if (avant <= perso * 60 * 1000 && avant > 60 * 60 * 1000 && !dejaEnvoye(clePerso)) {
-        if (await notifier.membre(s.discordId, avecBoutons(`Rappel : ta séance de coaching privé est ${quand}.`, boutonSalon))) marquer(clePerso);
+        // Un problème en ce moment ? Il le dit avant la séance (Demander de l'aide) : le coach le voit dans la fiche de la séance.
+        const aide = [{ label: 'Un problème ? Le dire au coach', url: lienPerso(s.discordId, null, '/aide') }];
+        if (await notifier.membre(s.discordId, avecBoutons(`Rappel : ta séance de coaching privé est ${quand}.\nTu as un problème en ce moment ? Dis-le à ton coach dans « Demander de l'aide » : il le traitera pendant la séance.`, [...boutonSalon, ...aide]))) marquer(clePerso);
       }
       if (avant <= 60 * 60 * 1000 && !dejaEnvoye(cleAuto)) {
         if (await notifier.membre(s.discordId, avecBoutons(`Ta séance de coaching privé commence dans **1 heure** (${heureLocale(s.discordId, s.debut)}).`, boutonSalon))) marquer(cleAuto);

@@ -1298,6 +1298,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       if (!p.heure_creation) ajouter('Choisis tes 3 heures', '/parcours/etape-4');
     }
     if ([3, 4].includes(p.etape) && !coaching.aUnPlanning(id)) ajouter('Réserve tes coachings de la semaine', '/coaching');
+    // Un coaching aujourd'hui ou demain, sans demande d'aide ces 3 derniers jours : « Un problème ? Dis-le à ton coach ».
+    try {
+      const proche = coaching.prochainesSeances(id, 2).find((o) => !o.touchee && new Date(o.debut).getTime() > Date.now());
+      const recente = commandes.db.prepare("SELECT 1 FROM messages_coach WHERE discord_id = ? AND cree_le >= ? LIMIT 1").get(id, new Date(Date.now() - 3 * 864e5).toISOString());
+      if (proche && !recente) ajouter('Ton coaching approche : un problème ? Dis-le à ton coach', '/aide');
+    } catch { /* pas de séance */ }
     if (p.etape >= 4 && p.fuseau) for (const x of updatesMois.aFaire(id, suivi.aujourdhui(p))) ajouter(x.titre, '/parcours/mois');
     const e = config.offres.elite;
     const video = [null, e.wistiaEtape1, e.wistiaEtape2, e.wistiaEtape3, e.wistiaEtape4, e.wistiaGoat][Math.min(p.etape, 5)] || null;
@@ -1629,7 +1635,38 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     let seancesFaites = 0;
     try { seancesFaites = coaching.occurrences(aujourdhui, aujourdhui).filter((o) => !o.touchee && new Date(o.debut) < new Date()).length; } catch { seancesFaites = 0; }
     const profil = qProfils.get.get(session.id) || {};
-    res.send(PF.pageCoach(config, { espace, pseudo: profil.prenom || (session.pseudo !== 'coach' ? session.pseudo : null), avatar: profil.avatar, nbEleves: parcours.tous().length,
+    // Le programme des coachings : semaine (par défaut), mois, ou un jour (avec les noms).
+    const vue = ['jour', 'mois'].includes(req.query.vue) ? req.query.vue : 'semaine';
+    let programme = null;
+    try {
+      const jourChoisi = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? String(req.query.date) : aujourdhui;
+      let jours;
+      if (vue === 'jour') jours = [jourChoisi];
+      else if (vue === 'mois') { const m0 = `${aujourdhui.slice(0, 7)}-01`; jours = []; for (let j = m0; j.slice(0, 7) === m0.slice(0, 7); j = coaching.ajouterJours(j, 1)) jours.push(j); }
+      else { const l = coaching.lundiDe(new Date()); jours = Array.from({ length: 7 }, (_, i) => coaching.ajouterJours(l, i)); }
+      const du = jours[0]; const au = jours[jours.length - 1];
+      const occ = coaching.occurrences(du, au); const abs = coaching.absences(du, au);
+      const cases = {}; const parJour = {}; const ids = new Set();
+      const maintenant = Date.now();
+      for (const a of abs) cases[`${a.date} ${a.heure}`] = { e: 'absent' };
+      for (const o of occ) {
+        cases[`${o.date} ${o.heure}`] = { e: o.touchee ? 'annule' : 'reserve', id: o.discordId, type: C.NOMS_TYPES[o.type] || 'Coaching', passe: new Date(o.debut).getTime() < maintenant };
+        if (!o.touchee) { parJour[o.date] = (parJour[o.date] || 0) + 1; ids.add(o.discordId); }
+      }
+      const depuis = new Date(maintenant - 14 * 864e5).toISOString();
+      const eleves = {};
+      for (const id of ids) {
+        const p = parcours.get(id) || {}; const pr = qProfils.get.get(id) || {};
+        const rem = p.discord_id ? parcours.remarques(id)[0] : null;
+        const demandes = commandes.db.prepare("SELECT sujet, texte, cree_le FROM messages_coach WHERE discord_id = ? AND cree_le >= ? AND (sujet LIKE 'Demande d''aide%' OR traite_le IS NULL) ORDER BY cree_le DESC LIMIT 5").all(id, depuis)
+          .map((d) => ({ sujet: d.sujet || 'Message', texte: String(d.texte).split('\n\n').pop().slice(0, 400) }));
+        eleves[id] = { nom: pr.prenom || p.pseudo || (eleveDe(id).pseudo) || 'Élève', niveau: p.etape ? (p.etape >= 5 ? 'GOAT' : `Étape ${p.etape}`) : 'Hors parcours',
+          remarque: rem ? `${String(rem.texte).slice(0, 300)} (${new Date(rem.cree_le).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })})` : null, demandes };
+      }
+      programme = { vue, jours, creneaux: coaching.creneaux, cases, parJour, eleves, aujourdhui,
+        titreJour: new Date(`${jourChoisi}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) };
+    } catch (err) { console.warn('[coach] programme :', err.message); }
+    res.send(PF.pageCoach(config, { espace, programme, pseudo: profil.prenom || (session.pseudo !== 'coach' ? session.pseudo : null), avatar: profil.avatar, nbEleves: parcours.tous().length,
       aTraiter: espace.aTraiterParcours, faites, seancesAujourdhui: seances, seancesFaites, top: liste.filter((m) => m.revenus > 0).slice(0, 5),
       // À la une : les meilleurs résultats de vidéos validés ces 7 derniers jours.
       aLaUne: commandes.db.prepare(`SELECT id, discord_id, jour, ok_vues vues, ok_revenus revenus FROM publications WHERE res_etat = 'valide' AND res_decide_le >= ?

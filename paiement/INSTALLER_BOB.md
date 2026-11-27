@@ -712,3 +712,11 @@ ou sur **overmaxx.online/admin/candidatures**.
 - À la fin : le podium de chaque stat reçoit le badge (fenêtre de victoire, message de Bob). Trophy room : 3 trophées, une barre,
   le dernier badge spécial. Page des trophées : « Badges spéciaux » (cadre bleu foncé, 5 visibles, « Voir tous mes badges »),
   seulement pour ceux qui en ont gagné.
+
+## Profil du coach
+
+- Photo et nom à gauche ; à droite, un carrousel : À la une, Classement (Top 100).
+- Programme des coachings en heatmap (orange réservé, gris libre, rouge annulé, hachuré absent) : Aujourd'hui (avec les noms), Semaine, Mois.
+- Toucher une séance : l'élève, la date, son étape, la dernière remarque, ses questions et demandes d'aide récentes (ou « Aucune »).
+- Côté élève : quand un coaching approche (aujourd'hui ou demain), « Ton coaching approche : un problème ? Dis-le à ton coach » (Demander de l'aide),
+  et le rappel de Bob propose le même bouton.

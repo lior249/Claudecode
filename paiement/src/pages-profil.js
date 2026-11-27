@@ -837,17 +837,70 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
 }
 
 // Profil du coach : sa pièce dorée, ses chiffres, les raccourcis et ses meilleurs élèves.
-function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites = 0, seancesAujourdhui, seancesFaites = 0, top = [], aLaUne = [] }) {
+// Profil du coach : comme le profil d'un élève (photo et nom à gauche, un carrousel à droite : À la une et Classement),
+// puis le programme des coachings en heatmap (orange réservé, gris libre, rouge annulé), en semaine, mois ou aujourd'hui.
+// Toucher une séance ouvre sa fiche : l'élève, la date, son étape, la dernière remarque, ses demandes d'aide récentes.
+const STYLE_PROGRAMME = `<style>
+  .pg-vues { display:flex; gap:4px; padding:3px; border-radius:999px; background:#141414; border:1px solid #242424; width:max-content; margin:0 0 10px; }
+  .pg-vues a { padding:6px 12px; border-radius:999px; color:var(--doux); text-decoration:none; font-weight:700; font-size:12.5px; } .pg-vues a[aria-current] { background:#fff; color:#000; }
+  .pg-semaine { display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:4px; }
+  .pg-semaine .tete { text-align:center; font-size:11px; color:var(--doux); font-weight:700; }
+  .pg-semaine .tete.auj { color:#c8f23a; }
+  .pg-c { aspect-ratio:2 / 1; border-radius:5px; background:#2a2a2a; border:0; padding:0; }
+  .pg-c[data-e="reserve"] { background:#ff8a00; cursor:pointer; } .pg-c[data-e="annule"] { background:#e5484d; }
+  .pg-c[data-e="absent"] { background:repeating-linear-gradient(135deg, #1b1b1b 0 3px, #2a2a2a 3px 6px); } .pg-c[data-e="passe"] { opacity:.45; }
+  .pg-coupure { grid-column:1 / -1; height:4px; }
+  .pg-mois { display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:4px; }
+  .pg-mois a { aspect-ratio:1; border-radius:6px; background:#1d1d1d; display:block; } .pg-mois a[data-n] { background:rgba(255,138,0,var(--o)); }
+  .pg-mois a.auj { outline:2px solid #c8f23a; outline-offset:-2px; } .pg-mois span { aspect-ratio:1; }
+  .pg-jour { display:grid; gap:6px; } .pg-jour button { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:10px 12px; border-radius:12px; border:0; background:#ff8a00; color:#000; font:700 14px var(--police); cursor:pointer; text-align:left; }
+  .pg-jour button[data-e="annule"] { background:#e5484d; color:#fff; } .pg-jour .h { font-weight:600; opacity:.8; }
+  #pg-fiche dl { display:grid; gap:8px; margin:12px 0 0; } #pg-fiche dt { color:var(--doux); font-size:12px; } #pg-fiche dd { margin:0; }
+  #pg-fiche .dem { padding:8px 10px; border-radius:10px; background:#141414; border:1px solid #242424; margin-top:6px; font-size:13.5px; white-space:pre-line; }
+</style>`;
+function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites = 0, seancesAujourdhui, seancesFaites = 0, top = [], aLaUne = [], programme = null }) {
   const nom = pseudo || 'Coach';
   const barre = (titre, fait, total, lien, vide, pleineSiVide) => `<a class="pf-objectif-barre" href="${lien}">
     <span class="haut"><span>${titre}</span><b>${total ? `${fait} / ${total}` : vide}</b></span>
     <span class="barre"><i style="width:${total ? Math.round((fait / total) * 100) : pleineSiVide ? 100 : 0}%"></i></span></a>`;
-  return page('Mon profil', `${STYLE_PROFIL}${STYLE_ROLES}
+  const slides = [
+    `<a class="pf-slide" href="#a-la-une" style="display:flex;flex-direction:column;justify-content:center"><h3>À la une</h3><p class="vert" style="color:var(--lime);font-weight:600">${aLaUne.length} résultat(s)</p>
+      <p>${aLaUne.length ? `${echapper(aLaUne[0].nom)} : ${dollars(aLaUne[0].revenus)} · ${vuesCourtes(aLaUne[0].vues)} vues` : 'Les meilleurs résultats de tes élèves, 7 derniers jours.'}</p></a>`,
+    `<a class="pf-slide" href="/classement" style="display:flex;flex-direction:column;justify-content:center"><h3>Classement</h3><p class="vert" style="color:var(--lime);font-weight:600">Top 100</p>
+      <p>${top.length ? `1er : ${echapper(top[0].nom)} · ${dollars(top[0].revenus, { centimes: false })}` : 'Tous les élèves, par revenus.'}</p></a>`,
+  ];
+  const pg = programme;
+  const vues = pg ? `<nav class="pg-vues" aria-label="Vue">${[['jour', 'Aujourd\'hui'], ['semaine', 'Semaine'], ['mois', 'Mois']].map(([v, l]) => `<a href="/coach?vue=${v}#programme"${pg.vue === v ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>` : '';
+  let grille = '';
+  if (pg && pg.vue === 'semaine') {
+    grille = `<div class="pg-semaine">${pg.jours.map((j) => `<span class="tete${j === pg.aujourdhui ? ' auj' : ''}">${'DLMMJVS'[new Date(`${j}T12:00:00Z`).getUTCDay()]}${Number(j.slice(8))}</span>`).join('')}
+      ${pg.creneaux.map((h, i) => `${i && Number(h.slice(0, 2)) - Number(pg.creneaux[i - 1].slice(0, 2)) > 1 ? '<span class="pg-coupure"></span>' : ''}${pg.jours.map((j) => { const c = pg.cases[`${j} ${h}`] || { e: 'libre' };
+        return c.e === 'reserve' ? `<button type="button" class="pg-c" data-e="reserve" data-seance="${echapper(`${j} ${h}`)}" aria-label="${echapper(`${j} ${h}`)}"></button>` : `<span class="pg-c" data-e="${c.e}"></span>`; }).join('')}`).join('')}</div>`;
+  } else if (pg && pg.vue === 'mois') {
+    const premier = pg.jours[0]; const decalage = (new Date(`${premier}T12:00:00Z`).getUTCDay() + 6) % 7;
+    grille = `<div class="pg-mois">${'LMMJVSD'.split('').map((l) => `<span class="doux petit" style="text-align:center;aspect-ratio:auto">${l}</span>`).join('')}${'<span></span>'.repeat(decalage)}
+      ${pg.jours.map((j) => { const n = pg.parJour[j] || 0; return `<a href="/coach?vue=jour&amp;date=${j}#programme"${n ? ` data-n="${n}" style="--o:${Math.min(1, 0.3 + n * 0.14)}"` : ''}${j === pg.aujourdhui ? ' class="auj"' : ''} aria-label="${echapper(j)} : ${n} séance(s)"></a>`; }).join('')}</div>`;
+  } else if (pg) {
+    const seances = pg.jours.length ? Object.entries(pg.cases).filter(([k, c]) => k.startsWith(pg.jours[0]) && ['reserve', 'annule'].includes(c.e)).sort() : [];
+    grille = `<p class="doux petit" style="margin:0 0 8px">${echapper(pg.titreJour)}</p><div class="pg-jour">${seances.map(([k, c]) => `<button type="button" data-e="${c.e}"${c.e === 'reserve' ? ` data-seance="${echapper(k)}"` : ''}><span>${echapper((pg.eleves[c.id] || {}).nom || 'Élève')}</span><span class="h">${echapper(k.slice(11))} GMT${c.e === 'annule' ? ' · annulé' : ''}</span></button>`).join('')
+      || '<p class="vide-traiter">Aucun coaching ce jour-là.</p>'}</div>`;
+  }
+  // La fiche d'une séance (cachée), ouverte quand on touche une case orange.
+  const fiches = pg ? Object.entries(pg.cases).filter(([, c]) => c.e === 'reserve').map(([k, c]) => { const el = pg.eleves[c.id] || {};
+    return `<template data-fiche="${echapper(k)}"><h2 style="margin:0">${echapper(el.nom || 'Élève')}</h2><p class="doux" style="margin:4px 0 0">${echapper(new Date(`${k.slice(0, 10)}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }))} à ${echapper(k.slice(11))} GMT · ${echapper(c.type || 'Coaching')}</p>
+      <dl><div><dt>Niveau</dt><dd>${echapper(el.niveau || '—')}</dd></div>
+      <div><dt>Dernière remarque</dt><dd>${el.remarque ? echapper(el.remarque) : '<span class="doux">Aucune</span>'}</dd></div>
+      <div><dt>Ses questions et demandes récentes</dt><dd>${(el.demandes || []).length ? el.demandes.map((d) => `<div class="dem"><b>${echapper(d.sujet)}</b>\n${echapper(d.texte)}</div>`).join('') : '<span class="doux">Aucune : coaching normal.</span>'}</dd></div></dl>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><a class="bouton secondaire" href="/admin/membres/${encodeURIComponent(c.id)}" style="margin:0">Sa fiche</a>
+        <a class="bouton secondaire" href="/admin/creneau?date=${encodeURIComponent(k.slice(0, 10))}&amp;heure=${encodeURIComponent(k.slice(11))}" style="margin:0">La séance</a></div></template>`; }).join('') : '';
+  return page('Mon profil', `${STYLE_PROFIL}${STYLE_ROLES}${STYLE_PROGRAMME}
   <div class="pf">
     <div class="pf-cols"><div class="pf-g">
-    <div class="pf-identite" style="margin-top:6px">
+    <div class="pf-identite" style="margin-top:6px"><div class="qui">
       <span class="pf-avatar piece" style="--piece:#f5c518"><span class="face">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</span></span>
-      <h1>${echapper(nom)}</h1><p>Coach Overmaxx</p>
+      <h1>${echapper(nom)}</h1><p>Coach Overmaxx</p></div>
+      <div class="pf-carte pf-carrousel-cadre pf-salle" style="min-height:0"><div class="pf-carrousel" aria-roledescription="carrousel">${slides.join('')}</div>
+        <div class="pf-points" aria-hidden="true">${slides.map((x, i) => `<i${i ? '' : ' class="actif"'}></i>`).join('')}</div></div>
     </div>
     <div class="pf-chiffres">
       <div><b>${ICONES.jours}${nbEleves}</b><small>Élèves</small></div><span class="sep"></span>
@@ -857,11 +910,8 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
     <h2 class="section">Aujourd'hui</h2>
     ${barre('Tâches du jour', faites, faites + aTraiter, '/admin/a-traiter', 'Rien à traiter', true)}
     ${barre('Coachings du jour', seancesFaites, seancesAujourdhui, '/admin', 'Aucun coaching')}
+    ${pg ? `<h2 class="section" id="programme">Programme des coachings</h2>${vues}<div class="pf-carte" style="min-height:0">${grille}</div>` : ''}
     </div><div class="pf-d">
-    <div class="pf-cartes" style="grid-template-columns:1fr 1fr">
-      <a class="pf-carte" href="#a-la-une"><h3>À la une</h3><p class="vert">${aLaUne.length} résultat(s)</p><p>Les meilleurs résultats de tes élèves, 7 derniers jours.</p></a>
-      <a class="pf-carte" href="/classement"><h3>Classement</h3><p class="vert">${top.length ? `1er : ${echapper(top[0].nom)}` : 'Top 100'}</p><p>Tous les élèves, par revenus.</p></a>
-    </div>
     <h2 class="section" id="a-la-une">À la une</h2>
     <div class="cm-liste">${aLaUne.map((x) => `<a class="cm-ligne" href="/admin/resultats/${x.id}" style="color:#fff;text-decoration:none"><span class="rond">${echapper(x.nom.charAt(0).toUpperCase())}</span>
       <div class="qui"><b>${echapper(x.nom)}</b><small>${dollars(x.revenus)} · ${vuesCourtes(x.vues)} vues · vidéo du ${echapper(jourLisible(x.jour))}</small></div></a>`).join('') || '<p class="vide-traiter">Pas encore de résultat validé cette semaine.</p>'}</div>
@@ -869,7 +919,14 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
     <div class="cm-liste">${top.map((m, i) => `<a class="cm-ligne" href="/classement/${encodeURIComponent(m.id)}" style="color:#fff;text-decoration:none"><span class="rond">${i + 1}</span>
       <div class="qui"><b>${echapper(m.nom)}</b><small>${dollars(m.revenus, { centimes: false })} · ${vuesCourtes(m.vues)} vues</small></div></a>`).join('') || '<p class="vide-traiter">Pas encore de résultats.</p>'}</div>
     </div></div>
-  </div>${STYLE_COMMU}`, espace, 'coach');
+  </div>${STYLE_COMMU}${fiches}
+  <dialog class="fenetre" id="pg-fiche" aria-label="Séance"><button class="fermer" type="button" aria-label="Fermer" data-fermer>×</button><div data-corps></div></dialog>`, espace, 'coach', null, `${SCRIPT_CARROUSEL}
+  (function () { var d = document.getElementById('pg-fiche'); if (!d) return; var c = d.querySelector('[data-corps]');
+    document.querySelectorAll('[data-seance]').forEach(function (b) { b.addEventListener('click', function () {
+      var t = document.querySelector('template[data-fiche="' + b.getAttribute('data-seance') + '"]'); if (!t) return;
+      c.innerHTML = ''; c.appendChild(t.content.cloneNode(true)); if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }); });
+    d.querySelector('[data-fermer]').onclick = function () { d.close(); };
+    d.addEventListener('click', function (e) { if (e.target === d) d.close(); }); })();`);
 }
 
 module.exports = { pageProfilPublic, pageTrophees, pageGestion, pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };

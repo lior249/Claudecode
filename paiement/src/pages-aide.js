@@ -34,7 +34,7 @@ function pageAide(config, { espace, parcours: p, axes = [], videos = [], formati
   <form class="carte assistant" method="post" action="/aide" data-depart="1">
     <input type="hidden" name="categorie" value=""><input type="hidden" name="axe" value="">
     <div data-page="1"><h3>Qu'est-ce qui se passe ?</h3>
-      <p class="doux" style="margin:0">Choisis ce qui ressemble le plus à ton problème.</p>
+      <p class="doux" style="margin:0">Choisis ce qui ressemble le plus à ton problème. Ton coach le voit avant ta prochaine séance de coaching.</p>
       <div class="aide-choix">${choix}</div></div>
 
     <div data-page="axes" hidden><h3>D'abord, les 3 points qui font une vidéo</h3>
