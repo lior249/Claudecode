@@ -79,6 +79,7 @@ function navEspace(espace = {}) {
     if (espace.parcours) {
       nav.push({ cle: 'profil', libelle: 'Mon profil', lien: '/profil', icone: 'profil' },
         { cle: 'parcours', libelle: 'Mon parcours', lien: '/parcours', icone: 'parcours' },
+        { cle: 'communaute', libelle: 'Suivre et défier', lien: '/communaute', icone: 'communaute' },
         { cle: 'aide', libelle: 'Demander de l\'aide', lien: '/aide', icone: 'aide' },
         ...(espace.ressources ? [{ cle: 'ressources', libelle: 'Ressources', lien: '/ressources', icone: 'ressources' }] : []));
     }
@@ -101,7 +102,7 @@ function pageEspace(titre, contenu, espace, actif, options = {}) {
       { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
       { cle: 'gestion', libelle: 'Gestion', lien: '/admin/gestion', icone: 'gestion', actifs: ['gestion', 'planifier', 'eleves', 'ressources'] }]
       : espace && espace.parcours ? [
-      { cle: 'profil', libelle: 'Profil', lien: '/profil', icone: 'profil' },
+      { cle: 'profil', libelle: 'Profil', lien: '/profil', icone: 'profil', actifs: ['profil', 'communaute'] },
       { cle: 'notifications', libelle: 'Mes rappels', lien: '/notifications', icone: 'notifications', badge: espace.notifsNonLues || 0 },
       { cle: 'remarques', libelle: 'Remarques', lien: '/remarques', icone: 'remarques', badge: espace.remarquesNouvelles || 0 },
       { cle: 'classement', libelle: 'Classement', lien: '/classement', icone: 'classement' }] : null,

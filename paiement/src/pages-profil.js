@@ -528,7 +528,8 @@ const STYLE_COMMU = `<style>
   .cm-nouvelle { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:14px; background:var(--surface); border:1px solid var(--bord); }
   .cm-nouvelle .rond { width:34px; height:34px; border-radius:50%; background:#2a2a2a; display:grid; place-items:center; font-weight:700; overflow:hidden; flex:none; } .cm-nouvelle .rond img { width:100%; height:100%; object-fit:cover; }
   .cm-nouvelle p { flex:1; margin:0; font-size:13.5px; } .cm-nouvelle small { color:var(--doux); font-size:11.5px; flex:none; }
-  .cm-section { margin-top:22px; } .cm-section h2 { margin:0 0 4px; font-size:17px; } .cm-section > p { margin:0 0 10px; color:var(--doux); font-size:13px; }
+  .cm-section:target { animation:cm-repere 1.6s ease-out; border-radius:16px; } @keyframes cm-repere { 0%, 40% { box-shadow:0 0 0 2px #c8f23a; } 100% { box-shadow:0 0 0 2px transparent; } }
+  .cm-section { margin-top:22px; scroll-margin-top:16px; } .cm-section h2 { margin:0 0 4px; font-size:17px; } .cm-section > p { margin:0 0 10px; color:var(--doux); font-size:13px; }
 </style>`;
 const ligne = (x, actions, sous) => `<div class="cm-ligne"><span class="rond">${x.avatar ? `<img src="${echapper(x.avatar)}" alt="" referrerpolicy="no-referrer">` : echapper((x.nom || '?').charAt(0).toUpperCase())}</span>
   <div class="qui"><a href="/classement/${encodeURIComponent(x.id)}" style="text-decoration:none"><b>${echapper(x.nom)}</b></a><small>${sous || ''}</small></div>${actions || ''}</div>`;
@@ -556,10 +557,11 @@ function pageCommunaute(config, { espace, suivis, concurrents, recues, envoyees,
     ${peutConcourir ? '' : '<p>La concurrence se débloque à l\'étape 4, après ton premier compte rendu.</p>'}
     <div class="cm-tuiles">${concurrents.map((c) => tuile(c.membre, `toi ${dollars(c.moi, { centimes: false })} · ${dollars(c.lui, { centimes: false })}`, Math.min(100, Math.round((Math.max(c.moi, c.lui) / c.objectif) * 100)))).join('')}
       ${envoyees.map((c) => tuile(c.membre, 'invitation envoyée')).join('')}
-      ${peutConcourir && concurrents.length + envoyees.length < 3 ? tuileVide('Défier', '#proches') : ''}</div></section>
+      ${peutConcourir && concurrents.length + envoyees.length < 3 ? tuileVide('Défier', proches.length ? '#proches' : '/classement') : ''}</div>
+    ${peutConcourir && !proches.length && concurrents.length + envoyees.length < 3 ? '<p class="doux petit" style="margin:8px 0 0">Pour défier quelqu\'un : ouvre son profil depuis le classement, puis « Défier ».</p>' : ''}</section>
   <section class="cm-section"><h2>Mes suivis (${autres.length})</h2>
     <div class="cm-tuiles">${autres.map((s) => tuile(s.membre, flammeTxt(s.membre.chaine) || (s.membre.role ? echapper(nomRole(s.membre.role)) : 'Elite'))).join('')}
-      ${places < 10 ? tuileVide('Suivre', '#recommandes') : ''}</div>
+      ${places < 10 ? tuileVide('Suivre', enVogue.length ? '#recommandes' : '/classement') : ''}</div>
     <p class="doux petit" style="margin:8px 0 0">Touche un membre pour voir son profil, le défier ou ne plus le suivre.</p></section>
   <section class="cm-section"><h2>Leurs dernières nouvelles</h2>
     <div class="cm-fil">${fil.map((n, i) => `<div class="cm-nouvelle" style="opacity:${Math.max(0.35, 1 - i * 0.13).toFixed(2)}"><span class="rond">${n.membre.avatar ? `<img src="${echapper(n.membre.avatar)}" alt="" referrerpolicy="no-referrer">` : echapper((n.membre.nom || '?').charAt(0).toUpperCase())}</span>
@@ -570,7 +572,7 @@ function pageCommunaute(config, { espace, suivis, concurrents, recues, envoyees,
   <section class="cm-section" id="recommandes"><h2>Recommandés</h2><p>Les meilleurs résultats de la semaine. Places prises ? Retire quelqu'un qui ne poste plus (depuis son profil).</p>
     <div class="cm-liste">${enVogue.map((x) => ligne(x.membre, places >= 10 ? '' : bouton('/communaute/suivre', 'Suivre', { id: x.membre.id }, 'vert'),
     `${dollars(x.revenus, { centimes: false })} · ${vuesCourtes(x.vues)} vues cette semaine${x.chaine >= 3 ? ` · 🔥 ${x.chaine}` : ''}`)).join('') || '<p class="vide-traiter">Pas encore de résultats cette semaine.</p>'}</div>
-    <a class="bouton secondaire" href="/classement" style="max-width:420px;margin-top:12px">Trouver des membres dans le classement</a></section>`, espace, 'profil');
+    <a class="bouton secondaire" href="/classement" style="max-width:420px;margin-top:12px">Trouver des membres dans le classement</a></section>`, espace, 'communaute');
 }
 
 // ---------- Remarques du coach ----------
