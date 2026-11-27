@@ -776,7 +776,7 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
       <span class="etat" data-etat="${serveurGratuit.actif ? 'valide' : 'attente'}">${serveurGratuit.actif ? 'Actif' : 'Pas encore'}</span></div>
     <p class="doux" style="margin:8px 0 0">${serveurGratuit.actif
     ? 'Les candidats et les membres dont l\'accès a expiré y vont ; le serveur des membres est réservé à ceux qui ont payé (Community, Elite).'
-    : 'Invite Bob sur l\'ancien serveur : il le reconnaît tout seul au prochain démarrage, y crée une invitation, et s\'en sert comme serveur gratuit / d\'attente.'}</p>
+    : 'Invite Bob sur l\'ancien serveur : il le reconnaît tout seul, y crée une invitation, et s\'en sert comme serveur gratuit / d\'attente.'}</p>
     ${serveurGratuit.invitationBob && !serveurGratuit.actif ? `<a class="bouton" href="${echapper(serveurGratuit.invitationBob)}" target="_blank" rel="noopener">Inviter Bob sur l'ancien serveur</a>` : ''}
     ${serveurGratuit.lien ? `<p class="doux petit" style="margin:8px 0 0">Lien public : ${echapper(serveurGratuit.lien)}</p>` : ''}</div>` : ''}
   </div>`, espace, 'gestion');
