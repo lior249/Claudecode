@@ -761,7 +761,7 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
 }
 
 // Gestion (coach) : Planifier, Élèves Elite et Ressources, en cases côte à côte (la barre du bas reste courte).
-function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources = 0, aValider = 0, aCompleter = 0 }) {
+function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources = 0, aValider = 0, aCompleter = 0, serveurGratuit = null }) {
   const tuile = (lien, titre, ligne, texte, alerte) => `<a class="pf-carte" href="${lien}" style="min-height:140px"><h3>${titre}</h3>
     <p class="vert">${ligne}</p><p>${texte}</p>${alerte ? `<p style="color:#ffb35c;font-weight:700;margin-top:6px">${alerte}</p>` : ''}</a>`;
   return page('Gestion', `${STYLE_PROFIL}
@@ -771,7 +771,15 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
     ${tuile('/admin/eleves', 'Gérer les élèves', `${nbEleves} élève(s)`, 'Kanban par étape, ou liste triable.', aCompleter ? `${aCompleter} à compléter` : '')}
     ${espace.ressources ? tuile('/ressources', 'Ressources', `${ressources} publiée(s)`, 'Niches, méthodes 10K, tutoriels.', aValider ? `${aValider} proposition(s) à relire` : '') : ''}
     ${tuile('/notifications?onglet=rappels', 'Mes rappels', 'Tes rappels', 'Une fois, chaque jour ou certains jours.')}
-  </div></div>`, espace, 'gestion');
+  </div>
+  ${serveurGratuit ? `<div class="carte" style="margin-top:14px"><div class="envoi-tete"><h2>Serveur gratuit (ancien serveur)</h2>
+      <span class="etat" data-etat="${serveurGratuit.actif ? 'valide' : 'attente'}">${serveurGratuit.actif ? 'Actif' : 'Pas encore'}</span></div>
+    <p class="doux" style="margin:8px 0 0">${serveurGratuit.actif
+    ? 'Les candidats et les membres dont l\'accès a expiré y vont ; le serveur des membres est réservé à ceux qui ont payé (Community, Elite).'
+    : 'Invite Bob sur l\'ancien serveur : il le reconnaît tout seul au prochain démarrage, y crée une invitation, et s\'en sert comme serveur gratuit / d\'attente.'}</p>
+    ${serveurGratuit.invitationBob && !serveurGratuit.actif ? `<a class="bouton" href="${echapper(serveurGratuit.invitationBob)}" target="_blank" rel="noopener">Inviter Bob sur l'ancien serveur</a>` : ''}
+    ${serveurGratuit.lien ? `<p class="doux petit" style="margin:8px 0 0">Lien public : ${echapper(serveurGratuit.lien)}</p>` : ''}</div>` : ''}
+  </div>`, espace, 'gestion');
 }
 
 // Profil du coach : sa pièce dorée, ses chiffres, les raccourcis et ses meilleurs élèves.

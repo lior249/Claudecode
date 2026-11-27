@@ -109,8 +109,15 @@ function chargerConfig({ strict = true } = {}) {
       // Salon #sinistrés existant (identifiant). Vide : Bob le crée tout seul au démarrage.
       salonSinistres: lire('DISCORD_SALON_SINISTRES_ID', ''),
       roleAttente: lire('DISCORD_ROLE_ATTENTE'),
-      // Nouveaux venus « En Attente » sans programme : retirés du serveur après ce délai (0 = jamais, par défaut).
-      attenteNouveauxHeures: Number(lire('ATTENTE_NOUVEAUX_HEURES', '0')),
+      // Deux serveurs : celui de Bob (DISCORD_GUILD_ID) est réservé aux membres payants (Community, Elite) ;
+      // l'ancien serveur devient le serveur gratuit / d'attente (candidats, accès expirés). Bob doit y être invité.
+      serveurAttenteId: lire('DISCORD_GUILD_ATTENTE_ID', ''),
+      roleAttenteAncien: lire('DISCORD_ROLE_ATTENTE_ANCIEN', ''),   // rôle donné sur l'ancien serveur (facultatif)
+      lienMembres: lire('DISCORD_INVITE_MEMBRES', ''),             // invitation au serveur membres (après paiement)
+      // Nouveaux venus « En Attente » sans programme : retirés du serveur après ce délai (0 = jamais).
+      // Avec un serveur d'attente, 24 h par défaut : le serveur membres n'est que pour ceux qui ont payé.
+      attenteNouveauxHeures: Number(lire('ATTENTE_NOUVEAUX_HEURES', lire('DISCORD_GUILD_ATTENTE_ID', '') ? '24' : '0')),
+      attenteNouveauxHeuresChoisi: lire('ATTENTE_NOUVEAUX_HEURES', '') !== '',
       adminId: lire('DISCORD_ADMIN_ID'),
       salonCoaching: lire('DISCORD_SALON_COACHING_URL', ''),
       // Salon d'attente existant (identifiant). Vide : Bob crée #en-attente tout seul au démarrage.

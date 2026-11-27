@@ -830,3 +830,53 @@ test('rôle donné à la main : Bob demande au coach Oui ou Non ; Oui ouvre le s
     assert.strictEqual((page.match(/action="\/admin\/acces\/community\/N\d"/g) || []).length, 6);
   } finally { await m.fermer(); }
 });
+
+test('Deux serveurs : à la fin de l\'attente, retiré du serveur membres, gardé sur le serveur gratuit (rôle d\'attente)', async () => {
+  const m = await monter();
+  try {
+    m.config.discord.serveurAttenteId = 'ANCIEN';
+    m.config.discord.roleAttenteAncien = 'ROLE_ANCIEN';
+    m.config.lienDiscord = 'https://discord.gg/gratuit';
+    const mb = await inscrire(m, 'awa@example.com', { discordId: 'U1' });
+    const fin = new Date(mb.acces_jusqu_au).getTime();
+    const b = await monterBob(m, new Date(fin + 1000));
+    b.d.ajouter('U1', [ROLES.community]);
+    // L'ancien serveur : U1 y est déjà.
+    const ancien = new Set();
+    b.d.client.guilds = { fetch: async (id) => { assert.strictEqual(id, 'ANCIEN'); return { members: { fetch: async (x) => {
+      if (x !== 'U1') throw new Error('absent');
+      return { roles: { cache: { has: (r) => ancien.has(r) }, add: async (r) => ancien.add(r) } };
+    } } }; } };
+    await b.bob.expirations();
+    assert.match(b.d.dms.find(([id]) => id === 'U1')[1], /retiré du serveur des membres \(tu restes le bienvenu sur le serveur gratuit\)/);
+    b.aller(fin + 15 * JOUR + 1000);
+    await b.bob.expirations();
+    assert.deepStrictEqual(b.d.kicks, ['U1']);
+    assert.ok(ancien.has('ROLE_ANCIEN'), 'rôle d\'attente donné sur l\'ancien serveur');
+    assert.ok(b.d.dms.some(([id, t]) => id === 'U1' && /Tu restes sur le \*\*serveur gratuit\*\*/.test(t)));
+  } finally { await m.fermer(); }
+});
+
+test('Deux serveurs : Bob détecte l\'ancien serveur tout seul, y crée une invitation, et les liens changent', async () => {
+  const m = await monter();
+  try {
+    m.config.lienDiscord = 'https://discord.gg/membres';
+    m.config.discord.attenteNouveauxHeures = 0;
+    m.config.discord.attenteNouveauxHeuresChoisi = false;
+    const b = await monterBob(m, new Date());
+    const ancien = { id: 'ANCIEN', name: 'Overmaxx (ancien)', systemChannel: null,
+      members: { fetchMe: async () => ({}) },
+      channels: { fetch: async () => new Map([['s1', { isTextBased: () => true, permissionsFor: () => ({ has: () => true }), createInvite: async () => ({ url: 'https://discord.gg/gratuit' }) }]]) } };
+    b.d.client.guilds = { cache: new Map([[m.config.discord.serveurId, { id: m.config.discord.serveurId }], ['ANCIEN', ancien]]), fetch: async () => ancien };
+    await b.bob.detecterServeurAttente();
+    assert.strictEqual(m.config.discord.serveurAttenteId, 'ANCIEN');
+    assert.strictEqual(m.config.lienDiscord, 'https://discord.gg/gratuit', 'lien public : le serveur gratuit');
+    assert.strictEqual(m.config.discord.lienMembres, 'https://discord.gg/membres', 'après paiement : le serveur des membres');
+    assert.strictEqual(m.config.discord.attenteNouveauxHeures, 24);
+    assert.ok(b.d.dms.some(([id, t]) => id === ADMIN && /Serveur gratuit détecté : Overmaxx \(ancien\)/.test(t)));
+    // Au redémarrage : l'invitation est réutilisée, pas de nouveau message.
+    const n = b.d.dms.length;
+    await b.bob.detecterServeurAttente();
+    assert.strictEqual(b.d.dms.length, n);
+  } finally { await m.fermer(); }
+});

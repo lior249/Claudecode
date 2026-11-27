@@ -248,6 +248,68 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     try { return await serveur.members.fetch(discordId); } catch { return null; }
   }
 
+  // L'ancien serveur (gratuit / attente). Renvoie true si le membre y est (et lui donne le rôle d'attente).
+  let serveurAttente = null;
+  async function versServeurAttente(discordId) {
+    if (!config.discord.serveurAttenteId || !client) return false;
+    try {
+      if (!serveurAttente) serveurAttente = await client.guilds.fetch(config.discord.serveurAttenteId);
+      const m = await serveurAttente.members.fetch(discordId);
+      if (config.discord.roleAttenteAncien && !m.roles.cache.has(config.discord.roleAttenteAncien)) await m.roles.add(config.discord.roleAttenteAncien, 'Overmaxx : accès expiré');
+      return true;
+    } catch { return false; }
+  }
+  // Détection de l'ancien serveur (gratuit / attente) : le seul autre serveur où Bob est invité, si aucun n'est choisi dans
+  // overmaxx.env. Bob y crée une invitation permanente : elle devient le lien public « Rejoindre le Discord » ; l'ancien lien
+  // public (serveur des membres) sert après paiement. Rien à configurer à la main.
+  const reglage = (cle) => { try { const r = db.prepare('SELECT valeur FROM reglages WHERE cle = ?').get(cle); return r ? r.valeur : null; } catch { return null; } };
+  const ecrireReglage = (cle, v) => db.prepare('INSERT INTO reglages (cle, valeur, maj_le) VALUES (?, ?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, maj_le = excluded.maj_le')
+    .run(cle, String(v), maintenant().toISOString());
+  async function detecterServeurAttente() {
+    if (!client || !client.guilds) return null;
+    let id = config.discord.serveurAttenteId;
+    if (!id) {
+      const autres = [...client.guilds.cache.values()].filter((g) => g.id !== config.discord.serveurId);
+      if (autres.length !== 1) {
+        if (autres.length > 1) log(`plusieurs autres serveurs (${autres.length}) : indique le serveur gratuit avec DISCORD_GUILD_ATTENTE_ID`);
+        return null;
+      }
+      id = autres[0].id;
+    }
+    const g = await client.guilds.fetch(id);
+    serveurAttente = g;
+    const nouveau = reglage('serveur_attente') !== id;
+    config.discord.serveurAttenteId = id;
+    if (!config.discord.attenteNouveauxHeuresChoisi && !config.discord.attenteNouveauxHeures) config.discord.attenteNouveauxHeures = 24;
+    // L'invitation permanente au serveur gratuit (créée une fois).
+    let invitation = reglage(`invitation_attente:${id}`);
+    if (!invitation) {
+      const salons = await g.channels.fetch();
+      const moi = await g.members.fetchMe();
+      const salon = [g.systemChannel, ...salons.values()].find((c) => c && c.isTextBased && c.isTextBased() && c.createInvite && c.permissionsFor(moi)?.has('CreateInstantInvite'));
+      if (salon) {
+        const inv = await salon.createInvite({ maxAge: 0, maxUses: 0, unique: false, reason: 'Overmaxx : lien du serveur gratuit' });
+        invitation = inv.url;
+        ecrireReglage(`invitation_attente:${id}`, invitation);
+      }
+    }
+    if (invitation) {
+      if (!config.discord.lienMembres) config.discord.lienMembres = config.lienDiscord;
+      config.lienDiscord = invitation;
+    }
+    if (nouveau) {
+      ecrireReglage('serveur_attente', id);
+      await notifier.admin(`🆓 **Serveur gratuit détecté : ${g.name}.** Les candidats et les membres dont l'accès a expiré y vont désormais ; `
+        + `le serveur des membres est réservé à ceux qui ont payé (Community, Elite).${invitation ? '' : '\nJe n\'ai pas pu y créer d\'invitation : donne à mon rôle « Créer une invitation ».'}`);
+    }
+    log(`serveur gratuit : ${g.name}${invitation ? ' (invitation prête)' : ''}`);
+    return g;
+  }
+
+  // Message de retrait : avec un serveur d'attente, on y renvoie (bouton d'invitation s'il n'y est pas déjà).
+  const DEUX_SERVEURS = () => Boolean(config.discord.serveurAttenteId);
+  const boutonServeurGratuit = (dejaDessus) => (DEUX_SERVEURS() && !dejaDessus && config.lienDiscord ? [{ label: 'Rejoindre le serveur gratuit', url: config.lienDiscord }] : []);
+
   async function donnerRole(discordId, roleId) {
     const m = roleId && await membreDuServeur(discordId);
     if (m && !m.roles.cache.has(roleId)) await m.roles.add(roleId, 'Overmaxx : accès payé');
@@ -319,7 +381,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await notifier.paiement(m.discord_id, avecBoutons(`Ton accès à **${o.nom}** est terminé : tu es maintenant **en attente**. `
         + `Tu n'as plus accès à la formation ni aux salons.\n`
         + `Tu as jusqu'au **${formatDate(new Date(finAttente).toISOString())}** pour renouveler au même prix (**${prix}**).\n`
-        + `Après cette date, tu seras retiré du Discord et il faudra repayer le prix d'entrée.`, [{ label: 'Renouveler mon accès', url: lien }]), { membreId: m.id, accesAvant: m.acces_jusqu_au });
+        + (DEUX_SERVEURS() ? `Après cette date, tu seras retiré du serveur des membres (tu restes le bienvenu sur le serveur gratuit) et il faudra repayer le prix d'entrée.`
+          : `Après cette date, tu seras retiré du Discord et il faudra repayer le prix d'entrée.`), [{ label: 'Renouveler mon accès', url: lien }]), { membreId: m.id, accesAvant: m.acces_jusqu_au });
       await notifier.admin(`**${m.nom}** (<@${m.discord_id}>) passe **en attente** (${o.nom}) jusqu'au ${formatDate(new Date(finAttente).toISOString())}.`);
       return;
     }
@@ -342,9 +405,12 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       return;
     }
     const retour = m.programme === 'community' ? 'Pour revenir, il faudra repayer l\'entrée.' : 'Pour revenir dans l\'accompagnement, contacte-nous.';
-    await notifier.membre(m.discord_id, avecBoutons(`Ton accès à **${o.nom}** est terminé, car il n'a pas été renouvelé. ${retour}`,
-      m.programme === 'community' ? [{ label: 'Revenir dans la Community', url: lienPerso(m.discord_id, m.discord_pseudo, '/community') }] : []));
     const autres = q.autresActifs.all(m.discord_id, m.id);
+    // Deux serveurs : il quitte le serveur des membres et reste (ou va) sur le serveur gratuit.
+    const surGratuit = !autres.length && await versServeurAttente(m.discord_id);
+    const gratuit = DEUX_SERVEURS() && !autres.length ? (surGratuit ? ' Tu restes sur le **serveur gratuit** Overmaxx.' : ' Tu peux rester avec nous sur le **serveur gratuit** Overmaxx.') : '';
+    await notifier.membre(m.discord_id, avecBoutons(`Ton accès à **${o.nom}** est terminé, car il n'a pas été renouvelé. ${retour}${gratuit}`,
+      [...(m.programme === 'community' ? [{ label: 'Revenir dans la Community', url: lienPerso(m.discord_id, m.discord_pseudo, '/community') }] : []), ...boutonServeurGratuit(surGratuit)]));
     const membreDiscord = await membreDuServeur(m.discord_id);
     try {
       if (membreDiscord && m.discord_id !== config.discord.adminId) {
@@ -910,6 +976,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         const autreAcces = Object.values(config.offres).some((x) => x.roleDiscord && m.roles.cache.has(x.roleDiscord))
           || q.membresParDiscord.all(r.discord_id).some((x) => x.statut === 'actif');
         if (autreAcces) { try { await retirerRole(r.discord_id, config.discord.roleAttente); } catch { /* rien */ } continue; }
+        const surGratuit = await versServeurAttente(r.discord_id);
+        if (DEUX_SERVEURS()) {
+          await notifier.membre(r.discord_id, avecBoutons(`Ton abonnement **${o.nom}** n'a pas été repris : tu quittes le serveur des membres.${surGratuit ? ' Tu restes sur le **serveur gratuit** Overmaxx.' : ''}`,
+            [{ label: 'Revenir', url: lienPerso(r.discord_id, r.pseudo, `/${o.id}`) }, ...boutonServeurGratuit(surGratuit)]));
+        }
         try { await m.kick(`Overmaxx : abonnement ${o.nom} par carte non repris`); } catch (err) { console.warn('[bob] retrait carte :', err.message); }
         await notifier.admin(`**${r.pseudo || r.discord_id}** (<@${r.discord_id}>) retiré du serveur : abonnement **${o.nom}** par carte non repris après ${o.graceJours} jours.`);
       }
@@ -1642,6 +1713,11 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     const contenu = c && STATUTS_CANDIDATURE_PROTEGES.includes(c.statut)
       ? avecBoutons('**Content de te revoir sur le serveur Overmaxx !**\nTa candidature Elite est toujours en cours : je t\'écris ici dès qu\'il y a du nouveau.',
         [{ label: 'Suivre ma candidature', url: lienMagique(config, { id: m.id, pseudo: c.pseudo }, `${config.offres.elite.base}/candidature`) }])
+      : DEUX_SERVEURS() ? avecBoutons('**Bienvenue !** Je suis Bob, l\'assistant d\'Overmaxx.\n'
+        + 'Ce serveur est réservé aux membres de la Community et de l\'Elite. Sans programme, tu en seras retiré'
+        + `${config.discord.attenteNouveauxHeures ? ` dans ${config.discord.attenteNouveauxHeures} h` : ''} : rejoins un programme, ou le serveur gratuit en attendant.`,
+        [{ label: 'Rejoindre la Community', url: lienPerso(m.id, m.user?.username, '/community') },
+          { label: 'Postuler à l\'Elite', url: lienPerso(m.id, m.user?.username, config.offres.elite.base) }, ...boutonServeurGratuit(false)])
       : avecBoutons('**Bienvenue sur le serveur Overmaxx !**\nJe suis Bob, l\'assistant d\'Overmaxx. '
         + 'Pour l\'instant, tu ne vois que le salon d\'attente.\n'
         + 'Pour accéder au reste du serveur, rejoins l\'un des deux programmes :',
@@ -1680,7 +1756,12 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       const note = q.attenteDepuis.get(`attente-depuis:${m.id}`);
       const depuis = Math.max(m.joinedTimestamp || 0, note ? new Date(note.envoye_le).getTime() : 0);
       if (!depuis || now.getTime() - depuis < delai) continue;
-      await notifier.membre(m.id, avecBoutons('Tu étais **en attente** sur le serveur Overmaxx sans rejoindre de programme : ton accès est retiré. '
+      const surGratuit = await versServeurAttente(m.id);
+      await notifier.membre(m.id, DEUX_SERVEURS()
+        ? avecBoutons('Le serveur des membres est réservé à ceux qui ont rejoint un programme (Community ou Elite) : tu en es retiré. '
+          + (surGratuit ? 'Tu restes sur le **serveur gratuit** Overmaxx.' : 'Rejoins le **serveur gratuit** Overmaxx en attendant.'),
+          [...boutonServeurGratuit(surGratuit), { label: 'Rejoindre la Community', url: `${config.baseUrl}/community` }])
+        : avecBoutons('Tu étais **en attente** sur le serveur Overmaxx sans rejoindre de programme : ton accès est retiré. '
         + 'Tu peux revenir à tout moment.', [{ label: 'Revenir sur le serveur', url: config.lienDiscord }, { label: 'Rejoindre la Community', url: `${config.baseUrl}/community` }]));
       try {
         await m.kick('Overmaxx : en attente depuis plus de 24 h sans programme');
@@ -1725,6 +1806,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     boutonsLien: (boutons) => avecBoutons('', boutons).components,
     lienPerso,
     rappelsAdmin,
+    detecterServeurAttente,
     cycle,
     surInteraction,
     COMMANDES,
@@ -1770,6 +1852,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       }
       client.on('interactionCreate', (i) => surInteraction(i).catch((e) => console.error('[bob] interaction :', e)));
       // Nouveau venu : message privé de bienvenue dès qu'il a le rôle En Attente.
+      // Bob vient d'être invité sur un autre serveur : c'est peut-être l'ancien (serveur gratuit).
+      client.on('guildCreate', () => detecterServeurAttente().catch((e) => console.warn('[bob] serveur gratuit :', e.message)));
       client.on('guildMemberAdd', (m) => accueillir(m).catch((e) => console.warn('[bob] arrivée :', e.message)));
       client.on('guildMemberUpdate', (avant, apres) => {
         const role = config.discord.roleAttente;
@@ -1788,6 +1872,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
           serveur = await client.guilds.fetch(config.discord.serveurId);
           await serveur.commands.set(COMMANDES);
         } catch (err) { console.error('[bob] serveur Discord introuvable ou commandes refusées :', err.message); }
+        // Serveur gratuit (l'ancien serveur) : détecté tout seul quand Bob y est invité.
+        try { await detecterServeurAttente(); } catch (err) { console.warn('[bob] serveur gratuit :', err.message); }
         // Salon d'attente configuré automatiquement à chaque démarrage (aucune commande à taper).
         if (serveur && config.discord.roleAttente) {
           try {

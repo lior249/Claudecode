@@ -800,14 +800,17 @@ function blocWhop({ titre, intro, email, lienWhop }) {
   </div>`;
 }
 
+// L'invitation au serveur des membres (payants) ; sans serveur d'attente, c'est le même lien que d'habitude.
+const lienMembres = (config) => (config.discord && config.discord.lienMembres) || config.lienDiscord || '';
+
 // Étape 4 — guide d'accès (inscription) : vidéo, puis une seule chose à faire (Whop) ; le reste est déjà fait.
 function pageGuide(config, { offre, ref, membre, lienWhop, discordLie, erreurDiscord, lienDiscord, codeLiaison }) {
   const video = blocVideo(offre.wistiaGuide, `Comment accéder à ${offre.nom}`);
   const periode = offre.dureeJours === 30 ? 'par mois' : `tous les ${offre.dureeJours} jours`;
   const etapeDiscord = discordLie
     ? `<p class="ok" style="margin:0">Discord connecté${membre.discord_pseudo ? ` (${echapper(membre.discord_pseudo)})` : ''}. Tu es sur le serveur.</p>`
-    : `<p class="doux">1. Rejoins le serveur${config.lienDiscord ? '' : ' Discord Overmaxx'} :</p>
-       ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">Rejoindre le serveur Discord</a>` : ''}
+    : `<p class="doux">1. Rejoins le serveur${lienMembres(config) ? '' : ' Discord Overmaxx'} des membres :</p>
+       ${lienMembres(config) ? `<a class="bouton" href="${echapper(lienMembres(config))}">Rejoindre le serveur des membres</a>` : ''}
        ${codeLiaison ? `<p class="doux" style="margin-top:14px">2. Dans Discord, tape cette commande. Bob, notre bot, te donne ton rôle :</p>
        <div class="code" style="font-size:18px;letter-spacing:1px">/lier ${echapper(codeLiaison)}</div>` : ''}
        ${erreurDiscord ? `<p class="erreur-form">${echapper(erreurDiscord)}</p>` : ''}
@@ -847,7 +850,7 @@ function pageRenouvele(config, { accesJusquAu, whopARejoindre, lienWhop, email }
   <div class="carte" style="margin-top:20px">
     <p>Ton accès est prolongé jusqu'au <b>${echapper(formatDate(accesJusquAu))}</b>.</p>
     <p class="doux" style="margin:0">Tu peux retourner sur le Discord et profiter de tes avantages. Ton rôle revient dans les 2 minutes.</p>
-    ${config.lienDiscord ? `<a class="bouton" href="${echapper(config.lienDiscord)}">Retourner sur le Discord</a>` : ''}
+    ${lienMembres(config) ? `<a class="bouton" href="${echapper(lienMembres(config))}">Retourner sur le Discord</a>` : ''}
   </div>
   ${whop}
   ${blocSupport(config)}`, whop ? { script: SCRIPT_COPIER } : {});

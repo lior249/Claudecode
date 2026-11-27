@@ -90,12 +90,13 @@ function creerDiscordOAuth(config, fetchImpl = fetch) {
     },
 
     // Ajoute le membre au serveur avec ses rôles (ou ajoute seulement les rôles s'il y est déjà).
-    async ajouterAuServeur(userId, accessToken, roles = []) {
+    // serveur : celui des membres par défaut ; l'ancien serveur (attente) pour les candidats.
+    async ajouterAuServeur(userId, accessToken, roles = [], serveur = serveurId) {
       const r = roles.filter(Boolean);
-      const res = await api('PUT', `/guilds/${serveurId}/members/${userId}`, { bot: true, corps: { access_token: accessToken, roles: r } });
+      const res = await api('PUT', `/guilds/${serveur}/members/${userId}`, { bot: true, corps: { access_token: accessToken, roles: r } });
       if (res === null) {
         // Déjà membre (HTTP 204) : on ajoute les rôles un par un.
-        for (const role of r) await api('PUT', `/guilds/${serveurId}/members/${userId}/roles/${role}`, { bot: true });
+        for (const role of r) await api('PUT', `/guilds/${serveur}/members/${userId}/roles/${role}`, { bot: true });
       }
     },
   };

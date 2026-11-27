@@ -663,3 +663,19 @@ ou sur **overmaxx.online/admin/candidatures**.
   - Compte bloqué : lien pour demander à changer de compte (si son compte est validé).
   - Enfin : son explication et des captures.
 - Le coach la reçoit comme un message d'élève (« Demande d'aide · Vues »…), dans À traiter et par Bob, avec un résumé : problème, ce qui bloque, vidéo, leçons regardées, vidéos relues. Il répond comme à un message ; l'élève lit la réponse dans ses Remarques.
+
+## Deux serveurs : membres (payant) et gratuit (l'ancien serveur)
+
+- Le serveur de Bob (`DISCORD_GUILD_ID`) est réservé aux membres qui ont payé (Community, Elite).
+- L'ancien serveur devient le serveur gratuit / d'attente :
+  - les candidats à l'Elite y sont ajoutés (connexion Discord du formulaire) ;
+  - à la fin des 15 jours d'attente, un membre est retiré du serveur des membres et reste (ou est invité) sur le serveur gratuit ;
+  - un nouveau venu sans programme sur le serveur des membres est prévenu, puis retiré au bout de 24 h, avec le lien du serveur gratuit.
+- Mise en place : Gestion → « Serveur gratuit » → « Inviter Bob sur l'ancien serveur », puis choisir l'ancien serveur. Bob le reconnaît tout seul
+  (le seul autre serveur où il est), y crée une invitation permanente et te prévient. Rien à écrire dans overmaxx.env.
+  - Le lien public « Rejoindre le Discord » du site devient celui du serveur gratuit ; l'ancien lien (serveur des membres) sert après paiement.
+  - Facultatif dans overmaxx.env : `DISCORD_GUILD_ATTENTE_ID` (si Bob est sur plusieurs autres serveurs), `DISCORD_ROLE_ATTENTE_ANCIEN`
+    (rôle donné sur l'ancien serveur aux accès expirés), `DISCORD_INVITE_MEMBRES` (invitation du serveur des membres),
+    `ATTENTE_NOUVEAUX_HEURES` (délai avant retrait d'un nouveau venu sans programme ; 0 = jamais).
+- Les membres actuels déjà sur l'ancien serveur : ils passent sur le nouveau quand ils reviennent par le site (bouton Discord de leur accès).
+- Whop (paiement par carte) : vérifie que l'intégration Discord de Whop donne bien le rôle sur le **nouveau** serveur.

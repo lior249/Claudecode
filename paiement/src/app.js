@@ -744,10 +744,15 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
         if (bob) bob.bienvenue(membre).catch(() => {});
       }
       if (st.but === 'candidat' && candidatures) {
-        // Rejoint le serveur avec le seul rôle Attente (sauf s'il y est déjà avec un accès payé).
-        const roles = await oauth.rolesSurServeur(u.id);
-        const dejaMembre = roles && Object.values(config.offres).some((o) => o.roleDiscord && roles.includes(o.roleDiscord));
-        await oauth.ajouterAuServeur(u.id, u.accessToken, dejaMembre ? [] : [config.discord.roleAttente]);
+        // Avec un serveur d'attente (l'ancien serveur) : le candidat y est ajouté ; le serveur membres reste aux payants.
+        // Sinon : il rejoint le serveur avec le seul rôle Attente (sauf s'il y est déjà avec un accès payé).
+        if (config.discord.serveurAttenteId) {
+          await oauth.ajouterAuServeur(u.id, u.accessToken, [config.discord.roleAttenteAncien], config.discord.serveurAttenteId);
+        } else {
+          const roles = await oauth.rolesSurServeur(u.id);
+          const dejaMembre = roles && Object.values(config.offres).some((o) => o.roleDiscord && roles.includes(o.roleDiscord));
+          await oauth.ajouterAuServeur(u.id, u.accessToken, dejaMembre ? [] : [config.discord.roleAttente]);
+        }
         candidatures.demarrer(u.id, u.pseudo);
       }
       return res.redirect(302, retour);
@@ -1464,7 +1469,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // Gestion : Planifier, Élèves, Ressources (et mes rappels).
   app.get('/admin/gestion', (req, res) => {
     if (!estAdmin(req, res, '/admin/gestion')) return;
-    res.send(PF.pageGestion(config, { espace: espaceDe(lireSession(req, config.secretApp)), nbEleves: parcours.tous().length, evenements: evenementsEnCours().length,
+    // Inviter Bob sur l'ancien serveur : gérer les rôles (attente) et créer une invitation.
+    const serveurGratuit = { actif: Boolean(config.discord.serveurAttenteId), lien: config.discord.serveurAttenteId ? config.lienDiscord : null,
+      invitationBob: config.discord.clientId ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(config.discord.clientId)}&scope=bot&permissions=268436481` : null };
+    res.send(PF.pageGestion(config, { espace: espaceDe(lireSession(req, config.secretApp)), serveurGratuit, nbEleves: parcours.tous().length, evenements: evenementsEnCours().length,
       ressources: commandes.db.prepare("SELECT COUNT(*) n FROM ressources WHERE etat = 'public'").get().n, aValider: ressources.enAttente().length }));
   });
   // Profil du coach.
