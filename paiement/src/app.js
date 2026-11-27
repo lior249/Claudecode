@@ -64,6 +64,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const eleveDe = (id) => parcours.get(id) || { discord_id: id, pseudo: ((coaching.profil(id) || {}).pseudo) || null, nom: null };
   // Toutes les minutes (server.js) : les séances finies depuis 5 minutes → « Valider ce coaching », au coach et à l'élève.
   async function verifierCoachings() {
+    // Rappels « reviens faire l'update de ta vidéo » (revenus pas encore à jour chez TikTok).
+    for (const v of suivi.rappelsRevenusDus ? suivi.rappelsRevenusDus() : []) {
+      prevenir('messageEleve', parcours.get(v.discord_id), `**C'est l'heure : TikTok a-t-il mis à jour tes revenus ?** Fais l'update de ta vidéo du ${v.jour.split('-').reverse().join('/')}.`, `/parcours/videos/${v.id}`);
+    }
     for (const v of validations.echues()) {
       const p = eleveDe(v.discord_id);
       const quand = `${v.date.split('-').reverse().join('/')} à ${v.heure} GMT`;
@@ -92,7 +96,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estAdmin = Boolean(session && session.id === config.discord.adminId);
     const aTraiter = estAdmin && candidatures ? candidatures.liste().filter((c) => c.statut === 'examen' || c.statut === 'video').length : 0;
     const aTraiterParcours = estAdmin
-      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + (config.ressourcesActives ? ressources.enAttente().length : 0) + validations.pourCoach().length + (() => { const v = parcours.aValider(); return v.positionnements.length + v.comptes.length + v.demandes.length; })() + aTraiter : 0;
+      ? parcours.aTraiter().total + suivi.enAttente().length + suivi.resultatsEnAttente().length + suivi.aConfirmer().length + sinistres.fichesATraiter().length + acces.enAttente().length + messages.recusATraiter().length + (config.ressourcesActives ? ressources.enAttente().length : 0) + validations.pourCoach().length + (() => { const v = parcours.aValider(); return v.positionnements.length + v.comptes.length + v.demandes.length + v.monetisations.length + v.preuves.length; })() + aTraiter : 0;
     const p = !estAdmin && session ? parcours.get(session.id) : null;
     const c = !estAdmin && session ? compteursMembre(session.id) : { notifs: 0, remarques: 0 };
     return { session, estAdmin, aTraiter, aTraiterParcours, parcours: Boolean(p && !p.retire_le), jetonApp: session ? jetonApp(session) : null,
@@ -1149,6 +1153,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
 
   // ---- Étape 4 : publication et suivi ----
   const MESSAGES_ETAPE4 = {
+    monetisation: 'Envoyé : ton coach vérifie ta capture et te répond.',
+    preuve: 'Envoyée : ton coach la regarde.',
+    rappel: 'C\'est noté : Bob te rappellera de revenir faire l\'update de ta vidéo à l\'heure choisie.',
     compte: 'Ta soumission est en cours d\'examen : tu recevras une notification quand ton coach aura approuvé ton compte. En attendant, choisis tes 3 heures.',
     heures: 'Tes heures sont enregistrées. Bob te les rappellera chaque jour.',
     publication: 'Vidéo déclarée. Dans 24 h, tu donneras ses résultats.',
@@ -1160,7 +1167,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const jour = suivi.aujourdhui(x.p);
     return V.pageEtape4(config, { ...commun, aujourdhui: x.p.fuseau ? jour : null, publications: suivi.publications(id, jour), videos: suivi.videos(id).slice(0, 21),
       aFaire: suivi.comptesRendusAFaire(id), updateDuJour: suivi.compteRendu(id, jour), stats: suivi.stats(id), message,
-      avis: parcours.soumissions(id, 4).slice().sort((a, b) => String(b.cree_le).localeCompare(String(a.cree_le))), remarquesDe, maxMo, formation: config.formation });
+      avis: parcours.soumissions(id, 4).slice().sort((a, b) => String(b.cree_le).localeCompare(String(a.cree_le))), remarquesDe, maxMo, formation: config.formation,
+      preuves: parcours.preuvesDues(id) });
   }
   // Une image n'est acceptée que si ce membre l'a lui-même envoyée.
   const imageDe = (nom, discordId) => (nom && parcours.imageDuMembre(String(nom), discordId) ? String(nom) : null);
@@ -1173,6 +1181,24 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
     prevenir('activiteEleve', parcours.get(x.session.id), `a choisi ses **3 heures** : création ${b.creation}, publication ${b.publication}, résultats ${b.compte_rendu}.`);
     res.redirect(303, '/parcours/etape-4?ok=heures');
+  });
+  // 10K : la preuve de monétisation ; les preuves d'audience et de RPM (captures), validées par le coach.
+  app.post('/parcours/etape-4/monetisation', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-4');
+    if (!x) return;
+    const r = parcours.envoyerMonetisation(x.session.id, { vue: req.body.vue, resultat: req.body.resultat, capture: imageDe(req.body.capture, x.session.id) });
+    if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
+    prevenir('activiteEleve', r.parcours, `a envoyé sa **preuve de monétisation** (candidature ${req.body.resultat === 'acceptee' ? 'acceptée' : 'refusée'}) : à vérifier.`, `/admin/membres/${encodeURIComponent(x.session.id)}#monetisation`);
+    res.redirect(303, '/parcours/etape-4?ok=monetisation');
+  });
+  app.post('/parcours/etape-4/preuve/:type', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-4');
+    if (!x) return;
+    const type = String(req.params.type);
+    const r = parcours.envoyerPreuve(x.session.id, type, imageDe(req.body.capture, x.session.id));
+    if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
+    prevenir('activiteEleve', r.parcours, `a envoyé sa **preuve ${type === 'rpm' ? 'de RPM' : 'd\'audience'}** : à vérifier.`, `/admin/membres/${encodeURIComponent(x.session.id)}#monetisation`);
+    res.redirect(303, '/parcours/etape-4?ok=preuve');
   });
   // Le lien du compte TikTok : demandé au passage à l'étape 4.
   app.post('/parcours/etape-4/compte', formulaire, (req, res) => {
@@ -1221,7 +1247,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const x = compteRenduMembre(req, res);
     if (!x) return;
     const b = req.body;
-    const d = { vues_28j: b.vues_28j, revenus_28j: b.revenus_28j, capture: imageDe(b.capture, x.session.id), question: b.question };
+    const d = { abonnes: b.abonnes, vues_28j: b.vues_28j, revenus_28j: b.revenus_28j, capture: imageDe(b.capture, x.session.id), question: b.question };
     const r = suivi.enregistrerCompteRendu(x.session.id, x.jour, d);
     if (r.erreur) {
       const saisi = { ...(x.cr || {}), vues_28j: b.vues_28j, revenus_28j: b.revenus_28j, question: b.question, capture_revenus: d.capture || (x.cr && x.cr.capture_revenus) || null };
@@ -1229,6 +1255,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       return;
     }
     prevenir('compteRenduRecu', r.compteRendu, x.p);
+    if (r.dixK) {
+      prevenir('messageEleve', x.p, '🎉 **Tu viens d\'atteindre les 10 000 abonnés !** Ouvre l\'étape 4 : le formulaire pour rejoindre la monétisation t\'attend.', '/parcours/etape-4#monetisation');
+      prevenir('activiteEleve', x.p, 'vient d\'atteindre les **10 000 abonnés** : formulaire de monétisation ouvert.');
+    }
     res.redirect(303, '/parcours/etape-4?ok=compte-rendu');
   });
   // Résultats d'une vidéo (24 h après la publication ; mise à jour possible ensuite : nouvelle capture, vues, revenus).
@@ -1249,7 +1279,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const x = videoMembre(req, res);
     if (!x) return;
     const b = req.body;
-    const r = suivi.enregistrerResultat(x.session.id, x.v.id, { vues: b.vues, revenus: b.revenus, capture: imageDe(b.capture, x.session.id) });
+    const r = suivi.enregistrerResultat(x.session.id, x.v.id, { vues: b.vues, abonnes: b.abonnes, revenus: b.revenus, rpm: b.rpm, capture: imageDe(b.capture, x.session.id),
+      rappelRevenus: b.maj === 'non' ? (b.rappel_iso || 'invalide') : null });
+    if (r.rappel) return res.redirect(303, '/parcours/etape-4?ok=rappel');
     if (r.erreur) { res.status(400).send(V.pageResultatVideo(config, { espace: x.espace, parcours: x.p, video: { ...x.v, res_vues: b.vues, res_revenus: b.revenus }, remarques: x.remarques, erreur: r.erreur })); return; }
     prevenir('resultatRecu', r.video, x.p);
     res.redirect(303, '/parcours/etape-4?ok=resultat');
@@ -1947,7 +1979,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, `/admin/membres/${encodeURIComponent(req.params.id)}`)) return;
     const p = ficheDe(req, res);
     if (!p) return;
-    const message = { 'niche-refusee': 'Niche refusée : l\'élève est prévenu et en proposera une autre.', positionnement: 'Niche validée : verrouillée pour l\'élève, Bob l\'a prévenu.', 'compte-valide': 'Compte TikTok validé : verrouillé pour l\'élève.',
+    const message = { monetisation: 'Décision enregistrée : l\'élève est prévenu.', preuve: 'Preuve validée.', 'niche-refusee': 'Niche refusée : l\'élève est prévenu et en proposera une autre.', positionnement: 'Niche validée : verrouillée pour l\'élève, Bob l\'a prévenu.', 'compte-valide': 'Compte TikTok validé : verrouillé pour l\'élève.',
       changement: 'Changement de compte autorisé : l\'élève peut envoyer un nouveau lien une fois.', refus: 'Changement refusé : il garde son compte.',
       remarque: 'Message envoyé : il le voit dans ses Remarques, et Bob l\'a prévenu.', compte: 'Fiche enregistrée.', etape3: 'Étape 3 ouverte. Bob a prévenu le membre.', etape: 'Étape changée.',
       recompense: 'Rôle confirmé. Bob le donne et prévient le membre.', precisions: 'Précisions demandées. Bob a prévenu le membre.', rehabiliter: 'Membre réhabilité : Bob lui rend le rôle Elite.',
@@ -1998,6 +2030,25 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (r.erreur) return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?erreur=${encodeURIComponent(r.erreur)}#positionnement`);
     prevenir('messageEleve', r.parcours, `**Ton coach a refusé ta niche « ${p.niche || ''} ».** ${r.parcours.niche_refus}\nPropose-en une autre.`, '/parcours/etape-3#strategie');
     return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=niche-refusee#positionnement`);
+  });
+  app.post('/admin/membres/:id/monetisation', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const r = parcours.deciderMonetisation(p.discord_id, String(req.body.decision || ''));
+    if (r.erreur) return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?erreur=${encodeURIComponent(r.erreur)}#monetisation`);
+    prevenir('messageEleve', r.parcours, r.parcours.monetisation_etat === 'acceptee'
+      ? '💸 **Ta monétisation est validée !** À partir de maintenant, tu indiques aussi tes revenus et ton RPM.'
+      : '**Ta candidature a été refusée : on t\'aide à contester.** Surtout, n\'envoie aucun message de contestation toi-même. Ton coach te guide.', '/parcours/etape-4');
+    return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=monetisation#monetisation`);
+  });
+  app.post('/admin/membres/:id/preuve/:type/valider', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const p = ficheDe(req, res);
+    if (!p) return;
+    const r = parcours.validerPreuve(p.discord_id, String(req.params.type));
+    if (!r.erreur) prevenir('messageEleve', r.parcours, `**Ta preuve ${req.params.type === 'rpm' ? 'de RPM' : 'd\'audience'} est validée.** Continue comme ça !`, '/parcours/etape-4');
+    return res.redirect(303, `/admin/membres/${encodeURIComponent(p.discord_id)}?fait=preuve#monetisation`);
   });
   app.post('/admin/membres/:id/compte/valider', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/a-traiter')) return;

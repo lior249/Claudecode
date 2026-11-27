@@ -112,7 +112,7 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     pubDecision: db.prepare('UPDATE publications SET res_etat = ?, res_decide_le = ?, ok_vues = CASE WHEN ? THEN res_vues ELSE ok_vues END, ok_revenus = CASE WHEN ? THEN res_revenus ELSE ok_revenus END WHERE id = ?'),
     pubsAttente: db.prepare("SELECT * FROM publications WHERE res_etat = 'attente' ORDER BY res_envoye_le"),
     revenusVideos: db.prepare('SELECT COALESCE(SUM(ok_revenus), 0) r, COALESCE(SUM(ok_vues), 0) v FROM publications WHERE discord_id = ?'),
-    updatesMembre: db.prepare("SELECT jour, etat, vues_28j, revenus_28j FROM comptes_rendus WHERE discord_id = ? AND revenus_28j IS NOT NULL AND etat IN ('valide', 'attente') ORDER BY jour"),
+    updatesMembre: db.prepare("SELECT jour, etat, vues_28j, revenus_28j FROM comptes_rendus WHERE discord_id = ? AND (revenus_28j IS NOT NULL OR vues_28j IS NOT NULL) AND etat IN ('valide', 'attente') ORDER BY jour"),
     dernierUpdate: db.prepare("SELECT * FROM comptes_rendus WHERE discord_id = ? AND etat = 'valide' AND revenus_28j IS NOT NULL ORDER BY jour DESC LIMIT 1"),
     updateEnregistrer: db.prepare(`INSERT INTO comptes_rendus (discord_id, jour, etat, vues_28j, revenus_28j, capture_revenus, question, envoye_le, cree_le)
       VALUES (?, ?, 'attente', ?, ?, ?, ?, ?, ?)
@@ -185,19 +185,42 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
     video(id) { const v = q.pub.get(Number(id)); return v ? { ...v, captures: captures(v), pret: Date.parse(v.cree_le) <= maintenant().getTime() - DELAI_RESULTAT } : null; },
     resultatsEnAttente() { return q.pubsAttente.all().map((v) => ({ ...v, captures: captures(v), parcours: parcours.get(v.discord_id) })); },
     // Résultats d'une vidéo : capture (ajoutée aux précédentes), vues et revenus. 24 h après la publication ; mise à jour possible ensuite.
-    enregistrerResultat(discordId, id, { vues, revenus, capture } = {}) {
+    // Résultats d'une vidéo (24 h après) : la capture, les vues, les abonnés gagnés ; et, une fois monétisé, les revenus et le RPM.
+    // Monétisé mais TikTok n'a pas encore mis à jour les revenus : rappel à l'heure choisie (rappelRevenus), rien n'est envoyé.
+    enregistrerResultat(discordId, id, { vues, abonnes, revenus, rpm, capture, rappelRevenus } = {}) {
       const v = q.pub.get(Number(id));
       if (!v || v.discord_id !== discordId) return { erreur: 'Vidéo introuvable.' };
       if (Date.parse(v.cree_le) > maintenant().getTime() - DELAI_RESULTAT) return { erreur: 'Les résultats se donnent 24 h après la publication.' };
+      const p = parcours.get(discordId);
+      const monetise = Boolean(p && p.monetisation_etat === 'acceptee');
+      if (monetise && rappelRevenus) {
+        const quand = new Date(rappelRevenus);
+        if (Number.isNaN(quand.getTime()) || quand <= maintenant()) return { erreur: 'Choisis une heure de rappel à venir.' };
+        db.prepare('UPDATE publications SET revenus_rappel_le = ? WHERE id = ?').run(quand.toISOString(), v.id);
+        return { video: api.video(v.id), rappel: quand.toISOString() };
+      }
       const nv = entier(vues);
-      const nr = lireMontant(revenus);
+      const na = entier(abonnes);
       if (nv === null) return { erreur: 'Indique le nombre de vues de la vidéo.' };
-      if (nr === null || nr < 0) return { erreur: 'Indique les revenus de la vidéo ($), 0 si rien.' };
+      if (na === null) return { erreur: 'Indique les abonnés gagnés avec cette vidéo, 0 si aucun.' };
+      let nr = null; let nrpm = null;
+      if (monetise) {
+        nr = lireMontant(revenus); nrpm = lireMontant(rpm);
+        if (nr === null || nr < 0) return { erreur: 'Indique les revenus de la vidéo ($), 0 si rien.' };
+        if (nrpm === null || nrpm < 0) return { erreur: 'Indique le RPM de la vidéo ($).' };
+      }
       const liste = captures(v);
       if (capture && !liste.includes(capture)) liste.push(capture);
       if (!liste.length) return { erreur: 'Ajoute la capture des résultats de la vidéo.' };
       q.pubResultat.run(nv, nr, JSON.stringify(liste.slice(-10)), iso(), v.id);
+      db.prepare('UPDATE publications SET res_abonnes = ?, res_rpm = ?, revenus_rappel_le = NULL WHERE id = ?').run(na, nrpm, v.id);
       return { video: api.video(v.id) };
+    },
+    // Rappels « reviens faire l'update de ta vidéo » arrivés à l'heure (appelés toutes les minutes).
+    rappelsRevenusDus() {
+      const dus = db.prepare("SELECT * FROM publications WHERE revenus_rappel_le IS NOT NULL AND revenus_rappel_le <= ? AND (res_etat IS NULL OR res_etat = 'corriger')").all(iso());
+      for (const v of dus) db.prepare('UPDATE publications SET revenus_rappel_le = NULL WHERE id = ?').run(v.id);
+      return dus;
     },
     deciderResultat(id, decision, { texte, images = [] } = {}) {
       const v = q.pub.get(Number(id));
@@ -208,6 +231,7 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       if (decision === 'corriger' && !mot) return { erreur: 'Écris ce qu\'il doit corriger.' };
       const ok = decision === 'valider' ? 1 : 0;
       q.pubDecision.run(ok ? 'valide' : 'corriger', iso(), ok, ok, v.id);
+      if (ok) db.prepare('UPDATE publications SET ok_abonnes = res_abonnes, ok_rpm = res_rpm WHERE id = ?').run(v.id);
       if (mot || images.length) parcours.ajouterRemarque(v.discord_id, { texte: `Résultats de ta vidéo du ${jourLisible(v.jour)} : ${mot || '(image)'}`, images, type: ok ? 'valide' : 'corriger' });
       return { video: api.video(v.id), nouvelles: ok ? api.verifierRecompenses(v.discord_id) : [] };
     },
@@ -229,14 +253,23 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
       const deja = q.crJour.get(discordId, jour);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(jour) || jour > aujourdhui || (jour < decalerJour(aujourdhui, -1) && !(deja && deja.etat === 'corriger'))) return { erreur: 'L\'update du compte se fait chaque jour, pour le jour même.' };
       if (deja && deja.etat === 'valide') return { erreur: 'Cet update est déjà validé.' };
+      // Les abonnés actuels ; les vues des 28 derniers jours ; les revenus seulement une fois la monétisation validée.
+      const monetise = p.monetisation_etat === 'acceptee';
+      const abonnes = entier(d.abonnes);
       const vues = entier(d.vues_28j);
-      const revenus = lireMontant(d.revenus_28j);
+      const revenus = monetise ? lireMontant(d.revenus_28j) : null;
+      if (abonnes === null) return { erreur: 'Indique tes abonnés actuels.' };
       if (vues === null) return { erreur: 'Indique les vues de ton compte sur les 28 derniers jours.' };
-      if (revenus === null || revenus < 0) return { erreur: 'Indique tes revenus sur les 28 derniers jours ($), 0 si rien.' };
+      if (monetise && (revenus === null || revenus < 0)) return { erreur: 'Indique tes revenus sur les 28 derniers jours ($), 0 si rien.' };
       if (!d.capture && !(deja && deja.capture_revenus)) return { erreur: 'Ajoute la capture de tes résultats des 28 derniers jours.' };
       const question = String(d.question || '').trim().slice(0, 1000) || null;
       q.updateEnregistrer.run(discordId, jour, vues, revenus, d.capture || deja.capture_revenus, question, iso(), iso());
-      return { compteRendu: api.compteRendu(discordId, jour) };
+      db.prepare('UPDATE comptes_rendus SET abonnes = ? WHERE discord_id = ? AND jour = ?').run(abonnes, discordId, jour);
+      // Abonnés à jour ; cap des 10 000 franchi : le formulaire de monétisation s'ouvre.
+      db.prepare('UPDATE parcours SET abonnes_actuels = ? WHERE discord_id = ?').run(abonnes, discordId);
+      const dixK = abonnes >= 10000 && !p.monetisation_etat;
+      if (dixK) db.prepare("UPDATE parcours SET monetisation_etat = 'a_faire' WHERE discord_id = ?").run(discordId);
+      return { compteRendu: api.compteRendu(discordId, jour), dixK };
     },
 
     decider(id, decision, { texte, images = [] } = {}) {

@@ -793,7 +793,18 @@ function blocPositionnement({ p, vueCoach, base, choix, strategie: st }) {
       <details style="margin-top:10px"><summary class="doux petit" style="cursor:pointer">Modifier</summary>
         <form method="post" action="${base}/compte" style="display:grid;gap:10px;margin-top:10px"><div class="champ"><label for="compte-lien">Lien du compte TikTok</label><input id="compte-lien" name="compte" value="${echapper(p.compte_tiktok || '')}" placeholder="https://www.tiktok.com/@compte"></div>
           <button class="bouton secondaire" type="submit" style="margin:0">Enregistrer</button></form></details>` : ''}</div>`;
-  return pos + compte;
+  const img = (n) => (n ? `<a href="/fichiers/images/${echapper(n)}" target="_blank" rel="noopener"><img src="/fichiers/images/${echapper(n)}" alt="" style="max-width:100%;max-height:220px;border-radius:12px;margin-top:8px"></a>` : '');
+  const ETATS_M = { a_faire: ['corriger', 'À faire (10K atteints)'], envoyee_acceptee: ['attente', 'Acceptée · à vérifier'], envoyee_refusee: ['attente', 'Refusée · à vérifier'], acceptee: ['valide', 'Monétisé'], refusee: ['corriger', 'Refusée · contestation'] };
+  const m = p.monetisation_etat ? ETATS_M[p.monetisation_etat] : null;
+  const preuve = (type, titre) => (p[`${type}_etat`] ? `<div style="margin-top:12px"><div class="envoi-tete"><b>${titre}</b><span class="etat" data-etat="${p[`${type}_etat`] === 'validee' ? 'valide' : 'attente'}">${p[`${type}_etat`] === 'validee' ? 'Validée' : 'À valider'}</span></div>
+    ${img(p[`${type}_capture`])}${vueCoach && p[`${type}_etat`] === 'envoyee' ? `<form method="post" action="${base}/preuve/${type}/valider" style="margin:8px 0 0"><button class="bouton vert" type="submit" style="margin:0">Valider</button></form>` : ''}</div>` : '');
+  const monet = p.etape >= 4 && (m || p.abonnes_actuels !== null && p.abonnes_actuels !== undefined || p.audience_etat || p.rpm_etat) ? `<div class="carte" id="monetisation"><div class="envoi-tete"><h2>Croissance et monétisation</h2>${m ? `<span class="etat" data-etat="${m[0]}">${m[1]}</span>` : ''}</div>
+    ${p.abonnes_actuels !== null && p.abonnes_actuels !== undefined ? `<p style="margin:8px 0 0"><b>${Number(p.abonnes_actuels).toLocaleString('fr-FR')}</b> abonnés</p>` : ''}
+    ${p.monetisation_capture ? img(p.monetisation_capture) : ''}
+    ${vueCoach && String(p.monetisation_etat || '').startsWith('envoyee_') ? `<form method="post" action="${base}/monetisation" class="deux-boutons" style="margin-top:10px">
+      <button class="bouton secondaire" type="submit" name="decision" value="refusee">Refusée : je l'aide à contester</button><button class="bouton vert" type="submit" name="decision" value="acceptee">Acceptée : débloquer les revenus</button></form>` : ''}
+    ${preuve('audience', 'Preuve d\'audience')}${preuve('rpm', 'Preuve de RPM')}</div>` : '';
+  return pos + compte + monet;
 }
 function pageFiche(config, { espace, vueCoach, parcours: p, remarques, toutes, message, stats, recompenses = [], sinistre, historique = [], joursAbsence = 0, choix = null, realisations = [], strategie = null }) {
   // Ce qui attend une décision du coach (sinistre, rôle à confirmer) passe en haut de la colonne.
@@ -947,6 +958,8 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   const fiche = (p, ancre) => `/admin/membres/${encodeURIComponent(p.discord_id)}#${ancre}`;
   for (const p of aValider.positionnements) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.positionnement_le, quoi: `Positionnement à valider : ${p.niche || '—'} · ${p.pays_cible || '—'}`, lien: fiche(p, 'positionnement'), bouton: 'Voir' });
   for (const p of aValider.comptes) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.compte_envoye_le, quoi: `Compte TikTok à valider : ${p.compte_tiktok}`, lien: fiche(p, 'compte'), bouton: 'Voir' });
+  for (const p of aValider.monetisations || []) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.monetisation_le, quoi: `Preuve de monétisation : candidature ${p.monetisation_etat === 'envoyee_acceptee' ? 'acceptée' : 'refusée'}`, lien: fiche(p, 'monetisation'), bouton: 'Vérifier' });
+  for (const x of aValider.preuves || []) ajouter('positionnement', { qui: nom(x.p), ficheId: x.p.discord_id, pseudo: x.p.pseudo, quand: x.p[`${x.type}_le`], quoi: x.type === 'rpm' ? 'Preuve de RPM à vérifier' : 'Preuve d\'audience à vérifier', lien: fiche(x.p, 'monetisation'), bouton: 'Vérifier' });
   for (const p of aValider.demandes) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.compte_demande_le, quoi: `Demande de changement de compte : ${p.compte_demande}`, lien: fiche(p, 'compte'), bouton: 'Décider' });
   const RAISONS = { fait_avance: 'fait en avance', non_necessaire: 'annulé car non nécessaire', live_groupe: 'remplacé par un live de groupe', autre: 'autre raison' };
   for (const v of coachingsAValider) {
@@ -984,7 +997,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   const faits = dejaTraites.map((n) => ({ ...n, fait: true }));
   const tous = [...items, ...notifs, ...retards, ...faits];
   const CATS = [['etape-1', 'Étape 1'], ['etape-2', 'Étape 2'], ['etape-3', 'Étape 3'], ['avis', 'Vidéos à relire'], ['videos', 'Résultats vidéo'], ['etape-4', 'Updates du compte'], ['roles', 'Rôles'], ['sinistres', 'Sinistrés'],
-    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['coachings', 'Coachings à valider'], ['positionnement', 'Positionnement et compte'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
+    ['candidatures', 'Candidatures'], ['acces', 'Accès au site'], ['messages', 'Messages'], ['coachings', 'Coachings à valider'], ['positionnement', 'Niche, compte et preuves'], ['ressources', 'Ressources'], ['retards', 'En retard'], ['notifications', 'Notifications']];
   const nb = (c) => tous.filter((x) => x.cat === c).length;
   const filtres = CATS.map(([c, l], i) => ({ c, l, n: nb(c), i })).sort((x, y) => (y.n > 0) - (x.n > 0) || y.n - x.n || x.i - y.i);
   const libelle = Object.fromEntries(CATS);
@@ -1072,6 +1085,50 @@ function formHeures(p, { titre = 'Choisis tes 3 heures' } = {}) {
     <button class="bouton" type="submit" style="margin-top:0">Enregistrer mes heures</button></form>`;
 }
 // ---------- Étape 4 : publier (le lien), les résultats de chaque vidéo, l'update du compte ----------
+// Étape 4 : 10 000 abonnés → rejoindre la monétisation (une question par page), puis la preuve (capture) validée par le coach.
+function blocMonetisation(p, formation = {}) {
+  const e = p.monetisation_etat;
+  if (!e || e === 'acceptee') return '';
+  if (String(e).startsWith('envoyee_')) {
+    return `<div class="carte" id="monetisation"><div class="envoi-tete"><h2>Monétisation</h2><span class="etat" data-etat="attente">En cours d'examen</span></div>
+      <p class="doux" style="margin:8px 0 0">Ton coach regarde ta capture (${e === 'envoyee_acceptee' ? 'candidature acceptée' : 'candidature refusée'}). Tu recevras une notification.</p></div>`;
+  }
+  return `${STYLE_ETAPES}<form class="carte assistant" id="monetisation" method="post" action="/parcours/etape-4/monetisation" data-depart="1">
+    <div class="envoi-tete"><h2>${e === 'refusee' ? 'Monétisation : on recommence ensemble' : '🎉 10 000 abonnés !'}</h2><div class="points-pages"><i></i><i></i><i></i></div></div>
+    <input type="hidden" name="vue" value="oui"><input type="hidden" name="resultat" value="">
+    ${e === 'refusee' ? '<p class="doux" style="margin:0">Ton coach t\'aide à contester. Quand TikTok t\'a répondu, envoie la nouvelle capture.</p>' : ''}
+    <div data-page="1"><h3>As-tu vu la procédure de la formation pour rejoindre la monétisation ?</h3>
+      <div class="choix2"><button class="bouton secondaire" type="button" data-aller="v" onclick="this.form.vue.value='non'">Non</button><button class="bouton" type="button" data-aller="2">Oui</button></div></div>
+    <div data-page="v" hidden><h3>Regarde la procédure avant de postuler</h3>
+      ${lienFormation(formation.monetisation, 'Rejoindre la monétisation correctement')}
+      <button class="bouton" type="button" data-aller="2" style="margin:0">C'est fait</button><button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="2" hidden><h3>Postule, puis envoie la réponse de TikTok</h3>
+      <p class="doux" style="margin:0">Une fois ta candidature <b>acceptée</b>, envoie une capture. Si elle est <b>refusée</b>, envoie aussi une capture : on t'aide à contester.</p>
+      <p class="avert"><b>N'envoie aucun message de contestation toi-même.</b> C'est très important : ne prends aucune décision sans te faire encadrer.</p>
+      <button class="bouton" type="button" data-aller="3" style="margin:0">J'ai la réponse de TikTok</button><button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="3" hidden><h3>Ta candidature a été…</h3>
+      <div class="choix2"><button class="bouton vert" type="button" data-aller="4" onclick="this.form.resultat.value='acceptee'">Acceptée</button><button class="bouton secondaire" type="button" data-aller="4" onclick="this.form.resultat.value='refusee'">Refusée</button></div>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+    <div data-page="4" hidden><h3>Envoie la capture de la réponse</h3>
+      ${zoneCapture('capture', 'Ajouter la capture', 'La réponse de TikTok à ta candidature')}
+      <button class="bouton" type="submit" style="margin:0">Envoyer à mon coach</button><button class="retour-page" type="button" data-retour>‹ Retour</button></div>
+  </form>`;
+}
+// Preuves demandées une fois : audience (après 5 résultats), RPM (5 résultats après la monétisation).
+function blocPreuves(p, dues = {}) {
+  const carte = (type, titre, intro, aide) => {
+    const etat = p[`${type}_etat`];
+    if (etat === 'validee' || (!etat && !dues[type])) return '';
+    if (etat === 'envoyee') return `<div class="carte"><div class="envoi-tete"><h2>${titre}</h2><span class="etat" data-etat="attente">Envoyée · à valider</span></div></div>`;
+    return `<form class="carte" id="preuve-${type}" method="post" action="/parcours/etape-4/preuve/${type}" style="display:grid;gap:10px">
+      <div class="envoi-tete"><h2>${titre}</h2><span class="etat" data-etat="corriger">À envoyer</span></div>
+      <p style="margin:0">${intro}</p>${zoneCapture('capture', 'Ajouter la capture', aide)}
+      <button class="bouton" type="submit" style="margin:0">Envoyer à mon coach</button></form>`;
+  };
+  return carte('audience', 'Prouver mon audience', 'Bravo, 5 vidéos de suite ! Je veux m\'assurer que ton contenu touche bien l\'audience visée : envoie une capture de la <b>provenance dominante de tes vues</b>. Pas besoin d\'écrire quoi que ce soit.', 'Statistiques de ton compte › audience (pays)')
+    + carte('rpm', 'Prouver mon RPM', 'Bravo pour tes résultats dans la monétisation ! Envoie une capture de <b>tes derniers résultats</b> pour vérifier que ton RPM est bon.', 'Tes derniers revenus sur TikTok');
+}
+
 // Étape 4 : faire relire une vidéo avant de la publier (facultatif, 3 en attente au plus).
 function blocAvis(avis = [], remarquesDe = () => []) {
   const envoyees = avis.filter((s) => s.etat !== 'brouillon');
@@ -1090,7 +1147,7 @@ function blocAvis(avis = [], remarquesDe = () => []) {
     }).join('')}
   </div>`;
 }
-function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publications, videos = [], aFaire = [], updateDuJour, stats, message, avis = [], remarquesDe, maxMo, formation = null }) {
+function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publications, videos = [], aFaire = [], updateDuJour, stats, message, avis = [], remarquesDe, maxMo, formation = null, preuves = {} }) {
   const etatVideo = (v) => (v.res_etat ? etatPuce(v.res_etat) : v.pret ? '<span class="etat" data-etat="corriger">Résultats à donner</span>' : '<span class="etat" data-etat="attente">Résultats dans 24 h</span>');
   // Le compte TikTok d'abord : un formulaire, une question par page (déjà un compte ? créé avec la méthode ? abonnés ? lien).
   const f = formation || {};
@@ -1160,6 +1217,7 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
   <div class="titre-page"><div><p class="etiquette">Étape 4 sur 4${aujourdhui ? ` · ${echapper(jourLisible(aujourdhui))}` : ''}</p><h1>Publication et suivi</h1></div>${delai(tache && tache.delai)}</div>
   ${frise(Math.min(p.etape, 5))}
   ${message ? `<p class="${message.erreur ? 'erreur-form' : 'message-ok'}">${echapper(message.texte)}</p>` : ''}
+  ${blocMonetisation(p, formation || {})}${blocPreuves(p, preuves)}
   ${corps}
   ${blocAvis(avis, remarquesDe)}`, espace, 'parcours', maxMo, SCRIPT_FUSEAU + SCRIPT_ETAPES);
 }
@@ -1167,6 +1225,7 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
 // ---------- Membre : l'update du compte (28 derniers jours) ----------
 function pageCompteRendu(config, { espace, parcours: p, jour, cr, remarques = [], erreur }) {
   const v = (k) => (cr && cr[k] !== null && cr[k] !== undefined ? cr[k] : '');
+  const monetise = p.monetisation_etat === 'acceptee';
   return page('Update du compte', `
   <a class="retour" href="/parcours/etape-4"><span aria-hidden="true">‹</span> Étape 4</a>
   <div class="titre-page"><div><p class="etiquette">Update du compte</p><h1>${echapper(jourLisible(jour))}</h1></div>${cr && cr.etat ? etatPuce(cr.etat) : ''}</div>
@@ -1174,11 +1233,14 @@ function pageCompteRendu(config, { espace, parcours: p, jour, cr, remarques = []
   ${cr && cr.etat === 'corriger' && remarques[0] ? remarque({ ...remarques[0], type: 'corriger' }) : ''}
   <form method="post" action="/parcours/compte-rendu/${echapper(jour)}" class="carte" style="display:grid;gap:14px;margin-top:14px">
     <p class="doux" style="margin:0">Sur TikTok : tes statistiques des <b>28 derniers jours</b> (la capture montrée dans la vidéo de l'étape 4).</p>
-    ${zoneCapture('capture', cr && cr.capture_revenus ? 'Remplacer la capture' : 'Capture des 28 derniers jours', 'Vues et revenus des 28 derniers jours, bien lisibles.', cr ? cr.capture_revenus : '')}
+    ${zoneCapture('capture', cr && cr.capture_revenus ? 'Remplacer la capture' : 'Capture des 28 derniers jours', monetise ? 'Vues et revenus des 28 derniers jours, bien lisibles.' : 'Tes statistiques des 28 derniers jours, bien lisibles.', cr ? cr.capture_revenus : '')}
     <div class="grille-champs">
+      <div class="champ"><label for="abonnes">Abonnés actuels</label><input id="abonnes" name="abonnes" type="number" min="0" inputmode="numeric" value="${echapper(v('abonnes') || (p.abonnes_actuels ?? ''))}" required></div>
       <div class="champ"><label for="vues_28j">Vues (28 jours)</label><input id="vues_28j" name="vues_28j" type="number" min="0" inputmode="numeric" value="${echapper(v('vues_28j'))}" required></div>
-      <div class="champ"><label for="revenus_28j">Revenus (28 jours, $)</label><input id="revenus_28j" name="revenus_28j" type="text" inputmode="decimal" placeholder="$0.00" value="${echapper(v('revenus_28j'))}" required></div>
+      ${monetise ? `<div class="champ"><label for="revenus_28j">Revenus (28 jours, $)</label><input id="revenus_28j" name="revenus_28j" type="text" inputmode="decimal" placeholder="$0.00" value="${echapper(v('revenus_28j'))}" required></div>`
+    : '<div class="champ" style="opacity:.45"><label>Revenus (28 jours, $)</label><input disabled placeholder="Après la monétisation (10K abonnés)"></div>'}
     </div>
+    <p class="doux petit" style="margin:-6px 0 0">Le total depuis ton entrée dans l'accompagnement se calcule tout seul à partir de ces chiffres.</p>
     <div class="champ"><label for="question">Une question pour ton coach ? (facultatif)</label><textarea id="question" name="question" maxlength="1000">${echapper(v('question'))}</textarea></div>
     <button class="bouton" type="submit" style="margin-top:0">Envoyer l'update</button>
   </form>`, espace, 'parcours');
@@ -1187,6 +1249,7 @@ function pageCompteRendu(config, { espace, parcours: p, jour, cr, remarques = []
 // ---------- Membre : les résultats d'une vidéo ----------
 function pageResultatVideo(config, { espace, parcours: p, video: v, remarques = [], erreur }) {
   const val = (k) => (v[k] !== null && v[k] !== undefined ? v[k] : '');
+  const monetise = Boolean(p && p.monetisation_etat === 'acceptee');
   const deja = (v.captures || []).length;
   return page('Résultats de la vidéo', `
   <a class="retour" href="/parcours/etape-4"><span aria-hidden="true">‹</span> Étape 4</a>
@@ -1200,8 +1263,23 @@ function pageResultatVideo(config, { espace, parcours: p, video: v, remarques = 
     ${zoneCapture('capture', deja ? 'Ajouter une capture (la vidéo a fait plus de vues)' : 'Capture des résultats de la vidéo', 'Les statistiques de la vidéo sur TikTok.', '')}
     <div class="grille-champs">
       <div class="champ"><label for="vues">Vues de la vidéo (au total)</label><input id="vues" name="vues" type="number" min="0" inputmode="numeric" value="${echapper(val('res_vues'))}" required></div>
-      <div class="champ"><label for="revenus">Revenus de la vidéo ($)</label><input id="revenus" name="revenus" type="text" inputmode="decimal" placeholder="$0.00" value="${echapper(val('res_revenus'))}" required></div>
+      <div class="champ"><label for="abonnes">Abonnés gagnés avec la vidéo</label><input id="abonnes" name="abonnes" type="number" min="0" inputmode="numeric" value="${echapper(val('res_abonnes'))}" required></div>
     </div>
+    ${monetise ? `<div class="champ"><label>TikTok a-t-il mis à jour tes revenus pour cette vidéo ?</label>
+      <div class="deux-boutons"><label class="bouton secondaire" style="margin:0"><input type="radio" name="maj" value="oui" checked style="width:auto;margin:0 8px 0 0">Oui</label>
+        <label class="bouton secondaire" style="margin:0"><input type="radio" name="maj" value="non" style="width:auto;margin:0 8px 0 0">Pas encore</label></div></div>
+    <div class="grille-champs" data-si-maj="oui">
+      <div class="champ"><label for="revenus">Revenus de la vidéo ($)</label><input id="revenus" name="revenus" type="text" inputmode="decimal" placeholder="$0.00" value="${echapper(val('res_revenus'))}"></div>
+      <div class="champ"><label for="rpm">RPM de la vidéo ($)</label><input id="rpm" name="rpm" type="text" inputmode="decimal" placeholder="$0.00" value="${echapper(val('res_rpm'))}"></div>
+    </div>
+    <div class="champ" data-si-maj="non" hidden><label for="rappel">Reviens plus tard : quand veux-tu un rappel ?</label><input id="rappel" type="datetime-local">
+      <input type="hidden" name="rappel_iso" value=""><small>Tu devras quand même faire l'update de cette vidéo : Bob te le rappelle à cette heure.</small></div>
+    <script>(function () { var f = document.currentScript.closest('form');
+      function maj() { var non = f.querySelector('[name=maj][value=non]').checked; f.querySelectorAll('[data-si-maj]').forEach(function (e) { e.hidden = e.getAttribute('data-si-maj') !== (non ? 'non' : 'oui'); }); }
+      f.querySelectorAll('[name=maj]').forEach(function (r) { r.onchange = maj; });
+      var r = f.querySelector('#rappel'), d = new Date(Date.now() + 3 * 3600000); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); r.value = d.toISOString().slice(0, 16);
+      f.addEventListener('submit', function () { if (f.querySelector('[name=maj][value=non]').checked) f.rappel_iso.value = new Date(r.value).toISOString(); });
+    })();</script>` : ''}
     <button class="bouton" type="submit" style="margin-top:0">${v.res_etat ? 'Mettre à jour les résultats' : 'Envoyer les résultats'}</button>
     <p class="doux petit" style="margin:0">La date de publication ne change pas. Ton coach valide chaque mise à jour.</p>
   </form>`}`, espace, 'parcours');

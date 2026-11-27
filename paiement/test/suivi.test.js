@@ -62,6 +62,8 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     assert.strictEqual((await m.poster('/parcours/etape-4/compte', { compte: 'pas un lien !' }, { cookie: membre })).status, 400);
     assert.strictEqual((await m.poster('/parcours/etape-4/compte', { compte: 'https://www.tiktok.com/@awa?lang=fr' }, { cookie: membre })).headers.get('location'), '/parcours/etape-4?ok=compte');
     assert.strictEqual(m.parcours.get(E1).compte_tiktok, 'https://www.tiktok.com/@awa');
+    // Déjà monétisé (déjà passé par les 10K) : revenus et RPM demandés dans les résultats et l'update.
+    m.db.prepare("UPDATE parcours SET monetisation_etat = 'acceptee', monetisation_le = ? WHERE discord_id = ?").run(new Date(Date.now() - 864e5 * 10).toISOString(), E1);
 
     // Puis les 3 heures (délai de 12 h).
     assert.match(await (await m.get('/parcours', { cookie: membre })).text(), /Choisis tes 3 heures/);
@@ -106,18 +108,18 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     assert.match(await (await m.get('/parcours', { cookie: membre })).text(), new RegExp(`Donne les résultats de ta vidéo du ${jourLisible(hier)}`));
     const [v1, v2] = m.suivi.videos(E1).reverse();
     assert.match(await (await m.get(`/parcours/videos/${v1.id}`, { cookie: membre })).text(), /Capture des résultats de la vidéo/);
-    const sansCapture = await m.poster(`/parcours/videos/${v1.id}`, { vues: '4000', revenus: '300' }, { cookie: membre });
+    const sansCapture = await m.poster(`/parcours/videos/${v1.id}`, { vues: '4000', abonnes: '40', revenus: '300', rpm: '1.2' }, { cookie: membre });
     assert.strictEqual(sansCapture.status, 400);
     assert.match(await sansCapture.text(), /Ajoute la capture/);
-    const r1 = await m.poster(`/parcours/videos/${v1.id}`, { vues: '4000', revenus: '$300.00', capture: img.nom }, { cookie: membre });
+    const r1 = await m.poster(`/parcours/videos/${v1.id}`, { vues: '4000', abonnes: '40', revenus: '$300.00', rpm: '1.20', capture: img.nom }, { cookie: membre });
     assert.strictEqual(r1.headers.get('location'), '/parcours/etape-4?ok=resultat');
     await attendre();
     assert.ok(dms.some(([id, t]) => id === ADMIN && /résultats de sa vidéo/.test(t)));
-    assert.strictEqual((await m.poster(`/parcours/videos/${v2.id}`, { vues: '1', revenus: '0', capture: img2.nom }, { cookie: membre })).status, 400, 'capture d\'un autre membre refusée');
+    assert.strictEqual((await m.poster(`/parcours/videos/${v2.id}`, { vues: '1', abonnes: '0', revenus: '0', rpm: '0', capture: img2.nom }, { cookie: membre })).status, 400, 'capture d\'un autre membre refusée');
     // Trop tôt : une vidéo publiée à l'instant.
     await m.poster('/parcours/etape-4/publication', { liens: 'https://www.tiktok.com/@awa/video/7400000000000000003' }, { cookie: membre });
     const v3 = m.suivi.videos(E1)[0];
-    assert.match(await (await m.poster(`/parcours/videos/${v3.id}`, { vues: '1', revenus: '0', capture: img.nom }, { cookie: membre })).text(), /24 h après la publication/);
+    assert.match(await (await m.poster(`/parcours/videos/${v3.id}`, { vues: '1', abonnes: '0', revenus: '0', rpm: '0', capture: img.nom }, { cookie: membre })).text(), /24 h après la publication/);
 
     // Coach : À traiter, page des résultats, modifications demandées, puis validé.
     assert.match(await (await m.get('/admin/a-traiter', { cookie: coach })).text(), new RegExp(`Résultats de la vidéo du ${jourLisible(hier)}`));
@@ -131,10 +133,10 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     assert.match(await (await m.get(`/parcours/videos/${v1.id}`, { cookie: membre })).text(), /Les vues ne correspondent pas/);
     // Mise à jour : une capture de plus, nouvelles vues.
     const img3 = await image(m, membre);
-    await m.poster(`/parcours/videos/${v1.id}`, { vues: '5000', revenus: '300', capture: img3.nom }, { cookie: membre });
+    await m.poster(`/parcours/videos/${v1.id}`, { vues: '5000', abonnes: '50', revenus: '300', rpm: '1.2', capture: img3.nom }, { cookie: membre });
     assert.strictEqual(m.suivi.video(v1.id).captures.length, 2, 'la capture s\'ajoute aux précédentes');
     await m.poster(`/admin/resultats/${v1.id}/decision`, { decision: 'valider' }, { cookie: coach });
-    await m.poster(`/parcours/videos/${v2.id}`, { vues: '20000', revenus: '1300', capture: img.nom }, { cookie: membre });
+    await m.poster(`/parcours/videos/${v2.id}`, { vues: '20000', abonnes: '900', revenus: '1300', rpm: '1.5', capture: img.nom }, { cookie: membre });
     await m.poster(`/admin/resultats/${v2.id}/decision`, { decision: 'valider' }, { cookie: coach });
     await attendre();
     assert.ok(dms.some(([id, t]) => id === E1 && /résultats de ta vidéo du .* sont validés/.test(t)));
@@ -144,10 +146,10 @@ test('étape 4 : heures, déclaration, compte rendu, décision du coach, objecti
     // Update du compte du jour : capture des 28 derniers jours, vues et revenus ; il sert pour GOAT (28 jours).
     const aujourdhui = m.suivi.aujourdhui(m.parcours.get(E1));
     assert.match(await (await m.get(`/parcours/compte-rendu/${aujourdhui}`, { cookie: membre })).text(), /28 derniers jours/);
-    const sansRevenus = await m.poster(`/parcours/compte-rendu/${aujourdhui}`, { vues_28j: '54000', capture: img.nom }, { cookie: membre });
+    const sansRevenus = await m.poster(`/parcours/compte-rendu/${aujourdhui}`, { abonnes: '12000', vues_28j: '54000', capture: img.nom }, { cookie: membre });
     assert.strictEqual(sansRevenus.status, 400);
     assert.match(await sansRevenus.text(), /revenus sur les 28 derniers jours/);
-    const up = await m.poster(`/parcours/compte-rendu/${aujourdhui}`, { vues_28j: '54000', revenus_28j: '1 600,00', capture: img.nom, question: 'Comment garder mes viewers après 10 s ?' }, { cookie: membre });
+    const up = await m.poster(`/parcours/compte-rendu/${aujourdhui}`, { abonnes: '12000', vues_28j: '54000', revenus_28j: '1 600,00', capture: img.nom, question: 'Comment garder mes viewers après 10 s ?' }, { cookie: membre });
     assert.strictEqual(up.headers.get('location'), '/parcours/etape-4?ok=compte-rendu');
     await attendre();
     assert.ok(dms.some(([id, t]) => id === ADMIN && /update du compte/.test(t)));
@@ -443,5 +445,59 @@ test('réalisations sur la fiche (coach et élève) ; étape 4 : seules les 3 de
     assert.match(await (await m.get('/fiche', membre)).text(), /Réalisations[\s\S]*\/parcours\/envois\/\d+\/video/);
     assert.strictEqual((await m.get(`/parcours/envois/${ids[3]}/video`, membre)).status, 200);
     assert.strictEqual((await m.get(`/parcours/envois/${ids[3]}/video`, { cookie: cookieSession('AUTRE', 'x') })).status, 404);
+  } finally { await m.fermer(); }
+});
+
+test('étape 4 : sans revenus avant les 10K ; 10K → formulaire de monétisation → preuve validée ; preuves d\'audience (5 résultats) et de RPM ; rappel « revenus pas à jour »', async () => {
+  const appels = [];
+  const bob = { parcours: new Proxy({}, { get: (o, nom) => async (...a) => { appels.push([nom, ...a]); return true; } }) };
+  const m = await monter({ bob });
+  try {
+    m.parcours.assurer(E1, { pseudo: 'awa' });
+    m.parcours.changerEtape(E1, 4);
+    m.db.prepare("UPDATE parcours SET compte_tiktok = 'https://www.tiktok.com/@awa', heure_creation = '09:00', heure_publication = '12:00', heure_compte_rendu = '00:01', fuseau = 'Africa/Lome' WHERE discord_id = ?").run(E1);
+    const membre = { cookie: cookieSession(E1, 'awa') };
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+    const img = async () => (await (await fetch(`${m.base}/api/parcours/image`, { method: 'POST', headers: { 'Content-Type': 'image/png', cookie: membre.cookie }, body: png })).json()).nom;
+    // Avant la monétisation : pas de champ revenus ; l'update ne demande que les abonnés et les vues.
+    const jour = m.suivi.aujourdhui(m.parcours.get(E1));
+    const formUp = await (await m.get(`/parcours/compte-rendu/${jour}`, membre)).text();
+    assert.match(formUp, /Abonnés actuels[\s\S]*Vues \(28 jours\)[\s\S]*Après la monétisation/);
+    assert.doesNotMatch(formUp, /name="revenus_28j"/);
+    // 5 vidéos aux résultats validés (sans revenus) → la preuve d'audience est demandée.
+    for (let k = 1; k <= 5; k++) {
+      m.db.prepare("INSERT INTO publications (discord_id, jour, lien, cree_le) VALUES (?, ?, ?, ?)").run(E1, `2026-11-0${k}`, `https://www.tiktok.com/@awa/video/${k}`, new Date(Date.now() - 30 * 3600000).toISOString());
+      const id = m.db.prepare('SELECT max(id) id FROM publications').get().id;
+      const r = await m.poster(`/parcours/videos/${id}`, { vues: String(1000 * k), abonnes: '10', capture: await img() }, membre);
+      assert.match(r.headers.get('location') || '', /ok=resultat/, 'résultats sans revenus avant la monétisation');
+      await m.poster(`/admin/resultats/${id}/decision`, { decision: 'valider' }, coach);
+    }
+    assert.match(await (await m.get('/parcours/etape-4', membre)).text(), /Prouver mon audience[\s\S]*provenance dominante/);
+    await m.poster('/parcours/etape-4/preuve/audience', { capture: await img() }, membre);
+    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /Preuve d.{1,6}audience à vérifier/);
+    await m.poster(`/admin/membres/${E1}/preuve/audience/valider`, {}, coach);
+    assert.strictEqual(m.parcours.get(E1).audience_etat, 'validee');
+    // L'update du soir avec 10 200 abonnés : le formulaire de monétisation s'ouvre.
+    await m.poster(`/parcours/compte-rendu/${jour}`, { abonnes: '10200', vues_28j: '250000', capture: await img() }, membre);
+    assert.strictEqual(m.parcours.get(E1).monetisation_etat, 'a_faire');
+    assert.ok(appels.some(([n, , t]) => n === 'messageEleve' && /10 000 abonnés/.test(t)));
+    const e4 = await (await m.get('/parcours/etape-4', membre)).text();
+    assert.match(e4, /10 000 abonnés[\s\S]*procédure de la formation[\s\S]*lesn_5t8uMg8rOVH8K[\s\S]*aucun message de contestation[\s\S]*Acceptée[\s\S]*Refusée/);
+    assert.strictEqual((await m.poster('/parcours/etape-4/monetisation', { vue: 'oui', resultat: 'acceptee' }, membre)).status, 400, 'capture obligatoire');
+    await m.poster('/parcours/etape-4/monetisation', { vue: 'oui', resultat: 'acceptee', capture: await img() }, membre);
+    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /Preuve de monétisation : candidature acceptée/);
+    await m.poster(`/admin/membres/${E1}/monetisation`, { decision: 'acceptee' }, coach);
+    assert.strictEqual(m.parcours.get(E1).monetisation_etat, 'acceptee');
+    // Monétisé : revenus et RPM ; « pas encore à jour » → rappel à l'heure choisie.
+    m.db.prepare("INSERT INTO publications (discord_id, jour, lien, cree_le) VALUES (?, '2026-11-20', 'https://www.tiktok.com/@awa/video/99', ?)").run(E1, new Date(Date.now() - 30 * 3600000).toISOString());
+    const v = m.db.prepare('SELECT max(id) id FROM publications').get().id;
+    assert.match(await (await m.get(`/parcours/videos/${v}`, membre)).text(), /TikTok a-t-il mis à jour tes revenus[\s\S]*RPM de la vidéo/);
+    const dans1h = new Date(Date.now() + 3600000).toISOString();
+    assert.strictEqual((await m.poster(`/parcours/videos/${v}`, { maj: 'non', rappel_iso: dans1h, vues: '1', abonnes: '0' }, membre)).headers.get('location'), '/parcours/etape-4?ok=rappel');
+    assert.strictEqual(m.db.prepare('SELECT revenus_rappel_le r FROM publications WHERE id = ?').get(v).r, dans1h);
+    assert.strictEqual((await m.poster(`/parcours/videos/${v}`, { maj: 'oui', vues: '15000', abonnes: '900', revenus: '20' }, membre)).status, 400, 'RPM obligatoire une fois monétisé');
+    await m.poster(`/parcours/videos/${v}`, { maj: 'oui', vues: '15000', abonnes: '900', revenus: '20', rpm: '1.30', capture: await img() }, membre);
+    assert.deepStrictEqual(Object.values(m.db.prepare('SELECT res_abonnes, res_rpm, revenus_rappel_le FROM publications WHERE id = ?').get(v)), [900, 1.3, null]);
   } finally { await m.fermer(); }
 });

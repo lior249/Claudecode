@@ -373,6 +373,51 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       db.prepare('UPDATE parcours SET compte_change_autorise = ?, compte_demande = NULL, compte_demande_le = NULL WHERE discord_id = ?').run(autoriser ? 1 : null, discordId);
       return { parcours: q.get.get(discordId) };
     },
+    // ---- Monétisation (10 000 abonnés) et preuves (audience après 5 résultats ; RPM 5 vidéos après la monétisation) ----
+    // L'élève envoie la capture de sa candidature (acceptée ou refusée) ; le coach valide : acceptée → les revenus se débloquent.
+    envoyerMonetisation(discordId, { vue, resultat, capture } = {}) {
+      const p = q.get.get(discordId);
+      if (!p || !['a_faire', 'refusee'].includes(p.monetisation_etat)) return { erreur: 'Rien à envoyer pour l\'instant.' };
+      if (!['acceptee', 'refusee'].includes(resultat)) return { erreur: 'Dis si ta candidature a été acceptée ou refusée.' };
+      if (!capture) return { erreur: 'Ajoute la capture de la réponse de TikTok.' };
+      db.prepare('UPDATE parcours SET monetisation_etat = ?, monetisation_capture = ?, monetisation_vue = ?, monetisation_le = ? WHERE discord_id = ?')
+        .run(`envoyee_${resultat}`, capture, vue === 'oui' ? 'oui' : 'non', iso(), discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    // Le coach : « acceptee » (les revenus se débloquent) ou « refusee » (il aide l'élève à contester ; il renverra une capture).
+    deciderMonetisation(discordId, decision) {
+      const p = q.get.get(discordId);
+      if (!p || !String(p.monetisation_etat || '').startsWith('envoyee_')) return { erreur: 'Rien à valider.' };
+      if (!['acceptee', 'refusee'].includes(decision)) return { erreur: 'Décision inconnue.' };
+      db.prepare('UPDATE parcours SET monetisation_etat = ?, monetisation_le = ? WHERE discord_id = ?').run(decision, iso(), discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    // Preuves demandées une seule fois : audience (après 5 résultats de vidéos validés), RPM (5 résultats après la monétisation).
+    preuvesDues(discordId) {
+      const p = q.get.get(discordId);
+      if (!p) return {};
+      const n = (depuis) => db.prepare("SELECT COUNT(*) n FROM publications WHERE discord_id = ? AND res_etat = 'valide' AND res_decide_le >= ?").get(discordId, depuis || '').n;
+      return {
+        audience: !p.audience_etat && n('') >= 5,
+        rpm: p.monetisation_etat === 'acceptee' && !p.rpm_etat && n(p.monetisation_le) >= 5,
+      };
+    },
+    envoyerPreuve(discordId, type, capture) {
+      if (!['audience', 'rpm'].includes(type)) return { erreur: 'Preuve inconnue.' };
+      const p = q.get.get(discordId);
+      if (!p) return { erreur: 'Membre introuvable.' };
+      if (p[`${type}_etat`] === 'validee') return { erreur: 'Déjà validée.' };
+      if (!capture) return { erreur: 'Ajoute la capture.' };
+      db.prepare(`UPDATE parcours SET ${type}_etat = 'envoyee', ${type}_capture = ?, ${type}_le = ? WHERE discord_id = ?`).run(capture, iso(), discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    validerPreuve(discordId, type) {
+      if (!['audience', 'rpm'].includes(type)) return { erreur: 'Preuve inconnue.' };
+      const p = q.get.get(discordId);
+      if (!p || p[`${type}_etat`] !== 'envoyee') return { erreur: 'Rien à valider.' };
+      db.prepare(`UPDATE parcours SET ${type}_etat = 'validee' WHERE discord_id = ?`).run(discordId);
+      return { parcours: q.get.get(discordId) };
+    },
     // Pour À traiter : positionnements et comptes envoyés à valider, demandes de changement de compte.
     aValider() {
       const tous = q.tous.all().filter((p) => !p.retire_le);
@@ -380,6 +425,8 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
         positionnements: tous.filter((p) => p.positionnement_le && !p.positionnement_valide_le),
         comptes: tous.filter((p) => p.compte_envoye_le && p.compte_tiktok && !p.compte_valide_le),
         demandes: tous.filter((p) => p.compte_demande_le),
+        monetisations: tous.filter((p) => String(p.monetisation_etat || '').startsWith('envoyee_')),
+        preuves: tous.flatMap((p) => ['audience', 'rpm'].filter((t) => p[`${t}_etat`] === 'envoyee').map((t) => ({ p, type: t }))),
       };
     },
     // Ce qui n'a pas été validé sur la plateforme, étape par étape (tableau des élèves).
