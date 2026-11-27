@@ -569,6 +569,16 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     return res.redirect(302, oauth.urlAutorisation({ but: 'candidat' }, { rejoindre: true }));
   });
 
+  // Deux sessions dans le même navigateur : le site répond aussi sur www.<domaine>, qui garde sa propre connexion
+  // (les cookies sont propres à chaque adresse). Ex. : le compte coach sur overmaxx.online, le compte test sur www.overmaxx.online.
+  const hoteBase = (() => { try { return new URL(config.baseUrl).host; } catch { return ''; } })();
+  const hoteSecond = hoteBase.split('.').length === 2 ? `www.${hoteBase}` : null;
+  const baseDe = (req) => { const h = String(req.get('host') || ''); return hoteSecond && h === hoteSecond ? `https://${hoteSecond}` : config.baseUrl; };
+  app.get('/autre-compte', (req, res) => {
+    if (!hoteSecond) return res.redirect(302, '/connexion?retour=%2Fapp');
+    const ici = String(req.get('host') || '');
+    res.redirect(302, `https://${ici === hoteSecond ? hoteBase : hoteSecond}/connexion?retour=%2Fapp`);
+  });
   app.get('/connexion', (req, res) => {
     const retour = retourSur(req.query.retour, '/app');
     // Déjà connecté : directement son espace.
@@ -633,7 +643,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       }
       if (depasse(demandesConnexion.compte, id, 3, 30 * 60 * 1000)) return page({ erreur: 'Bob t\'a déjà envoyé plusieurs codes : regarde sur Discord, ou réessaie dans une demi-heure.' }, 429);
       const { demande, code } = nouveauCode(id, retour);
-      const r = await bob.envoyerConnexion(id, retour, pseudo, { code });
+      const r = await bob.envoyerConnexion(id, retour, pseudo, { code, base: baseDe(req) });
       if (!r.ok) {
         codesConnexion.delete(demande);
         return page({ erreur: 'Bob n\'arrive pas à t\'écrire sur Discord. Vérifie que tu es bien sur le serveur Overmaxx, puis réessaie.' }, 502);

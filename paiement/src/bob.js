@@ -1876,7 +1876,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     // Connexion depuis le site : la personne donne son pseudo, Bob lui envoie un bouton pour confirmer que c'est bien elle.
     // La connexion s'ouvre seulement dans le navigateur qui clique sur ce bouton.
     // Connexion au site : un code à 6 chiffres (à taper là où il l'a demandé, dans l'application aussi) et un bouton (navigateur).
-    async envoyerConnexion(id, retour, saisie = '', { code } = {}) {
+    async envoyerConnexion(id, retour, saisie = '', { code, base } = {}) {
       const m = await membreDuServeur(id);
       const pseudo = (m && m.user && m.user.username) || String(saisie).trim().replace(/^@/, '');
       const texte = code
@@ -1886,7 +1886,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
         : '**Connexion à overmaxx.online**\nTu viens de demander à te connecter au site. Clique sur le bouton pour continuer.\n'
           + '*Ce n\'est pas toi ? Ignore simplement ce message.*';
       // Le bouton d'une demande de connexion ne vaut que 15 minutes (les autres boutons de Bob, 30 jours).
-      const r = await envoyer(id, avecBoutons(texte, [{ label: 'C\'est bien moi, continuer', url: lienMagique(config, { id, pseudo }, retour, code ? 15 : undefined) }]));
+      const r = await envoyer(id, avecBoutons(texte, [{ label: 'C\'est bien moi, continuer', url: lienMagique(base ? { ...config, baseUrl: base } : config, { id, pseudo }, retour, code ? 15 : undefined) }]));
       return { id, pseudo, ok: r.ok, url: r.url };
     },
 

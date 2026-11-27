@@ -418,6 +418,7 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonA
     <nav>${liens}</nav>
     <div class="sb-pied">
       ${compte ? `<div class="sb-compte"><span class="sb-avatar">${echapper(initiale)}</span><div><b>${echapper(compte.pseudo)}</b><small>${echapper(compte.role || '')}</small></div></div>` : ''}
+      <a class="sb-lien" href="/autre-compte" target="_blank" rel="noopener" title="Une 2e connexion dans ce navigateur, sans déconnecter celle-ci">${ICONES_NAV.membres}<span>Autre compte (2e session) ↗</span></a>
       <a class="sb-lien" href="/deconnexion">${ICONES_NAV.sortie}<span>Se déconnecter</span></a>
     </div>
   </aside>

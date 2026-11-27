@@ -35,6 +35,13 @@ const ICONES = {
 
 const STYLE_PROFIL = `<style>
   .pf { --lime:#c8f23a; --lime-fonce:#1d2408; max-width:560px; margin:0 auto; }
+  /* Ordinateur : deux colonnes (identité et journée à gauche, cartes à droite), plus de place. */
+  @media (min-width: 1100px) {
+    .pf { max-width:1120px; }
+    .pf-cols { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:0 36px; align-items:start; }
+    .pf-cols .pf-d { position:sticky; top:20px; }
+    .pf-cols .pf-identite { margin-top:0; }
+  }
   .pf-haut { display:flex; align-items:center; justify-content:space-between; margin:2px 0 6px; }
   .pf-icone { position:relative; display:grid; place-items:center; width:40px; height:40px; border-radius:50%; color:#fff; }
   .pf-icone svg { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
@@ -272,6 +279,7 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
         <a class="pf-icone" href="/reglages" aria-label="Réglages">${ICONES.reglages}</a>
       </div>
     </div>
+    <div class="pf-cols"><div class="pf-g">
     <div class="pf-identite">
       <a class="pf-avatar piece" style="--piece:${echapper(couleurPiece(p.sinistre_depuis ? 'sinistre' : role))}"${p.sinistre_depuis ? ' data-sinistre' : ''} href="/fiche" aria-label="Ma fiche">
         <span class="face">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</span></a>
@@ -286,6 +294,7 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
     <a class="pf-frise" href="/parcours" aria-label="Mon parcours">${frise(Math.min(p.etape, 5))}</a>
     <div class="roue-cadre"><div class="roue" role="listbox" aria-label="Jours">${roue}</div><button type="button" class="roue-retour" hidden>Revenir à aujourd'hui</button></div>
     ${jours.map((d, i) => panneauJour(d, i, tache)).join('')}
+    </div><div class="pf-d">
     <div class="pf-cartes">
       <div class="pf-carte pf-carrousel-cadre">
         <div class="pf-carrousel" aria-roledescription="carrousel" aria-label="Je suis">
@@ -307,6 +316,7 @@ function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, rol
     <a class="bouton secondaire" href="/parcours" style="margin:4px 0 18px">Mon parcours</a>
     ${seances.length ? `<h2 class="section">Mes prochains coachings</h2><div class="carte">${seances.slice(0, 3).map((x) => `<div class="pf-seance"><b data-quand="${echapper(x.debut)}">${echapper(x.date)} à ${echapper(x.heure)} GMT</b><span>${echapper(x.type)}</span></div>`).join('')}
       <a class="bouton secondaire" href="/coaching" style="margin-top:10px">Mes coachings</a></div>` : ''}
+    </div></div>
   </div>
   ${STYLE_HEATMAP}<dialog class="fenetre" id="regularite-fenetre" aria-labelledby="regularite-titre">
     <button class="fermer" type="button" aria-label="Fermer" data-fermer>×</button>
@@ -686,6 +696,7 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
     <span class="barre"><i style="width:${total ? Math.round((fait / total) * 100) : pleineSiVide ? 100 : 0}%"></i></span></a>`;
   return page('Mon profil', `${STYLE_PROFIL}${STYLE_ROLES}
   <div class="pf">
+    <div class="pf-cols"><div class="pf-g">
     <div class="pf-identite" style="margin-top:6px">
       <span class="pf-avatar piece" style="--piece:#f5c518"><span class="face">${avatar ? `<img src="${echapper(avatar)}" alt="" referrerpolicy="no-referrer">` : `<span>${echapper(nom.charAt(0).toUpperCase())}</span>`}</span></span>
       <h1>${echapper(nom)}</h1><p>Coach Overmaxx</p>
@@ -698,6 +709,7 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
     <h2 class="section">Aujourd'hui</h2>
     ${barre('Tâches du jour', faites, faites + aTraiter, '/admin/a-traiter', 'Rien à traiter', true)}
     ${barre('Coachings du jour', seancesFaites, seancesAujourdhui, '/admin', 'Aucun coaching')}
+    </div><div class="pf-d">
     <div class="pf-cartes" style="grid-template-columns:1fr 1fr">
       <a class="pf-carte" href="#a-la-une"><h3>À la une</h3><p class="vert">${aLaUne.length} résultat(s)</p><p>Les meilleurs résultats de tes élèves, 7 derniers jours.</p></a>
       <a class="pf-carte" href="/classement"><h3>Classement</h3><p class="vert">${top.length ? `1er : ${echapper(top[0].nom)}` : 'Top 100'}</p><p>Tous les élèves, par revenus.</p></a>
@@ -708,6 +720,7 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
     <h2 class="section">Meilleurs élèves</h2>
     <div class="cm-liste">${top.map((m, i) => `<a class="cm-ligne" href="/classement/${encodeURIComponent(m.id)}" style="color:#fff;text-decoration:none"><span class="rond">${i + 1}</span>
       <div class="qui"><b>${echapper(m.nom)}</b><small>${dollars(m.revenus, { centimes: false })} · ${vuesCourtes(m.vues)} vues</small></div></a>`).join('') || '<p class="vide-traiter">Pas encore de résultats.</p>'}</div>
+    </div></div>
   </div>${STYLE_COMMU}`, espace, 'coach');
 }
 

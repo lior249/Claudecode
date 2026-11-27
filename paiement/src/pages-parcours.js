@@ -849,6 +849,7 @@ const STYLE_TRAITER = `<style>
   .vide-traiter { color:var(--gris); font-size:13px; margin:0; padding:14px 16px; border:1px dashed var(--bord); border-radius:14px; }
   .puces-traiter a[aria-pressed="true"] { background:#fff; color:#000; border-color:#fff; } .puces-traiter a[aria-pressed="true"] b { background:#000; color:#fff; }
   .tr-file { display:grid; gap:8px; max-width:820px; }
+  @media (min-width: 1200px) { .tr-file { max-width:none; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:start; } .tr-file .tr-sep { grid-column:1 / -1; } }
   .tr-carte { display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:16px; background:var(--surface); border:1px solid var(--bord); }
   .tr-carte[hidden] { display:none; }
   .tr-corps { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; } .tr-corps b { font-size:15px; overflow-wrap:anywhere; } .tr-corps p { margin:2px 0 0; font-size:14px; }

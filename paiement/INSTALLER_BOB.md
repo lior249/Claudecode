@@ -629,3 +629,13 @@ ou sur **overmaxx.online/admin/candidatures**.
 - **Bilan** : Bob te l'envoie quand c'est fini, avec les posts à reprendre à la main s'il y en a.
 - **Relancer** ne crée jamais deux fois le même post : il met à jour ceux déjà importés (texte, images).
 - **Prérequis** : sur discord.com/developers › application de Bob › Bot, active « Message Content Intent », puis relance le site. Sans ça, Bob ne lit que les titres.
+
+## Deux comptes dans le même navigateur ; affichage ordinateur
+
+- **Le site répond aussi sur www.overmaxx.online**, avec sa propre connexion : les cookies sont propres à chaque adresse.
+  - Ton compte coach reste sur `overmaxx.online`, ton compte test sur `www.overmaxx.online`.
+  - Ils sont ouverts en même temps, dans deux espaces Opera, sans que l'un déconnecte l'autre.
+- **Pour ouvrir la 2e session** : menu › « Autre compte (2e session) ↗ ».
+  - Connecte-toi avec ton pseudo Discord et le code de Bob (ou son bouton : il ramène sur la même adresse).
+  - Sur www, utilise la connexion par pseudo, pas « Se connecter avec Discord » qui revient sur l'adresse principale.
+- **Ordinateur** : Mon profil (élève et coach) s'affiche en deux colonnes, et À traiter aussi sur grand écran.

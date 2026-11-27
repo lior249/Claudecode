@@ -48,12 +48,14 @@ BLOC="$DOMAIN {
 	encode zstd gzip
 	reverse_proxy overmaxx-paiement:8080
 }"
-# www.overmaxx.online → overmaxx.online (seulement si DOMAIN est un domaine nu, pas un sous-domaine).
+# www.overmaxx.online : le même site, avec sa propre connexion (une 2e session dans le même navigateur,
+# ex. le compte test à côté du compte coach). Seulement si DOMAIN est un domaine nu, pas un sous-domaine.
 if [ "$(echo "$DOMAIN" | tr -cd . | wc -c)" = 1 ]; then
   BLOC="$BLOC
 
 www.$DOMAIN {
-	redir https://$DOMAIN{uri} permanent
+	encode zstd gzip
+	reverse_proxy overmaxx-paiement:8080
 }"
 fi
 mkdir -p /opt/caddy-commun
