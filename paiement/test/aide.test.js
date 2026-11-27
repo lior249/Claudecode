@@ -53,3 +53,18 @@ test('/aide : assistant, envoi au coach, À traiter, réponse', async () => {
     assert.match(await (await m.get('/parcours/etape-4', membre)).text(), /Bloqué \? Demander de l.{1,6}aide/);
   } finally { await m.fermer(); }
 });
+
+test('rappels du coach : la notification ouvre la page concernée', () => {
+  const { creerNotifsAdmin, pageDevinee } = require('../src/admin-notifs');
+  assert.strictEqual(pageDevinee('Vérifier les coachings du jour'), '/admin?vue=jour');
+  assert.strictEqual(pageDevinee('Donner mes disponibilités'), '/admin/disponibilites');
+  assert.strictEqual(pageDevinee('Valider les comptes rendus'), '/admin/a-traiter');
+  const { ouvrirBase } = require('../src/db');
+  const db = ouvrirBase(':memory:');
+  const n = creerNotifsAdmin({ db, maintenant: () => new Date('2026-12-01T08:00:00Z') });
+  n.creer({ texte: 'Vérifier les coachings du jour', frequence: 'jour', heure: '08:00' });
+  n.creer({ texte: 'Autre chose', frequence: 'jour', heure: '08:00', page: '/admin/eleves' });
+  const [a, b] = n.rappels();
+  assert.strictEqual(n.pageDuRappel(a), '/admin?vue=jour&date=2026-12-01');
+  assert.strictEqual(n.pageDuRappel(b), '/admin/eleves');
+});

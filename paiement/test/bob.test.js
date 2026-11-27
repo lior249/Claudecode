@@ -160,7 +160,9 @@ test('pages coaching et admin : connexion, Elite seulement, GOAT exclu, admin', 
     assert.match(connexionAdmin, /Connecte ton compte Discord/);
     assert.strictEqual((await m.get('/admin', { cookie: cookieSession('E1') })).status, 403);
     const admin = await (await m.get('/admin', { cookie: cookieSession(ADMIN) })).text();
-    assert.match(admin, /Calendrier des coachings/);
+    // Par défaut : la vue « Aujourd'hui », une seule colonne ; l'onglet Semaine garde la grille.
+    assert.match(admin, /class="onglets-vue"[\s\S]*aria-current="page">Aujourd.{1,6}hui[\s\S]*class="jour-liste"/);
+    assert.match(await (await m.get('/admin?vue=semaine', { cookie: cookieSession(ADMIN) })).text(), /Calendrier des coachings/);
     // Les créneaux fixes réservés commencent au plus tard la semaine suivante : une case réservée = un lien vers sa page.
     const lundiSuivant = m.coaching.ajouterJours(m.coaching.lundiDe(new Date()), 7);
     assert.match(await (await m.get(`/admin?semaine=${lundiSuivant}`, { cookie: cookieSession(ADMIN) })).text(), /href="\/admin\/creneau\?date=/);
@@ -309,7 +311,7 @@ test('Bob : rappels de coaching (perso, 1 h avant) et récap admin 2 h avant la 
     assert.match(membre[0], /Rappel/);
     assert.match(membre[1], /1 heure/);
     assert.strictEqual(admin.length, 1);
-    assert.match(admin[0], /retour=%2Fadmin%3Fsemaine/);
+    assert.match(admin[0], /retour=%2Fadmin%3Fvue%3Djour%26date%3D/);
     assert.match(admin[0], /retour=%2Fadmin%2Fimprevu/, "bouton J'ai un imprévu");
   } finally { await m.fermer(); }
 });

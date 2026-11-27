@@ -279,7 +279,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       // Le coach lit chaque notification une à une : seule l'ouverture d'une notification la marque lue.
       const nonLues = notifsAdmin.nonLues();
       return res.send(N.pageNotificationsAdmin(config, { espace, onglet, notifications, nonLues,
-        rappels: notifsAdmin.rappels(), modeles: notifsAdmin.MODELES, JOURS: notifsAdmin.JOURS,
+        rappels: notifsAdmin.rappels(), modeles: notifsAdmin.MODELES, JOURS: notifsAdmin.JOURS, pagesRappel: notifsAdmin.PAGES_RAPPEL,
         message: { ajoute: 'Rappel ajouté : Bob te l\'enverra à l\'heure choisie.', supprime: 'Rappel supprimé.' }[req.query.fait],
         erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
     }
@@ -294,7 +294,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // Mes rappels (coach).
   app.post('/admin/rappels', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/notifications?onglet=rappels')) return;
-    const r = notifsAdmin.creer({ texte: req.body.texte, frequence: req.body.frequence, jours: req.body.jours, date: req.body.date, heure: req.body.heure });
+    const r = notifsAdmin.creer({ texte: req.body.texte, frequence: req.body.frequence, jours: req.body.jours, date: req.body.date, heure: req.body.heure, page: req.body.page || null });
     res.redirect(303, `/notifications?onglet=rappels&${r.erreur ? `erreur=${encodeURIComponent(r.erreur)}` : 'fait=ajoute'}`);
   });
   app.post('/admin/rappels/:id/supprimer', formulaire, (req, res) => {
@@ -2283,7 +2283,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (session.id !== config.discord.adminId) return res.status(403).send(P.pageMessage(config, 'Accès refusé', 'Cet espace est réservé à l\'admin.'));
     const fait = { dispo: `Disponibilités enregistrées. ${Number(req.query.n) || 0} séance(s) annulée(s) : Bob a prévenu les membres.`,
       imprevu: `Imprévu signalé. ${Number(req.query.n) || 0} membre(s) prévenu(s) par Bob.` }[req.query.fait] || null;
-    res.send(C.pageAdmin(config, { ...donneesAdmin(String(req.query.semaine || '')), message: fait, espace: espaceDe(session) }));
+    // Par défaut : la vue « Aujourd'hui » (une colonne). « Semaine » : la grille de la semaine.
+    const vue = req.query.vue === 'semaine' || (req.query.semaine && req.query.vue !== 'jour') ? 'semaine' : 'jour';
+    const jour = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? String(req.query.date) : coaching.dateISO(new Date());
+    res.send(C.pageAdmin(config, { ...donneesAdmin(vue === 'jour' ? jour : String(req.query.semaine || '')), vue, jour, message: fait, espace: espaceDe(session) }));
     return undefined;
   });
 

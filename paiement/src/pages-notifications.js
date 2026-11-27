@@ -241,12 +241,12 @@ const SCRIPT_RAPPELS = `(function () {
   f.frequence.addEventListener('change', maj); maj();
   document.querySelectorAll('[data-modele]').forEach(function (b) { b.addEventListener('click', function () {
     var m = JSON.parse(b.getAttribute('data-modele'));
-    f.texte.value = m.texte; f.frequence.value = m.frequence; f.heure.value = m.heure;
+    f.texte.value = m.texte; f.frequence.value = m.frequence; f.heure.value = m.heure; if (f.page) f.page.value = m.page || '';
     f.querySelectorAll('input[name="jours"]').forEach(function (c) { c.checked = (m.jours || []).indexOf(Number(c.value)) >= 0; });
     maj(); f.texte.focus();
   }); });
 })();`;
-function pageNotificationsAdmin(config, { espace, onglet, notifications = [], nonLues = 0, rappels = [], modeles = [], JOURS = [], message, erreur }) {
+function pageNotificationsAdmin(config, { espace, onglet, notifications = [], nonLues = 0, rappels = [], modeles = [], JOURS = [], pagesRappel = [], message, erreur }) {
   const formatHeure = (iso) => new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' GMT';
   const tabs = `<nav class="onglets-admin" aria-label="Notifications">
     <a href="/notifications"${onglet === 'notifications' ? ' aria-current="page"' : ''}>Notifications${nonLues ? `<b>${nonLues}</b>` : ''}</a>
@@ -264,6 +264,8 @@ function pageNotificationsAdmin(config, { espace, onglet, notifications = [], no
       <div class="rp-jours" data-pour="semaine" hidden>${JOURS.map((j, i) => ({ j, i })).slice(1).concat([{ j: JOURS[0], i: 0 }])
     .map(({ j, i }) => `<label><input type="checkbox" name="jours" value="${i}">${echapper(j)}</label>`).join('')}</div>
       <div class="champ" data-pour="une-fois" hidden><label for="date">Date</label><input id="date" name="date" type="date"></div>
+      <div class="champ"><label for="page">Page à ouvrir quand il arrive</label><select id="page" name="page">
+        <option value="">Selon le texte du rappel</option>${pagesRappel.map(([v, l]) => `<option value="${echapper(v)}">${echapper(l)}</option>`).join('')}</select></div>
       ${erreur ? `<p class="erreur-form" style="margin:0">${echapper(erreur)}</p>` : ''}
       <button class="bouton" type="submit" style="margin:0">Ajouter le rappel</button>
       <p class="doux petit" style="margin:0">Bob te l'envoie à l'heure choisie, dans l'application ou sur Discord selon ton réglage.</p>

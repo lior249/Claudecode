@@ -818,6 +818,13 @@ function migrerV37(db) {
   db.exec('PRAGMA user_version = 37');
 }
 
+// v38 : la page qu'ouvre un rappel du coach (sinon devinée d'après son texte).
+function migrerV38(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 38) return;
+  if (!colonnes(db, 'rappels_admin').includes('page')) db.exec('ALTER TABLE rappels_admin ADD COLUMN page TEXT');
+  db.exec('PRAGMA user_version = 38');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -864,6 +871,7 @@ function ouvrirBase(fichier) {
   migrerV35(db);
   migrerV36(db);
   migrerV37(db);
+  migrerV38(db);
   return db;
 }
 

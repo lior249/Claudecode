@@ -423,7 +423,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       const duJour = seances.filter((s) => s.date === date && !s.touchee);
       if (!duJour.length) { marquer(cle); continue; }
       const ok = await notifier.admin(avecBoutons(`**${duJour.length} séance(s) de coaching** aujourd'hui, la première à **${duJour[0].heure} GMT**.`,
-        [{ label: 'Ouvrir le calendrier', url: lienCoach(`/admin?semaine=${date}`) }, { label: 'J\'ai un imprévu', url: lienCoach(`/admin/imprevu?date=${date}`) }]));
+        [{ label: 'Ouvrir le calendrier', url: lienCoach(`/admin?vue=jour&date=${date}`) }, { label: 'J\'ai un imprévu', url: lienCoach(`/admin/imprevu?date=${date}`) }]));
       if (ok) marquer(cle);
     }
   }
@@ -1696,7 +1696,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   async function rappelsAdmin() {
     for (const r of notifsAdmin.dus()) {
       notifsAdmin.marquerEnvoye(r.id);
-      await notifier.admin(avecBoutons(`⏰ **Rappel** : ${r.texte}`, [{ label: 'Mes rappels', url: lienCoach('/notifications?onglet=rappels') }]));
+      // La page concernée (ex. « Vérifier les coachings du jour » → le calendrier du jour), pas la liste des rappels.
+      await notifier.admin(avecBoutons(`⏰ **Rappel** : ${r.texte}`, [{ label: 'Ouvrir', url: lienCoach(notifsAdmin.pageDuRappel(r)) }]));
     }
   }
   async function cycle() {

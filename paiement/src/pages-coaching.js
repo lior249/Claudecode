@@ -478,7 +478,7 @@ function pageCreneau(config, { espace, date, heure, jourNom, membre, id, libres 
       <textarea name="texte" maxlength="500" placeholder="Précision (obligatoire pour « Autre raison »)"></textarea>
       <button class="bouton vert" type="submit" style="margin:0">Envoyer à l'élève pour approbation</button></form></details>`, espace, 'calendrier');
 }
-function pageAdmin(config, { lundi, jours, cases, annulations, touchees = [], dispoProchaine, lundiProchain, aujourdhui, coaching, espace, message }) {
+function pageAdmin(config, { lundi, jours, cases, annulations, touchees = [], dispoProchaine, lundiProchain, aujourdhui, coaching, espace, message, vue = 'semaine', jour = null }) {
   const membres = {};
   for (const c of cases) if (c.membre) membres[c.cle] = c.membre;
   const script = `
@@ -507,13 +507,55 @@ function pageAdmin(config, { lundi, jours, cases, annulations, touchees = [], di
         }
         return `<button type="button" class="case ${classe}" disabled aria-label="${c.absence ? (c.absence.type === 'imprevu' ? 'Imprévu' : 'Absent') : 'Libre'}"></button>`;
       }).join('')}`).join('')}</div>`;
+  // Vue « Aujourd'hui » : une seule colonne, tous les créneaux du jour visibles d'un coup.
+  const leJour = jour || aujourdhui;
+  const duJour = cases.filter((c) => c.date === leJour);
+  const nbSeances = duJour.filter((c) => c.membre && !c.touchee).length;
+  const premiere = duJour.find((c) => c.membre && !c.touchee);
+  const nomJour = (jours.find((j) => j.date === leJour) || {}).nom || '';
+  const colonneJour = `<div class="jour-liste">${heures.map((h, i) => {
+    const c = duJour.find((x) => x.heure === h);
+    const coupure = i > 0 && Number(h.slice(0, 2)) - Number(heures[i - 1].slice(0, 2)) > 1 ? '<div class="coupure-jour"></div>' : '';
+    if (!c) return '';
+    if (c.membre) {
+      return `${coupure}<div class="h">${echapper(h)}</div><a class="case ${c.touchee ? 'touchee' : 'moi'}" href="/admin/creneau?date=${encodeURIComponent(c.date)}&amp;heure=${encodeURIComponent(c.heure)}">
+        <b>${echapper(c.membre.nom || c.membre.court)}</b><span>${c.touchee ? 'Annulée' : echapper(c.membre.type || '')}</span></a>`;
+    }
+    return `${coupure}<div class="h">${echapper(h)}</div><div class="case ${c.absence ? 'absent' : 'libre'}"><span>${c.absence ? (c.absence.type === 'imprevu' ? 'Imprévu' : 'Absent') : 'Libre'}</span></div>`;
+  }).join('')}</div>`;
+  const ongletsVue = `<div class="onglets-vue"><a href="/admin?vue=jour&amp;date=${echapper(aujourdhui)}"${vue === 'jour' ? ' aria-current="page"' : ''}>Aujourd'hui</a><a href="/admin?vue=semaine&amp;semaine=${echapper(vue === 'jour' ? leJour : lundi)}"${vue === 'semaine' ? ' aria-current="page"' : ''}>Semaine</a></div>`;
   const lignesAnnul = annulations.length
     ? annulations.map((a) => `<div class="seance"><div><b>${echapper(a.date)} ${echapper(a.heure)}</b> · ${echapper(a.nom)}<br><span class="doux petit">${echapper(a.justification)}</span></div></div>`).join('')
     : '<p class="doux" style="margin:0">Aucune annulation cette semaine.</p>';
   const lignesTouchees = touchees.length
     ? touchees.map((t) => `<div class="seance"><div><b>${echapper(t.date)} ${echapper(t.heure)}</b> · ${echapper(t.nom)}<br><span class="doux petit">${t.type === 'imprevu' ? 'Imprévu' : 'Absence'} · ${t.choix === 'reprogramme' ? 'reprogrammée' : t.choix === 'reserve' ? 'gardée en réserve' : 'choix du membre en attente'}</span></div></div>`).join('')
     : '<p class="doux" style="margin:0">Aucune séance annulée de ton côté.</p>';
-  return pageEspace('Calendrier', `${STYLE_COACHING}
+  const styleJour = `<style>.onglets-vue { display:inline-flex; gap:4px; padding:3px; border-radius:999px; background:#141414; border:1px solid #242424; margin:0 0 8px; }
+    .onglets-vue a { padding:6px 13px; border-radius:999px; color:var(--doux); text-decoration:none; font-weight:700; font-size:13px; } .onglets-vue a[aria-current] { background:#fff; color:#000; }
+    .jour-liste { display:grid; grid-template-columns:44px minmax(0, 1fr); gap:4px 8px; align-items:center; }
+    .jour-liste .h { font:600 12px var(--police); color:var(--doux); }
+    .jour-liste .case { height:36px; border-radius:10px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 14px; text-decoration:none; font-size:14px; min-width:0; }
+    .jour-liste .case b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .jour-liste .case span { font-size:12.5px; opacity:.8; white-space:nowrap; }
+    .jour-liste .case.libre { color:var(--doux); } .jour-liste .case.moi { color:#000; }
+    .coupure-jour { grid-column:1 / -1; height:1px; background:#2a2a2a; margin:2px 0; }
+    .nav-jour { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 8px; }
+    .nav-jour b { font-size:16px; } .nav-jour a { color:#fff; text-decoration:none; font-weight:700; padding:4px 12px; border:1px solid #2a2a2a; border-radius:999px; }</style>`;
+  if (vue === 'jour') {
+    return pageEspace('Calendrier', `${STYLE_COACHING}${styleJour}
+  ${ongletsVue}
+  ${message ? `<p class="message-ok" style="color:var(--ok);font-weight:600">${echapper(message)}</p>` : ''}
+  <div class="nav-jour"><a href="/admin?vue=jour&amp;date=${echapper(coaching.ajouterJours(leJour, -1))}" aria-label="Jour précédent">‹</a>
+    <div style="text-align:center"><b>${leJour === aujourdhui ? 'Aujourd\'hui' : echapper(nomJour)} ${echapper(leJour.slice(8, 10))}/${echapper(leJour.slice(5, 7))}</b><br>
+      <span class="doux petit">${nbSeances ? `${nbSeances} séance${nbSeances > 1 ? 's' : ''} · la première à ${echapper(premiere.heure)} GMT` : 'Aucune séance'}</span></div>
+    <a href="/admin?vue=jour&amp;date=${echapper(coaching.ajouterJours(leJour, 1))}" aria-label="Jour suivant">›</a></div>
+  ${colonneJour}
+  <p class="doux petit" style="margin:10px 0 0">Heures GMT. Touche une séance pour voir l'élève, lui écrire ou lui demander de la déplacer.</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+    <a class="bouton secondaire" href="/admin/disponibilites?semaine=${echapper(lundiProchain)}" style="margin:0">Mes disponibilités</a>
+    <a class="bouton secondaire" href="/admin/imprevu?date=${echapper(leJour)}" style="margin:0;border-color:var(--erreur);color:var(--erreur)">J'ai un imprévu</a></div>`, espace, 'calendrier');
+  }
+  return pageEspace('Calendrier', `${STYLE_COACHING}${styleJour}
+  ${ongletsVue}
   <div class="titre-page">
     <div><p class="etiquette">Gestion</p><h1>Calendrier des coachings</h1></div>
     <div class="nav-semaine" style="margin:0;gap:8px">
