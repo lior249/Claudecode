@@ -87,3 +87,11 @@ test('fin d\'événement : tout le monde part de 0 ; le podium de chaque stat re
     assert.doesNotMatch(await (await m.get('/trophees', { cookie: cookieSession('700000000000000099', 'x') })).text(), /Badges spéciaux/);
   } finally { await m.fermer(); }
 });
+
+test('formulaire d\'événement : détourage des badges dans le navigateur (planche de 3 ou une image par badge)', async () => {
+  const m = await monter();
+  try {
+    const page = await (await m.get('/admin/evenements', { cookie: cookieSession(ADMIN, 'coach') })).text();
+    assert.match(page, /data-planche[\s\S]*data-apercu="or"[\s\S]*name="badge_or"[\s\S]*data-slot="argent"[\s\S]*name="badge_bronze"/);
+  } finally { await m.fermer(); }
+});

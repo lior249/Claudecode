@@ -3,6 +3,7 @@
 // Événements (challenges) : la page d'un événement (élèves) et la création / liste (coach).
 const { echapper, ICONE } = require('./pages');
 const { page, STYLE_ETAPES, SCRIPT_ETAPES } = require('./pages-parcours');
+const { BLOC_BADGES, STYLE_BADGES, SCRIPT_BADGES } = require('./detourage-badges');
 const { pieceTrophee, TROPHEES, FAMILLES } = require('./trophees');
 const { DEBUT_MIN, DEBUT_MAX, DUREE_MIN, DUREE_MAX, MAX_ACTIFS, STATS, RANGS } = require('./evenements');
 
@@ -86,15 +87,15 @@ function pageEvenementsCoach(config, { espace, evenements = [], etats = {}, nbIn
       ${TROPHEES.filter((t) => t.famille === fam).map((t) => `<label style="display:grid;place-items:center;gap:4px;padding:8px;border-radius:12px;border:1px solid #2a2a2a;cursor:pointer;text-align:center;font-size:12px;margin:0">
         <input type="radio" name="cond_${fam}" value="${t.cle}" data-titre="${echapper(t.titre)}" style="width:auto;margin:0">${pieceTrophee(t, { taille: 44 })}<b>${echapper(t.titre)}</b></label>`).join('')}
     </div></details>`).join('');
-  return page('Événements', `<a class="retour" href="/admin/gestion"><span aria-hidden="true">‹</span> Gestion</a>
+  return page('Événements', `${STYLE_BADGES}<a class="retour" href="/admin/gestion"><span aria-hidden="true">‹</span> Gestion</a>
   <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>Événements</h1></div><span class="doux petit">${evenements.filter((e) => ['a_venir', 'en_cours'].includes(etats[e.id])).length} / ${MAX_ACTIFS} à venir ou en cours</span></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
-  <form class="carte" method="post" action="/admin/evenements" style="display:grid;gap:12px">
+  <form class="carte" method="post" action="/admin/evenements" style="display:grid;grid-template-columns:minmax(0, 1fr);gap:12px">
     <h2 style="margin:0">Nouvel événement</h2>
     <div class="champ"><label for="ev-titre">Nom</label><input id="ev-titre" name="titre" maxlength="80" required placeholder="ex. Overmaxx 1000"></div>
     <div class="champ"><label for="ev-objectif">Le défi, en une phrase</label><input id="ev-objectif" name="objectif" maxlength="200" placeholder="ex. Le premier à générer $1 000"></div>
     <div class="champ"><label for="ev-desc">Description</label><textarea id="ev-desc" name="description" maxlength="3000" required placeholder="Le principe, les règles, les récompenses…"></textarea></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div style="display:grid;grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);gap:10px">
       <div class="champ"><label for="ev-debut">Début</label><input id="ev-debut" name="debut" type="date" required min="${bornes.debutMin}" max="${bornes.debutMax}" value="${bornes.debutMin}"></div>
       <div class="champ"><label for="ev-fin">Fin</label><input id="ev-fin" name="fin" type="date" required></div></div>
     <p class="doux petit" style="margin:-4px 0 0">Début dans ${DEBUT_MIN} à ${DEBUT_MAX} jours (le temps de s'y préparer). Durée : ${DUREE_MIN} à ${DUREE_MAX} jours.</p>
@@ -107,9 +108,7 @@ function pageEvenementsCoach(config, { espace, evenements = [], etats = {}, nbIn
     <div class="champ"><label for="ev-points">Pour gagner (attribution des points)</label><textarea id="ev-points" name="regles_points" maxlength="2000" required placeholder="ex. Celui qui génère le plus d'argent entre le début et la fin gagne."></textarea></div>
     <div class="champ"><label for="ev-valid">Validation des résultats (facultatif)</label><textarea id="ev-valid" name="regles_validation" maxlength="2000" placeholder="ex. Seuls les résultats validés par le coach comptent ; capture obligatoire à chaque update."></textarea></div>
     <div class="champ"><label for="ev-badge">Nom du badge de récompense</label><input id="ev-badge" name="badge_nom" maxlength="60" placeholder="ex. Overmaxx 1000"></div>
-    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px">${['or', 'argent', 'bronze'].map((m) => `<div class="champ"><label>Badge ${m === 'or' ? 'or (1er)' : m === 'argent' ? 'argent (2e)' : 'bronze (3e)'}</label>
-      <div data-images="/admin/images" data-une><label class="fichier" style="padding:10px">${ICONE.plus}<span><b>Image</b></span><input type="file" accept="image/*" hidden></label>
-      <input type="hidden" name="badge_${m}" value=""><div class="apercus" style="margin-top:6px"></div></div></div>`).join('')}</div>
+    ${BLOC_BADGES(ICONE)}
     <div class="champ"><label for="ev-couleur">Couleur dominante</label><input id="ev-couleur" name="couleur" type="color" value="#e8174f" style="width:64px;height:44px;padding:2px"></div>
     <div><h3 style="margin:0 0 4px;font-size:15px">Conditions de participation</h3><p class="doux petit" style="margin:0 0 8px">Pour chaque famille, le trophée minimum (ou aucun).</p><div style="display:grid;gap:8px">${choixConditions}</div></div>
     <button class="bouton" type="submit" style="margin:0">Créer l'événement</button>
@@ -118,7 +117,8 @@ function pageEvenementsCoach(config, { espace, evenements = [], etats = {}, nbIn
   <div style="display:grid;gap:8px">${evenements.map((e) => { const [c, l] = ETATS[etats[e.id]] || ETATS.a_venir; return `<div class="carte" style="margin:0"><div class="envoi-tete"><a href="/evenements/${e.id}" style="color:#fff"><b>${echapper(e.titre)}</b></a><span class="etat" data-etat="${c}">${l}</span></div>
     <p class="doux petit" style="margin:4px 0 0">Du ${echapper(e.debut)} au ${echapper(e.fin)} · ${nbInscrits[e.id] || 0} inscrit(s)</p>
     ${['a_venir', 'en_cours'].includes(etats[e.id]) ? `<form method="post" action="/admin/evenements/${e.id}/retirer" style="margin:8px 0 0"><button class="bouton secondaire" type="submit" style="margin:0">Retirer</button></form>` : ''}</div>`; }).join('') || '<p class="vide-traiter">Aucun événement pour le moment.</p>'}</div>`,
-  espace, 'gestion', null, `document.querySelectorAll('input[type=radio][name^="cond_"]').forEach(function (r) { r.addEventListener('change', function () {
+  espace, 'gestion', null, `${SCRIPT_BADGES}
+  document.querySelectorAll('input[type=radio][name^="cond_"]').forEach(function (r) { r.addEventListener('change', function () {
     var s = document.querySelector('[data-choisi="' + r.name.slice(5) + '"]'); if (s) s.textContent = r.value ? '· ' + r.getAttribute('data-titre') + ' minimum' : '· aucun'; }); });`);
 }
 
