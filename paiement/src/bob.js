@@ -9,7 +9,7 @@ const FR = require('./forum-ressources');
 const STATUTS_CANDIDATURE_PROTEGES = ['examen', 'retenu', 'video', 'valide'];
 const { lienRenouvellement, lienMagique } = require('./liens');
 const { JOURS, dateISO, ajouterJours, aHeure, lundiDe } = require('./coaching');
-const { jourLisible } = require('./suivi');
+const { jourLisible, heureDans } = require('./suivi');
 const { nomRole, nomCourt, ROLES: ROLES_DISCORD } = require('./roles');
 const { creerAccesManuels } = require('./acces-manuels');
 const { creerNotifsAdmin } = require('./admin-notifs');
@@ -1231,7 +1231,74 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     log(`forum : ressource ${r.id} publiée`);
     return fil.id;
   }
+  // ---------- Résultats publics (serveur de l'accompagnement) ----------
+  // Le salon des résultats : chaque résultat de vidéo envoyé (une fois) et chaque preuve de monétisation acceptée ;
+  // le forum « Testimonials » : les deux updates de fin de mois, un post chacune (titre, texte, images).
+  const updatesMois = require('./updates-mois').creerUpdatesMois({ db, maintenant });
+  const fichiersDe = (noms = []) => noms.map((n) => parcours && parcours.cheminImage(n)).filter((c) => c && require('fs').existsSync(c)).slice(0, 5);
+  async function salonDiscord(id) {
+    if (!id || !client || !client.channels) return null;
+    try { return await client.channels.fetch(id); } catch (err) { console.warn('[bob] salon introuvable :', id, err.message); return null; }
+  }
+  const nombreFr = (n) => Math.round(Number(n) || 0).toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ');
+  async function publierResultatVideo(v, p) {
+    const cle = `publie-video:${v.id}`;
+    if (!v || dejaEnvoye(cle)) return false;
+    const salon = await salonDiscord(config.discord.salonResultats);
+    if (!salon || !salon.send) return false;
+    let captures = []; try { captures = JSON.parse(v.res_captures || '[]'); } catch { captures = []; }
+    const chiffres = [`${nombreFr(v.res_vues)} vues`];
+    if (v.res_abonnes !== null && v.res_abonnes !== undefined) chiffres.push(`+${nombreFr(v.res_abonnes)} abonnés`);
+    if (Number(v.res_revenus) > 0) chiffres.push(`$${Number(v.res_revenus).toFixed(2)}`);
+    if (Number(v.res_rpm) > 0) chiffres.push(`RPM $${Number(v.res_rpm).toFixed(2)}`);
+    await salon.send({ content: `🎬 <@${v.discord_id}> : résultats de sa vidéo du ${jourLisible(v.jour)} (24 h)\n**${chiffres.join(' · ')}**\n${v.lien}`.slice(0, 1990),
+      files: fichiersDe(captures), allowedMentions: { users: [v.discord_id] } });
+    marquer(cle);
+    log(`résultat publié : vidéo ${v.id}`);
+    return true;
+  }
+  async function publierMonetisation(p) {
+    const cle = `publie-monet:${p.discord_id}:${p.monetisation_le}`;
+    if (dejaEnvoye(cle) || p.monetisation_etat !== 'envoyee_acceptee') return false;
+    const salon = await salonDiscord(config.discord.salonResultats);
+    if (!salon || !salon.send) return false;
+    await salon.send({ content: `🎉 <@${p.discord_id}> vient d'être **accepté dans le programme de monétisation TikTok** !`,
+      files: fichiersDe([p.monetisation_capture].filter(Boolean)), allowedMentions: { users: [p.discord_id] } });
+    marquer(cle);
+    return true;
+  }
+  async function publierUpdateMois(u, p, nom) {
+    if (!u || u.discord_post || (u.type === 'revenus' && !u.a_gagne)) return null;
+    const forum = await salonDiscord(config.discord.forumTestimonials);
+    if (!forum || !forum.threads) return null;
+    const { titre, texte } = updatesMois.post(u, { nom: nom || nomDe(p), discordId: u.discord_id });
+    const fil = await forum.threads.create({ name: titre, message: { content: texte, files: fichiersDe(u.images), allowedMentions: { users: [u.discord_id] } } });
+    updatesMois.marquerPoste(u.id, fil.id);
+    log(`testimonial publié : ${u.type} ${u.mois} de ${u.discord_id}`);
+    return fil.id;
+  }
+  // Du 28 au 5 : un rappel par jour (à partir de l'heure de son update du soir) tant que les deux updates du mois manquent.
+  async function rappelsMois() {
+    if (!parcours || !suivi) return;
+    for (const p of parcours.tous()) {
+      if (p.etape < 4 || p.retire_le || !p.fuseau) continue;
+      const jour = suivi.aujourdhui(p);
+      const manque = updatesMois.aFaire(p.discord_id, jour);
+      if (!manque.length) continue;
+      const cle = `rappel-mois:${p.discord_id}:${jour}`;
+      if (dejaEnvoye(cle)) continue;
+      const h = Number(heureDans(p.fuseau, maintenant()).slice(0, 2));
+      if (h < 12) continue;
+      if (await notifier.membre(p.discord_id, avecBoutons(`📅 **Fin du mois : ${manque.length === 2 ? 'tes 2 updates du mois t\'attendent' : 'il te reste une update du mois'}.**\n`
+        + `${manque.map((x) => `• ${x.titre}`).join('\n')}\nElles sont publiées dans #testimonials pour motiver les autres.`,
+      [{ label: 'Faire mes updates', url: lienPerso(p.discord_id, p.pseudo, '/parcours/mois') }]))) marquer(cle);
+    }
+  }
+
   const prevenirParcours = {
+    async resultatPublic(v, p) { return publierResultatVideo(v, p); },
+    async monetisationPublique(p) { return publierMonetisation(p); },
+    async updateMoisPublique(u, p, nom) { return publierUpdateMois(u, p, nom); },
     // Le membre a envoyé un exercice ou une vidéo : le coach est prévenu.
     async envoiRecu(s, p) {
       if (!config.discord.adminId) return;
@@ -1790,6 +1857,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
       await rappelsCoaching();
       if (tour % 2 === 0) await synchroRoles();
       await rappelsQuotidiens();
+      await rappelsMois();
       await notificationsDifferees();
       await rappelsAdmin();
       if (tour % 10 === 0) { await suivreCarte(); await nettoyerAttente(); await relancerCandidats(); await relancerWhop(); await relancerParcours(); await surveillerAbsences(); await demanderDisponibilites(); await majAvatars(); }
@@ -1807,6 +1875,7 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     lienPerso,
     rappelsAdmin,
     detecterServeurAttente,
+    rappelsMois,
     cycle,
     surInteraction,
     COMMANDES,

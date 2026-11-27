@@ -120,6 +120,10 @@ function chargerConfig({ strict = true } = {}) {
       attenteNouveauxHeuresChoisi: lire('ATTENTE_NOUVEAUX_HEURES', '') !== '',
       adminId: lire('DISCORD_ADMIN_ID'),
       salonCoaching: lire('DISCORD_SALON_COACHING_URL', ''),
+      // Résultats publiés par Bob sur le serveur de l'accompagnement : le salon des résultats (vidéos, monétisation)
+      // et le forum « Testimonials » (updates de fin de mois : un post par résultat).
+      salonResultats: lire('DISCORD_SALON_RESULTATS_ID', '1573859057654046781'),
+      forumTestimonials: lire('DISCORD_FORUM_TESTIMONIALS_ID', '1573301763753123970'),
       // Salon d'attente existant (identifiant). Vide : Bob crée #en-attente tout seul au démarrage.
       salonAttente: lire('DISCORD_SALON_ATTENTE_ID', ''),
     },

@@ -679,3 +679,15 @@ ou sur **overmaxx.online/admin/candidatures**.
     `ATTENTE_NOUVEAUX_HEURES` (délai avant retrait d'un nouveau venu sans programme ; 0 = jamais).
 - Les membres actuels déjà sur l'ancien serveur : ils passent sur le nouveau quand ils reviennent par le site (bouton Discord de leur accès).
 - Whop (paiement par carte) : vérifie que l'intégration Discord de Whop donne bien le rôle sur le **nouveau** serveur.
+
+## Résultats publiés par Bob (serveur de l'accompagnement)
+
+- **Salon des résultats** (`DISCORD_SALON_RESULTATS_ID`, par défaut le salon texte fourni) :
+  - chaque résultat de vidéo envoyé par un élève (une seule fois par vidéo) : mention de l'élève, vues, abonnés, revenus, RPM, lien et captures ;
+  - chaque preuve de monétisation « acceptée » : mention et capture.
+  - Les updates du soir (compte complet) ne sont pas publiées.
+- **Forum « Testimonials »** (`DISCORD_FORUM_TESTIMONIALS_ID`, par défaut le forum fourni) : les updates de fin de mois, un post chacune (titre, texte, images).
+- **Updates du mois** (page « Updates du mois », du 28 au 5 du mois suivant ; rappel chaque jour tant qu'elles manquent) :
+  1. Update du mois : « As-tu fait de l'argent sur TikTok ce mois-ci ? ». Oui : le total, une capture, et 3 questions (comment ça a commencé, ton conseil, ton prochain objectif). Non : rien à publier.
+  2. Plus gros résultat du mois : vues sur une vidéo, abonnés gagnés en une vidéo, revenus d'une vidéo (désactivé sans revenus ce mois-ci), ou autre ; son ressenti ; des images.
+- Bob doit pouvoir écrire et joindre des fichiers dans le salon, et créer des posts dans le forum.

@@ -26,6 +26,8 @@ const { creerTrophees, pieceTrophee } = require('./trophees');
 const RS = require('./pages-ressources');
 const AIDE = require('./aide');
 const { pageAide } = require('./pages-aide');
+const { pageMois } = require('./pages-mois');
+const { creerUpdatesMois } = require('./updates-mois');
 const { lienCompte } = require('./tiktok');
 const PF = require('./pages-profil');
 const { roleLePlusHaut } = require('./pages-classement');
@@ -64,6 +66,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const ressources = creerRessources({ db: commandes.db });
   const validations = creerValidations({ db: commandes.db, coaching, maintenant: coaching.maintenant || (() => new Date()) });
   const trophees = creerTrophees({ db: commandes.db, suivi, parcours });
+  const updatesMois = creerUpdatesMois({ db: commandes.db });
   // Nouveaux trophées après un résultat validé : l'élève est prévenu (la fenêtre s'ouvre à sa prochaine visite).
   const verifierTrophees = (id) => { const n = trophees.verifier(id); if (n.length) prevenir('trophees', parcours.get(id), n); return n; };
   // Qui est l'élève d'une séance (pour les messages).
@@ -1187,6 +1190,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       if (!p.heure_creation) ajouter('Choisis tes 3 heures', '/parcours/etape-4');
     }
     if ([3, 4].includes(p.etape) && !coaching.aUnPlanning(id)) ajouter('Réserve tes coachings de la semaine', '/coaching');
+    if (p.etape >= 4 && p.fuseau) for (const x of updatesMois.aFaire(id, suivi.aujourdhui(p))) ajouter(x.titre, '/parcours/mois');
     const e = config.offres.elite;
     const video = [null, e.wistiaEtape1, e.wistiaEtape2, e.wistiaEtape3, e.wistiaEtape4, e.wistiaGoat][Math.min(p.etape, 5)] || null;
     // Le décompte de la tâche la plus importante (son délai, ou son échéance à l'étape 4).
@@ -1239,6 +1243,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const r = parcours.envoyerMonetisation(x.session.id, { vue: req.body.vue, resultat: req.body.resultat, capture: imageDe(req.body.capture, x.session.id) });
     if (r.erreur) { res.status(400).send(pageEtape4(x, { espace: x.espace, parcours: x.p, tache: parcours.tache(x.session.id) }, { erreur: true, texte: r.erreur })); return; }
     prevenir('activiteEleve', r.parcours, `a envoyé sa **preuve de monétisation** (candidature ${req.body.resultat === 'acceptee' ? 'acceptée' : 'refusée'}) : à vérifier.`, `/admin/membres/${encodeURIComponent(x.session.id)}#monetisation`);
+    if (req.body.resultat === 'acceptee') prevenir('monetisationPublique', r.parcours);
     res.redirect(303, '/parcours/etape-4?ok=monetisation');
   });
   app.post('/parcours/etape-4/preuve/:type', formulaire, (req, res) => {
@@ -1334,6 +1339,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (r.rappel) return res.redirect(303, '/parcours/etape-4?ok=rappel');
     if (r.erreur) { res.status(400).send(V.pageResultatVideo(config, { espace: x.espace, parcours: x.p, video: { ...x.v, res_vues: b.vues, res_revenus: b.revenus }, remarques: x.remarques, erreur: r.erreur })); return; }
     prevenir('resultatRecu', r.video, x.p);
+    prevenir('resultatPublic', r.video, x.p);
     res.redirect(303, '/parcours/etape-4?ok=resultat');
   });
   // Captures envoyées par le membre (compte du jour, revenus).
@@ -1716,6 +1722,45 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     res.send(PF.pageRemarques(config, { espace: { ...x.espace, remarquesNouvelles: 0 }, remarques: parcours.remarques(x.p.discord_id),
       envoyes: messages.envoyesPar(x.p.discord_id), fait: req.query.fait === 'envoye', erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
+  // Updates du mois (du 28 au 5) : publiées par Bob dans le forum Testimonials.
+  const moisDe = (p) => (p.fuseau ? updatesMois.moisDeLUpdate(suivi.aujourdhui(p)) : null);
+  app.get('/parcours/mois', (req, res) => {
+    const x = membreParcours(req, res, '/parcours/mois');
+    if (!x) return;
+    const mois = x.p.etape >= 4 ? moisDe(x.p) : null;
+    const revenus = mois ? Math.round(suivi.gains(x.p.discord_id).filter((g) => g.jour.slice(0, 7) === mois).reduce((t, g) => t + g.gain, 0) * 100) / 100 : 0;
+    res.send(pageMois(config, { espace: x.espace, mois, libelle: mois ? updatesMois.moisLisible(mois) : '', etat: mois ? updatesMois.etat(x.p.discord_id, mois) : null,
+      revenusCalcules: revenus > 0 ? revenus : null,
+      message: { revenus: 'Update envoyée : Bob la publie dans #testimonials.', 'revenus-non': 'C\'est noté. Partage maintenant ton plus gros résultat du mois.', resultat: 'Résultat publié dans #testimonials. Bravo !' }[req.query.fait] || null,
+      erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  const nomPublic = (p) => (qProfils.get.get(p.discord_id) || {}).prenom || p.pseudo || 'Membre';
+  app.post('/parcours/mois/revenus', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/mois');
+    if (!x) return;
+    const mois = moisDe(x.p);
+    if (!mois || x.p.etape < 4) return res.redirect(303, '/parcours/mois');
+    const b = req.body || {};
+    const aGagne = [].concat(b.a_gagne || []).includes('1') && ![].concat(b.a_gagne || []).includes('0');
+    const r = updatesMois.enregistrerRevenus(x.p.discord_id, mois, { aGagne, montant: b.montant, reponses: b,
+      images: imagesDe(b).filter((n) => parcours.imageDuMembre(n, x.p.discord_id)) });
+    if (r.erreur) return res.redirect(303, `/parcours/mois?erreur=${encodeURIComponent(r.erreur)}`);
+    if (aGagne) prevenir('updateMoisPublique', r.update, x.p, nomPublic(x.p));
+    return res.redirect(303, `/parcours/mois?fait=${aGagne ? 'revenus' : 'revenus-non'}`);
+  });
+  app.post('/parcours/mois/resultat', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/mois');
+    if (!x) return;
+    const mois = moisDe(x.p);
+    if (!mois || x.p.etape < 4) return res.redirect(303, '/parcours/mois');
+    const b = req.body || {};
+    const r = updatesMois.enregistrerResultat(x.p.discord_id, mois, { modele: String(b.modele || ''), valeur: b.valeur, ressenti: b.ressenti,
+      images: imagesDe(b).filter((n) => parcours.imageDuMembre(n, x.p.discord_id)) });
+    if (r.erreur) return res.redirect(303, `/parcours/mois?erreur=${encodeURIComponent(r.erreur)}`);
+    prevenir('updateMoisPublique', r.update, x.p, nomPublic(x.p));
+    return res.redirect(303, '/parcours/mois?fait=resultat');
+  });
+
   // Demander de l'aide : une demande guidée, rangée avec les messages des élèves (À traiter, Bob).
   const donneesAide = (p) => ({ parcours: p, axes: AIDE.etatAxes(p, parcours.soumissions(p.discord_id, 4)), formation: config.formation,
     videos: suivi.videos(p.discord_id).slice(0, 10), envoyees: messages.envoyesPar(p.discord_id, 20).filter((m) => String(m.sujet || '').startsWith('Demande d\'aide')) });
