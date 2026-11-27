@@ -720,3 +720,10 @@ ou sur **overmaxx.online/admin/candidatures**.
 - Toucher une séance : l'élève, la date, son étape, la dernière remarque, ses questions et demandes d'aide récentes (ou « Aucune »).
 - Côté élève : quand un coaching approche (aujourd'hui ou demain), « Ton coaching approche : un problème ? Dis-le à ton coach » (Demander de l'aide),
   et le rappel de Bob propose le même bouton.
+
+## « Mon coach me livre un compte »
+
+- Étape 4, première question du compte TikTok : 3e choix « Mon coach me livre un compte prêt » (avec une précision facultative).
+- L'élève voit « En préparation » (et peut annuler s'il a finalement son compte) ; la demande arrive dans À traiter et par Bob.
+- Fiche de l'élève → Compte TikTok → « Livrer le compte » : le lien et un message. Le compte est validé d'office, l'élève est prévenu
+  et passe au choix de ses 3 heures. Jamais de mot de passe sur la plateforme : les identifiants s'envoient en message privé.

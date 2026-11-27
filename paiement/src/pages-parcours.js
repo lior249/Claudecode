@@ -795,9 +795,16 @@ function blocPositionnement({ p, vueCoach, base, choix, strategie: st }) {
   const compte = `<div class="carte" id="compte"><div class="envoi-tete"><h2>Compte TikTok</h2>${pastilleEtat(Boolean(p.compte_tiktok), valide)}</div>
     <p style="margin:8px 0 0">${p.compte_tiktok ? lienTikTok(p.compte_tiktok) : '<span class="doux">pas encore envoyé</span>'}</p>
     ${!vueCoach && !p.compte_tiktok ? '<a class="bouton" href="/parcours/etape-4#compte" style="margin:10px 0 0">Ajouter mon compte TikTok</a>' : ''}
-    ${p.compte_methode || p.compte_abonnes_depart !== null && p.compte_abonnes_depart !== undefined ? `<p class="doux petit" style="margin:6px 0 0">${{ oui: 'Créé avec la méthode de la formation', verifie: 'Méthode vérifiée par l\'élève', nouveau: 'Nouveau compte, créé avec la méthode' }[p.compte_methode] || ''}${p.compte_abonnes_depart !== null && p.compte_abonnes_depart !== undefined ? ` · ${Number(p.compte_abonnes_depart).toLocaleString('fr-FR')} abonnés au départ` : ''}</p>` : ''}
+    ${p.compte_methode || p.compte_abonnes_depart !== null && p.compte_abonnes_depart !== undefined ? `<p class="doux petit" style="margin:6px 0 0">${{ oui: 'Créé avec la méthode de la formation', verifie: 'Méthode vérifiée par l\'élève', nouveau: 'Nouveau compte, créé avec la méthode', livre: 'Livré par le coach' }[p.compte_methode] || ''}${p.compte_abonnes_depart !== null && p.compte_abonnes_depart !== undefined ? ` · ${Number(p.compte_abonnes_depart).toLocaleString('fr-FR')} abonnés au départ` : ''}</p>` : ''}
     ${p.compte_demande_le ? `<div class="manquants" style="margin:10px 0 0;border:1px solid #5a4a1a;background:#1d1708;color:#f1d38a;border-radius:12px;padding:10px 12px"><b>Demande de changement de compte</b><p style="margin:4px 0 0">${echapper(p.compte_demande)}</p></div>` : ''}
     ${p.compte_change_autorise ? '<p class="doux petit" style="margin:8px 0 0">Changement autorisé : en attente du nouveau lien.</p>' : ''}
+    ${p.compte_livraison_le && (!p.compte_tiktok || p.compte_change_autorise) ? `<div class="manquants" style="margin:10px 0 0;border:1px solid #1e3a8a;background:#0b1730;color:#bcd3ff;border-radius:12px;padding:10px 12px"><b>Demande un compte livré par toi</b>
+      ${p.compte_livraison_note ? `<p style="margin:4px 0 0">${echapper(p.compte_livraison_note)}</p>` : ''}</div>
+      ${vueCoach ? `<form method="post" action="${base}/compte/livrer" style="display:grid;gap:8px;margin-top:10px">
+        <div class="champ"><label for="livre-lien">Lien du compte TikTok livré</label><input id="livre-lien" name="compte" required placeholder="https://www.tiktok.com/@compte"></div>
+        <div class="champ"><label for="livre-msg">Message pour l'élève (facultatif)</label><textarea id="livre-msg" name="message" maxlength="600" placeholder="ex. Je t'envoie les identifiants en privé sur Discord."></textarea></div>
+        <p class="doux petit" style="margin:0">Ne mets jamais de mot de passe ici : envoie les identifiants en message privé.</p>
+        <button class="bouton vert" type="submit" style="margin:0">Livrer le compte</button></form>` : ''}` : ''}
     ${vueCoach ? `${p.compte_tiktok && !valide ? `<form method="post" action="${base}/compte/valider" style="margin:10px 0 0"><button class="bouton vert" type="submit" style="margin:0">Valider le compte</button></form>` : ''}
       ${p.compte_demande_le ? `<form method="post" action="${base}/compte/changement" class="deux-boutons" style="margin-top:10px"><button class="bouton secondaire" type="submit" name="decision" value="refuser">Garder ce compte</button><button class="bouton" type="submit" name="decision" value="autoriser">Autoriser le changement</button></form>` : ''}
       <details style="margin-top:10px"><summary class="doux petit" style="cursor:pointer">Modifier</summary>
@@ -971,6 +978,7 @@ function pageATraiter(config, { espace, a, candidatures = [], comptesRendus = []
   for (const p of aValider.comptes) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.compte_envoye_le, quoi: `Compte TikTok à valider : ${p.compte_tiktok}`, lien: fiche(p, 'compte'), bouton: 'Voir' });
   for (const p of aValider.monetisations || []) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.monetisation_le, quoi: `Preuve de monétisation : candidature ${p.monetisation_etat === 'envoyee_acceptee' ? 'acceptée' : 'refusée'}`, lien: fiche(p, 'monetisation'), bouton: 'Vérifier' });
   for (const x of aValider.preuves || []) ajouter('positionnement', { qui: nom(x.p), ficheId: x.p.discord_id, pseudo: x.p.pseudo, quand: x.p[`${x.type}_le`], quoi: x.type === 'rpm' ? 'Preuve de RPM à vérifier' : 'Preuve d\'audience à vérifier', lien: fiche(x.p, 'monetisation'), bouton: 'Vérifier' });
+  for (const p of aValider.livraisons || []) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.compte_livraison_le, quoi: `Demande un compte TikTok livré par toi${p.compte_livraison_note ? ` : ${p.compte_livraison_note}` : ''}`, lien: fiche(p, 'compte'), bouton: 'Livrer' });
   for (const p of aValider.demandes) ajouter('positionnement', { qui: nom(p), ficheId: p.discord_id, pseudo: p.pseudo, quand: p.compte_demande_le, quoi: `Demande de changement de compte : ${p.compte_demande}`, lien: fiche(p, 'compte'), bouton: 'Décider' });
   const RAISONS = { fait_avance: 'fait en avance', non_necessaire: 'annulé car non nécessaire', live_groupe: 'remplacé par un live de groupe', autre: 'autre raison' };
   for (const v of coachingsAValider) {
@@ -1209,7 +1217,13 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
     <input type="hidden" name="a_compte" value=""><input type="hidden" name="methode" value="">
     <div data-page="1"><h3>As-tu déjà un compte TikTok ?</h3>
       <div class="choix2"><button class="bouton secondaire" type="button" data-aller="n1" onclick="this.form.a_compte.value='non';this.form.methode.value='nouveau'">Non</button>
-        <button class="bouton" type="button" data-aller="o1" onclick="this.form.a_compte.value='oui'">Oui</button></div></div>
+        <button class="bouton" type="button" data-aller="o1" onclick="this.form.a_compte.value='oui'">Oui</button></div>
+      <button class="bouton secondaire" type="button" data-aller="livre" style="margin:0">Mon coach me livre un compte prêt</button></div>
+    <div data-page="livre" hidden><h3>Ton coach te livre un compte</h3>
+      <p class="doux" style="margin:0">Ton coach prépare un compte TikTok créé avec la bonne méthode et te le livre ici. Tu reçois une notification quand il est prêt.</p>
+      <textarea name="note_livraison" maxlength="500" placeholder="Une précision pour ton coach (facultatif) : pays visé, nom souhaité…"></textarea>
+      <button class="bouton" type="submit" formaction="/parcours/etape-4/livraison" formnovalidate style="margin:0">Demander mon compte</button>
+      <button class="retour-page" type="button" data-retour>‹ Retour</button></div>
     <div data-page="n1" hidden><h3>Crée ton compte correctement</h3>
       <p class="doux" style="margin:0">Suis exactement la méthode de la formation : un compte bien créé, c'est un bon RPM plus tard.</p>
       ${lienFormation(f.compte, 'Créer ton compte TikTok correctement')}
@@ -1238,7 +1252,11 @@ function pageEtape4(config, { espace, parcours: p, tache, aujourdhui, publicatio
   </form>`;
   const etatCompte = p.compte_tiktok && !p.compte_valide_le ? `<div class="carte"><div class="envoi-tete"><h2>Mon compte TikTok</h2><span class="etat" data-etat="attente">En cours d'examen</span></div>
     <p style="margin:8px 0 0">${lienTikTok(p.compte_tiktok)}</p><p class="doux petit" style="margin:6px 0 0">Ta soumission est en cours d'examen. Tu recevras une notification quand ton coach l'aura approuvée.</p></div>` : '';
-  const corps = !p.compte_tiktok ? formCompte : !p.heure_creation ? `${etatCompte}<div class="carte">${formHeures(p, { routine: f.routine })}</div>` : `${etatCompte}
+  const attenteLivraison = `<div class="carte" id="compte"><div class="envoi-tete"><h2>Mon compte TikTok</h2><span class="etat" data-etat="attente">En préparation</span></div>
+    <p style="margin:8px 0 0">Ton coach prépare ton compte. Tu reçois une notification dès qu'il est livré, avec ce qu'il faut pour t'y connecter.</p>
+    ${p.compte_livraison_note ? `<p class="doux petit" style="margin:6px 0 0">Ta précision : ${echapper(p.compte_livraison_note)}</p>` : ''}
+    <form method="post" action="/parcours/etape-4/livraison/annuler" style="margin:10px 0 0"><button class="bouton secondaire" type="submit" style="margin:0">Finalement, j'ai mon propre compte</button></form></div>`;
+  const corps = !p.compte_tiktok && p.compte_livraison_le ? attenteLivraison : !p.compte_tiktok ? formCompte : !p.heure_creation ? `${etatCompte}<div class="carte">${formHeures(p, { routine: f.routine })}</div>` : `${etatCompte}
   <div class="carte">
     <div class="envoi-tete"><h2>Aujourd'hui</h2>${publications.length ? `<span class="etat" data-etat="valide">${ICONE.ok}${publications.length} vidéo(s) déclarée(s)</span>` : '<span class="etat" data-etat="attente">À déclarer</span>'}</div>
     <p class="doux" style="margin:8px 0 12px">Au moins une vidéo par jour. Après avoir publié, colle son lien : c'est tout.</p>

@@ -428,6 +428,9 @@ function creerSuivi({ db, parcours, maintenant = () => new Date() }) {
         return { cle: 'strategie', titre: p.niche_refus ? 'Propose une autre niche' : 'Envoie ta niche', texte: 'Le nom de ta niche et une capture d’un compte exemple : ton coach la valide.',
           lien: '/parcours/etape-3#strategie', bouton: 'Ma niche' };
       }
+      if (!p.compte_tiktok && p.compte_livraison_le) {
+        return { cle: 'livraison', titre: 'Ton coach prépare ton compte TikTok', texte: 'Tu reçois une notification dès qu\'il est livré.', lien: '/parcours/etape-4#compte', bouton: 'Voir' };
+      }
       if (!p.compte_tiktok) {
         return { cle: 'tiktok', titre: 'Ajoute le lien de ton compte TikTok', texte: 'Il le faut pour commencer l\'étape 4 : c\'est le compte que ton coach suit.', lien: '/parcours/etape-4#compte', bouton: 'Ajouter mon compte' };
       }

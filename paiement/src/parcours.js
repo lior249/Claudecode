@@ -353,6 +353,24 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
       db.prepare('UPDATE parcours SET compte_envoye_le = ?, compte_valide_le = NULL, compte_change_autorise = NULL, compte_demande = NULL, compte_demande_le = NULL WHERE discord_id = ?').run(iso(), discordId);
       return { parcours: q.get.get(discordId), changement: Boolean(p.compte_valide_le) };
     },
+    // « Mon coach me livre mon compte » : la demande (ou son annulation), puis la livraison par le coach (compte validé d'office).
+    demanderLivraison(discordId, note) {
+      const p = q.get.get(discordId);
+      if (!p) return { erreur: 'Membre introuvable.' };
+      if (p.compte_tiktok && !p.compte_change_autorise) return { erreur: 'Tu as déjà un compte.' };
+      db.prepare('UPDATE parcours SET compte_livraison_le = ?, compte_livraison_note = ? WHERE discord_id = ?').run(iso(), String(note || '').trim().slice(0, 500) || null, discordId);
+      return { parcours: q.get.get(discordId) };
+    },
+    annulerLivraison(discordId) { db.prepare('UPDATE parcours SET compte_livraison_le = NULL, compte_livraison_note = NULL WHERE discord_id = ?').run(discordId); },
+    livrerCompte(discordId, lien) {
+      const p = q.get.get(discordId);
+      if (!p) return { erreur: 'Membre introuvable.' };
+      if (!/tiktok\.com\/@/i.test(String(lien || '')) && !/^@?[\w.]{2,24}$/.test(String(lien || '').trim())) return { erreur: 'Donne le lien du compte TikTok (https://www.tiktok.com/@…).' };
+      api.majCompte(discordId, { compte: lien });
+      db.prepare(`UPDATE parcours SET compte_methode = 'livre', compte_abonnes_depart = 0, abonnes_actuels = COALESCE(abonnes_actuels, 0), compte_envoye_le = ?, compte_valide_le = ?,
+        compte_change_autorise = NULL, compte_demande = NULL, compte_demande_le = NULL, compte_livraison_le = NULL, compte_livraison_note = NULL WHERE discord_id = ?`).run(iso(), iso(), discordId);
+      return { parcours: q.get.get(discordId) };
+    },
     validerCompte(discordId) {
       const p = q.get.get(discordId);
       if (!p || !p.compte_tiktok) return { erreur: 'Aucun compte à valider.' };
@@ -436,6 +454,7 @@ function creerParcours({ db, config, maintenant = () => new Date() }) {
         positionnements: tous.filter((p) => p.positionnement_le && !p.positionnement_valide_le),
         comptes: tous.filter((p) => p.compte_envoye_le && p.compte_tiktok && !p.compte_valide_le),
         demandes: tous.filter((p) => p.compte_demande_le),
+        livraisons: tous.filter((p) => p.compte_livraison_le && (!p.compte_tiktok || p.compte_change_autorise)),
         monetisations: tous.filter((p) => String(p.monetisation_etat || '').startsWith('envoyee_')),
         preuves: tous.flatMap((p) => ['audience', 'rpm'].filter((t) => p[`${t}_etat`] === 'envoyee').map((t) => ({ p, type: t }))),
       };

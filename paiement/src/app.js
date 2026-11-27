@@ -1294,7 +1294,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (p.etape >= 4) {
       const st = parcours.strategie(id);
       if (!st.envoye && !st.valide) ajouter(p.niche_refus ? 'Propose une autre niche' : 'Envoie ta niche', '/parcours/etape-3#strategie');
-      if (!p.compte_tiktok) ajouter('Ajoute ton compte TikTok', '/parcours/etape-4#compte');
+      if (!p.compte_tiktok && !p.compte_livraison_le) ajouter('Ajoute ton compte TikTok', '/parcours/etape-4#compte');
       if (!p.heure_creation) ajouter('Choisis tes 3 heures', '/parcours/etape-4');
     }
     if ([3, 4].includes(p.etape) && !coaching.aUnPlanning(id)) ajouter('Réserve tes coachings de la semaine', '/coaching');
@@ -1349,6 +1349,30 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!x) return;
     parcours.marquerTuto(x.session.id, String(req.body.axe || ''));
     res.redirect(303, '/parcours/etape-4#avis');
+  });
+  // « Mon coach me livre mon compte » : la demande, l'annulation ; la livraison par le coach (fiche).
+  app.post('/parcours/etape-4/livraison', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-4');
+    if (!x) return;
+    const r = parcours.demanderLivraison(x.session.id, req.body.note_livraison);
+    if (!r.erreur) prevenir('activiteEleve', r.parcours, `demande un **compte TikTok livré par toi**${r.parcours.compte_livraison_note ? ` : ${r.parcours.compte_livraison_note}` : ''}.`, `/admin/membres/${encodeURIComponent(x.session.id)}#compte`);
+    res.redirect(303, '/parcours/etape-4#compte');
+  });
+  app.post('/parcours/etape-4/livraison/annuler', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/etape-4');
+    if (!x) return;
+    parcours.annulerLivraison(x.session.id);
+    res.redirect(303, '/parcours/etape-4#compte');
+  });
+  app.post('/admin/membres/:id/compte/livrer', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/a-traiter')) return;
+    const id = String(req.params.id);
+    const r = parcours.livrerCompte(id, String(req.body.compte || '').trim());
+    if (r.erreur) return res.redirect(303, `/admin/membres/${encodeURIComponent(id)}?erreur=${encodeURIComponent(r.erreur)}#compte`);
+    const mot = String(req.body.message || '').trim().slice(0, 600);
+    prevenir('messageEleve', r.parcours, `📱 **Ton compte TikTok est prêt** : ${r.parcours.compte_tiktok}${mot ? `\n${mot}` : ''}\nIl est déjà validé : choisis maintenant tes 3 heures à l'étape 4.`, '/parcours/etape-4');
+    if (mot) parcours.ajouterRemarque(id, { texte: `Ton compte TikTok est livré : ${r.parcours.compte_tiktok}\n${mot}` });
+    res.redirect(303, `/admin/membres/${encodeURIComponent(id)}#compte`);
   });
   // 10K : la preuve de monétisation ; les preuves d'audience et de RPM (captures), validées par le coach.
   app.post('/parcours/etape-4/monetisation', formulaire, (req, res) => {

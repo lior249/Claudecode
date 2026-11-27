@@ -113,3 +113,32 @@ test('profil du coach : carrousel À la une / Classement, programme des coaching
     assert.match(await (await m.get('/coach?vue=mois', coach)).text(), /class="pg-mois"/);
   } finally { await m.fermer(); }
 });
+
+test('« mon coach me livre un compte » : demande, attente, livraison par le coach (validée d\'office), élève prévenu', async () => {
+  const appels = [];
+  const m = await monter({ bob: { parcours: new Proxy({}, { get: (o, nom) => async (...a) => { appels.push([nom, ...a]); return true; } }) } });
+  try {
+    m.parcours.assurer(E1, { pseudo: 'awa_27' });
+    m.parcours.changerEtape(E1, 4);
+    m.db.prepare("UPDATE parcours SET niche = 'X', positionnement_le = '2026-01-01', positionnement_valide_le = '2026-01-01' WHERE discord_id = ?").run(E1);
+    const membre = { cookie: cookieSession(E1, 'awa_27') };
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    assert.match(await (await m.get('/parcours/etape-4', membre)).text(), /Mon coach me livre un compte prêt[\s\S]*formaction="\/parcours\/etape-4\/livraison"/);
+    await m.poster('/parcours/etape-4/livraison', { note_livraison: 'Pays visé : France' }, membre);
+    assert.ok(appels.some(([n, , t]) => n === 'activiteEleve' && /compte TikTok livré par toi/.test(t)));
+    const e4 = await (await m.get('/parcours/etape-4', membre)).text();
+    assert.match(e4, /En préparation[\s\S]*Pays visé : France[\s\S]*Finalement, j.{1,6}ai mon propre compte/);
+    assert.doesNotMatch(await (await m.get('/profil', membre)).text(), /Ajoute ton compte TikTok/);
+    assert.match(await (await m.get('/admin/a-traiter', coach)).text(), /Demande un compte TikTok livré par toi : Pays visé : France/);
+    const fiche = await (await m.get(`/admin/membres/${E1}`, coach)).text();
+    assert.match(fiche, /Demande un compte livré par toi[\s\S]*compte\/livrer[\s\S]*Ne mets jamais de mot de passe ici/);
+    await m.poster(`/admin/membres/${E1}/compte/livrer`, { compte: 'https://www.tiktok.com/@awa.livre', message: 'Identifiants envoyés en privé sur Discord.' }, coach);
+    const p = m.parcours.get(E1);
+    assert.strictEqual(p.compte_tiktok, 'https://www.tiktok.com/@awa.livre');
+    assert.ok(p.compte_valide_le, 'validé d\'office');
+    assert.strictEqual(p.compte_methode, 'livre');
+    assert.strictEqual(p.compte_livraison_le, null);
+    assert.ok(appels.some(([n, , t]) => n === 'messageEleve' && /Ton compte TikTok est prêt[\s\S]*awa\.livre[\s\S]*Identifiants envoyés/.test(t)));
+    assert.match(await (await m.get('/parcours/etape-4', membre)).text(), /Choisis tes 3 heures/);
+  } finally { await m.fermer(); }
+});

@@ -825,6 +825,15 @@ function migrerV38(db) {
   db.exec('PRAGMA user_version = 38');
 }
 
+// v39 : « mon coach me livre mon compte » (étape 4) : la demande de l'élève et sa précision.
+function migrerV39(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 39) return;
+  const c = colonnes(db, 'parcours');
+  if (!c.includes('compte_livraison_le')) db.exec('ALTER TABLE parcours ADD COLUMN compte_livraison_le TEXT');
+  if (!c.includes('compte_livraison_note')) db.exec('ALTER TABLE parcours ADD COLUMN compte_livraison_note TEXT');
+  db.exec('PRAGMA user_version = 39');
+}
+
 function ouvrirBase(fichier) {
   // Masque l'avertissement « expérimental » de node:sqlite, sans toucher aux autres avertissements.
   const emettre = process.emitWarning;
@@ -872,6 +881,7 @@ function ouvrirBase(fichier) {
   migrerV36(db);
   migrerV37(db);
   migrerV38(db);
+  migrerV39(db);
   return db;
 }
 
