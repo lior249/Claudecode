@@ -220,8 +220,8 @@ const SCRIPT_TRANSITIONS = `
     if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return;
     var u; try { u = new URL(a.href); } catch (x) { return; }
     if (u.origin !== location.origin || (u.pathname === location.pathname && u.hash) || a.getAttribute('href').charAt(0) === '#') return;
-    e.preventDefault(); document.body.classList.add('ovx-sortie');
-    setTimeout(function () { location.href = a.href; }, 140);
+    // La page suivante se charge tout de suite ; le fondu ne la retarde plus.
+    document.body.classList.add('ovx-sortie');
   });
   var P = window.HTMLDialogElement && HTMLDialogElement.prototype;
   if (P && !P.__ovx && !calme) {
@@ -252,7 +252,8 @@ function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp
 <title>${echapper(titre)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<script type="speculationrules">{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/deconnexion*","/connexion*","/autre-compte*","/fichiers/*","/a/*","/static/*","/api/*"]}}]},"eagerness":"moderate"}]}</script>
 <style>${STYLE}</style>
 </head>
 <body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});${SCRIPT_NOTIF_APP}${SCRIPT_CELEBRATIONS}${SCRIPT_TRANSITIONS}</script></body>

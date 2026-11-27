@@ -127,14 +127,18 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const json = express.json({ limit: '20kb' });
   const introuvable = (res) => res.status(404).send(P.pageMessage(config, 'Introuvable', 'Ce paiement est introuvable.'));
 
+  // Pages allégées : styles et scripts communs servis à part, gardés par le téléphone (voir allegement.js).
+  app.use(require('./allegement').creerAllegement().middleware);
   // Images publiques (avant la règle « pas de cache ») (tutoriels des formulaires).
   app.use('/static', express.static(require('path').join(__dirname, '..', 'public'), { maxAge: '7d', index: false }));
 
   app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') classementCache = { t: 0, v: null };
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('Referrer-Policy', 'no-referrer');
     res.set('X-Frame-Options', 'DENY');
-    res.set('Cache-Control', 'no-store');
+    // Pas de copie partagée ; le navigateur revérifie chaque page, et le retour arrière reste instantané.
+    res.set('Cache-Control', 'private, no-cache');
     next();
   });
 
@@ -207,7 +211,14 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // ================= Classement (top 100) =================
   // Les élèves de l'accompagnement, classés par récompenses validées (puis par vues). Le nom affiché : son prénom
   // (accueil) ou son pseudo Discord ; jamais son nom complet.
+  // Gardé 15 secondes (vidé à chaque action : formulaire, envoi) : le profil, le carrousel et le classement le partagent.
+  let classementCache = { t: 0, v: null };
   function classement() {
+    if (classementCache.v && Date.now() - classementCache.t < 15000) return classementCache.v;
+    classementCache = { t: Date.now(), v: calculerClassement() };
+    return classementCache.v;
+  }
+  function calculerClassement() {
     const maintenant = Date.now();
     const liste = parcours.tous().map((p) => {
       if (p.etape >= 4) trophees.verifier(p.discord_id);
