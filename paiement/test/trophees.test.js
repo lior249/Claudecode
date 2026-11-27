@@ -110,11 +110,18 @@ test('profil vu depuis le classement : comme Mon profil, sans étape ni objectif
     update(m, E2, { vues: 40000, revenus: 60, abonnes: 600 });
     const membre = { cookie: cookieSession(E1, 'awa_27') };
     const page = await (await m.get(`/classement/${E2}`, membre)).text();
-    assert.match(page, /class="pf-identite"[\s\S]*Trophy room[\s\S]*Top : <b[^>]*>Rookie/);
+    assert.match(page, /class="pf-identite"[\s\S]*Trophy room <small>2 \/ 22[\s\S]*class="dernier"><b>(Rookie|Banger Bronze)<\/b>/);
+    // Sans trophée : « Aucun », rien d'autre.
+    assert.match(await (await m.get('/profil', membre)).text(), /<h3>Trophy room<\/h3>\s*<div class="aucun">Aucun<\/div>/);
     assert.match(page, /href="\/trophees\?de=700000000000000032"/);
     assert.match(page, /Revenus[\s\S]*Rang[\s\S]*Jours/);
     assert.doesNotMatch(page, /Prochain objectif|Étape 4|sur 90/);
     const salle = await (await m.get(`/trophees?de=${E2}`, membre)).text();
     assert.match(salle, /Trophées de bilal[\s\S]*Banger Bronze[\s\S]*Obtenu le/);
+    // Le détail d'un trophée : comment l'obtenir, leçons conseillées, combien et qui l'ont.
+    assert.match(salle, /data-ouvrir-trophee="banger_bronze"/);
+    assert.match(salle, /<template data-detail="banger_bronze">[\s\S]*Pour l.{1,6}obtenir[\s\S]*Leçons conseillées[\s\S]*Améliorer ton hook[\s\S]*Seuls <b>50 %<\/b>|<template data-detail="banger_bronze">[\s\S]*Plus de <b>50 %<\/b>/);
+    assert.match(salle, /<template data-detail="banger_bronze">[\s\S]*href="\/classement\/700000000000000032"/);
+    assert.match(salle, /<template data-detail="banger_platine">[\s\S]*Personne ne l.{1,6}a encore/);
   } finally { await m.fermer(); }
 });

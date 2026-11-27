@@ -41,6 +41,24 @@ const TROPHEES = [
 const FAMILLES = [['banger', 'Banger', 'Une vidéo, ses vues en 24 h'], ['compte', 'Compte', 'Les vues de ton compte au total'],
   ['abonnes', 'Abonnés', 'Tes abonnés'], ['revenus', 'Revenus', 'Ce que tu as gagné'], ['regularite', 'Régularité', 'Ta meilleure série d\'updates envoyées jour après jour']];
 const PAR_CLE = Object.fromEntries(TROPHEES.map((t) => [t.cle, t]));
+// Prestige : le métal d'abord (bronze < argent < or < platine < émeraude), puis le palier dans sa famille.
+const RANG_METAL = { bronze: 1, argent: 2, or: 3, platine: 4, emeraude: 5 };
+const prestige = (t) => (RANG_METAL[t.metal] || 0) * 100 + TROPHEES.filter((x) => x.famille === t.famille).findIndex((x) => x.cle === t.cle);
+// La vitrine (4 pièces, de gauche à droite) : les plus récents, puis le plus prestigieux en dernier (le plus gros).
+function vitrine(obtenus = []) {
+  if (!obtenus.length) return { pieces: [], top: null };
+  const top = obtenus.slice().sort((a, b) => prestige(b) - prestige(a))[0];
+  const autres = obtenus.filter((t) => t.cle !== top.cle).slice(0, 3).reverse(); // obtenus : du plus récent au plus ancien
+  return { pieces: [...autres, top], top };
+}
+// Les leçons conseillées pour décrocher un trophée (liens de la formation).
+const LECONS = {
+  banger: [['hook', 'Améliorer ton hook'], ['engagement', 'Améliorer l\'engagement'], ['watchtime', 'Améliorer le watchtime'], ['gardeCeQuiMarche', 'Garde ce qui marche']],
+  compte: [['gardeCeQuiMarche', 'Garde ce qui marche'], ['watchtime', 'Améliorer le watchtime'], ['routine', 'Ta routine de travail']],
+  abonnes: [['engagement', 'Améliorer l\'engagement'], ['hook', 'Améliorer ton hook']],
+  revenus: [['monetisation', 'Rejoindre la monétisation'], ['gardeCeQuiMarche', 'Garde ce qui marche']],
+  regularite: [['routine', 'Ta routine de travail']],
+};
 
 const SIGNAUX = {
   vues: (v) => Number(v.res_vues) >= 10000 && `Elle a fait ${nombre(v.res_vues)} vues en 24 h.`,
@@ -101,6 +119,13 @@ function creerTrophees({ db, suivi, parcours, maintenant = () => new Date() }) {
       return nouveaux;
     },
     obtenus(discordId) { return q.de.all(discordId).filter((r) => PAR_CLE[r.cle]).map(enrichir); },
+    vitrine(discordId) { return vitrine(api.obtenus(discordId)); },
+    // Qui a chaque trophée (élèves de l'accompagnement), et combien ils sont en tout.
+    detenteurs() {
+      const map = {};
+      for (const r of db.prepare('SELECT discord_id, cle, obtenu_le FROM trophees ORDER BY obtenu_le').all()) (map[r.cle] = map[r.cle] || []).push(r.discord_id);
+      return map;
+    },
     dernier(discordId) { return api.obtenus(discordId)[0] || null; },
     // La salle des trophées : par famille, obtenus ou non.
     salle(discordId) {
@@ -135,7 +160,7 @@ function creerTrophees({ db, suivi, parcours, maintenant = () => new Date() }) {
   return api;
 }
 
-module.exports = { creerTrophees, TROPHEES, FAMILLES, METAUX, SIGNAUX, meilleureSerie };
+module.exports = { creerTrophees, TROPHEES, FAMILLES, METAUX, SIGNAUX, meilleureSerie, vitrine, prestige, LECONS };
 
 // La pièce d'un trophée (SVG) : métal en dégradé, anneau, la valeur au centre. Grisée si pas encore obtenue.
 let nPiece = 0;

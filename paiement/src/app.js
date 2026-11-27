@@ -1629,7 +1629,11 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const visible = (x) => communaute.suivis(id).some((s) => s.suivi === x) || classement().some((c) => c.id === x && c.rang <= 100);
     if (de && de !== id && parcours.get(de) && visible(de)) id = de;
     trophees.verifier(id);
-    res.send(PF.pageTrophees(config, { espace: x.espace, salle: trophees.salle(id), membre: id === x.p.discord_id ? null : membreVu(id), mesures: trophees.mesures(id) }));
+    // Qui a chaque trophée : les élèves de l'accompagnement (prénom ou pseudo, photo).
+    const eleves = parcours.tous();
+    const membres = Object.fromEntries(eleves.map((e) => { const pr = qProfils.get.get(e.discord_id) || {}; return [e.discord_id, { nom: pr.prenom || e.pseudo || 'Membre', avatar: pr.avatar || null }]; }));
+    res.send(PF.pageTrophees(config, { espace: x.espace, salle: trophees.salle(id), membre: id === x.p.discord_id ? null : membreVu(id), mesures: trophees.mesures(id),
+      detenteurs: trophees.detenteurs(), membres, totalMembres: eleves.length, formation: config.formation }));
   });
   app.get('/profil', (req, res) => {
     const x = membreParcours(req, res, '/profil', { sinistreOk: true });

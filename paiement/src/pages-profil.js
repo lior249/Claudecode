@@ -9,7 +9,7 @@ const { ICONE } = require('./pages');
 const { pastilleRole, STYLE_ROLES, nomRole } = require('./roles');
 const { jourLisible } = require('./suivi');
 const { vuesCourtes } = require('./pages-classement');
-const { pieceTrophee } = require('./trophees');
+const { pieceTrophee, vitrine, LECONS } = require('./trophees');
 
 const JOURS_COURTS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const ENCOURAGEMENTS = [
@@ -55,6 +55,11 @@ const STYLE_PROFIL = `<style>
   .pf-identite .qui .pf-avatar { margin:0 0 8px; }
   .pf-identite .qui h1 { font-size:17px; overflow-wrap:anywhere; } .pf-identite .qui p { font-size:12px; overflow-wrap:anywhere; }
   .pf-salle { flex:1; min-width:0; display:flex; flex-direction:column; border-radius:20px; background:#141414; border:1px solid #1f1f1f; overflow:hidden; }
+  a.pf-salle { color:#fff; text-decoration:none; }
+  .pf-salle .vitrine { flex:1; display:flex; flex-direction:column; justify-content:center; padding:12px 14px; }
+  .pf-salle .vitrine h3 { font-size:18px; letter-spacing:-.01em; }
+  .pf-salle .vitrine .pieces { display:flex; align-items:center; gap:2px; margin:10px 0 6px; min-height:52px; overflow:hidden; }
+  .pf-salle .vitrine .aucun { margin-top:8px; color:var(--doux); font-size:14px; }
   .pf-salle .defile { flex:1; display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
   .pf-salle .defile::-webkit-scrollbar { display:none; }
   .pf-salle a { flex:0 0 100%; scroll-snap-align:start; display:flex; flex-direction:column; justify-content:center; padding:12px 14px; color:#fff; text-decoration:none; box-sizing:border-box; }
@@ -267,28 +272,25 @@ function barreObjectif(objectif) {
     <span class="barre"><i style="width:${pct}%"></i></span><span class="bas">${valeurObjectif(objectif, objectif.valeur || 0)} · ${pct} %</span></a>`;
 }
 // Trophy room (Mon profil) : mes derniers trophées, puis ceux de mes concurrents (on fait défiler).
+// Trophy room : le titre en grand, 4 pièces alignées (les plus récentes, puis la plus prestigieuse, plus grosse, en dernier)
+// et son nom ; « Aucun » s'il n'y en a pas. On touche la carte pour voir tous les trophées.
+function vitrineTrophees(obtenus = [], { lien = '/trophees', total = 22 } = {}) {
+  const v = vitrine(obtenus);
+  return `<a class="pf-salle" href="${echapper(lien)}" aria-label="Trophy room : ${obtenus.length} trophée(s)"><div class="vitrine">
+    <h3>Trophy room${obtenus.length ? ` <small>${obtenus.length} / ${total}</small>` : ''}</h3>
+    ${v.top ? `<div class="pieces">${v.pieces.map((t) => pieceTrophee(t, { taille: t === v.top ? 52 : 39 })).join('')}</div>
+      <div class="dernier"><b>${echapper(v.top.titre)}</b></div>` : '<div class="aucun">Aucun</div>'}</div></a>`;
+}
 function salleTrophees(salle) {
   if (!salle) return '';
-  const pieces = (liste) => liste.slice(0, 4).map((t) => pieceTrophee(t, { taille: 40 })).join('');
-  const vide = pieceTrophee({ court: '10K', metal: 'bronze', titre: 'Premier trophée', famille: 'banger' }, { taille: 40, obtenu: false });
   const moi = salle.moi || { obtenus: [] };
-  const slides = [`<a href="/trophees"><h3>Trophy room <small>${moi.obtenus.length} / ${moi.total || 22}</small></h3>
-      <div class="pieces">${moi.obtenus.length ? pieces(moi.obtenus) : vide}</div>
-      <div class="dernier">${moi.obtenus.length ? `Dernier : <b>${echapper(moi.obtenus[0].titre)}</b>` : 'Premier trophée : 10K vues sur une vidéo'}</div></a>`,
-    ...(salle.concurrents || []).map((c) => `<a href="/trophees?de=${encodeURIComponent(c.id)}"><h3>${echapper(c.nom)} <small>${c.nb} trophée${c.nb > 1 ? 's' : ''}</small></h3>
-      <div class="pieces">${c.trophees.length ? pieces(c.trophees) : '<span class="doux petit">Pas encore de trophée</span>'}</div>
-      <div class="dernier">${c.trophees.length ? `Dernier : <b>${echapper(c.trophees[0].titre)}</b>` : 'Concurrent'}</div></a>`)];
-  return `<div class="pf-salle"><div class="defile" aria-label="Trophy room">${slides.join('')}</div>${slides.length > 1 ? `<div class="pts" aria-hidden="true">${slides.map(() => '<i></i>').join('')}</div>` : ''}</div>`;
+  return vitrineTrophees(moi.obtenus, { total: moi.total || 22 });
 }
 
 // Le profil d'un membre vu par les autres (classement) : comme Mon profil, sans ce qui ne regarde que lui
 // (étape, prochain objectif, tâches) : photo et nom, sa Trophy room, revenus, rang, jours, puis ses résultats.
 function pageProfilPublic(config, { espace, parcours: p, nom, avatar, role, stats = {}, jours = 1, chaine = 0, trophees = [], totalTrophees = 22, tableau, relation, vueCoach = false }) {
-  const pieces = trophees.slice(0, 4).map((t) => pieceTrophee(t, { taille: 40 })).join('');
-  const salle = `<a class="pf-salle" href="/trophees?de=${encodeURIComponent(p.discord_id)}" style="color:#fff;text-decoration:none">
-    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:12px 14px"><h3>Trophy room <small>${trophees.length} / ${totalTrophees}</small></h3>
-      <div class="pieces">${pieces || '<span class="doux petit">Pas encore de trophée</span>'}</div>
-      <div class="dernier">${trophees.length ? `Top : <b>${echapper(trophees[0].titre)}</b>` : 'Voir ses trophées'}</div></div></a>`;
+  const salle = vitrineTrophees(trophees, { lien: `/trophees?de=${encodeURIComponent(p.discord_id)}`, total: totalTrophees });
   const boutons = relation ? `${relation.message ? `<p class="message-ok">${echapper(relation.message)}</p>` : ''}${relation.erreur ? `<p class="erreur-form">${echapper(relation.erreur)}</p>` : ''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 18px">
     ${relation.concurrent ? `<form method="post" action="/communaute/concurrences/${relation.concurrenceId}/abandon" style="margin:0"><input type="hidden" name="retour" value="/classement/${echapper(p.discord_id)}">
@@ -320,21 +322,49 @@ function pageProfilPublic(config, { espace, parcours: p, nom, avatar, role, stat
 }
 
 // Salle des trophées : par famille, obtenus en couleur, les autres en gris, avec le seuil.
-function pageTrophees(config, { espace, salle, membre, mesures = {} }) {
+function pageTrophees(config, { espace, salle, membre, mesures = {}, detenteurs = {}, membres = {}, totalMembres = 0, formation = {} }) {
   const valeur = { banger: mesures.banger, compte: mesures.compte, abonnes: mesures.abonnes, revenus: mesures.revenus, regularite: mesures.regularite };
-  const style = `<style>.tr-fam { margin:0 0 14px; } .tr-fam h2 { margin:0; } .tr-grille { display:grid; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); gap:10px; margin-top:12px; }
-  .tr-t { text-align:center; padding:12px 6px; border-radius:16px; background:#111; border:1px solid #222; } .tr-t[data-obtenu="1"] { background:radial-gradient(100% 100% at 50% 0%, #2a2108, #111 70%); border-color:#3a3112; }
-  .tr-t b { display:block; margin-top:6px; font-size:14px; } .tr-t small { display:block; color:var(--doux); font-size:11.5px; line-height:1.35; margin-top:2px; }</style>`;
+  const style = `<style>.tr-fam { margin:0 0 14px; } .tr-fam h2 { margin:0; } .tr-grille { display:grid; grid-template-columns:repeat(auto-fill, minmax(98px, 1fr)); gap:8px; margin-top:12px; }
+  .tr-t { width:100%; text-align:center; padding:10px 6px; border-radius:16px; background:#111; border:1px solid #222; color:#fff; font:inherit; cursor:pointer; }
+  .tr-t[data-obtenu="1"] { background:radial-gradient(100% 100% at 50% 0%, #2a2108, #111 70%); border-color:#3a3112; }
+  .tr-t b { display:block; margin-top:6px; font-size:13px; } .tr-t small { display:block; color:var(--doux); font-size:11px; line-height:1.35; margin-top:2px; }
+  #tr-detail { max-width:420px; } #tr-detail .tete { text-align:center; } #tr-detail h2 { font-size:20px; margin:8px 0 2px; }
+  #tr-detail .part { margin:14px 0 0; } #tr-detail .part h3 { margin:0 0 6px; font-size:13px; color:var(--doux); font-weight:600; }
+  #tr-detail .lecon { display:flex; gap:8px; align-items:center; padding:10px 12px; border-radius:12px; border:1px solid #2a2a2a; color:#fff; text-decoration:none; font-weight:700; margin-top:6px; font-size:13.5px; }
+  #tr-detail .pct { font-size:15px; } #tr-detail .pct b { color:var(--lime, #c8f23a); }
+  #tr-detail .gens { display:grid; gap:6px; max-height:220px; overflow:auto; margin-top:8px; }
+  #tr-detail .gens a { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; font-size:13.5px; }
+  #tr-detail .gens .av { width:28px; height:28px; border-radius:50%; background:#2a2a2a; display:grid; place-items:center; font-weight:800; font-size:12px; overflow:hidden; flex:none; }
+  #tr-detail .gens .av img { width:100%; height:100%; object-fit:cover; }</style>`;
   const nombre = (n) => Math.round(Number(n) || 0).toLocaleString('fr-FR');
+  // Le détail de chaque trophée (caché), copié dans la fenêtre quand on le touche.
+  const detail = (t) => {
+    const ids = detenteurs[t.cle] || [];
+    const pct = totalMembres ? Math.round((ids.length / totalMembres) * 100) : 0;
+    const lecons = (LECONS[t.famille] || []).filter(([k]) => formation[k]);
+    return `<template data-detail="${echapper(t.cle)}"><div class="tete">${pieceTrophee(t, { taille: 96, obtenu: !!t.obtenu })}
+      <h2>${echapper(t.titre)}</h2><p class="doux petit" style="margin:0">${t.obtenu ? `Obtenu le ${echapper(jourLisible(t.obtenu.obtenu_le.slice(0, 10)))}` : 'Pas encore obtenu'}</p></div>
+      <div class="part"><h3>Pour l'obtenir</h3><p style="margin:0">${echapper(t.but.charAt(0).toUpperCase() + t.but.slice(1))}${t.famille === 'regularite' ? ' (updates envoyées)' : ' (résultats validés par ton coach)'}.</p></div>
+      ${lecons.length ? `<div class="part"><h3>Leçons conseillées</h3>${lecons.map(([k, l]) => `<a class="lecon" href="${echapper(formation[k])}" target="_blank" rel="noopener">▶ <span>${echapper(l)}</span><span style="margin-left:auto;color:var(--doux)">↗</span></a>`).join('')}</div>` : ''}
+      <div class="part"><h3>Dans l'accompagnement</h3><p class="pct" style="margin:0">${ids.length ? (pct < 50 ? `Seuls <b>${pct} %</b> des membres l'ont` : `Plus de <b>${pct} %</b> des membres l'ont`) : 'Personne ne l\'a encore : sois le premier.'}</p>
+        ${ids.length ? `<div class="gens">${ids.slice(0, 100).map((id) => { const m = membres[id] || { nom: 'Membre' }; return `<a href="/classement/${encodeURIComponent(id)}"><span class="av">${m.avatar ? `<img src="${echapper(m.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : echapper((m.nom || '?').charAt(0).toUpperCase())}</span>${echapper(m.nom || 'Membre')}</a>`; }).join('')}</div>` : ''}</div></template>`;
+  };
   const familles = salle.map((f) => `<div class="carte tr-fam"><div class="envoi-tete"><h2>${echapper(f.titre)}</h2><span class="doux petit">${f.trophees.filter((t) => t.obtenu).length} / ${f.trophees.length}</span></div>
     <p class="doux petit" style="margin:4px 0 0">${echapper(f.texte)}${valeur[f.cle] !== undefined ? ` : <b style="color:#fff">${f.cle === 'revenus' ? dollars(valeur[f.cle]) : f.cle === 'regularite' ? `${nombre(valeur[f.cle])} jour${valeur[f.cle] > 1 ? 's' : ''}` : nombre(valeur[f.cle])}</b>${f.cle === 'banger' ? ' (meilleure vidéo)' : ''}` : ''}</p>
-    <div class="tr-grille">${f.trophees.map((t) => `<div class="tr-t" data-obtenu="${t.obtenu ? 1 : 0}">${pieceTrophee(t, { taille: 64, obtenu: !!t.obtenu })}<b>${echapper(t.titre)}</b>
-      <small>${t.obtenu ? `Obtenu le ${echapper(jourLisible(t.obtenu.obtenu_le.slice(0, 10)))}` : `Objectif : ${echapper(t.but)}`}</small></div>`).join('')}</div></div>`).join('');
+    <div class="tr-grille">${f.trophees.map((t) => `<button type="button" class="tr-t" data-obtenu="${t.obtenu ? 1 : 0}" data-ouvrir-trophee="${echapper(t.cle)}">${pieceTrophee(t, { taille: 60, obtenu: !!t.obtenu })}<b>${echapper(t.titre)}</b>
+      <small>${t.obtenu ? `Obtenu le ${echapper(jourLisible(t.obtenu.obtenu_le.slice(0, 10)))}` : `Objectif : ${echapper(t.but)}`}</small></button>${detail(t)}`).join('')}</div></div>`).join('');
   const total = salle.reduce((n, f) => n + f.trophees.filter((t) => t.obtenu).length, 0);
   return page(membre ? `Trophées de ${membre.nom}` : 'Mes trophées', `${style}<a class="retour" href="${membre ? `/classement/${encodeURIComponent(membre.id)}` : '/profil'}"><span aria-hidden="true">‹</span> ${membre ? `Profil de ${echapper(membre.nom)}` : 'Mon profil'}</a>
   <div class="titre-page"><div><p class="etiquette">Trophy room</p><h1>${membre ? `Trophées de ${echapper(membre.nom)}` : 'Mes trophées'}</h1></div><span class="doux petit">${total} / ${salle.reduce((n, f) => n + f.trophees.length, 0)}</span></div>
-  <p class="doux" style="margin:0 0 14px">Les trophées se gagnent avec les résultats validés par ton coach : vues d'une vidéo, vues du compte, abonnés et revenus.</p>
-  ${familles}`, espace, 'profil');
+  <p class="doux" style="margin:0 0 14px">Touche un trophée pour voir comment l'obtenir, les leçons conseillées et qui l'a déjà.</p>
+  ${familles}
+  <dialog class="fenetre" id="tr-detail" aria-label="Trophée"><button class="fermer" type="button" aria-label="Fermer" data-fermer>×</button><div data-corps></div></dialog>`, espace, 'profil', null,
+  `(function () { var d = document.getElementById('tr-detail'); if (!d) return; var c = d.querySelector('[data-corps]');
+    document.querySelectorAll('[data-ouvrir-trophee]').forEach(function (b) { b.addEventListener('click', function () {
+      var t = document.querySelector('template[data-detail="' + b.getAttribute('data-ouvrir-trophee') + '"]'); if (!t) return;
+      c.innerHTML = ''; c.appendChild(t.content.cloneNode(true)); if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }); });
+    d.querySelector('[data-fermer]').onclick = function () { d.close(); };
+    d.addEventListener('click', function (e) { if (e.target === d) d.close(); }); })();`);
 }
 
 function pageMonProfil(config, { espace, parcours: p, prenom, avatar, stats, role, jourDepuis, jours, chaine, flamme, derniers7, tache, suivis, concurrents = [], activite = {}, aujourdhui, nbSuivis, nbConcurrents, invitations, notifications, rappel,
