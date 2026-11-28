@@ -104,3 +104,15 @@ test('serveur gratuit : liens des salons collés dans Gestion ; Bob y publie aus
     assert.ok(recu['333333333333333333'][0].name.includes('Awa'));
   } finally { await m.fermer(); }
 });
+
+test('updates du mois : « pas d\'update ce mois-ci » (pas encore de résultat) : rien publié, plus de rappel', async () => {
+  const m = await monter();
+  try {
+    const u = creerUpdatesMois({ db: m.db });
+    assert.strictEqual(u.aFaire(E1, '2026-11-28').length, 2);
+    const e = u.passer(E1, '2026-11');
+    assert.ok(e.passe && e.fini);
+    assert.deepStrictEqual(u.aFaire(E1, '2026-11-29'), [], 'plus de rappel ce mois-ci');
+    assert.strictEqual(u.aFaire(E1, '2026-12-28').length, 2, 'le mois suivant, de nouveau');
+  } finally { await m.fermer(); }
+});

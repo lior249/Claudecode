@@ -69,7 +69,6 @@ function navEspace(espace = {}) {
       { cle: 'traiter', libelle: 'À traiter', lien: '/admin/a-traiter', icone: 'traiter', badge: espace.aTraiterParcours || null },
       { cle: 'calendrier', libelle: 'Calendrier', lien: '/admin', icone: 'calendrier' },
       { cle: 'eleves', libelle: 'Élèves Elite', lien: '/admin/eleves', icone: 'eleves' },
-      { cle: 'planifier', libelle: 'Planifier', lien: '/admin/planifier', icone: 'annonces' },
       ...(espace.ressources ? [{ cle: 'ressources', libelle: 'Ressources', lien: '/ressources', icone: 'ressources' }] : []));
   }
   // Le coach (admin) ne réserve pas de séance : pas de « Mes coachings » pour lui.

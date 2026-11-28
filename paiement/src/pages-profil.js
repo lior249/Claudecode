@@ -763,7 +763,7 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
   const estMessage = (a) => a.fin_le && a.fin_le === a.cree_le; // message seul : jamais dans la bannière
   const enCours = (a) => !estMessage(a) && (a.fin_le ? a.fin_le > maintenant : a.cree_le > new Date(Date.now() - 7 * 864e5).toISOString());
   const recu = (a) => (a.notifier === 0 ? 'sans notification' : a.envoyes === null ? 'envoi en cours…' : `reçu par ${a.envoyes} / ${a.destinataires}`);
-  const onglets = `<nav class="pl-onglets" aria-label="Planifier">${[['evenement', 'Événement'], ['message', 'Envoyer un message']]
+  const onglets = '' && `<nav class="pl-onglets" aria-label="Planifier">${[['evenement', 'Événement'], ['message', 'Envoyer un message']]
     .map(([c, l]) => `<a href="/admin/planifier${c === 'evenement' ? '' : `?onglet=${c}`}"${onglet === c ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
   const lien = `<button id="ajouter-lien" class="bouton secondaire" type="button" style="margin:0;width:auto;justify-self:start">+ Ajouter un lien</button>
     <div id="zone-lien" class="champ" hidden><label for="lien">Lien</label>
@@ -816,11 +816,11 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
   <div class="titre-page"><div><p class="etiquette">Coach</p><h1>Gestion</h1></div></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   <div class="pf"><div class="pf-cartes" style="grid-template-columns:1fr 1fr">
-    ${tuile('/admin/planifier', 'Planifier', `${evenements} événement(s) en cours`, 'Événements, messages aux élèves, accusés de lecture.')}
+    ${tuile('/admin/planifier?onglet=message', 'Envoyer un message', 'Aux élèves', 'À un, plusieurs ou tous les élèves, avec accusés de lecture.')}
     ${tuile('/admin/eleves', 'Gérer les élèves', `${nbEleves} élève(s)`, 'Kanban par étape, ou liste triable.', aCompleter ? `${aCompleter} à compléter` : '')}
     ${espace.ressources ? tuile('/ressources', 'Ressources', `${ressources} publiée(s)`, 'Niches, méthodes 10K, tutoriels.', aValider ? `${aValider} proposition(s) à relire` : '') : ''}
     ${tuile('/notifications?onglet=rappels', 'Mes rappels', 'Tes rappels', 'Une fois, chaque jour ou certains jours.')}
-    ${tuile('/admin/evenements', 'Événements', 'Challenges', 'Inscriptions, conditions, classement de l\'événement.')}
+    ${tuile('/admin/evenements', 'Événements', `${evenements} en cours`, 'Créer un challenge : inscriptions, conditions, classement, badges.')}
   </div>
   <form class="carte" method="post" action="/admin/discord/call" style="margin-top:14px;display:grid;gap:10px">
     <div class="envoi-tete"><h2>Lancement des calls</h2><span class="etat" data-etat="${lienCall ? 'valide' : 'attente'}">${lienCall ? 'Prêt' : 'Lien à ajouter'}</span></div>

@@ -142,3 +142,20 @@ test('« mon coach me livre un compte » : demande, attente, livraison par le co
     assert.match(await (await m.get('/parcours/etape-4', membre)).text(), /Choisis tes 3 heures/);
   } finally { await m.fermer(); }
 });
+
+test('avant un coaching : « Je n\'ai aucune question » retire la tâche pour cette séance', async () => {
+  const m = await monter({ bob: { parcours: new Proxy({}, { get: () => async () => true }) } });
+  try {
+    m.parcours.assurer(E1, { pseudo: 'awa_27' });
+    m.parcours.changerEtape(E1, 4);
+    const demain = m.coaching.ajouterJours(m.coaching.dateISO(new Date()), 1);
+    assert.ok(m.coaching.reserverPonctuelle(E1, demain, m.config.coaching.creneaux[0], 'entree').ok);
+    const membre = { cookie: cookieSession(E1, 'awa_27') };
+    assert.match(await (await m.get('/profil', membre)).text(), /Ton coaching approche : un problème/);
+    assert.match(await (await m.get('/aide', membre)).text(), /Ton coaching approche[\s\S]*formaction="\/aide\/aucune-question"[^>]*>Je n'ai aucune question/);
+    assert.strictEqual((await m.poster('/aide/aucune-question', {}, membre)).headers.get('location'), '/aide?fait=aucune');
+    assert.match(await (await m.get('/aide?fait=aucune', membre)).text(), /pas de question pour ton prochain coaching/);
+    assert.doesNotMatch(await (await m.get('/profil', membre)).text(), /Ton coaching approche : un problème/);
+    assert.doesNotMatch(await (await m.get('/aide', membre)).text(), /Je n'ai aucune question/, 'plus proposé pour cette séance');
+  } finally { await m.fermer(); }
+});

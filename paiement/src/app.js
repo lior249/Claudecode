@@ -1325,11 +1325,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       if (!p.heure_creation) ajouter('Choisis tes 3 heures', '/parcours/etape-4');
     }
     if ([3, 4].includes(p.etape) && !coaching.aUnPlanning(id)) ajouter('Réserve tes coachings de la semaine', '/coaching');
-    // Un coaching aujourd'hui ou demain, sans demande d'aide ces 3 derniers jours : « Un problème ? Dis-le à ton coach ».
+    // Un coaching aujourd'hui ou demain, sans demande d'aide ces 3 derniers jours, et sans « Je n'ai aucune question » :
+    // « Un problème ? Dis-le à ton coach ».
     try {
-      const proche = coaching.prochainesSeances(id, 2).find((o) => !o.touchee && new Date(o.debut).getTime() > Date.now());
+      const proche = seanceProche(id);
       const recente = commandes.db.prepare("SELECT 1 FROM messages_coach WHERE discord_id = ? AND cree_le >= ? LIMIT 1").get(id, new Date(Date.now() - 3 * 864e5).toISOString());
-      if (proche && !recente) ajouter('Ton coaching approche : un problème ? Dis-le à ton coach', '/aide');
+      if (proche && !recente && !aucuneQuestion(id, proche)) ajouter('Ton coaching approche : un problème ? Dis-le à ton coach', '/aide');
     } catch { /* pas de séance */ }
     if (p.etape >= 4 && p.fuseau) for (const x of updatesMois.aFaire(id, suivi.aujourdhui(p))) ajouter(x.titre, '/parcours/mois');
     const e = config.offres.elite;
@@ -1605,6 +1606,8 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   // Planifier : événement (bannière), remarque à un élève, message à tous. /admin/annonces reste une autre adresse.
   const pagePlanifier = (req, res) => {
     if (!estAdmin(req, res, '/admin/planifier')) return;
+    // La page Planifier n'existe plus : les événements sont dans Gestion › Événements ; seul « Envoyer un message » reste ici.
+    if (!['remarque', 'message'].includes(req.query.onglet) && !req.query.fait && !req.query.erreur) return res.redirect(302, '/admin/evenements');
     const onglet = ['remarque', 'message'].includes(req.query.onglet) ? 'message' : 'evenement';
     const qp = (id) => qProfils.get.get(id) || {};
     const fait = { modifie: 'Message modifié.', relance: `Relance envoyée à ${Number(req.query.n) || 0} élève(s).`, message: `Message envoyé à ${Number(req.query.n) || 0} élève(s).` }[req.query.fait];
@@ -1935,7 +1938,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const revenus = mois ? Math.round(suivi.gains(x.p.discord_id).filter((g) => g.jour.slice(0, 7) === mois).reduce((t, g) => t + g.gain, 0) * 100) / 100 : 0;
     res.send(pageMois(config, { espace: x.espace, mois, libelle: mois ? updatesMois.moisLisible(mois) : '', etat: mois ? updatesMois.etat(x.p.discord_id, mois) : null,
       revenusCalcules: revenus > 0 ? revenus : null,
-      message: { revenus: 'Update envoyée : Bob la publie dans #testimonials.', 'revenus-non': 'C\'est noté. Partage maintenant ton plus gros résultat du mois.', resultat: 'Résultat publié dans #testimonials. Bravo !' }[req.query.fait] || null,
+      message: { passe: 'C\'est noté : pas d\'update ce mois-ci.', revenus: 'Update envoyée : Bob la publie dans #testimonials.', 'revenus-non': 'C\'est noté. Partage maintenant ton plus gros résultat du mois.', resultat: 'Résultat publié dans #testimonials. Bravo !' }[req.query.fait] || null,
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
   const nomPublic = (p) => (qProfils.get.get(p.discord_id) || {}).prenom || p.pseudo || 'Membre';
@@ -1952,6 +1955,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (aGagne) prevenir('updateMoisPublique', r.update, x.p, nomPublic(x.p));
     return res.redirect(303, `/parcours/mois?fait=${aGagne ? 'revenus' : 'revenus-non'}`);
   });
+  app.post('/parcours/mois/passer', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/parcours/mois');
+    if (!x) return;
+    const mois = moisDe(x.p);
+    if (mois && x.p.etape >= 4) updatesMois.passer(x.p.discord_id, mois);
+    return res.redirect(303, '/parcours/mois?fait=passe');
+  });
   app.post('/parcours/mois/resultat', formulaire, (req, res) => {
     const x = membreParcours(req, res, '/parcours/mois');
     if (!x) return;
@@ -1965,13 +1975,29 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     return res.redirect(303, '/parcours/mois?fait=resultat');
   });
 
+  // « Je n'ai aucune question » avant un coaching : la tâche « Ton coaching approche » disparaît pour cette séance.
+  commandes.db.exec('CREATE TABLE IF NOT EXISTS aide_aucune_question (discord_id TEXT NOT NULL, seance TEXT NOT NULL, cree_le TEXT NOT NULL, PRIMARY KEY (discord_id, seance))');
+  function seanceProche(id) {
+    try { return coaching.prochainesSeances(id, 2).find((o) => !o.touchee && new Date(o.debut).getTime() > Date.now()) || null; } catch { return null; }
+  }
+  const cleSeance = (o) => `${o.date} ${o.heure}`;
+  const aucuneQuestion = (id, o) => Boolean(commandes.db.prepare('SELECT 1 FROM aide_aucune_question WHERE discord_id = ? AND seance = ?').get(id, cleSeance(o)));
+  app.post('/aide/aucune-question', formulaire, (req, res) => {
+    const x = membreParcours(req, res, '/aide', { sinistreOk: true });
+    if (!x) return;
+    const o = seanceProche(x.p.discord_id);
+    if (o) commandes.db.prepare('INSERT OR IGNORE INTO aide_aucune_question (discord_id, seance, cree_le) VALUES (?, ?, ?)').run(x.p.discord_id, cleSeance(o), new Date().toISOString());
+    return res.redirect(303, '/aide?fait=aucune');
+  });
   // Demander de l'aide : une demande guidée, rangée avec les messages des élèves (À traiter, Bob).
   const donneesAide = (p) => ({ parcours: p, axes: AIDE.etatAxes(p, parcours.soumissions(p.discord_id, 4)), formation: config.formation,
     videos: suivi.videos(p.discord_id).slice(0, 10), envoyees: messages.envoyesPar(p.discord_id, 20).filter((m) => String(m.sujet || '').startsWith('Demande d\'aide')) });
   app.get('/aide', (req, res) => {
     const x = membreParcours(req, res, '/aide', { sinistreOk: true });
     if (!x) return;
-    res.send(pageAide(config, { espace: x.espace, ...donneesAide(x.p), fait: req.query.fait === '1', erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+    const o = seanceProche(x.p.discord_id);
+    res.send(pageAide(config, { espace: x.espace, ...donneesAide(x.p), fait: req.query.fait === '1', aucune: req.query.fait === 'aucune',
+      seance: o && !aucuneQuestion(x.p.discord_id, o) ? o : null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
   app.post('/aide', formulaire, (req, res) => {
     const x = membreParcours(req, res, '/aide', { sinistreOk: true });

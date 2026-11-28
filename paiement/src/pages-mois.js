@@ -19,6 +19,17 @@ function pageMois(config, { espace, mois, libelle, etat, revenusCalcules = null,
       <p class="doux" style="margin:8px 0 0">Tu y partages ce que tu as généré et ton plus gros résultat : ils sont publiés dans #testimonials pour motiver les autres.</p></div>`, espace, 'parcours');
   }
   const r = etat.revenus; const g = etat.resultat;
+  if (etat.passe) {
+    return page('Updates du mois', `<div class="titre-page"><div><p class="etiquette">Mon accompagnement</p><h1>Updates du mois</h1></div><span class="doux petit">${echapper(libelle)}</span></div>
+      ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}
+      <div class="carte"><div class="envoi-tete"><h2>Pas d'update ce mois-ci</h2><span class="etat" data-etat="valide">${ICONE.ok}C'est noté</span></div>
+      <p style="margin:8px 0 0">Rien n'est publié et Bob ne te le rappelle plus ce mois-ci.</p>
+      <p class="doux" style="margin:6px 0 0">Concentre-toi sur tes vidéos : le mois prochain, tu auras peut-être ton premier résultat à partager.</p></div>`, espace, 'parcours');
+  }
+  const passer = `<form method="post" action="/parcours/mois/passer" style="margin:0"
+      onsubmit="return confirm('Pas d\\'update ce mois-ci ? Rien ne sera publié et Bob ne te le rappellera plus jusqu\\'au mois prochain.')">
+      <button class="bouton secondaire" type="submit" style="margin:0">Je n'ai pas encore de résultat : pas d'update ce mois-ci</button>
+      <p class="doux petit" style="margin:6px 0 0">Tu viens de rejoindre l'accompagnement, ou tu n'as rien à partager ce mois-ci ? Pas de souci.</p></form>`;
   const carteRevenus = r ? `<div class="carte mois-fait"><div class="envoi-tete"><h2>Update du mois</h2><span class="etat" data-etat="valide">${ICONE.ok}Envoyée</span></div>
       ${r.a_gagne ? `<p><b>$${Number(r.montant).toLocaleString('en-US', { maximumFractionDigits: 2 })}</b> générés en ${echapper(libelle)}.</p>` : '<p class="doux">Pas de revenus ce mois-ci : rien à publier.</p>'}</div>`
     : `${STYLE_ETAPES}<form class="carte assistant" method="post" action="/parcours/mois/revenus" data-depart="1">
@@ -54,7 +65,8 @@ function pageMois(config, { espace, mois, libelle, etat, revenusCalcules = null,
   return page('Updates du mois', `${STYLE_MOIS}<div class="titre-page"><div><p class="etiquette">Mon accompagnement</p><h1>Updates du mois</h1></div><span class="doux petit">${echapper(libelle)}</span></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   <p class="doux" style="margin:0 0 12px">Du 28 au 5 : partage ce que tu as généré et ton plus gros résultat. Bob les publie dans #testimonials.</p>
-  ${carteRevenus}${carteResultat}`, espace, 'parcours', null, SCRIPT_ETAPES);
+  ${carteRevenus}${carteResultat}
+  ${g ? '' : `<div class="carte">${passer}</div>`}`, espace, 'parcours', null, SCRIPT_ETAPES);
 }
 
 module.exports = { pageMois };

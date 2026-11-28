@@ -15,7 +15,13 @@ const STYLE_AIDE = `<style>
   .aide-ok { color:var(--ok); } .aide-non { color:#ff9a3c; }
 </style>`;
 
-function pageAide(config, { espace, parcours: p, axes = [], videos = [], formation = {}, envoyees = [], fait, erreur }) {
+function pageAide(config, { espace, parcours: p, axes = [], videos = [], formation = {}, envoyees = [], fait, aucune = false, seance = null, erreur }) {
+  if (aucune) {
+    return page('Demander de l\'aide', `<div class="titre-page"><div><p class="etiquette">Mon accompagnement</p><h1>Tout va bien</h1></div></div>
+    <div class="carte"><p style="margin:0;font-size:17px"><b>C'est noté : pas de question pour ton prochain coaching.</b></p>
+      <p class="doux" style="margin:8px 0 0">Si un problème arrive d'ici là, reviens ici quand tu veux.</p>
+      <a class="bouton" href="/profil">Mon profil</a><a class="bouton secondaire" href="/aide">Demander de l'aide quand même</a></div>`, espace, 'aide');
+  }
   if (fait) {
     return page('Demander de l\'aide', `<div class="titre-page"><div><p class="etiquette">Mon accompagnement</p><h1>Demande envoyée</h1></div></div>
     <div class="carte"><p style="margin:0;font-size:17px"><b>Ton coach a reçu ta demande.</b></p>
@@ -33,7 +39,10 @@ function pageAide(config, { espace, parcours: p, axes = [], videos = [], formati
   ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   <form class="carte assistant" method="post" action="/aide" data-depart="1">
     <input type="hidden" name="categorie" value=""><input type="hidden" name="axe" value="">
-    <div data-page="1"><h3>Qu'est-ce qui se passe ?</h3>
+    <div data-page="1">${seance ? `<div class="aide-axe" style="grid-template-columns:1fr;border-color:#284a7a;background:#0b1730">
+        <b>Ton coaching approche</b><small style="color:#bcd3ff">Tu as un problème à régler pendant la séance ? Choisis-le ci-dessous. Sinon, pas besoin d'inventer une question.</small>
+        <button class="bouton secondaire" type="submit" formaction="/aide/aucune-question" formnovalidate style="margin:6px 0 0">Je n'ai aucune question</button></div>` : ''}
+      <h3>Qu'est-ce qui se passe ?</h3>
       <p class="doux" style="margin:0">Choisis ce qui ressemble le plus à ton problème. Ton coach le voit avant ta prochaine séance de coaching.</p>
       <div class="aide-choix">${choix}</div></div>
 

@@ -11,20 +11,21 @@ const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'S
 const MODELES = [
   { texte: 'Vérifier les coachings du jour', frequence: 'jour', heure: '08:00', page: '/admin?vue=jour' },
   { texte: 'Donner mes disponibilités de la semaine', frequence: 'semaine', jours: [0], heure: '18:00', page: '/admin/disponibilites' },
-  { texte: 'Préparer le prochain événement', frequence: 'semaine', jours: [3], heure: '10:00', page: '/admin/planifier' },
+  { texte: 'Préparer le prochain événement', frequence: 'semaine', jours: [3], heure: '10:00', page: '/admin/evenements' },
   { texte: 'Valider les comptes rendus en attente', frequence: 'jour', heure: '20:00', page: '/admin/a-traiter' },
 ];
 
 // La page qu'ouvre un rappel : celle qu'il a choisie, sinon devinée d'après son texte.
 const PAGES_RAPPEL = [
   ['/admin?vue=jour', 'Coachings du jour'], ['/admin/a-traiter', 'À traiter'], ['/admin/disponibilites', 'Mes disponibilités'],
-  ['/admin/planifier', 'Planifier (événements, messages)'], ['/admin/eleves', 'Élèves Elite'], ['/coach', 'Mon profil'], ['/notifications?onglet=rappels', 'Mes rappels'],
+  ['/admin/evenements', 'Événements'], ['/admin/planifier?onglet=message', 'Envoyer un message'], ['/admin/eleves', 'Élèves Elite'], ['/coach', 'Mon profil'], ['/notifications?onglet=rappels', 'Mes rappels'],
 ];
 function pageDevinee(texte) {
   const t = String(texte || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   if (/coaching|seance/.test(t)) return '/admin?vue=jour';
   if (/disponibilit/.test(t)) return '/admin/disponibilites';
-  if (/evenement|annonce|message a tous|planifi/.test(t)) return '/admin/planifier';
+  if (/message a tous|message aux eleves/.test(t)) return '/admin/planifier?onglet=message';
+  if (/evenement|annonce|planifi|challenge/.test(t)) return '/admin/evenements';
   if (/compte rendu|update|valider|resultat|traiter|video|candidature/.test(t)) return '/admin/a-traiter';
   if (/eleve|kanban/.test(t)) return '/admin/eleves';
   return '/admin/a-traiter';

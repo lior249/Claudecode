@@ -54,7 +54,8 @@ function creerUpdatesMois({ db, maintenant = () => new Date() }) {
     etat(discordId, mois) {
       const revenus = lire(q.de.get(discordId, mois, 'revenus'));
       const resultat = lire(q.de.get(discordId, mois, 'resultat'));
-      return { mois, revenus, resultat, aGagne: revenus ? Boolean(revenus.a_gagne) : null, fini: Boolean(revenus && resultat) };
+      return { mois, revenus, resultat, aGagne: revenus ? Boolean(revenus.a_gagne) : null, fini: Boolean(revenus && resultat),
+        passe: Boolean(resultat && resultat.modele === 'aucun') };
     },
     // Ce qui manque aujourd'hui (jour local du membre), dans l'ordre. [] hors de la fenêtre du 28 au 5.
     aFaire(discordId, jour) {
@@ -83,6 +84,13 @@ function creerUpdatesMois({ db, maintenant = () => new Date() }) {
         q.ajouter.run(discordId, mois, 'revenus', 0, null, null, null, '{}', '[]', maintenant().toISOString());
       }
       return { update: api.etat(discordId, mois).revenus };
+    },
+    // « Pas d'update ce mois-ci » (pas encore de résultat, nouveau dans l'accompagnement) : rien n'est publié, plus de rappel.
+    passer(discordId, mois) {
+      const t = maintenant().toISOString();
+      if (!q.de.get(discordId, mois, 'revenus')) q.ajouter.run(discordId, mois, 'revenus', 0, null, null, null, '{}', '[]', t);
+      if (!q.de.get(discordId, mois, 'resultat')) q.ajouter.run(discordId, mois, 'resultat', null, null, 'aucun', null, '{}', '[]', t);
+      return api.etat(discordId, mois);
     },
     // Plus gros résultat du mois.
     enregistrerResultat(discordId, mois, { modele, valeur, ressenti, images = [] }) {

@@ -72,13 +72,22 @@ test('profil du classement : Suivre puis Ne plus suivre, retour sur le profil', 
   } finally { await m.fermer(); }
 });
 
+test('Planifier n\'existe plus : redirige vers Gestion › Événements', async () => {
+  const m = await monter();
+  try {
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    assert.strictEqual((await m.get('/admin/planifier', coach)).headers.get('location'), '/admin/evenements');
+    assert.strictEqual((await m.get('/admin/annonces', coach)).headers.get('location'), '/admin/evenements');
+    assert.strictEqual((await m.get('/admin/planifier?onglet=message', coach)).status, 200);
+  } finally { await m.fermer(); }
+});
+
 test('événement du coach : bannière en haut des pages (lien, couleur), notification facultative, retiré à la demande', async () => {
   const envois = [];
   const m = await monter({ bob: { parcours: { annonce: async (a, ids, image) => { envois.push([a, ids, image]); return ids.length; } } } });
   try {
     for (const id of ['A', 'B', 'C']) m.parcours.assurer(id, { pseudo: `p_${id}` });
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
-    assert.match(await (await m.get('/admin/annonces', coach)).text(), /3 élève\(s\) Elite[\s\S]*16:5[\s\S]*Ajouter un lien[\s\S]*Ajouter une image/);
     assert.match((await m.poster('/admin/annonces', { titre: 'x', texte: 'y', lien: 'javascript:alert(1)' }, coach)).headers.get('location'), /erreur=/);
     assert.strictEqual((await m.poster('/admin/annonces', { titre: 'x', texte: 'y' }, { cookie: cookieSession('A', 'p_A') })).status, 403);
     const r = await m.poster('/admin/annonces', { titre: 'Live ce soir', texte: 'Rendez-vous à 21 h.', lien: '/parcours/etape-4', notifier: '1', couleur: '#ff7a00', fin: '2099-01-01' }, coach);
@@ -87,7 +96,6 @@ test('événement du coach : bannière en haut des pages (lien, couleur), notifi
     assert.deepStrictEqual(envois[0][1].sort(), ['A', 'B', 'C']);
     assert.strictEqual(envois[0][0].lien, '/parcours/etape-4');
     await new Promise((x) => setTimeout(x, 20));
-    assert.match(await (await m.get('/admin/annonces', coach)).text(), /dans la bannière · reçu par 3 \/ 3/);
     const profil = await (await m.get('/profil', { cookie: cookieSession('A', 'p_A') })).text();
     assert.match(profil, /class="evts"[\s\S]*class="evt sans-image" style="--c:#ff7a00" href="\/parcours\/etape-4"[\s\S]*Live ce soir[\s\S]*Rendez-vous à 21 h\./);
     // Bannière seule (sans notification), puis retirée.
@@ -153,7 +161,6 @@ test('coach : Envoyer un message (destinataires, accusés 👎 👍 👁️, rel
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
     const eleveA = { cookie: cookieSession('A', 'p_A') };
     const page = await (await m.get('/admin/planifier?onglet=message&a=B', coach)).text();
-    assert.match(page, /aria-current="page">Envoyer un message/);
     assert.match(page, /Sélectionner les destinataires[\s\S]*Rechercher un élève[\s\S]*Tout sélectionner[\s\S]*value="A"[\s\S]*value="B" checked/);
     assert.match(page, /data-marque="\*\*"[\s\S]*data-marque="\*"[\s\S]*data-marque="__"/, 'gras, italique, souligné');
     assert.match((await m.poster('/admin/planifier/message', { titre: 'x', texte: 'y' }, coach)).headers.get('location'), /erreur=.*destinataire/);
