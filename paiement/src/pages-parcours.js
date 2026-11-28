@@ -218,8 +218,24 @@ const SCRIPT_IMAGES = `
       var l = zone.querySelector('label.fichier'); if (l) l.hidden = noms.length >= max;
     }
     dessiner();
+    // Une photo de téléphone (3 à 8 Mo) est réduite avant l'envoi : 1600 px au plus, en JPEG (les petites images restent telles quelles).
+    function reduire(f) {
+      return new Promise(function (ok) {
+        if (!/^image\\/(jpeg|png|webp|heic|heif)/.test(f.type || '') || f.size < 400 * 1024) return ok(f);
+        var u = URL.createObjectURL(f), im = new Image();
+        im.onload = function () {
+          URL.revokeObjectURL(u);
+          var e = Math.min(1, 1600 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+          c.width = Math.round(im.width * e); c.height = Math.round(im.height * e);
+          c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+          c.toBlob(function (b) { ok(b && b.size < f.size ? b : f); }, 'image/jpeg', 0.82);
+        };
+        im.onerror = function () { URL.revokeObjectURL(u); ok(f); };
+        im.src = u;
+      });
+    }
     input.addEventListener('change', function () {
-      Array.prototype.forEach.call(input.files, function (f) {
+      Array.prototype.forEach.call(input.files, function (f0) { reduire(f0).then(function (f) {
         if (max && noms.length >= max) return;
         var x = new XMLHttpRequest();
         x.open('POST', adresse);
@@ -236,7 +252,7 @@ const SCRIPT_IMAGES = `
           } else { alert(d.erreur || 'Image refusée.'); }
         };
         x.send(f);
-      });
+      }); });
       input.value = '';
     });
   });

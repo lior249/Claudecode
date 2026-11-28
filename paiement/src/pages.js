@@ -214,15 +214,8 @@ function logo(classe = '') {
 const SCRIPT_TRANSITIONS = `
 (function () {
   var calme = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Pas de fondu en quittant une page : sur une connexion lente, la page restait vide jusqu'à l'arrivée de la suivante.
   window.addEventListener('pageshow', function () { document.body.classList.remove('ovx-sortie'); });
-  if (!calme) document.addEventListener('click', function (e) {
-    var a = e.target.closest && e.target.closest('a[href]');
-    if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return;
-    var u; try { u = new URL(a.href); } catch (x) { return; }
-    if (u.origin !== location.origin || (u.pathname === location.pathname && u.hash) || a.getAttribute('href').charAt(0) === '#') return;
-    // La page suivante se charge tout de suite ; le fondu ne la retarde plus.
-    document.body.classList.add('ovx-sortie');
-  });
   var P = window.HTMLDialogElement && HTMLDialogElement.prototype;
   if (P && !P.__ovx && !calme) {
     P.__ovx = 1; var fermer = P.close;
@@ -255,10 +248,10 @@ function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="${admin ? 'Overmaxx Admin' : 'Overmaxx'}">
 <title>${echapper(titre)}</title>
-<script type="speculationrules">{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/deconnexion*","/connexion*","/autre-compte*","/fichiers/*","/a/*","/static/*","/api/*"]}}]},"eagerness":"moderate"}]}</script>
+<script type="speculationrules">{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/deconnexion*","/connexion*","/autre-compte*","/fichiers/*","/a/*","/static/*","/api/*"]}}]},"eagerness":"conservative"}]}</script>
 <style>${STYLE}</style>
 </head>
-<body${brut ? ' class="espace-body"' : ''}>${brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});${SCRIPT_NOTIF_APP}${SCRIPT_CELEBRATIONS}${SCRIPT_TRANSITIONS}</script></body>
+<body${brut ? ' class="espace-body"' : ''}>${(brut ? contenu : `<main>${entete ? `<header class="entete"><a href="/" style="text-decoration:none">${logo()}</a></header>` : ''}${contenu}</main>`).replace(/<img (?![^>]*\bloading=)/g, '<img loading="lazy" decoding="async" ')}${script ? `<script>${script}</script>` : ''}<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});${SCRIPT_NOTIF_APP}${SCRIPT_CELEBRATIONS}${SCRIPT_TRANSITIONS}</script></body>
 </html>`;
 }
 
@@ -466,10 +459,10 @@ const STYLE_ESPACE = `
   /* La scène d'un challenge (carte et page) : fond uni, grands faisceaux doux de la couleur d'accent qui partent de derrière le badge,
      badge moyen, grand titre ; le compte à rebours en haut à gauche ; le texte dans un panneau en dessous. */
   .ev-scene { position:relative; overflow:hidden; text-align:center; padding:16px 18px 22px; background:var(--fond, #000); isolation:isolate; }
-  .ev-scene-rayons { position:absolute; left:50%; top:46%; width:1000px; height:1000px; margin:-500px 0 0 -500px; z-index:-1; pointer-events:none;
+  .ev-scene-rayons { position:absolute; left:50%; top:46%; width:680px; height:680px; margin:-340px 0 0 -340px; z-index:-1; pointer-events:none;
     background:conic-gradient(from 0deg, transparent 0deg 12deg, color-mix(in srgb, var(--c) 60%, transparent) 40deg, transparent 72deg 98deg, color-mix(in srgb, var(--c) 32%, transparent) 118deg, transparent 140deg 220deg,
       color-mix(in srgb, var(--c) 32%, transparent) 242deg, transparent 262deg 288deg, color-mix(in srgb, var(--c) 60%, transparent) 320deg, transparent 348deg);
-    filter:blur(18px); -webkit-mask-image:radial-gradient(circle, #000 0%, #000 14%, rgba(0,0,0,.55) 26%, transparent 44%); mask-image:radial-gradient(circle, #000 0%, #000 14%, rgba(0,0,0,.55) 26%, transparent 44%); }
+    filter:blur(12px); -webkit-mask-image:radial-gradient(circle, #000 0%, #000 20%, rgba(0,0,0,.55) 38%, transparent 64%); mask-image:radial-gradient(circle, #000 0%, #000 20%, rgba(0,0,0,.55) 38%, transparent 64%); }
   .ev-scene::after { content:""; position:absolute; inset:auto 0 0 0; height:45%; z-index:-1; background:linear-gradient(to bottom, transparent, var(--fond, #000)); }
   .ev-scene-compte { margin:0; text-align:left; font-size:13.5px; color:#fff; } .ev-scene-compte b { font-size:17px; }
   .ev-scene-badge { height:118px; margin:16px 0 8px; display:grid; place-items:center; }
