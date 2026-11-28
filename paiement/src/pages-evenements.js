@@ -40,7 +40,7 @@ const STYLE_EVT = `<style>
     background:radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--halo) 22%, transparent) 0%, transparent 38%), var(--fond); }
   .ev-hero-compte { margin:0; text-align:left; font-size:14px; font-weight:600; color:#fff; }
   .ev-hero[data-effet="fondu"] { background:linear-gradient(180deg, color-mix(in srgb, var(--halo) 28%, var(--fond)) 0%, var(--fond) 45%); }
-  .ev-hero-compte, .ev-hero-et, .ev-hero h1 { position:relative; z-index:1; } .ev-hero-badge .evc-rayons { width:300px; height:300px; margin:-150px 0 0 -150px; }
+  .ev-hero-compte, .ev-hero-et, .ev-hero h1 { position:relative; z-index:1; } .ev-hero-badge .evc-rayons { width:440px; height:440px; margin:-220px 0 0 -220px; }
   .ev-hero-badge { position:relative; height:150px; display:grid; place-items:center; margin:6px 0 4px; } .ev-hero-badge img, .ev-hero-badge svg { position:relative; }
   .ev-hero-badge img { height:150px; width:auto; max-width:80%; object-fit:contain; filter:drop-shadow(0 10px 24px rgba(0,0,0,.6)); }
   .ev-hero-et { margin:0; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--texte); opacity:.85; }

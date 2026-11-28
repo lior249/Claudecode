@@ -452,9 +452,9 @@ const STYLE_ESPACE = `
   .evts-points i.actif { height:16px; border-radius:3px; background:#fff; }
   dialog.evc { width:min(420px, calc(100vw - 24px)); text-align:center; overflow-x:hidden; }
   /* Effets derrière le badge : rayons de lumière qui tournent (halo), ou l'accent qui descend du haut (fondu). */
-  .evc-rayons { position:absolute; left:50%; top:50%; width:300px; height:300px; margin:-150px 0 0 -150px; pointer-events:none; border-radius:50%;
+  .evc-rayons { position:absolute; left:50%; top:50%; width:480px; height:480px; margin:-240px 0 0 -240px; pointer-events:none; border-radius:50%;
     background:repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--c) 45%, transparent) 0deg, transparent 12deg, color-mix(in srgb, var(--c) 45%, transparent) 24deg);
-    -webkit-mask-image:radial-gradient(circle, #000 0%, rgba(0,0,0,.5) 25%, transparent 50%); mask-image:radial-gradient(circle, #000 0%, rgba(0,0,0,.5) 25%, transparent 50%);
+    -webkit-mask-image:radial-gradient(circle, #000 0%, rgba(0,0,0,.55) 30%, rgba(0,0,0,.18) 48%, transparent 64%); mask-image:radial-gradient(circle, #000 0%, rgba(0,0,0,.55) 30%, rgba(0,0,0,.18) 48%, transparent 64%);
     filter:blur(4px); opacity:.85; animation:evc-tourne 60s linear infinite; }
   [data-effet="fondu"] .evc-rayons { display:none; }
   dialog.evc { background:var(--fond, #0d0d0d); }
