@@ -184,6 +184,22 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     next();
   });
 
+  // Le coach : toutes ses pages (même l'accueil et les pages de message) donnent l'icône et le nom de l'application Admin.
+  app.use((req, res, next) => {
+    const session = lireSession(req, config.secretApp);
+    if (!session || session.id !== config.discord.adminId) return next();
+    const envoyer = res.send.bind(res);
+    res.send = (corps) => {
+      if (typeof corps === 'string' && corps.startsWith('<!doctype html>')) {
+        corps = corps.replace(/\/static\/icones\/globe-(192|apple-180)\.png/g, '/static/icones/globe-admin-$1.png')
+          .replace('content="Overmaxx">', 'content="Overmaxx Admin">')
+          .replace('href="/manifest.webmanifest"', `href="/manifest.webmanifest?u=${encodeURIComponent(jetonApp(session))}"`);
+      }
+      return envoyer(corps);
+    };
+    return next();
+  });
+
   // ================= Application installable (PWA) =================
   const SERVICE_WORKER = require('fs').readFileSync(require('path').join(__dirname, 'service-worker.js'), 'utf8');
   app.get('/manifest.webmanifest', (req, res) => {
