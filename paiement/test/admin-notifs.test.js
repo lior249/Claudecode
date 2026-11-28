@@ -265,7 +265,7 @@ test('application du coach : « Overmaxx Admin », globe sur fond jaune, install
   try {
     const coach = { cookie: cookieSession(ADMIN, 'coach') };
     const page = await (await m.get('/admin/gestion', coach)).text();
-    assert.match(page, /apple-touch-icon" href="\/static\/icones\/globe-admin-apple-180\.png"[\s\S]*apple-mobile-web-app-title" content="Overmaxx Admin"/);
+    assert.match(page, /apple-touch-icon" href="\/static\/icones\/globe-admin-apple-180\.png\?v=\w+"[\s\S]*apple-mobile-web-app-title" content="Overmaxx Admin"/);
     const u = /manifest\.webmanifest\?u=([^"]+)"/.exec(page)[1];
     const man = await (await m.get(`/manifest.webmanifest?u=${u}`)).json();
     assert.strictEqual(man.name, 'Overmaxx Admin'); assert.strictEqual(man.id, '/app?admin');

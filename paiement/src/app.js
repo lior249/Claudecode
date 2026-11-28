@@ -199,9 +199,9 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       start_url: j && j.but === 'app' ? `/app?t=${encodeURIComponent(String(req.query.u))}` : '/app',
       scope: '/', display: 'standalone', orientation: 'portrait', background_color: '#000000', theme_color: '#000000',
       icons: [
-        { src: `/static/icones/${ic}-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: `/static/icones/${ic}-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: `/static/icones/${ic}-maskable-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        { src: `/static/icones/${ic}-192.png?v=${P.VERSION_ICONES}`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: `/static/icones/${ic}-512.png?v=${P.VERSION_ICONES}`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: `/static/icones/${ic}-maskable-512.png?v=${P.VERSION_ICONES}`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ],
     }));
   });

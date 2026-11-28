@@ -235,6 +235,9 @@ const SCRIPT_TRANSITIONS = `
   }
 })();`;
 // admin : la version coach de l'application (globe sur fond jaune), pour la distinguer de celle des membres.
+// Version des icônes (d'après leur contenu) : le téléphone recharge l'icône quand elle change.
+const VERSION_ICONES = (() => { try { const fs = require('fs'); const p = require('path').join(__dirname, '..', 'public', 'icones');
+  return require('crypto').createHash('sha1').update(fs.readdirSync(p).sort().map((f) => fs.readFileSync(require('path').join(p, f))).reduce((a, b) => Buffer.concat([a, b]), Buffer.alloc(0))).digest('hex').slice(0, 8); } catch { return '1'; } })();
 function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp, admin = false } = {}) {
   const ic = admin ? 'globe-admin' : 'globe';
   return `<!doctype html>
@@ -245,8 +248,8 @@ function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="/manifest.webmanifest${jetonApp ? `?u=${encodeURIComponent(jetonApp)}` : ''}">
-<link rel="icon" type="image/png" sizes="192x192" href="/static/icones/${ic}-192.png">
-<link rel="apple-touch-icon" href="/static/icones/${ic}-apple-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icones/${ic}-192.png?v=${VERSION_ICONES}">
+<link rel="apple-touch-icon" href="/static/icones/${ic}-apple-180.png?v=${VERSION_ICONES}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -1033,7 +1036,7 @@ function pageMessage(config, titre, message, { lien = '/', texteLien = 'Retour' 
   ${blocSupport(config)}`);
 }
 
-module.exports = { pagePresentation, decompte, SCRIPT_DECOMPTE, banniereEvenements,
+module.exports = { VERSION_ICONES, pagePresentation, decompte, SCRIPT_DECOMPTE, banniereEvenements,
   CONTENU, ICONE, echapper, gabarit, gabaritEspace, logo, formatPrix, formatDate, blocSupport, blocVideo,
   pageBienvenue, pageAccueil, fenetreTutoBob, pageEmailWhop, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
 };
