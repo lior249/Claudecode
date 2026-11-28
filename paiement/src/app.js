@@ -1895,6 +1895,57 @@ Pour participer, il te faut : ${manque}. Obtiens-les avant la fin des inscriptio
     res.send(PF.pageRevenus(config, { espace: x.espace, tableau: suivi.tableau(x.p.discord_id), stats, objectif: (stats.objectifs || []).find((o) => !o.atteint) || null }));
   });
   // Réglages : prénom, pays, lien du compte TikTok ; liens vers notifications et coachings.
+  // ---- Widgets iPhone (Scriptable) : les chiffres du widget (lien personnel et secret), et la page d'installation ----
+  const jetonWidget = (session) => signer({ but: 'widget', id: session.id, pseudo: session.pseudo, exp: Date.now() + 5 * 365 * 864e5 }, config.secretApp);
+  const lienWidget = (session) => `${config.baseUrl}/api/widget?t=${encodeURIComponent(jetonWidget(session))}`;
+  function donneesWidget(id) {
+    const now = Date.now();
+    const jourDe = (ms) => new Date(ms).toISOString().slice(0, 10);
+    if (id === config.discord.adminId) {
+      const aujourdhui = jourDe(now);
+      const seances = coaching.occurrences(aujourdhui, jourDe(now + 7 * 864e5)).filter((o) => !o.touchee).sort((a, b) => new Date(a.debut) - new Date(b.debut));
+      const prochaine = seances.find((o) => new Date(o.debut).getTime() > now);
+      const e = evenements.actifs()[0];
+      const c = e ? evenements.compteRebours(e) : null;
+      const liste = classement();
+      return { coach: true, traiter: espaceDe({ id }).aTraiterParcours || 0,
+        coachingsJour: seances.filter((o) => o.date === aujourdhui).map((o) => ({ heure: o.heure, nom: profilCourt(o.discordId).nom })),
+        coaching: prochaine ? { debut: new Date(prochaine.debut).toISOString(), nom: profilCourt(prochaine.discordId).nom } : null,
+        challenge: e ? { titre: e.titre, inscrits: evenements.inscrits(e.id).length, cible: c.cible || null, libelle: c.libelle || '' } : null,
+        revenus: { total: Math.round(liste.reduce((t, m) => t + (m.revenus || 0), 0)), variation: 0, serie: [] } };
+    }
+    const p = parcours.get(id);
+    if (!p) return { erreur: 'Réservé aux élèves de l\'accompagnement.' };
+    const st = suivi.stats(id) || {};
+    const total = st.revenusTotal || 0;
+    // La courbe : le cumul des revenus validés, jour par jour, sur 28 jours.
+    const serie = suivi.cumul(id, { valides: true });
+    const auJour = (jour) => { let v = 0; for (const x of serie) { if (x.jour <= jour) v = x.revenus; else break; } return v; };
+    const points = Array.from({ length: 29 }, (_, i) => Math.round(auJour(jourDe(now - (28 - i) * 864e5)) * 100) / 100);
+    const base = points[0];
+    const liste = classement(); const i = liste.findIndex((m) => m.id === id);
+    const debut = i < 0 ? 0 : Math.max(0, Math.min(i - 1, liste.length - 3));
+    const o = (st.objectifs || []).find((x) => !x.atteint);
+    const s = coaching.prochainesSeances(id, 14).find((x) => !x.touchee && new Date(x.debut).getTime() > now);
+    return { coach: false,
+      revenus: { total, variation: base > 0 ? Math.round(((total - base) / base) * 100) : (total > 0 ? 100 : 0), serie: points },
+      classement: i < 0 ? { voisins: [] } : { rang: i + 1, voisins: liste.slice(debut, debut + 3).map((m) => ({ rang: m.rang, nom: m.nom, revenus: m.revenus, moi: m.id === id })) },
+      flamme: communaute.chaine(id), updateFaite: Boolean(p.fuseau && suivi.compteRendu(id, suivi.aujourdhui(p))),
+      objectif: o ? { libelle: o.libelle, pct: Math.min(100, Math.round(((o.valeur || 0) / o.seuil) * 100)) } : null,
+      coaching: s ? { debut: new Date(s.debut).toISOString() } : null };
+  }
+  app.get('/api/widget', (req, res) => {
+    const j = verifier(String(req.query.t || ''), config.secretApp);
+    res.set('Cache-Control', 'no-store');
+    if (!j || j.but !== 'widget' || !j.id) return res.status(401).json({ erreur: 'Lien du widget invalide : recopie le script depuis le site.' });
+    try { return res.json(donneesWidget(j.id)); } catch (err) { console.error('[widget]', err.message); return res.status(500).json({ erreur: 'Indisponible' }); }
+  });
+  app.get('/widgets', (req, res) => {
+    const session = connecte(req, res, '/widgets', 'Widgets');
+    if (!session) return;
+    const coach = session.id === config.discord.adminId;
+    res.send(PF.pageWidgets(config, { espace: espaceDe(session), coach, script: require('./widgets').scriptWidget(lienWidget(session), { coach }) }));
+  });
   app.get('/reglages', (req, res) => {
     const session = connecte(req, res, '/reglages', 'Réglages');
     if (!session) return;

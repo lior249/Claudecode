@@ -461,11 +461,39 @@ function pageRevenus(config, { espace, tableau, stats, objectif }) {
 }
 
 // Réglages : prénom et pays, lien du compte TikTok, notifications, compte.
+// Widgets iPhone : le guide d'installation (Scriptable) et le script personnel à copier.
+function pageWidgets(config, { espace, coach = false, script }) {
+  const types = coach
+    ? [['traiter', 'Carré', 'Le nombre de choses à traiter (par défaut en carré)'], ['coaching', 'Carré', 'Le prochain coaching : heure, prénom, décompte'],
+      ['challenge', 'Carré', 'Le challenge en cours : inscrits, décompte'], ['journee', 'Horizontal', 'Ma journée : à traiter et coachings du jour (par défaut en horizontal)']]
+    : [['revenus', 'Carré', 'Tes revenus, la variation et la courbe (par défaut en carré)'], ['duo', 'Horizontal', 'Revenus + ta place au classement, entre tes deux voisins (par défaut en horizontal)'],
+      ['classement', 'Carré', 'Ta place au classement'], ['flamme', 'Carré', 'Ta flamme et ton update du jour'], ['objectif', 'Carré', 'Ton prochain objectif'], ['coaching', 'Carré', 'Ton prochain coaching']];
+  return page('Widgets iPhone', `<a class="retour" href="${coach ? '/admin/gestion' : '/reglages'}"><span aria-hidden="true">‹</span> ${coach ? 'Gestion' : 'Réglages'}</a>
+  <div class="titre-page"><div><p class="etiquette">Mon compte</p><h1>Widgets iPhone</h1></div></div>
+  <div style="display:grid;gap:4px;max-width:620px">
+  <div class="carte"><h2>Installer (une seule fois)</h2>
+    <ol style="margin:8px 0 0;padding-left:20px;display:grid;gap:8px">
+      <li>Installe l'application gratuite <b>Scriptable</b> depuis l'App Store.</li>
+      <li>Touche <b>« Copier mon script »</b> ci-dessous.</li>
+      <li>Dans Scriptable, touche <b>+</b>, colle le script, puis renomme-le « Overmaxx » (en haut).</li>
+      <li>Sur l'écran d'accueil : appui long › <b>+</b> › <b>Scriptable</b> › choisis la taille (carré ou horizontal) › Ajouter.</li>
+      <li>Appui long sur le widget › <b>Modifier le widget</b> › Script : <b>Overmaxx</b>. Dans <b>Parameter</b>, écris le widget voulu (liste plus bas), ou laisse vide.</li>
+    </ol>
+    <button class="bouton" type="button" id="copier-script" style="margin-top:12px">Copier mon script</button>
+    <p class="doux petit" style="margin:6px 0 0">Ce script contient ton lien personnel : ne le partage pas.</p>
+    <textarea id="script-widget" readonly style="margin-top:10px;min-height:120px;font:12px/1.4 ui-monospace,monospace">${echapper(script)}</textarea></div>
+  <div class="carte"><h2>Les widgets</h2><div style="display:grid;gap:8px;margin-top:6px">${types.map(([k, f, t]) => `<div style="display:flex;gap:10px;align-items:baseline"><code style="color:var(--lime);font-weight:800;min-width:92px">${k}</code><span><b>${f}</b> · ${echapper(t)}</span></div>`).join('')}</div>
+    <p class="doux petit" style="margin:10px 0 0">Plusieurs widgets ? Ajoute-en autant que tu veux, chacun avec son paramètre. Tu peux aussi les empiler (Smart Stack) et glisser de l'un à l'autre. iOS les met à jour tout seul, environ toutes les 15 à 30 minutes.</p></div>
+  </div>`, espace, coach ? 'gestion' : 'profil', null, `(function () { var b = document.getElementById('copier-script'), t = document.getElementById('script-widget');
+    b.onclick = function () { var ok = function () { b.textContent = 'Copié ✓'; setTimeout(function () { b.textContent = 'Copier mon script'; }, 2500); };
+      if (navigator.clipboard) navigator.clipboard.writeText(t.value).then(ok, function () { t.select(); document.execCommand('copy'); ok(); }); else { t.select(); document.execCommand('copy'); ok(); } }; })();`);
+}
 function pageReglages(config, { espace, prenom, pays, compteTikTok, parcours: aUnParcours, etape = 0, compte = {}, message, erreur }) {
   return page('Réglages', `<a class="retour" href="/profil"><span aria-hidden="true">‹</span> Mon profil</a>
   <div class="titre-page"><div><p class="etiquette">Mon compte</p><h1>Réglages</h1></div></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   <div style="display:grid;gap:4px;max-width:620px">
+    ${aUnParcours ? '<a class="carte" href="/widgets" style="display:flex;justify-content:space-between;align-items:center;color:#fff;text-decoration:none"><span><b>Widgets iPhone</b><br><span class="doux petit">Tes revenus, ton classement, ta flamme sur l\'écran d\'accueil</span></span><span>›</span></a>' : ''}
     <form class="carte" method="post" action="/reglages/profil" style="display:grid;gap:12px">
       <h2 style="margin:0">Mon profil</h2>
       <div class="champ"><label for="prenom">Prénom (affiché au classement)</label><input id="prenom" name="prenom" maxlength="40" value="${echapper(prenom || '')}"></div>
@@ -808,6 +836,7 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
     ${tuile('/admin/eleves', 'Gérer les élèves', `${nbEleves} élève(s)`, 'Kanban par étape, ou liste triable.', aCompleter ? `${aCompleter} à compléter` : '')}
     ${espace.ressources ? tuile('/ressources', 'Ressources', `${ressources} publiée(s)`, 'Niches, méthodes 10K, tutoriels.', aValider ? `${aValider} proposition(s) à relire` : '') : ''}
     ${tuile('/notifications?onglet=rappels', 'Mes rappels', 'Tes rappels', 'Une fois, chaque jour ou certains jours.')}
+    ${tuile('/widgets', 'Widgets iPhone', 'Écran d\'accueil', 'À traiter, prochain coaching, challenge, ma journée.')}
     ${tuile('/admin/evenements', 'Événements', `${evenements} en cours`, 'Créer un challenge : inscriptions, conditions, classement, badges.')}
   </div>
   <form class="carte" method="post" action="/admin/discord/offres" style="margin-top:14px;display:grid;gap:10px">
@@ -930,4 +959,4 @@ function pageCoach(config, { espace, pseudo, avatar, nbEleves, aTraiter, faites 
     d.addEventListener('click', function (e) { if (e.target === d) d.close(); }); })();`);
 }
 
-module.exports = { pageProfilPublic, pageTrophees, pageGestion, pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
+module.exports = { pageWidgets, pageProfilPublic, pageTrophees, pageGestion, pageMessageRecu, formulaireMessage, SCRIPT_DESTINATAIRES, carteAnnonce, pageAnnonces, pageCoach, pageMonProfil, pageCommunaute, pageRemarques, pageRevenus, pageReglages, FLAMME };
