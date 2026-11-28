@@ -83,7 +83,9 @@ test('inscription en 3 étapes (présentation, trophées, règles), classements 
     assert.match(apres, /Tu participes à ce challenge[\s\S]*Pour gagner[\s\S]*Validation des résultats[\s\S]*Argent généré[\s\S]*Vues[\s\S]*Abonnés gagnés/);
     assert.doesNotMatch(apres, /Rejoindre le challenge/);
     const cl = await (await m.get('/classement', awa)).text();
-    assert.match(cl, /class="cl-evts"[\s\S]*Overmaxx 1000[\s\S]*Revenus générés sur Overmaxx[\s\S]*Classement all-time[\s\S]*Classement événement/);
+    assert.doesNotMatch(cl, /class="cl-evts"/, 'plus de cartes d\'événements : la bannière suffit');
+    assert.match(cl, /class="evts"[\s\S]*Overmaxx 1000[\s\S]*Revenus générés sur Overmaxx[\s\S]*Classement all-time[\s\S]*Classement événement/);
+    assert.doesNotMatch(await (await m.get('/coaching', awa)).text(), /class="evts"/, 'la bannière : seulement sur le profil et le classement');
     assert.match(await (await m.get('/classement?vue=evenement', awa)).text(), /<h2>Overmaxx 1000<\/h2>[\s\S]*Argent généré[\s\S]*class="ev-rang"/);
   } finally { await m.fermer(); }
 });
@@ -161,5 +163,37 @@ test('coach : bouton « Créer un événement », brouillon sans dates, publicat
     assert.match(await (await m.get('/classement', coach)).text(), /Défi 1/);
     await m.poster('/admin/evenements/2/supprimer', {}, coach);
     assert.strictEqual(m.db.prepare('SELECT COUNT(*) n FROM evenements').get().n, 3);
+  } finally { await m.fermer(); }
+});
+
+test('notifications : publication (éligible ou ce qu\'il manque), devenu éligible, rappels 10 j / 5 j / 3 j / 24 h avant la fin des inscriptions', async () => {
+  const appels = [];
+  const m = await monter({ bob: { parcours: new Proxy({}, { get: (o, nom) => async (...a) => { appels.push([nom, ...a]); return true; } }) } });
+  try {
+    for (const [id, ps] of [[E1, 'awa_27'], [E2, 'bilal']]) { m.parcours.assurer(id, { pseudo: ps }); m.parcours.changerEtape(id, 4); }
+    m.db.prepare("INSERT INTO trophees (discord_id, cle, obtenu_le) VALUES (?, 'revenus_rookie', ?)").run(E1, new Date().toISOString());
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    await m.poster('/admin/evenements', { titre: 'Flash 1K', description: 'x', stats: ['revenus'], palier_revenus: '1000', attente_jours: '12', duree_jours: '10', gagnants: '1', action: 'publier', cond_revenus: 'revenus_rookie' }, coach);
+    const msgs = (id) => appels.filter(([n, p]) => n === 'messageEleve' && p.discord_id === id).map((x) => x[2]);
+    await (await m.get('/classement', { cookie: cookieSession(E1, 'awa_27') })).text();
+    // la vérification de chaque minute
+    await m.notifierEvenements();
+    assert.match(msgs(E1)[0], /Nouvel événement : Flash 1K[\s\S]*Tu es éligible/);
+    assert.match(msgs(E2)[0], /Nouvel événement : Flash 1K[\s\S]*il te faut : Rookie/);
+    await m.notifierEvenements();
+    assert.strictEqual(msgs(E1).length, 1, 'une seule fois'); assert.strictEqual(msgs(E2).length, 1);
+    // Bilal devient éligible.
+    m.db.prepare("INSERT INTO trophees (discord_id, cle, obtenu_le) VALUES (?, 'revenus_amateur', ?)").run(E2, new Date().toISOString());
+    await m.notifierEvenements();
+    assert.match(msgs(E2)[1], /Tu es maintenant éligible au challenge Flash 1K/);
+    // 10 jours avant la fin des inscriptions : rappel aux éligibles non inscrits.
+    m.db.prepare('UPDATE evenements SET debut = ? WHERE id = 1').run(j(9));
+    await m.notifierEvenements();
+    assert.match(msgs(E1)[1], /plus que \*\*10 jours\*\* pour t'inscrire/);
+    await m.poster('/evenements/1/inscrire', {}, { cookie: cookieSession(E1, 'awa_27') });
+    m.db.prepare('UPDATE evenements SET debut = ? WHERE id = 1').run(j(1));
+    await m.notifierEvenements();
+    assert.strictEqual(msgs(E1).length, 2, 'inscrit : plus de rappel');
+    assert.match(msgs(E2).pop(), /plus que \*\*24 heures\*\*/);
   } finally { await m.fermer(); }
 });

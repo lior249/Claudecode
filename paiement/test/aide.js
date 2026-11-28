@@ -124,7 +124,7 @@ async function monter({ config = configTest(), saspay = fauxSaspay(), whop = fau
   const parDefaut = connecte ? { cookie: cookieSession(VISITEUR, 'visiteur') } : {};
   return {
     config, db, saspay, whop, oauth, commandes, coaching, candidatures, parcours, suivi, sinistres, push, acces, envoisPush, base,
-    validations: app.locals.validations, verifierCoachings: app.locals.verifierCoachings,
+    validations: app.locals.validations, verifierCoachings: app.locals.verifierCoachings, notifierEvenements: app.locals.notifierEvenements,
     fermer: () => new Promise((r) => serveur.close(r)),
     poster: (chemin, champs, headers = {}) => fetch(base + chemin, {
       method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...parDefaut, ...headers }, body: new URLSearchParams(Object.entries(champs).flatMap(([k, v]) => [].concat(v).map((x) => [k, String(x)]))), // une liste = le champ répété, comme un navigateur

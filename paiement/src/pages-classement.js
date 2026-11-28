@@ -147,7 +147,7 @@ function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRa
   if (evenementChoisi) {
     return pageEspace('Classement', `${STYLE_CLASSEMENT}${STYLE_EVENEMENTS}${STYLE_ROLES}
   <div class="titre-page"><div><p class="etiquette">Overmaxx</p><h1>Classement</h1></div></div>
-  ${evts}${vues}
+  ${vues}
   ${evenements.length > 1 ? `<nav class="cl-vues" aria-label="Événement">${evenements.map((e) => `<a href="/classement?vue=evenement&amp;e=${e.id}"${e.id === evenementChoisi.id ? ' aria-current="page"' : ''}>${echapper(e.titre)}</a>`).join('')}</nav>` : ''}
   <section class="classement"><h2>${echapper(evenementChoisi.titre)}</h2><p class="doux petit" style="margin:-8px 0 12px">${evenementChoisi.fin === '9999-12-31' ? `Dès le ${dateCourte(evenementChoisi.debut)}, jusqu'à ce que les gagnants atteignent le palier` : `Du ${dateCourte(evenementChoisi.debut)} au ${dateCourte(evenementChoisi.fin)}`}, tout le monde part de 0.</p>
     ${classementEvenement(classements, moiId, evenementChoisi.stats)}</section>`, espace, 'classement');
@@ -159,7 +159,6 @@ function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRa
   const moi = espace && espace.session && espace.session.id;
   return pageEspace('Classement', `${STYLE_CLASSEMENT}${STYLE_EVENEMENTS}${STYLE_ROLES}
   <div class="titre-page"><div><p class="etiquette">Overmaxx</p><h1>Classement</h1></div><span class="doux petit">Top 100</span></div>
-  ${evts}
   <div class="cl-stats" style="grid-template-columns:1fr 1fr">
     <div class="cl-stat"><b>${dollars(totalRevenus)}</b><span>Revenus générés sur Overmaxx</span></div>
     <div class="cl-stat"><b>${Number(totalMembres).toLocaleString('fr-FR')}</b><span>Membres</span></div>

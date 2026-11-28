@@ -148,11 +148,12 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
       const etat = api.etat(e);
       const dans = (jour, heure) => Math.max(0, Math.ceil((Date.parse(`${jour}T${heure || '00:00'}:00Z`) - maintenant().getTime()) / JOUR));
       const jours = (n) => (n <= 0 ? 'aujourd\'hui' : n === 1 ? 'demain' : `dans ${n} jours`);
-      if (etat === 'a_venir') return { etat, texte: `Les inscriptions se terminent ${jours(dans(e.debut, e.heure))}`, n: dans(e.debut, e.heure) };
+      const iso = (jour) => `${jour}T${e.heure || '00:00'}:00.000Z`;
+      if (etat === 'a_venir') return { etat, texte: `Les inscriptions se terminent ${jours(dans(e.debut, e.heure))}`, n: dans(e.debut, e.heure), libelle: 'Fin inscription', cible: iso(e.debut) };
       if (etat === 'en_cours') {
         if (e.fin === SANS_FIN) return { etat, texte: 'En cours : jusqu\'à ce que les gagnants atteignent le palier', n: null };
         const n = dans(ajouter(e.fin, 1), e.heure);
-        return { etat, texte: n <= 1 ? 'Se termine aujourd\'hui' : `Se termine dans ${n} jours`, n };
+        return { etat, texte: n <= 1 ? 'Se termine aujourd\'hui' : `Se termine dans ${n} jours`, n, libelle: 'Fin du challenge', cible: iso(ajouter(e.fin, 1)) };
       }
       return { etat, texte: etat === 'termine' ? 'Terminé' : '', n: null };
     },
@@ -214,6 +215,7 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
     inscrire(e, discordId, obtenus) {
       if (!e || e.retire_le) return { erreur: 'Événement introuvable.' };
       if (api.etat(e) === 'termine') return { erreur: 'Cet événement est terminé.' };
+      if (estCourse(e) && api.etat(e) !== 'a_venir') return { erreur: 'Les inscriptions sont terminées : le challenge a commencé.' };
       if (!api.conditionsRemplies(e, obtenus).every((c) => c.ok)) return { erreur: 'Il te manque un trophée pour participer.' };
       q.inscrire.run(e.id, String(discordId), maintenant().toISOString());
       return { ok: true };

@@ -1,7 +1,7 @@
 'use strict';
 
 // Événements (challenges) : la page d'un événement (élèves) et la création / liste (coach).
-const { echapper, ICONE } = require('./pages');
+const { echapper, ICONE, decompte, SCRIPT_DECOMPTE } = require('./pages');
 const { page, STYLE_ETAPES, SCRIPT_ETAPES } = require('./pages-parcours');
 const { BLOC_BADGES, STYLE_BADGES, SCRIPT_BADGES } = require('./detourage-badges');
 const { pieceTrophee, TROPHEES, FAMILLES } = require('./trophees');
@@ -23,6 +23,7 @@ const rangsDe = (e) => [1, 2, 3].slice(0, Math.min(3, Math.max(1, Number(e.gagna
 const dollars = (n) => `$${(Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 const ETATS = { brouillon: ['attente', 'Brouillon'], a_venir: ['attente', 'À venir'], en_cours: ['valide', 'En cours'], termine: ['corriger', 'Terminé'], retire: ['corriger', 'Retiré'] };
 const STYLE_EVT = `<style>
+  .evts { display:none; } /* sur la page d'un événement : pas le défilé des autres bannières */
   .ev-affiche { width:100%; border-radius:20px; display:block; margin:0 0 14px; }
   .ev-cond { display:grid; gap:8px; } .ev-cond > div { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:14px; border:1px solid #242424; }
   .ev-cond small { display:block; color:var(--doux); } .ev-cond .ok { margin-left:auto; font-weight:800; }
@@ -54,16 +55,16 @@ function classementEvenement(classements = {}, moi = null, stats = ['revenus'], 
 // La page d'un événement : présentation, participants, classement. S'inscrire se fait dans une fenêtre (3 étapes) ;
 // la fermer sans s'inscrire fait quitter la page. ?participer=1 (depuis la carte du challenge) l'ouvre tout de suite.
 // La fiche en tête de la page : compte à rebours, le badge sur son halo, le nom (couleurs du challenge).
-function enTete(e, compte) {
+function enTete(e, compte, rebours = null) {
   const c = { ...COULEURS, ...(e.couleurs || {}) };
   const et = e.badge_or || e.badge_argent || e.badge_bronze;
   const badge = et ? `<img src="/fichiers/images/${echapper(et)}" alt="">` : pieceBadge({ metal: 'or', titre: e.badge_nom || e.titre }, { taille: 110 });
   return `<section class="ev-scene ev-hero" style="--c:${echapper(c.halo)};--fond:${echapper(c.fond)};--texte:${echapper(c.texte)}"><span class="ev-scene-rayons" aria-hidden="true"></span>
-    <p class="ev-scene-compte">${compte ? echapper(compte).replace(/(\d+)/, '<b>$1</b>') : '&nbsp;'}</p>
+    <p class="ev-scene-compte">${rebours && rebours.cible ? decompte(rebours) + SCRIPT_DECOMPTE : compte ? echapper(compte).replace(/(\d+)/, '<b>$1</b>') : '&nbsp;'}</p>
     <div class="ev-scene-badge">${badge}</div>
     <h1 class="ev-scene-titre">${echapper(e.titre)}</h1></section>`;
 }
-function pageEvenement(config, { espace, e, etat, conditions = [], inscrit = false, classements = {}, nbInscrits = 0, participants = [], moi = null, estCoach = false, ouvrir = false, compte = '', message, erreur }) {
+function pageEvenement(config, { espace, e, etat, conditions = [], inscrit = false, classements = {}, nbInscrits = 0, participants = [], moi = null, estCoach = false, ouvrir = false, compte = '', rebours = null, message, erreur }) {
   const [classeEtat, libelleEtat] = ETATS[etat] || ETATS.a_venir;
   const peut = conditions.every((c) => c.ok);
   const rangs = rangsDe(e);
@@ -78,7 +79,7 @@ function pageEvenement(config, { espace, e, etat, conditions = [], inscrit = fal
   const regles = `<div class="carte"><h2>Pour gagner</h2><p style="margin:0;white-space:pre-line">${echapper(e.regles_points || '')}</p>
     <p class="doux petit" style="margin:8px 0 0">Suivi : ${echapper(statsTxt)}, à partir de 0 au début du challenge.</p>${recompense}
     ${e.regles_validation ? `<h3 style="margin:14px 0 4px;font-size:15px">Validation des résultats</h3><p style="margin:0;white-space:pre-line">${echapper(e.regles_validation)}</p>` : ''}</div>`;
-  const peutRejoindre = !estCoach && !inscrit && etat !== 'termine';
+  const peutRejoindre = !estCoach && !inscrit && etat !== 'termine' && !(e.paliers && Object.keys(e.paliers).length && etat !== 'a_venir');
   // Rejoindre (fenêtre) : 1. présentation ; 2. trophées demandés (sinon : pas qualifié) ; 3. règles, puis « Je participe ».
   const rejoindre = !peutRejoindre ? '' : `${STYLE_ETAPES}<dialog class="fenetre ev-rejoindre" id="ev-rejoindre"><button class="fermer" type="button" aria-label="Fermer">×</button>
     <form class="assistant" method="post" action="/evenements/${e.id}/inscrire" data-depart="1">
@@ -111,7 +112,7 @@ function pageEvenement(config, { espace, e, etat, conditions = [], inscrit = fal
     ${ouvrir ? 'd.showModal();' : ''}
   })();`;
   return page(e.titre, `${STYLE_EVT}<a class="retour" href="/classement"><span aria-hidden="true">‹</span> Classement</a>
-  ${enTete(e, compte)}
+  ${enTete(e, compte, rebours)}
   <p style="margin:0 0 12px;text-align:center"><span class="etat" data-etat="${classeEtat}">${libelleEtat}</span></p>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
   <div class="carte">${e.objectif ? `<p style="margin:0 0 8px;font-size:17px"><b>${echapper(e.objectif)}</b></p>` : ''}

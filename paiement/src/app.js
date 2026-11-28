@@ -151,7 +151,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     texte: e.objectif || (e.fin === evenements.SANS_FIN ? `À partir du ${e.debut.split('-').reverse().join('/')}` : `Du ${e.debut.split('-').reverse().join('/')} au ${e.fin.split('-').reverse().join('/')}`),
     image: e.banniere, couleur: e.couleur, lien: `/evenements/${e.id}`,
     carte: { badge: evenements.etendard(e), badgeNom: e.badge_nom || e.titre, description: e.description, objectif: e.objectif || evenements.phraseCourse(e), etat: evenements.etat(e),
-      participer: `/evenements/${e.id}?participer=1`, couleurs: e.couleurs, compte: evenements.compteRebours(e).texte } })));
+      participer: `/evenements/${e.id}?participer=1`, couleurs: e.couleurs, ...(() => { const c = evenements.compteRebours(e); return { compte: c.texte, cible: c.cible || null, libelle: c.libelle || null }; })() } })));
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -289,6 +289,59 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       if (p) prevenir('messageEleve', p, `🏅 **Bravo : ${['', '1er', '2e', '3e'][d.rang]} du challenge ${d.evenement.titre}** (${evenements.STATS[d.stat]})${evenements.estCourse(d.evenement) ? ' : tu as atteint le palier' : ''} ! Ton badge spécial est dans ta Trophy room.`, '/trophees');
     }
   }
+  // Notifications des événements (une fois chacune, par élève) : la publication (éligible ou non : ce qu'il manque),
+  // « tu es maintenant éligible », puis à 10 jours, 5 jours, 3 jours et 24 heures de la fin des inscriptions (éligibles pas inscrits).
+  commandes.db.exec('CREATE TABLE IF NOT EXISTS notifs_evenement (evenement_id INTEGER NOT NULL, discord_id TEXT NOT NULL, cle TEXT NOT NULL, le TEXT NOT NULL, PRIMARY KEY (evenement_id, discord_id, cle))');
+  const PALIERS_RAPPEL = [['r1', 1, '24 heures'], ['r3', 3, '3 jours'], ['r5', 5, '5 jours'], ['r10', 10, '10 jours']];
+  function notifierEvenements() {
+    const deja = commandes.db.prepare('SELECT 1 FROM notifs_evenement WHERE evenement_id = ? AND discord_id = ? AND cle = ?');
+    const marquer = commandes.db.prepare('INSERT OR IGNORE INTO notifs_evenement (evenement_id, discord_id, cle, le) VALUES (?, ?, ?, ?)');
+    const ouverts = evenements.actifs().filter((e) => evenements.etat(e) === 'a_venir');
+    if (!ouverts.length) return;
+    const eleves = parcours.tous().filter((p) => !p.sinistre_depuis);
+    const obtenus = new Map();
+    const trophesDe = (id) => { if (!obtenus.has(id)) obtenus.set(id, trophees.obtenus(id)); return obtenus.get(id); };
+    const now = Date.now(); const iso = new Date().toISOString();
+    for (const e of ouverts) {
+      const c = evenements.compteRebours(e);
+      const reste = c.cible ? Date.parse(c.cible) - now : Infinity;
+      const lien = `/evenements/${e.id}?participer=1`;
+      const fin = c.cible ? new Date(c.cible).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' }) : '';
+      const quoi = e.objectif || evenements.phraseCourse(e);
+      for (const p of eleves) {
+        const id = p.discord_id;
+        if (evenements.estInscrit(e.id, id)) continue;
+        const cond = evenements.conditionsRemplies(e, trophesDe(id));
+        const eligible = cond.every((x) => x.ok);
+        const a = (cle) => Boolean(deja.get(e.id, id, cle));
+        const marquerRappels = () => { for (const [cle, j] of PALIERS_RAPPEL) if (reste <= j * 864e5) marquer.run(e.id, id, cle, iso); };
+        if (!a('publie')) {
+          marquer.run(e.id, id, 'publie', iso);
+          if (eligible) { marquer.run(e.id, id, 'eligible', iso); marquerRappels(); }
+          const manque = cond.filter((x) => !x.ok).map((x) => x.trophee.titre).join(', ');
+          prevenir('messageEleve', p, eligible
+            ? `🏁 **Nouvel événement : ${e.titre}**
+${quoi}
+Tu es éligible : inscris-toi avant la fin des inscriptions (${fin}).`
+            : `🏁 **Nouvel événement : ${e.titre}**
+${quoi}
+Pour participer, il te faut : ${manque}. Obtiens-les avant la fin des inscriptions (${fin}).`, lien);
+          continue;
+        }
+        if (!eligible) continue;
+        if (!a('eligible')) {
+          marquer.run(e.id, id, 'eligible', iso); marquerRappels();
+          prevenir('messageEleve', p, `✅ **Tu es maintenant éligible au challenge ${e.titre}** ! Inscris-toi avant la fin des inscriptions (${fin}).`, lien);
+          continue;
+        }
+        const palier = PALIERS_RAPPEL.find(([, j]) => reste <= j * 864e5);
+        if (palier && !a(palier[0])) {
+          marquerRappels();
+          prevenir('messageEleve', p, `⏳ **${e.titre}** : plus que **${palier[2]}** pour t'inscrire. Tu es éligible, ne rate pas le départ !`, lien);
+        }
+      }
+    }
+  }
   app.get('/evenements/:id', (req, res) => {
     try { cloturerEvenements(); } catch (err) { console.warn('[evenements] clôture :', err.message); }
     const session = connecte(req, res, `/evenements/${encodeURIComponent(req.params.id)}`, 'Événement');
@@ -298,7 +351,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estCoach = session.id === config.discord.adminId;
     res.send(EV.pageEvenement(config, { espace: espaceDe(session), e, etat: evenements.etat(e), conditions: evenements.conditionsRemplies(e, trophees.obtenus(session.id)),
       inscrit: evenements.estInscrit(e.id, session.id), classements: classementsDe(e), nbInscrits: evenements.inscrits(e.id).length, moi: session.id, estCoach,
-      participants: evenements.inscrits(e.id).map((i) => ({ id: i.discord_id, ...profilCourt(i.discord_id) })), ouvrir: req.query.participer === '1', compte: evenements.compteRebours(e).texte,
+      participants: evenements.inscrits(e.id).map((i) => ({ id: i.discord_id, ...profilCourt(i.discord_id) })), ouvrir: req.query.participer === '1', compte: evenements.compteRebours(e).texte, rebours: evenements.compteRebours(e),
       message: { inscrit: 'Inscription enregistrée. Bonne chance !', desinscrit: 'Tu n\'es plus inscrit.' }[req.query.fait] || null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
   app.post('/evenements/:id/inscrire', formulaire, (req, res) => {
@@ -2958,7 +3011,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   app.locals.trophees = trophees;
   // Appelé chaque minute avec les coachings (server.js) : les événements finis donnent leurs badges.
   const verifierAvant = app.locals.verifierCoachings;
-  app.locals.verifierCoachings = async () => { try { cloturerEvenements(); } catch (err) { console.warn('[evenements] clôture :', err.message); } return verifierAvant(); };
+  app.locals.verifierCoachings = async () => {
+    try { cloturerEvenements(); } catch (err) { console.warn('[evenements] clôture :', err.message); }
+    try { notifierEvenements(); } catch (err) { console.warn('[evenements] notifications :', err.message); }
+    return verifierAvant();
+  };
+  app.locals.notifierEvenements = () => notifierEvenements();
   app.locals.validations = validations;
   return app;
 }

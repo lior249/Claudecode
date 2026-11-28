@@ -434,8 +434,15 @@ const STYLE_ESPACE = `
   .evt-gen .evt-compte { font-size:clamp(11px, 2.9vw, 13px); color:rgba(255,255,255,.78); }
   .evt-gen .evt-compte strong { color:#fff; }
   .evt-gen em { font-style:normal; margin-top:6px; padding:6px 14px; border-radius:999px; background:var(--bouton); color:#000; font-size:12px; font-weight:800; }
-  .evt-gen .evt-g-badge { position:relative; height:100%; display:grid; place-items:center; }
-  .evt-gen .evt-g-badge img { width:auto; height:86%; max-width:100%; object-fit:contain; filter:drop-shadow(0 8px 18px rgba(0,0,0,.55)); }
+  .evt-gen .evt-g-badge { position:absolute; right:-7%; bottom:-30%; height:138%; aspect-ratio:1; display:grid; place-items:center; pointer-events:none; }
+  .evt-gen .evt-g-badge img { width:100%; height:100%; object-fit:contain; transform:rotate(-8deg); filter:drop-shadow(0 8px 18px rgba(0,0,0,.55)); }
+  .evt-gen .evt-g-texte { max-width:62%; }
+  .evt-gen .ev-decompte strong { color:#fff; font-variant-numeric:tabular-nums; }
+  .evt-gen::after { content:""; position:absolute; inset:-60%; z-index:2; pointer-events:none;
+    background:linear-gradient(45deg, transparent 42%, rgba(255,255,255,.16) 50%, transparent 58%); animation:evt-reflet 5.5s ease-in-out infinite; }
+  @keyframes evt-reflet { 0% { transform:translate(-55%, 55%); } 45%, 100% { transform:translate(55%, -55%); } }
+  @media (prefers-reduced-motion: reduce) { .evt-gen::after { animation:none; display:none; } }
+  .ev-scene-compte .ev-decompte strong { font-size:16px; font-variant-numeric:tabular-nums; }
   .evt-gen .evc-hexa { width:clamp(70px, 20vw, 110px); height:clamp(78px, 22vw, 122px); font-size:clamp(18px, 5vw, 28px); --c:var(--halo); }
   .evt img { position:absolute; top:0; right:0; width:72%; height:100%; object-fit:cover;
     -webkit-mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.6) 25%, #000 55%); mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.6) 25%, #000 55%); }
@@ -505,6 +512,17 @@ const STYLE_ESPACE = `
 
 // nav : [{ cle, libelle, lien, icone, badge }] ; actif : cle de la page ; compte : { pseudo, role }.
 // Les événements en cours (bannière qui défile toute seule s'il y en a plusieurs).
+// « Fin inscription : 13j 23h 59m 59s » : le décompte en direct (jours, heures, minutes, secondes).
+function decompte(c) {
+  return `<span class="evt-compte ev-decompte" data-cible="${echapper(c.cible)}">${echapper(c.libelle || 'Fin')} : <strong>…</strong></span>`;
+}
+const SCRIPT_DECOMPTE = `<script>(function () { if (window.__ovxDecompte) return; window.__ovxDecompte = 1;
+  function deux(n) { return (n < 10 ? '0' : '') + n; }
+  function maj() { document.querySelectorAll('.ev-decompte[data-cible]').forEach(function (el) {
+    var s = Math.max(0, Math.floor((Date.parse(el.getAttribute('data-cible')) - Date.now()) / 1000));
+    var t = Math.floor(s / 86400) + 'j ' + deux(Math.floor(s % 86400 / 3600)) + 'h ' + deux(Math.floor(s % 3600 / 60)) + 'm ' + deux(s % 60) + 's';
+    var b = el.querySelector('strong'); if (b) b.textContent = t; }); }
+  maj(); setInterval(maj, 1000); })();</script>`;
 function banniereEvenements(evts = []) {
   if (!evts.length) return '';
   const hexa = (e) => `<span class="evc-hexa" style="--c:${echapper(/^#[0-9a-f]{6}$/i.test(e.couleur || '') ? e.couleur : '#1a8cff')}">${echapper(String(e.carte.badgeNom || e.titre).split(/\s+/).map((m) => m[0]).join('').slice(0, 3).toUpperCase())}</span>`;
@@ -514,7 +532,7 @@ function banniereEvenements(evts = []) {
     if (e.carte && e.carte.couleurs) {
       const c = e.carte.couleurs;
       return `<${balise} class="evt evt-gen" style="${['texte', 'fond', 'fondu', 'halo', 'bouton'].map((k) => `--${k}:${echapper(c[k])}`).join(';')}"${attrs}>
-      <span class="evt-g-texte"><small>Événement</small><b>${echapper(e.titre)}</b>${e.carte.compte ? `<span class="evt-compte">${echapper(e.carte.compte)}</span>` : ''}<em>Afficher</em></span>
+      <span class="evt-g-texte"><small>Événement</small><b>${echapper(e.titre)}</b>${e.carte.cible ? decompte(e.carte) : e.carte.compte ? `<span class="evt-compte">${echapper(e.carte.compte)}</span>` : ''}<em>Afficher</em></span>
       <span class="evt-g-badge">${e.carte.badge ? `<img src="/fichiers/images/${echapper(e.carte.badge)}" alt="">` : hexa(e)}</span></${balise}>`;
     }
     return `<${balise} class="evt${e.image ? '' : ' sans-image'}" style="--c:${echapper(/^#[0-9a-f]{6}$/i.test(e.couleur || '') ? e.couleur : '#1a1a1a')}"${attrs}>
@@ -527,13 +545,13 @@ function banniereEvenements(evts = []) {
   const cartes = evts.map((e, i) => (e.carte ? `<dialog class="fenetre evc ev-scene-dlg" id="evc-${i}" style="--c:${accent(e)};--fond:${echapper((e.carte.couleurs && e.carte.couleurs.fond) || '#000000')};--texte:${echapper((e.carte.couleurs && e.carte.couleurs.texte) || '#ffffff')}">
     <button class="fermer" type="button" aria-label="Fermer" onclick="this.closest('dialog').close()">×</button>
     <div class="ev-scene"><span class="ev-scene-rayons" aria-hidden="true"></span>
-      <p class="ev-scene-compte">${e.carte.compte ? compteHtml(e.carte.compte) : '&nbsp;'}</p>
+      <p class="ev-scene-compte">${e.carte.cible ? decompte(e.carte) : e.carte.compte ? compteHtml(e.carte.compte) : '&nbsp;'}</p>
       <div class="ev-scene-badge">${e.carte.badge ? `<img src="/fichiers/images/${echapper(e.carte.badge)}" alt="">` : hexa(e)}</div>
       <h2 class="ev-scene-titre">${echapper(e.titre)}</h2></div>
     <div class="ev-scene-panneau"><p class="etiq">Badge à débloquer · ${echapper(e.carte.badgeNom)}</p>
       ${e.carte.objectif ? `<h3>${echapper(e.carte.objectif)}</h3>` : ''}<p>${echapper(e.carte.description || '')}</p>
       ${e.carte.etat === 'en_cours' || e.carte.etat === 'a_venir' ? `<a class="bouton" href="${echapper(e.carte.participer)}">Participer</a>` : ''}<a class="bouton secondaire" href="${echapper(e.lien)}">Voir le challenge</a></div></dialog>` : '')).join('');
-  return `${cartes}<section class="evts" aria-label="Événements en cours"><div class="evts-piste">${evts.map(slide).join('')}</div>
+  return `${cartes}${SCRIPT_DECOMPTE}<section class="evts" aria-label="Événements en cours"><div class="evts-piste">${evts.map(slide).join('')}</div>
     ${cartes ? `<script>(function () { document.querySelectorAll('[data-carte]').forEach(function (a) { a.addEventListener('click', function (ev) {
       var d = document.getElementById(a.getAttribute('data-carte')); if (!d || !d.showModal) return; ev.preventDefault(); d.showModal(); }); }); })();</script>` : ''}
     ${evts.length > 1 ? `<div class="evts-points" aria-hidden="true">${evts.map((e, i) => `<i${i ? '' : ' class="actif"'}></i>`).join('')}</div>
@@ -566,7 +584,7 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonA
   <label for="menu-ouvert" class="sb-voile" aria-hidden="true"></label>
   <div class="espace-corps">
     ${sansHaut ? '' : `<header class="topbar"><label for="menu-ouvert" class="topbar-menu" aria-label="Ouvrir le menu">${ICONES_NAV.menu}</label></header>`}
-    <main class="espace-contenu">${banniereEvenements(evenements)}${contenu}</main>
+    <main class="espace-contenu">${['profil', 'coach', 'classement'].includes(actif) ? banniereEvenements(evenements) : ''}${contenu}</main>
   </div>
   ${barreBas ? `<nav class="barre-bas" aria-label="Navigation rapide" style="grid-template-columns:repeat(${barreBas.length}, 1fr)">${barreBas.map((n) => `<a href="${echapper(n.lien)}"${(n.actifs || [n.cle]).includes(actif) ? ' class="actif" aria-current="page"' : ''}${n.badge ? ` aria-label="${echapper(n.libelle)} : ${n.badge} nouveau(x)"` : ''}><span class="icone-bb">${ICONES_NAV[n.icone] || ''}${n.badge ? `<span class="compteur-bb">${n.badge > 9 ? '9+' : n.badge}</span>` : ''}</span><span>${echapper(n.libelle)}</span></a>`).join('')}</nav>` : ''}
 </div>`, { script: `${script || ''}${scriptPastille}`, entete: false, brut: true, jetonApp });
@@ -973,7 +991,7 @@ function pageMessage(config, titre, message, { lien = '/', texteLien = 'Retour' 
   ${blocSupport(config)}`);
 }
 
-module.exports = { banniereEvenements,
+module.exports = { decompte, SCRIPT_DECOMPTE, banniereEvenements,
   CONTENU, ICONE, echapper, gabarit, gabaritEspace, logo, formatPrix, formatDate, blocSupport, blocVideo,
   pageBienvenue, pageAccueil, fenetreTutoBob, pageEmailWhop, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
 };
