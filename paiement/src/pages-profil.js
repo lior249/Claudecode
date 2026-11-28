@@ -129,28 +129,16 @@ const STYLE_PROFIL = `<style>
   @media (min-width: 960px) { .pf-menu { display:none; } }
   .pf-icone .compteur { position:absolute; top:-3px; right:-9px; min-width:19px; height:19px; padding:0 5px; border-radius:10px; background:#ff3b30; color:#fff;
     font:800 11px/19px var(--police); text-align:center; border:2px solid #000; box-sizing:content-box; }
-  /* La photo dans une pièce de monnaie : bord cranté de la couleur du rang, sans brillance fixe ;
-     seul un reflet passe, du coin bas gauche au coin haut droit, découpé à la forme de la pièce. */
-  .pf-avatar.piece { position:relative; width:100px; height:100px; padding:12px; border:0; border-radius:50%; isolation:isolate; overflow:hidden;
-    background:
-      linear-gradient(135deg, transparent 17%, rgba(255,255,255,.7) 17% 25%, transparent 25% 30%, rgba(255,255,255,.45) 30% 33%, transparent 33% 70%, rgba(255,255,255,.5) 70% 77%, transparent 78%),
-      linear-gradient(160deg, color-mix(in srgb, var(--piece) 45%, #fff) 0%, var(--piece) 55%, color-mix(in srgb, var(--piece) 80%, #000) 100%);
-    box-shadow:inset 0 -3px 0 color-mix(in srgb, var(--piece) 65%, #000), inset 0 2px 0 color-mix(in srgb, var(--piece) 40%, #fff), 0 6px 18px -8px color-mix(in srgb, var(--piece) 70%, transparent); }
-  .pf-avatar.piece .face { position:relative; z-index:1; display:block; width:100%; height:100%; border-radius:50%; overflow:hidden;
-    box-shadow:0 0 0 3px color-mix(in srgb, var(--piece) 60%, #000), inset 0 3px 8px rgba(0,0,0,.45); }
-  .pf-avatar.piece .face img, .pf-avatar.piece .face > span { position:relative; z-index:-1; }
-  .pf-avatar.piece::after { content:""; position:absolute; inset:0; z-index:2; pointer-events:none; border-radius:50%;
-    background:linear-gradient(45deg, transparent 35%, rgba(255,255,255,.55) 50%, transparent 65%) no-repeat;
-    background-size:250% 250%; background-position:120% -20%; animation:ovx-piece 3.6s ease-in-out infinite; }
-  @keyframes ovx-piece { 0% { background-position:100% 0%; } 50%, 100% { background-position:0% 100%; } }
-  .pf-avatar.piece[data-sinistre]::after { animation:none; opacity:0; } .pf-avatar.piece[data-sinistre] img { filter:grayscale(1); }
+  /* La photo de profil Discord, simple : un rond, sans cadre ni animation. */
+  .pf-avatar.piece { position:relative; width:100px; height:100px; padding:0; border:0; border-radius:50%; overflow:hidden; background:#2a2a2a; }
+  .pf-avatar.piece .face { display:block; width:100%; height:100%; border-radius:50%; overflow:hidden; }
+  .pf-avatar.piece[data-sinistre] img { filter:grayscale(1); }
   .pf-objectif-barre { display:block; margin:-4px 0 18px; padding:12px 14px; border-radius:16px; background:#101010; border:1px solid #222; color:#fff; text-decoration:none; }
   .pf-objectif-barre .haut { display:flex; justify-content:space-between; align-items:baseline; font-size:13px; color:var(--doux); }
   .pf-objectif-barre .haut b { color:#fff; font-size:15px; }
   .pf-objectif-barre .barre { display:block; height:8px; margin:8px 0 6px; border-radius:999px; background:#262626; overflow:hidden; }
   .pf-objectif-barre .barre i { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg, #9fd11f, var(--lime)); }
   .pf-objectif-barre .bas { font-size:12px; color:var(--doux); }
-  @media (prefers-reduced-motion: reduce) { .pf-avatar.piece::after { animation:none; } }
   .pf-avatar { display:block; text-decoration:none; color:#fff; }
   .pf-frise { display:block; text-decoration:none; color:inherit; margin:0 0 6px; } .pf-frise .etapes { margin-bottom:8px; }
   .pf-carrousel-cadre { padding:0; display:flex; flex-direction:column; }

@@ -394,7 +394,7 @@ Pour participer, il te faut : ${manque}. Obtiens-les avant la fin des inscriptio
     const vus = tous ? liste : liste.slice(0, 3);
     res.send(EV.pageEvenementsCoach(config, { espace: espaceDe(lireSession(req, config.secretApp)), evenements: vus, total: liste.length, tous,
       etats: Object.fromEntries(liste.map((e) => [e.id, evenements.etat(e)])), nbInscrits: Object.fromEntries(vus.map((e) => [e.id, evenements.inscrits(e.id).length])),
-      message: { brouillon: 'Brouillon enregistré : ouvre-le pour choisir les dates et le publier.', publie: 'Événement publié : sa bannière défile déjà en haut des pages.', supprime: 'Brouillon supprimé.' }[req.query.fait] || null,
+      message: { brouillon: 'Brouillon enregistré : ouvre-le ou modifie-le, puis mets-le en ligne quand tu veux.', publie: 'Challenge en ligne : sa bannière défile sur le profil et le classement.', modifie: 'Modifications enregistrées.', supprime: 'Brouillon supprimé.' }[req.query.fait] || null,
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   };
   app.get('/admin/evenements', (req, res) => { if (estAdmin(req, res, '/admin/evenements')) pageEvenementsCoach(req, res); });
@@ -410,20 +410,38 @@ Pour participer, il te faut : ${manque}. Obtiens-les avant la fin des inscriptio
     res.send(EV.pageBrouillon(config, { espace: espaceDe(lireSession(req, config.secretApp)), e, bornes: evenements.bornes(), conditions: evenements.conditionsRemplies(e, []),
       erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
-  app.post('/admin/evenements', formulaire, (req, res) => {
-    if (!estAdmin(req, res, '/admin/evenements')) return;
-    const b = req.body || {};
+  // Les champs du formulaire (création et modification).
+  function champsEvenement(b) {
     const image = (v) => { const n = String(v || '').split(',')[0].trim(); return n && parcours.cheminImage(n) ? n : null; };
     const conditions = Object.fromEntries(Object.keys(b).filter((k) => k.startsWith('cond_')).map((k) => [k.slice(5), b[k]]));
-    const delais = b.attente_jours !== undefined ? { attenteJours: b.attente_jours, dureeJours: b.duree_jours, indefinie: b.duree_indefinie === '1', heure: b.heure,
+    const delais = b.attente_jours !== undefined || b.action === 'enregistrer' ? { attenteJours: b.attente_jours, dureeJours: b.duree_jours, indefinie: b.duree_indefinie === '1', heure: b.heure,
       gagnants: b.gagnants, paliers: Object.fromEntries(Object.keys(evenements.STATS).map((s) => [s, b[`palier_${s}`]])), enLigne: b.action === 'publier',
       couleurs: { texte: b.c_texte, fond: b.c_fond, fondu: b.c_fondu, halo: b.c_halo, bouton: b.c_bouton, effet: b.effet } } : {};
-    const r = evenements.creer({ titre: b.titre, description: b.description, objectif: b.objectif, banniere: image(b.banniere), affiche: image(b.affiche),
+    return { titre: b.titre, description: b.description, objectif: b.objectif, banniere: image(b.banniere), affiche: image(b.affiche),
       couleur: b.couleur, debut: b.debut || '', fin: b.fin || '', conditions, stats: [].concat(b.stats || []), reglesPoints: b.regles_points, reglesValidation: b.regles_validation,
-      badgeNom: b.badge_nom, badges: { or: image(b.badge_or), argent: image(b.badge_argent), bronze: image(b.badge_bronze) }, ...delais });
+      badgeNom: b.badge_nom, badges: { or: image(b.badge_or), argent: image(b.badge_argent), bronze: image(b.badge_bronze) }, ...delais };
+  }
+  app.post('/admin/evenements', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/evenements')) return;
+    const r = evenements.creer(champsEvenement(req.body || {}));
     if (r.brouillonGarde) return res.redirect(303, `/admin/evenements/${r.evenement.id}?erreur=${encodeURIComponent(`Enregistré en brouillon : ${r.erreur}`)}`);
     if (r.erreur) return res.redirect(303, `/admin/evenements/nouveau?erreur=${encodeURIComponent(r.erreur)}`);
     return res.redirect(303, r.evenement.statut === 'brouillon' ? `/admin/evenements?fait=brouillon` : '/admin/evenements?fait=publie');
+  });
+  // Modifier un challenge : un brouillon, ou un challenge en ligne tant que ses inscriptions sont ouvertes.
+  app.get('/admin/evenements/:id/modifier', (req, res) => {
+    if (!estAdmin(req, res, `/admin/evenements/${encodeURIComponent(req.params.id)}/modifier`)) return;
+    const e = evenements.un(req.params.id);
+    if (!e || !evenements.modifiable(e)) return res.redirect(303, `/admin/evenements?erreur=${encodeURIComponent('Ce challenge ne peut plus être modifié : les inscriptions sont closes.')}`);
+    res.send(EV.pageNouvelEvenement(config, { espace: espaceDe(lireSession(req, config.secretApp)), e, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
+  });
+  app.post('/admin/evenements/:id/modifier', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/evenements')) return;
+    const id = String(req.params.id);
+    const r = evenements.modifier(id, champsEvenement(req.body || {}));
+    if (r.brouillonGarde) return res.redirect(303, `/admin/evenements/${id}?erreur=${encodeURIComponent(`Enregistré en brouillon : ${r.erreur}`)}`);
+    if (r.erreur) return res.redirect(303, `/admin/evenements/${encodeURIComponent(id)}/modifier?erreur=${encodeURIComponent(r.erreur)}`);
+    return res.redirect(303, `/admin/evenements?fait=${r.evenement.statut === 'brouillon' ? 'brouillon' : req.body.action === 'publier' ? 'publie' : 'modifie'}`);
   });
   app.post('/admin/evenements/:id/publier', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/evenements')) return;

@@ -197,3 +197,26 @@ test('notifications : publication (éligible ou ce qu\'il manque), devenu éligi
     assert.match(msgs(E2).pop(), /plus que \*\*24 heures\*\*/);
   } finally { await m.fermer(); }
 });
+
+test('modifier un challenge : brouillon, ou en ligne jusqu\'à la clôture des inscriptions ; « ? » sur les trophées du formulaire', async () => {
+  const m = await monter();
+  try {
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const form = await (await m.get('/admin/evenements/nouveau', coach)).text();
+    assert.match(form, /class="ev-info"[^>]*data-info="Rookie : [^"]+"/, 'un « ? » avec ce que demande le trophée');
+    await m.poster('/admin/evenements', { titre: 'Flash 1K', description: 'x', stats: ['revenus'], palier_revenus: '1000', attente_jours: '5', duree_jours: '10', gagnants: '1', action: 'publier', cond_revenus: 'revenus_pro' }, coach);
+    const liste = await (await m.get('/admin/evenements', coach)).text();
+    assert.match(liste, /href="\/admin\/evenements\/1\/modifier"[^>]*>Modifier/);
+    const page = await (await m.get('/admin/evenements/1/modifier', coach)).text();
+    assert.match(page, /Modifier le challenge[\s\S]*value="Flash 1K"[\s\S]*name="palier_revenus"[^>]*value="1000"[\s\S]*value="revenus_pro"[^>]*checked[\s\S]*Enregistrer les modifications/);
+    const r = await m.poster('/admin/evenements/1/modifier', { titre: 'Flash 1K', description: 'Nouvelle description', stats: ['revenus'], palier_revenus: '1000', duree_jours: '20', gagnants: '1', action: 'enregistrer', cond_revenus: 'revenus_rookie' }, coach);
+    assert.strictEqual(r.headers.get('location'), '/admin/evenements?fait=modifie');
+    const e = m.db.prepare('SELECT * FROM evenements WHERE id = 1').get();
+    assert.strictEqual(e.description, 'Nouvelle description'); assert.strictEqual(JSON.parse(e.conditions).revenus, 'revenus_rookie');
+    assert.strictEqual(e.debut, j(5), 'le début ne bouge pas'); assert.strictEqual(e.fin, j(24), 'la fin suit la nouvelle durée');
+    // Inscriptions closes : plus modifiable.
+    m.db.prepare('UPDATE evenements SET debut = ? WHERE id = 1').run(j(-1));
+    assert.match((await m.get('/admin/evenements/1/modifier', coach)).headers.get('location'), /erreur=.*inscriptions%20sont%20closes/);
+    assert.match((await m.poster('/admin/evenements/1/modifier', { titre: 'x', description: 'y', stats: ['revenus'], palier_revenus: '5', action: 'enregistrer' }, coach)).headers.get('location'), /erreur=/);
+  } finally { await m.fermer(); }
+});

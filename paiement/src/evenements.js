@@ -95,7 +95,12 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
     estGlobal(e) { return Object.keys(STATS).every((x) => (e.stats || []).includes(x)); },
     // Délais en jours (pas de dates) : attente avant le début, durée (0 = indéfinie). enLigne : mis en ligne tout de suite.
     creer({ titre, description, objectif, banniere, affiche, couleur, debut, fin, conditions = {}, stats = [], reglesPoints, reglesValidation, badgeNom, badges = {},
-      attenteJours, dureeJours, indefinie = false, heure, gagnants = 3, paliers = {}, enLigne = false, couleurs = {} }) {
+      attenteJours, dureeJours, indefinie = false, heure, gagnants = 3, paliers = {}, enLigne = false, couleurs = {} }, modifier = null) {
+      // modifier : l'événement à modifier (brouillon, ou publié tant que les inscriptions sont ouvertes).
+      const ancien = modifier ? api.un(modifier) : null;
+      if (modifier && (!ancien || !api.modifiable(ancien))) return { erreur: 'Ce challenge ne peut plus être modifié : les inscriptions sont closes.' };
+      const publie = Boolean(ancien && ancien.statut === 'publie');
+      if (publie && attenteJours === undefined) attenteJours = ancien.attente_jours ?? 1;
       const t = String(titre || '').trim().slice(0, 80); const d = String(description || '').trim().slice(0, 3000);
       if (!t || !d) return { erreur: 'Donne un titre et une description.' };
       const parDelais = attenteJours !== undefined || dureeJours !== undefined || indefinie;
@@ -103,7 +108,7 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
       if (!parDelais && !brouillon) { const v = api.verifierDates(debut, fin); if (v.erreur) return v; }
       const att = Math.round(Number(attenteJours)); const dur = indefinie ? 0 : Math.round(Number(dureeJours));
       if (parDelais) {
-        if (!(att >= DEBUT_MIN && att <= DEBUT_MAX)) return { erreur: `L'attente avant le début : de ${DEBUT_MIN} à ${DEBUT_MAX} jours.` };
+        if (!publie && !(att >= DEBUT_MIN && att <= DEBUT_MAX)) return { erreur: `L'attente avant le début : de ${DEBUT_MIN} à ${DEBUT_MAX} jours.` };
         if (!indefinie && !(dur >= DUREE_MIN && dur <= DUREE_MAX)) return { erreur: `La durée : de ${DUREE_MIN} à ${DUREE_MAX} jours, ou indéfinie.` };
       }
       const hr = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(heure || '')) ? String(heure) : null;
@@ -125,15 +130,27 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
       const rp = String(reglesPoints || '').trim().slice(0, 2000) || (Object.keys(pal).length ? api.phraseCourse({ stats: st, paliers: pal, gagnants: g }) : '');
       if (!rp) return { erreur: 'Écris comment on gagne (attribution des points).' };
       const bn = String(badgeNom || '').trim().slice(0, 60) || t;
-      const r = q.creer.run(t, d, String(objectif || '').trim().slice(0, 200) || null, banniere || null, affiche || null,
+      if (ancien) {
+        // Les images non renvoyées restent celles d'avant.
+        db.prepare(`UPDATE evenements SET titre = ?, description = ?, objectif = ?, banniere = ?, conditions = ?, stats = ?, regles_points = ?, regles_validation = ?,
+          badge_nom = ?, badge_or = ?, badge_argent = ?, badge_bronze = ? WHERE id = ?`).run(t, d, String(objectif || '').trim().slice(0, 200) || null, banniere || ancien.banniere || null,
+          JSON.stringify(cond), JSON.stringify(st), rp, rv || null, bn, badges.or || ancien.badge_or || null, badges.argent || ancien.badge_argent || null, badges.bronze || ancien.badge_bronze || null, ancien.id);
+      }
+      const r = ancien ? { lastInsertRowid: ancien.id } : q.creer.run(t, d, String(objectif || '').trim().slice(0, 200) || null, banniere || null, affiche || null,
         /^#[0-9a-f]{6}$/i.test(String(couleur || '')) ? couleur : '#1a1a1a', debut || '', fin || '', JSON.stringify(cond), maintenant().toISOString(),
         JSON.stringify(st), rp, rv || null, bn, badges.or || null, badges.argent || null, badges.bronze || null);
       const id = Number(r.lastInsertRowid);
       const coul = Object.fromEntries(Object.keys(COULEURS).filter((k) => HEX.test(String((couleurs || {})[k] || ''))).map((k) => [k, couleurs[k]]));
       if (EFFETS[(couleurs || {}).effet]) coul.effet = couleurs.effet;
       db.prepare('UPDATE evenements SET gagnants = ?, paliers = ?, attente_jours = ?, duree_jours = ?, heure = ?, couleurs = ? WHERE id = ?')
-        .run(g, Object.keys(pal).length ? JSON.stringify(pal) : null, parDelais ? att : null, parDelais ? dur : null, hr, Object.keys(coul).length ? JSON.stringify(coul) : null, id);
+        .run(g, Object.keys(pal).length ? JSON.stringify(pal) : null, parDelais ? (publie ? ancien.attente_jours : att) : null, parDelais ? dur : null, publie ? (hr || ancien.heure) : hr,
+          Object.keys(coul).length ? JSON.stringify(coul) : null, id);
       if (coul.halo) db.prepare('UPDATE evenements SET couleur = ? WHERE id = ?').run(coul.halo, id);
+      // Publié : le début ne bouge pas (l'heure peut changer) ; la fin suit la nouvelle durée.
+      if (publie) {
+        if (parDelais) db.prepare('UPDATE evenements SET fin = ? WHERE id = ?').run(dur ? ajouter(ancien.debut, dur - 1) : SANS_FIN, id);
+        return { evenement: api.un(id) };
+      }
       if (brouillon || parDelais) db.prepare("UPDATE evenements SET statut = 'brouillon', debut = '', fin = '' WHERE id = ?").run(id);
       if (parDelais && !brouillon) {
         const p = api.publier(id);
@@ -141,6 +158,9 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
       }
       return { evenement: api.un(id) };
     },
+    // Modifiable : un brouillon, ou un challenge publié tant que ses inscriptions sont ouvertes.
+    modifiable(e) { return Boolean(e) && !e.retire_le && (e.statut === 'brouillon' || api.etat(e) === 'a_venir'); },
+    modifier(id, champs) { return api.creer(champs, Number(id)); },
     // L'étendard du challenge : le badge du plus haut niveau envoyé (or, sinon argent, sinon bronze).
     etendard(e) { return e.badge_or || e.badge_argent || e.badge_bronze || null; },
     // « Les inscriptions se terminent dans 5 jours » (avant le début), puis « Se termine dans 3 jours ».

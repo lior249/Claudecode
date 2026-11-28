@@ -140,13 +140,16 @@ const STYLE_COACH_EV = `<style>
   .ev-couleurs { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:6px; } .ev-couleurs label { display:grid; justify-items:center; gap:4px; font-size:11px; margin:0; text-align:center; }
   .ev-couleurs input { width:100%; height:38px; padding:2px; border-radius:10px; }
   .ev-apercu { margin-top:10px; height:clamp(132px, 34vw, 170px); }
+  .ev-choix label { position:relative; } .ev-info { position:absolute; top:3px; right:3px; width:20px; height:20px; padding:0; border-radius:50%; border:1px solid #444; background:#1a1a1a; color:#ddd; font:700 11px/1 var(--police); cursor:pointer; display:grid; place-items:center; }
+  .ev-info:hover { background:#2a2a2a; color:#fff; } .ev-info-texte { margin:6px 0 0; padding:8px 10px; border-radius:10px; background:#141a05; border:1px solid #3a4a10; color:#dfe9b8; }
   .ev-ligne { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-radius:14px; background:#111; border:1px solid #222; color:#fff; text-decoration:none; }
 </style>`;
 // La liste : les 3 derniers événements (brouillons compris), ou tous.
 function pageEvenementsCoach(config, { espace, evenements = [], total = 0, tous = false, etats = {}, nbInscrits = {}, message, erreur }) {
   const ligne = (e) => { const [c, l] = ETATS[etats[e.id]] || ETATS.a_venir;
-    return `<a class="ev-ligne" href="${etats[e.id] === 'brouillon' ? `/admin/evenements/${e.id}` : `/evenements/${e.id}`}"><span><b>${echapper(e.titre)}</b><br>
-      <span class="doux petit">${etats[e.id] === 'brouillon' ? (e.attente_jours != null ? `Début ${e.attente_jours} j après la mise en ligne · ${e.duree_jours ? `${e.duree_jours} j` : 'durée indéfinie'}` : 'Dates à choisir à la mise en ligne') : `${e.fin === SANS_FIN ? `Depuis le ${echapper(e.debut)} · durée indéfinie` : `Du ${echapper(e.debut)} au ${echapper(e.fin)}`} · ${nbInscrits[e.id] || 0} inscrit(s)`}</span></span><span class="etat" data-etat="${c}">${l}</span></a>`; };
+    const modif = ['brouillon', 'a_venir'].includes(etats[e.id]);
+    return `<div style="display:grid;grid-template-columns:minmax(0, 1fr)${modif ? ' auto' : ''};gap:6px;align-items:stretch"><a class="ev-ligne" href="${etats[e.id] === 'brouillon' ? `/admin/evenements/${e.id}` : `/evenements/${e.id}`}"><span><b>${echapper(e.titre)}</b><br>
+      <span class="doux petit">${etats[e.id] === 'brouillon' ? (e.attente_jours != null ? `Début ${e.attente_jours} j après la mise en ligne · ${e.duree_jours ? `${e.duree_jours} j` : 'durée indéfinie'}` : 'Dates à choisir à la mise en ligne') : `${e.fin === SANS_FIN ? `Depuis le ${echapper(e.debut)} · durée indéfinie` : `Du ${echapper(e.debut)} au ${echapper(e.fin)}`} · ${nbInscrits[e.id] || 0} inscrit(s)`}</span></span><span class="etat" data-etat="${c}">${l}</span></a>${modif ? `<a class="bouton secondaire" href="/admin/evenements/${e.id}/modifier" style="margin:0;width:auto;display:grid;place-items:center;padding:0 14px">Modifier</a>` : ''}</div>`; };
   return page('Événements', `${STYLE_COACH_EV}<a class="retour" href="${tous ? '/admin/evenements' : '/admin/gestion'}"><span aria-hidden="true">‹</span> ${tous ? 'Événements' : 'Gestion'}</a>
   <div class="titre-page"><div><p class="etiquette">Gestion</p><h1>${tous ? 'Tous les événements' : 'Événements'}</h1></div><span class="doux petit">${evenements.filter((e) => ['a_venir', 'en_cours'].includes(etats[e.id])).length} / ${MAX_ACTIFS} à venir ou en cours</span></div>
   ${message ? `<p class="message-ok">${echapper(message)}</p>` : ''}${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
@@ -156,51 +159,69 @@ function pageEvenementsCoach(config, { espace, evenements = [], total = 0, tous 
 }
 
 // Créer : 1. l'événement, 2. les règles (stats, pour gagner, validation, conditions), 3. la récompense. Enregistré en brouillon.
-function pageNouvelEvenement(config, { espace, erreur }) {
+// Le même formulaire sert à créer et à modifier (e : le challenge à modifier, brouillon ou publié aux inscriptions ouvertes).
+function pageNouvelEvenement(config, { espace, erreur, e = null }) {
+  const x = e || {}; const v = (s) => echapper(s == null ? '' : String(s));
+  const publie = Boolean(e && e.statut === 'publie');
+  const cond = x.conditions || {}; const stats = x.stats || ['revenus']; const pal = x.paliers || {}; const coul = { ...COULEURS, ...(x.couleurs || {}) };
   const choixConditions = FAMILLES.map(([fam, titre]) => `<div class="ev-famille"><b>${echapper(titre)} <span class="doux petit" data-choisi="${fam}">· aucun</span></b>
-    <div class="ev-choix"><label><input type="radio" name="cond_${fam}" value="" checked><span style="display:grid;place-items:center;width:44px;height:44px;font-weight:800;color:#666">—</span>Aucun</label>
-      ${TROPHEES.filter((t) => t.famille === fam).map((t) => `<label><input type="radio" name="cond_${fam}" value="${t.cle}" data-titre="${echapper(t.titre)}">${pieceTrophee(t, { taille: 44 })}${echapper(t.titre)}</label>`).join('')}</div></div>`).join('');
-  return page('Nouvel événement', `${STYLE_COACH_EV}${STYLE_BADGES}<a class="retour" href="/admin/evenements"><span aria-hidden="true">‹</span> Événements</a>
-  <div class="titre-page"><div><p class="etiquette">Événements</p><h1>Nouvel événement</h1></div></div>
+    <div class="ev-choix"><label><input type="radio" name="cond_${fam}" value=""${cond[fam] ? '' : ' checked'}><span style="display:grid;place-items:center;width:44px;height:44px;font-weight:800;color:#666">—</span>Aucun</label>
+      ${TROPHEES.filter((t) => t.famille === fam).map((t) => `<label><input type="radio" name="cond_${fam}" value="${t.cle}" data-titre="${echapper(t.titre)}"${cond[fam] === t.cle ? ' checked' : ''}>${pieceTrophee(t, { taille: 44 })}${echapper(t.titre)}
+        <button type="button" class="ev-info" aria-label="Ce que demande ${echapper(t.titre)}" data-fam="${fam}" data-info="${echapper(`${t.titre} : ${t.label || t.but}.`)}">?</button></label>`).join('')}</div>
+    <p class="ev-info-texte doux petit" data-info-de="${fam}" hidden></p></div>`).join('');
+  const titrePage = !e ? 'Nouvel événement' : publie ? 'Modifier le challenge' : 'Modifier le brouillon';
+  return page(titrePage, `${STYLE_COACH_EV}${STYLE_BADGES}<a class="retour" href="/admin/evenements"><span aria-hidden="true">‹</span> Événements</a>
+  <div class="titre-page"><div><p class="etiquette">Événements</p><h1>${titrePage}</h1></div></div>
   ${erreur ? `<p class="erreur-form">${echapper(erreur)}</p>` : ''}
-  <form class="carte" method="post" action="/admin/evenements" style="display:grid;grid-template-columns:minmax(0, 1fr);gap:12px">
+  ${publie ? `<p class="avert" style="margin:0 0 12px">Ce challenge est en ligne : tu peux le modifier jusqu'à la fin des inscriptions. Son début ne change pas (${v(x.debut)}).</p>` : ''}
+  <form class="carte ev-form" method="post" action="${e ? `/admin/evenements/${e.id}/modifier` : '/admin/evenements'}" style="display:grid;grid-template-columns:minmax(0, 1fr);gap:12px">
     <h3 style="margin:0;font-size:16px">1. L'événement</h3>
-    <div class="champ"><label for="ev-titre">Nom</label><input id="ev-titre" name="titre" maxlength="80" required placeholder="ex. Overmaxx 1000"></div>
-    <div class="champ"><label for="ev-objectif">Le défi, en une phrase</label><input id="ev-objectif" name="objectif" maxlength="200" placeholder="ex. Le premier à générer $1 000"></div>
-    <div class="champ"><label for="ev-desc">Description</label><textarea id="ev-desc" name="description" maxlength="3000" required placeholder="Le principe, les règles, les récompenses…"></textarea></div>
+    <div class="champ"><label for="ev-titre">Nom</label><input id="ev-titre" name="titre" maxlength="80" required placeholder="ex. Overmaxx 1000" value="${v(x.titre)}"></div>
+    <div class="champ"><label for="ev-objectif">Le défi, en une phrase</label><input id="ev-objectif" name="objectif" maxlength="200" placeholder="ex. Le premier à générer $1 000" value="${v(x.objectif)}"></div>
+    <div class="champ"><label for="ev-desc">Description</label><textarea id="ev-desc" name="description" maxlength="3000" required placeholder="Le principe, les règles, les récompenses…">${v(x.description)}</textarea></div>
     <div class="champ"><label>Bannière (facultative : tu pourras l'ajouter après)</label><div data-images="/admin/images" data-une><label class="fichier">${ICONE.plus}<span><b>Ajouter une bannière</b><br>Format large, ex. 1200 × 400. Sans bannière : la couleur du challenge.</span><input type="file" accept="image/*" hidden></label>
-      <input type="hidden" name="banniere" value=""><div class="apercus" style="margin-top:8px"></div></div></div>
+      <input type="hidden" name="banniere" value="${v(x.banniere)}"><div class="apercus" style="margin-top:8px">${x.banniere ? `<img src="/fichiers/images/${v(x.banniere)}" alt="" style="max-height:80px;border-radius:10px">` : ''}</div></div></div>
     <div class="champ"><label>Couleurs de la bannière (générée avec le badge)</label>
-      <div class="ev-couleurs">${[['texte', 'Texte'], ['fond', 'Fond'], ['fondu', 'Fondu'], ['halo', 'Accent'], ['bouton', 'Bouton']].map(([k, l]) => `<label><input type="color" name="c_${k}" value="${COULEURS[k]}">${l}</label>`).join('')}</div>
+      <div class="ev-couleurs">${[['texte', 'Texte'], ['fond', 'Fond'], ['fondu', 'Fondu'], ['halo', 'Accent'], ['bouton', 'Bouton']].map(([k, l]) => `<label><input type="color" name="c_${k}" value="${v(coul[k])}">${l}</label>`).join('')}</div>
       <div class="ev-apercu" aria-label="Aperçu de la bannière"></div>
       <small>L'aperçu se met à jour avec le nom, les couleurs et le badge or (partie 4).</small></div>
-    <div class="ev-section"><h3>2. Les délais</h3><p class="doux petit" style="margin:0">Des nombres de jours, pas des dates : elles se calculent au moment de la mise en ligne.</p></div>
+    <div class="ev-section"><h3>2. Les délais</h3><p class="doux petit" style="margin:0">${publie ? 'Le début est fixé ; tu peux changer l\'heure de début et la durée.' : 'Des nombres de jours, pas des dates : elles se calculent au moment de la mise en ligne.'}</p></div>
     <div style="display:grid;grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);gap:10px">
-      <div class="champ"><label for="ev-attente">Attente avant le début</label><input id="ev-attente" name="attente_jours" type="number" min="${DEBUT_MIN}" max="${DEBUT_MAX}" value="7" required><small>${DEBUT_MIN} à ${DEBUT_MAX} jours : le temps de réunir les trophées demandés et de s'inscrire.</small></div>
-      <div class="champ"><label for="ev-heure">Heure de début (facultatif)</label><input id="ev-heure" name="heure" type="time"><small>GMT. Vide : l'heure de la mise en ligne.</small></div></div>
+      ${publie ? `<div class="champ"><label>Début</label><input value="${v(x.debut)}" disabled></div>` : `<div class="champ"><label for="ev-attente">Attente avant le début</label><input id="ev-attente" name="attente_jours" type="number" min="${DEBUT_MIN}" max="${DEBUT_MAX}" value="${v(x.attente_jours ?? 7)}" required><small>${DEBUT_MIN} à ${DEBUT_MAX} jours : le temps de réunir les trophées demandés et de s'inscrire.</small></div>`}
+      <div class="champ"><label for="ev-heure">Heure de début (facultatif)</label><input id="ev-heure" name="heure" type="time" value="${v(x.heure)}"><small>GMT. Vide : l'heure de la mise en ligne.</small></div></div>
     <div class="champ"><label for="ev-duree">Durée du challenge</label>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input id="ev-duree" name="duree_jours" type="number" min="${DUREE_MIN}" max="${DUREE_MAX}" value="14" style="max-width:120px"><span class="doux">jours</span>
-        <label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:600"><input type="checkbox" name="duree_indefinie" value="1" style="width:auto;margin:0"> Indéfinie</label></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input id="ev-duree" name="duree_jours" type="number" min="${DUREE_MIN}" max="${DUREE_MAX}" value="${v(x.duree_jours || 14)}" style="max-width:120px"><span class="doux">jours</span>
+        <label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:600"><input type="checkbox" name="duree_indefinie" value="1" style="width:auto;margin:0"${e && (x.duree_jours === 0 || x.fin === SANS_FIN) ? ' checked' : ''}> Indéfinie</label></div>
       <small>${DUREE_MIN} à ${DUREE_MAX} jours, ou indéfinie : jusqu'à ce que tous les gagnants aient atteint le palier.</small></div>
     <div class="ev-section"><h3>3. La course</h3><p class="doux petit" style="margin:0">Pour chaque stat suivie, un palier : les premiers à l'atteindre gagnent. Une course par stat.</p></div>
     <div><b style="font-size:14px">Ce qui est suivi, et le palier à atteindre</b><p class="doux petit" style="margin:2px 0 8px">Les 3 stats : challenge global, ses rappels remplacent les rappels habituels des inscrits.</p>
       <div style="display:grid;gap:8px">${Object.entries(STATS).map(([k, l], i) => `<div class="ev-stat" style="display:grid;grid-template-columns:auto minmax(0, 1fr);gap:10px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid #2a2a2a">
-        <label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:600;min-width:130px"><input type="checkbox" name="stats" value="${k}"${i === 0 ? ' checked' : ''} style="width:auto;margin:0">${echapper(l)}</label>
-        <input name="palier_${k}" inputmode="decimal" placeholder="${{ revenus: 'Palier en $, ex. 1000', vues: 'Palier, ex. 1000000', abonnes: 'Palier, ex. 10000' }[k]}"${i === 0 ? '' : ' disabled'}></div>`).join('')}</div></div>
-    <div class="champ"><label for="ev-gagnants">Nombre de gagnants (par stat)</label><select id="ev-gagnants" name="gagnants"><option value="1">1 : le premier seulement (badge or)</option><option value="2">2 : or et argent</option><option value="3" selected>3 : or, argent, bronze</option></select></div>
-    <div class="champ"><label for="ev-points">Pour gagner (facultatif)</label><textarea id="ev-points" name="regles_points" maxlength="2000" placeholder="Vide : « Les 3 premiers à atteindre … gagnent le badge. »"></textarea></div>
-    <div class="champ"><label for="ev-valid">Validation des résultats (facultatif)</label><textarea id="ev-valid" name="regles_validation" maxlength="2000" placeholder="ex. Seuls les résultats validés par le coach comptent ; capture obligatoire à chaque update."></textarea></div>
+        <label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:600;min-width:130px"><input type="checkbox" name="stats" value="${k}"${stats.includes(k) ? ' checked' : ''} style="width:auto;margin:0">${echapper(l)}</label>
+        <input name="palier_${k}" inputmode="decimal" placeholder="${{ revenus: 'Palier en $, ex. 1000', vues: 'Palier, ex. 1000000', abonnes: 'Palier, ex. 10000' }[k]}" value="${v(pal[k])}"${stats.includes(k) ? '' : ' disabled'}></div>`).join('')}</div></div>
+    <div class="champ"><label for="ev-gagnants">Nombre de gagnants (par stat)</label><select id="ev-gagnants" name="gagnants">${[[1, '1 : le premier seulement (badge or)'], [2, '2 : or et argent'], [3, '3 : or, argent, bronze']].map(([n, l]) => `<option value="${n}"${(x.gagnants || 3) === n ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="champ"><label for="ev-points">Pour gagner (facultatif)</label><textarea id="ev-points" name="regles_points" maxlength="2000" placeholder="Vide : « Les 3 premiers à atteindre … gagnent le badge. »">${v(x.regles_points)}</textarea></div>
+    <div class="champ"><label for="ev-valid">Validation des résultats (facultatif)</label><textarea id="ev-valid" name="regles_validation" maxlength="2000" placeholder="ex. Seuls les résultats validés par le coach comptent ; capture obligatoire à chaque update.">${v(x.regles_validation)}</textarea></div>
     <div><b style="font-size:14px">Conditions de participation</b><p class="doux petit" style="margin:2px 0 8px">Pour chaque famille, le trophée minimum pour participer (ou aucun).</p><div style="display:grid;gap:12px">${choixConditions}</div></div>
     <div class="ev-section"><h3>4. La récompense</h3><p class="doux petit" style="margin:0">Un badge par gagnant : or (1er), argent (2e), bronze (3e), selon le nombre de gagnants. Le badge du plus haut niveau sert d'étendard (bannière, carte, page).</p></div>
-    <div class="champ"><label for="ev-badge">Nom du badge</label><input id="ev-badge" name="badge_nom" maxlength="60" placeholder="ex. Overmaxx 1000"></div>
-    ${BLOC_BADGES(ICONE)}
-    <div style="display:grid;grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);gap:8px">
-      <button class="bouton secondaire" type="submit" name="action" value="brouillon" formnovalidate style="margin:0">Mettre en brouillon</button>
+    <div class="champ"><label for="ev-badge">Nom du badge</label><input id="ev-badge" name="badge_nom" maxlength="60" placeholder="ex. Overmaxx 1000" value="${v(x.badge_nom)}"></div>
+    ${['or', 'argent', 'bronze'].reduce((h, m) => (x[`badge_${m}`] ? h.replace(`<div class="badge-apercu" data-apercu="${m}"><span class="doux petit">—</span></div>`, `<div class="badge-apercu" data-apercu="${m}"><img src="/fichiers/images/${v(x[`badge_${m}`])}" alt=""></div>`)
+    .replace(`name="badge_${m}" value=""`, `name="badge_${m}" value="${v(x[`badge_${m}`])}"`) : h), BLOC_BADGES(ICONE))}
+    ${publie ? '<button class="bouton" type="submit" name="action" value="enregistrer" style="margin:0">Enregistrer les modifications</button>'
+    : `<div style="display:grid;grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);gap:8px">
+      <button class="bouton secondaire" type="submit" name="action" value="brouillon" formnovalidate style="margin:0">${e ? 'Enregistrer le brouillon' : 'Mettre en brouillon'}</button>
       <button class="bouton" type="submit" name="action" value="publier" style="margin:0">Mettre en ligne</button></div>
-    <p class="doux petit" style="margin:-4px 0 0">En ligne : le challenge commence dans le nombre de jours choisi. En brouillon : rien n'est visible, tu le mets en ligne quand tu veux.</p>
+    <p class="doux petit" style="margin:-4px 0 0">En ligne : le challenge commence dans le nombre de jours choisi. En brouillon : rien n'est visible, tu le mets en ligne quand tu veux.</p>`}
   </form>`, espace, 'gestion', null, `${SCRIPT_BADGES}
   (function () {
-    var f = document.querySelector('form[action="/admin/evenements"]'); if (!f) return;
+    var f = document.querySelector('form.ev-form'); if (!f) return;
+    // « ? » sur un trophée : ce qu'il demande, sans le sélectionner.
+    f.querySelectorAll('.ev-info').forEach(function (b) { b.addEventListener('click', function (ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      var p = f.querySelector('[data-info-de="' + b.getAttribute('data-fam') + '"]');
+      var meme = !p.hidden && p.textContent === b.getAttribute('data-info');
+      p.textContent = b.getAttribute('data-info'); p.hidden = meme; }); });
+    // Le trophée déjà choisi (modification) : son nom à côté de la famille.
+    f.querySelectorAll('input[type=radio][name^="cond_"]:checked').forEach(function (r) { if (r.value) { var s = f.querySelector('[data-choisi="' + r.name.slice(5) + '"]'); if (s) s.textContent = '· ' + r.getAttribute('data-titre') + ' minimum'; } });
     // Palier : actif seulement pour les stats suivies.
     f.querySelectorAll('input[name="stats"]').forEach(function (c) { function maj() { var p = f.querySelector('[name="palier_' + c.value + '"]'); p.disabled = !c.checked; p.required = c.checked; } c.addEventListener('change', maj); maj(); });
     // Durée indéfinie : plus de nombre de jours.
@@ -253,6 +274,7 @@ function pageBrouillon(config, { espace, e, bornes, conditions = [], erreur }) {
       <div class="champ"><label for="ev-fin">Fin</label><input id="ev-fin" name="fin" type="date" required></div></div>
     <p class="doux petit" style="margin:0">Début dans ${DEBUT_MIN} à ${DEBUT_MAX} jours (le temps de s'y préparer). Durée : ${DUREE_MIN} à ${DUREE_MAX} jours. La bannière défile dès la publication.</p>
     <button class="bouton" type="submit" style="margin:0">Publier l'événement</button></form>`}
+  <a class="bouton secondaire" href="/admin/evenements/${e.id}/modifier" style="margin:0 0 10px">Modifier le brouillon</a>
   <form method="post" action="/admin/evenements/${e.id}/supprimer"><button class="bouton secondaire" type="submit" style="margin:0" onclick="return confirm('Supprimer ce brouillon ?')">Supprimer le brouillon</button></form>`, espace, 'gestion');
 }
 
