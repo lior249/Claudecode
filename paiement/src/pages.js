@@ -234,7 +234,9 @@ const SCRIPT_TRANSITIONS = `
     };
   }
 })();`;
-function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp } = {}) {
+// admin : la version coach de l'application (globe sur fond jaune), pour la distinguer de celle des membres.
+function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp, admin = false } = {}) {
+  const ic = admin ? 'globe-admin' : 'globe';
   return `<!doctype html>
 <html lang="fr">
 <head>
@@ -243,12 +245,12 @@ function gabarit(titre, contenu, { script, entete = true, brut = false, jetonApp
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="/manifest.webmanifest${jetonApp ? `?u=${encodeURIComponent(jetonApp)}` : ''}">
-<link rel="icon" type="image/png" sizes="192x192" href="/static/icones/globe-192.png">
-<link rel="apple-touch-icon" href="/static/icones/globe-apple-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icones/${ic}-192.png">
+<link rel="apple-touch-icon" href="/static/icones/${ic}-apple-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="Overmaxx">
+<meta name="apple-mobile-web-app-title" content="${admin ? 'Overmaxx Admin' : 'Overmaxx'}">
 <title>${echapper(titre)}</title>
 <script type="speculationrules">{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/deconnexion*","/connexion*","/autre-compte*","/fichiers/*","/a/*","/static/*","/api/*"]}}]},"eagerness":"moderate"}]}</script>
 <style>${STYLE}</style>
@@ -587,7 +589,7 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonA
     <main class="espace-contenu">${['profil', 'coach', 'classement'].includes(actif) ? banniereEvenements(evenements) : ''}${contenu}</main>
   </div>
   ${barreBas ? `<nav class="barre-bas" aria-label="Navigation rapide" style="grid-template-columns:repeat(${barreBas.length}, 1fr)">${barreBas.map((n) => `<a href="${echapper(n.lien)}"${(n.actifs || [n.cle]).includes(actif) ? ' class="actif" aria-current="page"' : ''}${n.badge ? ` aria-label="${echapper(n.libelle)} : ${n.badge} nouveau(x)"` : ''}><span class="icone-bb">${ICONES_NAV[n.icone] || ''}${n.badge ? `<span class="compteur-bb">${n.badge > 9 ? '9+' : n.badge}</span>` : ''}</span><span>${echapper(n.libelle)}</span></a>`).join('')}</nav>` : ''}
-</div>`, { script: `${script || ''}${scriptPastille}`, entete: false, brut: true, jetonApp });
+</div>`, { script: `${script || ''}${scriptPastille}`, entete: false, brut: true, jetonApp, admin: Boolean(compte && compte.role === 'Coach') });
 }
 
 function formatPrix(prix, devise) {

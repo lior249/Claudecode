@@ -190,15 +190,18 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const j = verifier(String(req.query.u || ''), config.secretApp);
     res.set('Content-Type', 'application/manifest+json; charset=utf-8');
     res.set('Cache-Control', 'no-cache');
+    // Le coach : une application à part (« Overmaxx Admin », globe sur fond jaune), installable à côté de celle des membres.
+    const admin = Boolean(j && j.but === 'app' && j.id === config.discord.adminId);
+    const ic = admin ? 'globe-admin' : 'globe';
     res.send(JSON.stringify({
-      id: '/app', name: 'Overmaxx', short_name: 'Overmaxx', lang: 'fr', dir: 'ltr',
+      id: admin ? '/app?admin' : '/app', name: admin ? 'Overmaxx Admin' : 'Overmaxx', short_name: admin ? 'Overmaxx Admin' : 'Overmaxx', lang: 'fr', dir: 'ltr',
       description: 'Ton parcours Overmaxx, tes coachings et tes notifications.',
       start_url: j && j.but === 'app' ? `/app?t=${encodeURIComponent(String(req.query.u))}` : '/app',
       scope: '/', display: 'standalone', orientation: 'portrait', background_color: '#000000', theme_color: '#000000',
       icons: [
-        { src: '/static/icones/globe-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: '/static/icones/globe-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: '/static/icones/globe-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        { src: `/static/icones/${ic}-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: `/static/icones/${ic}-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: `/static/icones/${ic}-maskable-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ],
     }));
   });

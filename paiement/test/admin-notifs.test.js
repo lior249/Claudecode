@@ -259,3 +259,18 @@ test('notifications du coach : seulement celles à lire (5 puis « Afficher plus
     assert.doesNotMatch(await (await m.get('/notifications', coach)).text(), /Notif 7/);
   } finally { await m.fermer(); }
 });
+
+test('application du coach : « Overmaxx Admin », globe sur fond jaune, installable à côté de celle des membres', async () => {
+  const m = await monter();
+  try {
+    const coach = { cookie: cookieSession(ADMIN, 'coach') };
+    const page = await (await m.get('/admin/gestion', coach)).text();
+    assert.match(page, /apple-touch-icon" href="\/static\/icones\/globe-admin-apple-180\.png"[\s\S]*apple-mobile-web-app-title" content="Overmaxx Admin"/);
+    const u = /manifest\.webmanifest\?u=([^"]+)"/.exec(page)[1];
+    const man = await (await m.get(`/manifest.webmanifest?u=${u}`)).json();
+    assert.strictEqual(man.name, 'Overmaxx Admin'); assert.strictEqual(man.id, '/app?admin');
+    assert.match(man.icons[0].src, /globe-admin-192/);
+    const membre = await (await m.get('/manifest.webmanifest')).json();
+    assert.strictEqual(membre.name, 'Overmaxx'); assert.strictEqual(membre.id, '/app');
+  } finally { await m.fermer(); }
+});
