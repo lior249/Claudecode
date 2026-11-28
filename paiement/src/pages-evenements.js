@@ -37,10 +37,10 @@ const STYLE_EVT = `<style>
   .ev-participants .av img { width:100%; height:100%; object-fit:cover; } .ev-participants small { font-size:11px; max-width:56px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--doux); }
   dialog.ev-rejoindre { width:min(460px, calc(100vw - 24px)); }
   .ev-hero { position:relative; margin:0 0 10px; padding:16px 16px 22px; border-radius:22px; text-align:center; overflow:hidden;
-    background:radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--halo) 70%, transparent) 0%, color-mix(in srgb, var(--halo) 18%, transparent) 32%, transparent 60%), linear-gradient(180deg, var(--fondu) 0%, var(--fond) 100%); }
+    background:radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--halo) 22%, transparent) 0%, transparent 38%), var(--fond); }
   .ev-hero-compte { margin:0; text-align:left; font-size:14px; font-weight:600; color:#fff; }
-  .ev-hero[data-effet="fondu"] { background:linear-gradient(180deg, var(--halo) 0%, color-mix(in srgb, var(--halo) 40%, var(--fond)) 30%, var(--fond) 70%); }
-  .ev-hero-compte, .ev-hero-et, .ev-hero h1 { position:relative; z-index:1; } .ev-hero-badge .evc-rayons { width:360px; height:360px; margin:-180px 0 0 -180px; }
+  .ev-hero[data-effet="fondu"] { background:linear-gradient(180deg, color-mix(in srgb, var(--halo) 28%, var(--fond)) 0%, var(--fond) 45%); }
+  .ev-hero-compte, .ev-hero-et, .ev-hero h1 { position:relative; z-index:1; } .ev-hero-badge .evc-rayons { width:300px; height:300px; margin:-150px 0 0 -150px; }
   .ev-hero-badge { position:relative; height:150px; display:grid; place-items:center; margin:6px 0 4px; } .ev-hero-badge img, .ev-hero-badge svg { position:relative; }
   .ev-hero-badge img { height:150px; width:auto; max-width:80%; object-fit:contain; filter:drop-shadow(0 10px 24px rgba(0,0,0,.6)); }
   .ev-hero-et { margin:0; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--texte); opacity:.85; }
