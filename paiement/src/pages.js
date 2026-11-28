@@ -419,10 +419,24 @@ const STYLE_ESPACE = `
   .topbar .logo { font-size:17px; }
   .topbar { padding:8px 16px 0; background:transparent; position:static; border:0 !important; backdrop-filter:none !important; }
   /* Bannière des événements (format 16:5) : couleur dominante à gauche sous le texte, image en fondu vers la droite. */
-  .evts { position:relative; margin:0 0 16px; }
-  .evts-piste { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; border-radius:18px; }
+  /* Plusieurs bannières : elles défilent vers le haut, les points à droite. */
+  .evts { position:relative; margin:0 0 16px; display:flex; gap:8px; align-items:center; }
+  .evts-piste { flex:1; min-width:0; display:flex; flex-direction:column; height:clamp(132px, 34vw, 190px); overflow-y:auto; scroll-snap-type:y mandatory; scrollbar-width:none; border-radius:18px; }
   .evts-piste::-webkit-scrollbar { display:none; }
-  .evt { position:relative; flex:0 0 100%; scroll-snap-align:start; aspect-ratio:16 / 5; min-height:104px; overflow:hidden; border-radius:18px; background:var(--c, #1a1a1a); color:#fff; text-decoration:none; }
+  .evt { position:relative; flex:0 0 100%; height:100%; scroll-snap-align:start; overflow:hidden; border-radius:18px; background:var(--c, #1a1a1a); color:#fff; text-decoration:none; }
+  /* Bannière générée d'un challenge : le texte sur le fond, le badge à droite sur un halo diffus. */
+  .evt-gen { display:grid; grid-template-columns:minmax(0, 1.25fr) minmax(0, 1fr); align-items:center;
+    background:radial-gradient(circle at 76% 58%, color-mix(in srgb, var(--halo) 75%, transparent) 0%, color-mix(in srgb, var(--halo) 22%, transparent) 30%, transparent 58%),
+      linear-gradient(90deg, var(--fond) 0%, var(--fond) 40%, var(--fondu) 100%); }
+  .evt-gen .evt-g-texte { position:relative; z-index:1; padding:12px 6px 12px 16px; display:grid; gap:3px; justify-items:start; }
+  .evt-gen small { font-size:10px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--texte); opacity:.85; }
+  .evt-gen b { font-size:clamp(17px, 5.2vw, 28px); line-height:1.05; letter-spacing:-0.03em; color:var(--texte); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .evt-gen .evt-compte { font-size:clamp(11px, 2.9vw, 13px); color:rgba(255,255,255,.78); }
+  .evt-gen .evt-compte strong { color:#fff; }
+  .evt-gen em { font-style:normal; margin-top:6px; padding:6px 14px; border-radius:999px; background:var(--bouton); color:#000; font-size:12px; font-weight:800; }
+  .evt-gen .evt-g-badge { position:relative; height:100%; display:grid; place-items:center; }
+  .evt-gen .evt-g-badge img { width:auto; height:86%; max-width:100%; object-fit:contain; filter:drop-shadow(0 8px 18px rgba(0,0,0,.55)); }
+  .evt-gen .evc-hexa { width:clamp(70px, 20vw, 110px); height:clamp(78px, 22vw, 122px); font-size:clamp(18px, 5vw, 28px); --c:var(--halo); }
   .evt img { position:absolute; top:0; right:0; width:72%; height:100%; object-fit:cover;
     -webkit-mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.6) 25%, #000 55%); mask-image:linear-gradient(to right, transparent 0%, rgba(0,0,0,.6) 25%, #000 55%); }
   .evt.sans-image { background:linear-gradient(110deg, var(--c, #1a1a1a) 0%, color-mix(in srgb, var(--c, #1a1a1a) 55%, #000) 100%); }
@@ -434,8 +448,20 @@ const STYLE_ESPACE = `
   .evt-texte span { font-size:clamp(11px, 3vw, 14px); color:rgba(255,255,255,.82); line-height:1.3; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
   .evt.sans-image .evt-texte span { -webkit-line-clamp:2; }
   .evt-texte em { font-style:normal; align-self:flex-start; margin-top:4px; padding:4px 11px; border-radius:999px; background:rgba(255,255,255,.92); color:#000; font-size:11.5px; font-weight:700; }
-  .evts-points { display:flex; justify-content:center; gap:5px; margin-top:7px; } .evts-points i { width:6px; height:6px; border-radius:50%; background:#3a3a3a; transition:width .2s; }
-  .evts-points i.actif { width:16px; border-radius:3px; background:#fff; }
+  .evts-points { display:flex; flex-direction:column; justify-content:center; gap:5px; flex:none; } .evts-points i { width:6px; height:6px; border-radius:50%; background:#3a3a3a; transition:height .2s; }
+  .evts-points i.actif { height:16px; border-radius:3px; background:#fff; }
+  dialog.evc { width:min(420px, calc(100vw - 24px)); text-align:center; }
+  .evc-badge { width:170px; height:170px; margin:4px auto 10px; display:grid; place-items:center; position:relative; }
+  .evc-badge::before { content:""; position:absolute; inset:-10px; border-radius:50%; background:radial-gradient(circle, color-mix(in srgb, var(--c) 55%, transparent) 0%, transparent 68%); animation:evc-halo 2.4s ease-in-out infinite; }
+  .evc-badge img { position:relative; width:170px; height:170px; object-fit:contain; animation:evc-flotte 3s ease-in-out infinite; filter:drop-shadow(0 10px 24px rgba(0,0,0,.6)); }
+  .evc-hexa { position:relative; width:140px; height:156px; display:grid; place-items:center; font:800 34px/1 var(--police); color:#fff; text-shadow:0 2px 6px rgba(0,0,0,.4);
+    clip-path:polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background:linear-gradient(160deg, color-mix(in srgb, var(--c) 55%, #fff) 0%, var(--c) 45%, color-mix(in srgb, var(--c) 60%, #000) 100%); }
+  .evc-compte { margin:0 0 6px; font-size:13px; font-weight:700; text-align:left; }
+  .evc-etiquette { margin:0; font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--doux); }
+  dialog.evc h2 { margin:6px 0 6px !important; } .evc-objectif { margin:0 0 8px; font-weight:700; } .evc-desc { margin:0; color:#cfcfcf; font-size:14px; white-space:pre-line; max-height:30vh; overflow:auto; text-align:left; }
+  dialog.evc .bouton { margin-top:12px; } dialog.evc .bouton + .bouton { margin-top:8px; }
+  @keyframes evc-flotte { 0%, 100% { transform:translateY(0); } 50% { transform:translateY(-6px); } } @keyframes evc-halo { 0%, 100% { opacity:.6; transform:scale(.95); } 50% { opacity:1; transform:scale(1.05); } }
+  @media (prefers-reduced-motion: reduce) { .evc-badge img, .evc-badge::before { animation:none; } }
   .titre-page { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:14px; }
   .titre-page h1 { margin:0; }
   @media (min-width: 960px) {
@@ -451,20 +477,36 @@ const STYLE_ESPACE = `
 // Les événements en cours (bannière qui défile toute seule s'il y en a plusieurs).
 function banniereEvenements(evts = []) {
   if (!evts.length) return '';
-  const slide = (e) => {
+  const hexa = (e) => `<span class="evc-hexa" style="--c:${echapper(/^#[0-9a-f]{6}$/i.test(e.couleur || '') ? e.couleur : '#1a8cff')}">${echapper(String(e.carte.badgeNom || e.titre).split(/\s+/).map((m) => m[0]).join('').slice(0, 3).toUpperCase())}</span>`;
+  const slide = (e, i) => {
     const balise = e.lien ? 'a' : 'div';
-    const attrs = e.lien ? ` href="${echapper(e.lien)}"${e.lien.startsWith('/') ? '' : ' target="_blank" rel="noopener"'}` : '';
+    const attrs = e.lien ? ` href="${echapper(e.lien)}"${e.lien.startsWith('/') ? '' : ' target="_blank" rel="noopener"'}${e.carte ? ` data-carte="evc-${i}"` : ''}` : '';
+    if (e.carte && e.carte.couleurs) {
+      const c = e.carte.couleurs;
+      return `<${balise} class="evt evt-gen" style="${['texte', 'fond', 'fondu', 'halo', 'bouton'].map((k) => `--${k}:${echapper(c[k])}`).join(';')}"${attrs}>
+      <span class="evt-g-texte"><small>Événement</small><b>${echapper(e.titre)}</b>${e.carte.compte ? `<span class="evt-compte">${echapper(e.carte.compte)}</span>` : ''}<em>Afficher</em></span>
+      <span class="evt-g-badge">${e.carte.badge ? `<img src="/fichiers/images/${echapper(e.carte.badge)}" alt="">` : hexa(e)}</span></${balise}>`;
+    }
     return `<${balise} class="evt${e.image ? '' : ' sans-image'}" style="--c:${echapper(/^#[0-9a-f]{6}$/i.test(e.couleur || '') ? e.couleur : '#1a1a1a')}"${attrs}>
       ${e.image ? `<img src="/fichiers/images/${echapper(e.image)}" alt="">` : ''}
       <span class="evt-texte"><b>${echapper(e.titre)}</b>${e.texte ? `<span>${echapper(e.texte)}</span>` : ''}${e.lien ? '<em>Voir ›</em>' : ''}</span></${balise}>`;
   };
-  return `<section class="evts" aria-label="Événements en cours"><div class="evts-piste">${evts.map(slide).join('')}</div>
+  // La carte du challenge : comme la fenêtre d'un trophée débloqué, le badge à débloquer, puis le texte et « Participer ».
+  const cartes = evts.map((e, i) => (e.carte ? `<dialog class="fenetre evc" id="evc-${i}"><button class="fermer" type="button" aria-label="Fermer" onclick="this.closest('dialog').close()">×</button>
+    <div class="evc-badge" style="--c:${echapper((e.carte.couleurs && e.carte.couleurs.halo) || (/^#[0-9a-f]{6}$/i.test(e.couleur || '') ? e.couleur : '#1a8cff'))}">${e.carte.badge ? `<img src="/fichiers/images/${echapper(e.carte.badge)}" alt="">` : hexa(e)}</div>
+    ${e.carte.compte ? `<p class="evc-compte">${echapper(e.carte.compte)}</p>` : ''}<p class="evc-etiquette">Badge à débloquer · ${echapper(e.carte.badgeNom)}</p>
+    <h2>${echapper(e.titre)}</h2>${e.carte.objectif ? `<p class="evc-objectif">${echapper(e.carte.objectif)}</p>` : ''}
+    <p class="evc-desc">${echapper(e.carte.description || '')}</p>
+    ${e.carte.etat === 'en_cours' || e.carte.etat === 'a_venir' ? `<a class="bouton" href="${echapper(e.carte.participer)}">Participer</a>` : ''}<a class="bouton secondaire" href="${echapper(e.lien)}">Voir le challenge</a></dialog>` : '')).join('');
+  return `${cartes}<section class="evts" aria-label="Événements en cours"><div class="evts-piste">${evts.map(slide).join('')}</div>
+    ${cartes ? `<script>(function () { document.querySelectorAll('[data-carte]').forEach(function (a) { a.addEventListener('click', function (ev) {
+      var d = document.getElementById(a.getAttribute('data-carte')); if (!d || !d.showModal) return; ev.preventDefault(); d.showModal(); }); }); })();</script>` : ''}
     ${evts.length > 1 ? `<div class="evts-points" aria-hidden="true">${evts.map((e, i) => `<i${i ? '' : ' class="actif"'}></i>`).join('')}</div>
     <script>(function () { var c = document.querySelector('.evts-piste'), pts = document.querySelectorAll('.evts-points i'), n = c.children.length, touche = 0;
-      function k() { return Math.round(c.scrollLeft / c.clientWidth); }
+      function k() { return Math.round(c.scrollTop / c.clientHeight); }
       c.addEventListener('scroll', function () { var i = k(); Array.prototype.forEach.call(pts, function (p, j) { p.className = j === i ? 'actif' : ''; }); }, { passive: true });
       ['touchstart', 'pointerdown', 'wheel'].forEach(function (e) { c.addEventListener(e, function () { touche = Date.now(); }, { passive: true }); });
-      setInterval(function () { if (Date.now() - touche < 6000 || document.hidden) return; c.scrollTo({ left: ((k() + 1) % n) * c.clientWidth, behavior: 'smooth' }); }, 4000); })();</script>` : ''}</section>`;
+      setInterval(function () { if (Date.now() - touche < 6000 || document.hidden) return; c.scrollTo({ top: ((k() + 1) % n) * c.clientHeight, behavior: 'smooth' }); }, 4000); })();</script>` : ''}</section>`;
 }
 function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonApp, barreBas, evenements = [], pastilleApp = null, sansHaut = false } = {}) {
   // Nombre sur l'icône de l'application (écran d'accueil) : notifications non lues + nouvelles remarques.

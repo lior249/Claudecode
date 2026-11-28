@@ -140,7 +140,7 @@ function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRa
   const { classementEvenement } = require('./pages-evenements');
   const evts = evenements.length ? `<section class="cl-evts" aria-label="Événements">${evenements.map((e) => `<a class="cl-evt" href="/evenements/${e.id}" style="--c:${echapper(e.couleur || '#1a1a1a')}">
       ${e.banniere ? `<img src="/fichiers/images/${echapper(e.banniere)}" alt="">` : ''}<span class="txt"><b>${echapper(e.titre)}</b>
-      <small>${ETAT_EVT[e.etat] || ''} · du ${dateCourte(e.debut)} au ${dateCourte(e.fin)} · ${e.nb} inscrit${e.nb > 1 ? 's' : ''}</small></span></a>`).join('')}</section>`
+      <small>${ETAT_EVT[e.etat] || ''} · ${e.fin === '9999-12-31' ? `dès le ${dateCourte(e.debut)}, sans date de fin` : `du ${dateCourte(e.debut)} au ${dateCourte(e.fin)}`} · ${e.nb} inscrit${e.nb > 1 ? 's' : ''}</small></span></a>`).join('')}</section>`
     : '<div class="cl-stat evenements" style="margin:0 0 16px"><b>Événements</b><p>Aucun événement pour le moment.</p></div>';
   const vues = evenements.length ? `<nav class="cl-vues" aria-label="Classement"><a href="/classement"${evenementChoisi ? '' : ' aria-current="page"'}>Classement all-time</a>
     <a href="/classement?vue=evenement"${evenementChoisi ? ' aria-current="page"' : ''}>Classement événement</a></nav>` : '';
@@ -149,7 +149,7 @@ function pageClassement(config, { espace, top, totalRevenus, totalMembres, monRa
   <div class="titre-page"><div><p class="etiquette">Overmaxx</p><h1>Classement</h1></div></div>
   ${evts}${vues}
   ${evenements.length > 1 ? `<nav class="cl-vues" aria-label="Événement">${evenements.map((e) => `<a href="/classement?vue=evenement&amp;e=${e.id}"${e.id === evenementChoisi.id ? ' aria-current="page"' : ''}>${echapper(e.titre)}</a>`).join('')}</nav>` : ''}
-  <section class="classement"><h2>${echapper(evenementChoisi.titre)}</h2><p class="doux petit" style="margin:-8px 0 12px">Du ${dateCourte(evenementChoisi.debut)} au ${dateCourte(evenementChoisi.fin)}, tout le monde part de 0.</p>
+  <section class="classement"><h2>${echapper(evenementChoisi.titre)}</h2><p class="doux petit" style="margin:-8px 0 12px">${evenementChoisi.fin === '9999-12-31' ? `Dès le ${dateCourte(evenementChoisi.debut)}, jusqu'à ce que les gagnants atteignent le palier` : `Du ${dateCourte(evenementChoisi.debut)} au ${dateCourte(evenementChoisi.fin)}`}, tout le monde part de 0.</p>
     ${classementEvenement(classements, moiId, evenementChoisi.stats)}</section>`, espace, 'classement');
   }
 

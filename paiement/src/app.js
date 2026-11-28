@@ -146,8 +146,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
       .all(now, new Date(Date.now() - 7 * 864e5).toISOString());
   };
   // Les événements (challenges) à venir ou en cours, dans le défilé en haut des pages : leur bannière ouvre leur page.
+  // Un clic ouvre la carte du challenge (le badge à débloquer, la description, « Participer »).
   const challengesBanniere = () => (typeof evenements === 'undefined' ? [] : evenements.actifs().map((e) => ({ titre: e.titre,
-    texte: e.objectif || `Du ${e.debut.split('-').reverse().join('/')} au ${e.fin.split('-').reverse().join('/')}`, image: e.banniere, couleur: e.couleur, lien: `/evenements/${e.id}` })));
+    texte: e.objectif || (e.fin === evenements.SANS_FIN ? `À partir du ${e.debut.split('-').reverse().join('/')}` : `Du ${e.debut.split('-').reverse().join('/')} au ${e.fin.split('-').reverse().join('/')}`),
+    image: e.banniere, couleur: e.couleur, lien: `/evenements/${e.id}`,
+    carte: { badge: e.badge_or || null, badgeNom: e.badge_nom || e.titre, description: e.description, objectif: e.objectif || evenements.phraseCourse(e), etat: evenements.etat(e),
+      participer: `/evenements/${e.id}?participer=1`, couleurs: e.couleurs, compte: evenements.compteRebours(e).texte } })));
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -282,7 +286,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   function cloturerEvenements() {
     for (const d of evenements.cloturer((e, id) => suivi.entre(id, e.debut, e.fin))) {
       const p = parcours.get(d.discordId);
-      if (p) prevenir('messageEleve', p, `🏅 **Bravo : ${['', '1er', '2e', '3e'][d.rang]} du challenge ${d.evenement.titre}** (${evenements.STATS[d.stat]}) ! Ton badge spécial est dans ta Trophy room.`, '/trophees');
+      if (p) prevenir('messageEleve', p, `🏅 **Bravo : ${['', '1er', '2e', '3e'][d.rang]} du challenge ${d.evenement.titre}** (${evenements.STATS[d.stat]})${evenements.estCourse(d.evenement) ? ' : tu as atteint le palier' : ''} ! Ton badge spécial est dans ta Trophy room.`, '/trophees');
     }
   }
   app.get('/evenements/:id', (req, res) => {
@@ -294,6 +298,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const estCoach = session.id === config.discord.adminId;
     res.send(EV.pageEvenement(config, { espace: espaceDe(session), e, etat: evenements.etat(e), conditions: evenements.conditionsRemplies(e, trophees.obtenus(session.id)),
       inscrit: evenements.estInscrit(e.id, session.id), classements: classementsDe(e), nbInscrits: evenements.inscrits(e.id).length, moi: session.id, estCoach,
+      participants: evenements.inscrits(e.id).map((i) => ({ id: i.discord_id, ...profilCourt(i.discord_id) })), ouvrir: req.query.participer === '1', compte: evenements.compteRebours(e).texte,
       message: { inscrit: 'Inscription enregistrée. Bonne chance !', desinscrit: 'Tu n\'es plus inscrit.' }[req.query.fait] || null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null }));
   });
   app.post('/evenements/:id/inscrire', formulaire, (req, res) => {
@@ -357,9 +362,13 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const b = req.body || {};
     const image = (v) => { const n = String(v || '').split(',')[0].trim(); return n && parcours.cheminImage(n) ? n : null; };
     const conditions = Object.fromEntries(Object.keys(b).filter((k) => k.startsWith('cond_')).map((k) => [k.slice(5), b[k]]));
+    const delais = b.attente_jours !== undefined ? { attenteJours: b.attente_jours, dureeJours: b.duree_jours, indefinie: b.duree_indefinie === '1', heure: b.heure,
+      gagnants: b.gagnants, paliers: Object.fromEntries(Object.keys(evenements.STATS).map((s) => [s, b[`palier_${s}`]])), enLigne: b.action === 'publier',
+      couleurs: { texte: b.c_texte, fond: b.c_fond, fondu: b.c_fondu, halo: b.c_halo, bouton: b.c_bouton } } : {};
     const r = evenements.creer({ titre: b.titre, description: b.description, objectif: b.objectif, banniere: image(b.banniere), affiche: image(b.affiche),
       couleur: b.couleur, debut: b.debut || '', fin: b.fin || '', conditions, stats: [].concat(b.stats || []), reglesPoints: b.regles_points, reglesValidation: b.regles_validation,
-      badgeNom: b.badge_nom, badges: { or: image(b.badge_or), argent: image(b.badge_argent), bronze: image(b.badge_bronze) } });
+      badgeNom: b.badge_nom, badges: { or: image(b.badge_or), argent: image(b.badge_argent), bronze: image(b.badge_bronze) }, ...delais });
+    if (r.brouillonGarde) return res.redirect(303, `/admin/evenements/${r.evenement.id}?erreur=${encodeURIComponent(`Enregistré en brouillon : ${r.erreur}`)}`);
     if (r.erreur) return res.redirect(303, `/admin/evenements/nouveau?erreur=${encodeURIComponent(r.erreur)}`);
     return res.redirect(303, r.evenement.statut === 'brouillon' ? `/admin/evenements?fait=brouillon` : '/admin/evenements?fait=publie');
   });
@@ -367,6 +376,12 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     if (!estAdmin(req, res, '/admin/evenements')) return;
     const r = evenements.publier(req.params.id, String(req.body.debut || ''), String(req.body.fin || ''));
     res.redirect(303, r.erreur ? `/admin/evenements/${encodeURIComponent(req.params.id)}?erreur=${encodeURIComponent(r.erreur)}` : '/admin/evenements?fait=publie');
+  });
+  app.post('/admin/evenements/:id/banniere', formulaire, (req, res) => {
+    if (!estAdmin(req, res, '/admin/evenements')) return;
+    const n = String(req.body.banniere || '').split(',')[0].trim();
+    if (n && parcours.cheminImage(n)) evenements.changerBanniere(req.params.id, n);
+    res.redirect(303, `/evenements/${encodeURIComponent(req.params.id)}`);
   });
   app.post('/admin/evenements/:id/supprimer', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/evenements')) return;
@@ -2198,7 +2213,10 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const session = lireSession(req, config.secretApp);
     const chemin = parcours.cheminImage(req.params.nom);
     if (!session || !chemin) { res.status(404).end(); return; }
-    const deLAnnonce = Boolean(commandes.db.prepare('SELECT 1 FROM annonces WHERE image = ?').get(req.params.nom));
+    const n = req.params.nom;
+    const deLAnnonce = Boolean(commandes.db.prepare('SELECT 1 FROM annonces WHERE image = ?').get(n))
+      // Images des événements (badges, bannière) : visibles par tous les connectés.
+      || Boolean(commandes.db.prepare("SELECT 1 FROM evenements WHERE statut = 'publie' AND ? IN (banniere, affiche, badge_or, badge_argent, badge_bronze)").get(n));
     if (!estLeCoach(session) && !deLAnnonce && !parcours.peutVoirImage(req.params.nom, session.id)
       && !(parcours.get(session.id) && ressources.imagePublique(req.params.nom, session.id))) { res.status(403).end(); return; }
     res.set('Cache-Control', 'private, max-age=86400');

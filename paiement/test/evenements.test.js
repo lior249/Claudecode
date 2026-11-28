@@ -13,20 +13,52 @@ const E2 = '700000000000000062';
 const j = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const base = { titre: 'Overmaxx 1000', description: 'Le premier à $1 000.', stats: ['revenus'], reglesPoints: 'Celui qui génère le plus gagne.' };
 
-test('création : début dans 3 à 15 jours, durée 3 à 30 jours, au moins une stat, au plus 5 à la fois', async () => {
+test('création par délais : attente 1 à 14 jours, durée 1 à 30 jours ou indéfinie, un palier par stat, 1 à 3 gagnants, au plus 5 à la fois', async () => {
   const m = await monter();
   try {
     const ev = creerEvenements({ db: m.db });
-    assert.match(ev.creer({ ...base, debut: j(2), fin: j(10) }).erreur, /au plus tôt dans 3 jours/);
-    assert.match(ev.creer({ ...base, debut: j(16), fin: j(20) }).erreur, /au plus tard dans 15 jours/);
-    assert.match(ev.creer({ ...base, debut: j(3), fin: j(4) }).erreur, /au moins 3 jours/);
-    assert.match(ev.creer({ ...base, debut: j(3), fin: j(33) }).erreur, /au plus 30 jours/);
-    assert.match(ev.creer({ ...base, stats: [], debut: j(3), fin: j(10) }).erreur, /au moins une stat/);
-    assert.match(ev.creer({ ...base, reglesPoints: '', debut: j(3), fin: j(10) }).erreur, /comment on gagne/);
-    for (let k = 0; k < 5; k++) assert.ok(ev.creer({ ...base, debut: j(3), fin: j(32) }).evenement, 'durée de 30 jours acceptée');
-    assert.match(ev.creer({ ...base, debut: j(3), fin: j(10) }).erreur, /déjà 5 événements/);
+    const d = { ...base, attenteJours: 7, dureeJours: 14, paliers: { revenus: 1000 }, gagnants: 1 };
+    assert.match(ev.creer({ ...d, attenteJours: 0 }).erreur, /de 1 à 14 jours/);
+    assert.match(ev.creer({ ...d, attenteJours: 15 }).erreur, /de 1 à 14 jours/);
+    assert.match(ev.creer({ ...d, dureeJours: 31 }).erreur, /de 1 à 30 jours, ou indéfinie/);
+    assert.match(ev.creer({ ...d, paliers: {} }).erreur, /palier à atteindre pour chaque stat/);
+    assert.match(ev.creer({ ...d, stats: [] }).erreur, /au moins une stat/);
+    // Brouillon : pas de date ; mis en ligne : les dates partent d'aujourd'hui.
+    const br = ev.creer({ ...d, reglesPoints: '' }).evenement;
+    assert.strictEqual(br.statut, 'brouillon'); assert.strictEqual(br.debut, '');
+    assert.strictEqual(br.regles_points, 'Le premier à atteindre $1,000 depuis le début du challenge gagne le badge.');
+    const p = ev.publier(br.id).evenement;
+    assert.strictEqual(p.debut, j(7)); assert.strictEqual(p.fin, j(20));
+    assert.strictEqual(ev.etat(p), 'a_venir');
+    const ind = ev.creer({ ...d, indefinie: true, heure: '18:30', enLigne: true }).evenement;
+    assert.strictEqual(ind.fin, ev.SANS_FIN); assert.strictEqual(ind.heure, '18:30'); assert.strictEqual(ind.statut, 'publie');
+    for (let k = 0; k < 3; k++) assert.ok(ev.creer({ ...d, enLigne: true }).evenement);
+    const trop = ev.creer({ ...d, enLigne: true });
+    assert.match(trop.erreur, /déjà 5 événements/); assert.ok(trop.brouillonGarde, 'gardé en brouillon');
     assert.ok(ev.estGlobal({ stats: ['revenus', 'vues', 'abonnes'] }));
-    assert.ok(!ev.estGlobal({ stats: ['revenus'] }));
+  } finally { await m.fermer(); }
+});
+
+test('course : les premiers à atteindre le palier gagnent tout de suite (or, argent) ; fin quand tous les gagnants sont arrivés', async () => {
+  const m = await monter();
+  try {
+    let now = new Date();
+    const ev = creerEvenements({ db: m.db, maintenant: () => now });
+    const e = ev.creer({ ...base, attenteJours: 1, indefinie: true, paliers: { revenus: 100 }, gagnants: 2, enLigne: true }).evenement;
+    for (const id of [E1, E2, '700000000000000063']) m.db.prepare('INSERT INTO inscriptions_evenement (evenement_id, discord_id, inscrit_le) VALUES (?, ?, ?)').run(e.id, id, now.toISOString());
+    const vals = { [E1]: 50, [E2]: 0, '700000000000000063': 0 };
+    const valeurDe = (x, id) => ({ revenus: vals[id] });
+    assert.deepStrictEqual(ev.cloturer(valeurDe), [], 'pas encore commencé');
+    now = new Date(Date.now() + 2 * 864e5);
+    assert.deepStrictEqual(ev.cloturer(valeurDe), []);
+    vals[E2] = 120;
+    assert.deepStrictEqual(ev.cloturer(valeurDe).map((x) => [x.discordId, x.rang]), [[E2, 1]], 'E2 arrive premier : or tout de suite');
+    assert.strictEqual(ev.etat(ev.un(e.id)), 'en_cours');
+    now = new Date(now.getTime() + 60000);
+    vals[E1] = 300; vals['700000000000000063'] = 150;
+    assert.deepStrictEqual(ev.cloturer(valeurDe).map((x) => [x.discordId, x.rang]), [[E1, 2]], 'arrivés ensemble : le plus haut prend l\'argent');
+    assert.strictEqual(ev.etat(ev.un(e.id)), 'termine', '2 gagnants : la course est finie');
+    assert.deepStrictEqual(ev.cloturer(valeurDe), []);
   } finally { await m.fermer(); }
 });
 
@@ -104,9 +136,9 @@ test('coach : bouton « Créer un événement », brouillon sans dates, publicat
     assert.match(liste0, /href="\/admin\/evenements\/nouveau"[^>]*>\+ Créer un événement/);
     assert.doesNotMatch(liste0, /name="titre"/, 'le formulaire n\'est pas ouvert d\'office');
     const form = await (await m.get('/admin/evenements/nouveau', coach)).text();
-    assert.match(form, /1\. L.{1,6}événement[\s\S]*2\. Les règles[\s\S]*Ce qui est suivi[\s\S]*Conditions de participation[\s\S]*name="cond_banger"[\s\S]*3\. La récompense[\s\S]*Enregistrer en brouillon/);
+    assert.match(form, /1\. L.{1,6}événement[\s\S]*2\. Les délais[\s\S]*name="attente_jours"[\s\S]*name="duree_indefinie"[\s\S]*3\. La course[\s\S]*name="palier_revenus"[\s\S]*name="gagnants"[\s\S]*Conditions de participation[\s\S]*name="cond_banger"[\s\S]*4\. La récompense[\s\S]*value="brouillon"[^>]*>Mettre en brouillon[\s\S]*value="publier"[^>]*>Mettre en ligne/);
     for (let k = 1; k <= 4; k++) {
-      const r = await m.poster('/admin/evenements', { titre: `Défi ${k}`, description: 'x', stats: ['vues'], regles_points: 'Le plus de vues.' }, coach);
+      const r = await m.poster('/admin/evenements', { titre: `Défi ${k}`, description: 'x', stats: ['vues'], palier_vues: '100000', attente_jours: '5', duree_jours: '10', gagnants: '1', action: 'brouillon' }, coach);
       assert.strictEqual(r.headers.get('location'), '/admin/evenements?fait=brouillon');
     }
     const e = m.db.prepare("SELECT * FROM evenements WHERE titre = 'Défi 1'").get();
@@ -118,10 +150,14 @@ test('coach : bouton « Créer un événement », brouillon sans dates, publicat
     // Le brouillon n'est visible par personne d'autre (pas de bannière), puis publié avec les dates.
     assert.doesNotMatch(await (await m.get('/classement', coach)).text(), /Défi 1/);
     const page = await (await m.get(`/admin/evenements/${e.id}`, coach)).text();
-    assert.match(page, /Brouillon[\s\S]*Pour gagner[\s\S]*Publier l.{1,6}événement[\s\S]*Supprimer le brouillon/);
-    assert.match((await m.poster(`/admin/evenements/${e.id}/publier`, { debut: j(1), fin: j(5) }, coach)).headers.get('location'), /erreur=/);
-    assert.strictEqual((await m.poster(`/admin/evenements/${e.id}/publier`, { debut: j(4), fin: j(10) }, coach)).headers.get('location'), '/admin/evenements?fait=publie');
-    assert.strictEqual(m.db.prepare('SELECT statut FROM evenements WHERE id = ?').get(e.id).statut, 'publie');
+    assert.match(page, /Brouillon[\s\S]*Pour gagner[\s\S]*commencera 5 jour\(s\) après la mise en ligne[\s\S]*Mettre en ligne[\s\S]*Supprimer le brouillon/);
+    assert.strictEqual((await m.poster(`/admin/evenements/${e.id}/publier`, {}, coach)).headers.get('location'), '/admin/evenements?fait=publie');
+    const pub = m.db.prepare('SELECT * FROM evenements WHERE id = ?').get(e.id);
+    assert.strictEqual(pub.statut, 'publie'); assert.strictEqual(pub.debut, j(5)); assert.strictEqual(pub.fin, j(14));
+    // La carte du challenge (bannière) : le badge à débloquer, la description, « Participer ».
+    const cl = await (await m.get('/classement', coach)).text();
+    assert.match(cl, /<dialog class="fenetre evc"[\s\S]*Badge à débloquer[\s\S]*Défi 1[\s\S]*href="\/evenements\/\d+\?participer=1"[^>]*>Participer/);
+    assert.match(cl, /data-carte="evc-0"/);
     assert.match(await (await m.get('/classement', coach)).text(), /Défi 1/);
     await m.poster('/admin/evenements/2/supprimer', {}, coach);
     assert.strictEqual(m.db.prepare('SELECT COUNT(*) n FROM evenements').get().n, 3);
