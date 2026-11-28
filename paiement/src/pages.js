@@ -451,6 +451,25 @@ const STYLE_ESPACE = `
   .evts-points { display:flex; flex-direction:column; justify-content:center; gap:5px; flex:none; } .evts-points i { width:6px; height:6px; border-radius:50%; background:#3a3a3a; transition:height .2s; }
   .evts-points i.actif { height:16px; border-radius:3px; background:#fff; }
   dialog.evc { width:min(420px, calc(100vw - 24px)); text-align:center; overflow-x:hidden; }
+  /* La scène d'un challenge (carte et page) : fond uni, grands faisceaux doux de la couleur d'accent qui partent de derrière le badge,
+     badge moyen, grand titre ; le compte à rebours en haut à gauche ; le texte dans un panneau en dessous. */
+  .ev-scene { position:relative; overflow:hidden; text-align:center; padding:16px 18px 22px; background:var(--fond, #000); isolation:isolate; }
+  .ev-scene-rayons { position:absolute; left:50%; top:46%; width:1000px; height:1000px; margin:-500px 0 0 -500px; z-index:-1; pointer-events:none;
+    background:conic-gradient(from 0deg, transparent 0deg 12deg, color-mix(in srgb, var(--c) 60%, transparent) 40deg, transparent 72deg 98deg, color-mix(in srgb, var(--c) 32%, transparent) 118deg, transparent 140deg 220deg,
+      color-mix(in srgb, var(--c) 32%, transparent) 242deg, transparent 262deg 288deg, color-mix(in srgb, var(--c) 60%, transparent) 320deg, transparent 348deg);
+    filter:blur(18px); -webkit-mask-image:radial-gradient(circle, #000 0%, #000 14%, rgba(0,0,0,.55) 26%, transparent 44%); mask-image:radial-gradient(circle, #000 0%, #000 14%, rgba(0,0,0,.55) 26%, transparent 44%); }
+  .ev-scene::after { content:""; position:absolute; inset:auto 0 0 0; height:45%; z-index:-1; background:linear-gradient(to bottom, transparent, var(--fond, #000)); }
+  .ev-scene-compte { margin:0; text-align:left; font-size:13.5px; color:#fff; } .ev-scene-compte b { font-size:17px; }
+  .ev-scene-badge { height:118px; margin:16px 0 8px; display:grid; place-items:center; }
+  .ev-scene-badge img, .ev-scene-badge svg { height:118px; width:auto; max-width:60%; object-fit:contain; filter:drop-shadow(0 8px 20px rgba(0,0,0,.55)); }
+  .ev-scene-badge .evc-hexa { width:104px; height:116px; font-size:30px; --c:var(--c); }
+  .ev-scene-titre { margin:0 !important; font-size:clamp(34px, 10vw, 50px) !important; font-weight:800; letter-spacing:-0.03em; line-height:1.05; color:var(--texte, #fff); }
+  .ev-scene-panneau { margin:0 14px 14px; padding:14px 16px; border-radius:16px; text-align:left;
+    border:1px solid color-mix(in srgb, var(--c) 30%, #2a2a2a); background:color-mix(in srgb, var(--c) 7%, #0e0e0e); }
+  .ev-scene-panneau h3 { margin:0 0 8px; font-size:17px; } .ev-scene-panneau p { margin:0 0 6px; color:#d6d6d6; font-size:14px; white-space:pre-line; }
+  dialog.evc.ev-scene-dlg { padding:0; background:var(--fond, #000); }
+  dialog.evc.ev-scene-dlg .fermer { z-index:3; }
+  dialog.evc.ev-scene-dlg .bouton { margin:10px 0 0; } dialog.evc.ev-scene-dlg .etiq { margin:0 0 6px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--doux); }
   /* Effets derrière le badge : rayons de lumière qui tournent (halo), ou l'accent qui descend du haut (fondu). */
   .evc-rayons { position:absolute; left:50%; top:50%; width:480px; height:480px; margin:-240px 0 0 -240px; pointer-events:none; border-radius:50%;
     background:repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--c) 45%, transparent) 0deg, transparent 12deg, color-mix(in srgb, var(--c) 45%, transparent) 24deg);
@@ -504,12 +523,16 @@ function banniereEvenements(evts = []) {
   };
   // La carte du challenge : comme la fenêtre d'un trophée débloqué, le badge à débloquer, puis le texte et « Participer ».
   const accent = (e) => echapper((e.carte.couleurs && e.carte.couleurs.halo) || (/^#[0-9a-f]{6}$/i.test(e.couleur || '') ? e.couleur : '#1a8cff'));
-  const cartes = evts.map((e, i) => (e.carte ? `<dialog class="fenetre evc" id="evc-${i}" data-effet="${(e.carte.couleurs && e.carte.couleurs.effet) === 'fondu' ? 'fondu' : 'halo'}" style="--c:${accent(e)};--fond:${echapper((e.carte.couleurs && e.carte.couleurs.fond) || '#0d0d0d')}"><button class="fermer" type="button" aria-label="Fermer" onclick="this.closest('dialog').close()">×</button>
-    <div class="evc-badge"><span class="evc-rayons" aria-hidden="true"></span>${e.carte.badge ? `<img src="/fichiers/images/${echapper(e.carte.badge)}" alt="">` : hexa(e)}</div>
-    ${e.carte.compte ? `<p class="evc-compte">${echapper(e.carte.compte)}</p>` : ''}<p class="evc-etiquette">Badge à débloquer · ${echapper(e.carte.badgeNom)}</p>
-    <h2>${echapper(e.titre)}</h2>${e.carte.objectif ? `<p class="evc-objectif">${echapper(e.carte.objectif)}</p>` : ''}
-    <p class="evc-desc">${echapper(e.carte.description || '')}</p>
-    ${e.carte.etat === 'en_cours' || e.carte.etat === 'a_venir' ? `<a class="bouton" href="${echapper(e.carte.participer)}">Participer</a>` : ''}<a class="bouton secondaire" href="${echapper(e.lien)}">Voir le challenge</a></dialog>` : '')).join('');
+  const compteHtml = (t) => echapper(t || '').replace(/(\d+)/, '<b>$1</b>');
+  const cartes = evts.map((e, i) => (e.carte ? `<dialog class="fenetre evc ev-scene-dlg" id="evc-${i}" style="--c:${accent(e)};--fond:${echapper((e.carte.couleurs && e.carte.couleurs.fond) || '#000000')};--texte:${echapper((e.carte.couleurs && e.carte.couleurs.texte) || '#ffffff')}">
+    <button class="fermer" type="button" aria-label="Fermer" onclick="this.closest('dialog').close()">×</button>
+    <div class="ev-scene"><span class="ev-scene-rayons" aria-hidden="true"></span>
+      <p class="ev-scene-compte">${e.carte.compte ? compteHtml(e.carte.compte) : '&nbsp;'}</p>
+      <div class="ev-scene-badge">${e.carte.badge ? `<img src="/fichiers/images/${echapper(e.carte.badge)}" alt="">` : hexa(e)}</div>
+      <h2 class="ev-scene-titre">${echapper(e.titre)}</h2></div>
+    <div class="ev-scene-panneau"><p class="etiq">Badge à débloquer · ${echapper(e.carte.badgeNom)}</p>
+      ${e.carte.objectif ? `<h3>${echapper(e.carte.objectif)}</h3>` : ''}<p>${echapper(e.carte.description || '')}</p>
+      ${e.carte.etat === 'en_cours' || e.carte.etat === 'a_venir' ? `<a class="bouton" href="${echapper(e.carte.participer)}">Participer</a>` : ''}<a class="bouton secondaire" href="${echapper(e.lien)}">Voir le challenge</a></div></dialog>` : '')).join('');
   return `${cartes}<section class="evts" aria-label="Événements en cours"><div class="evts-piste">${evts.map(slide).join('')}</div>
     ${cartes ? `<script>(function () { document.querySelectorAll('[data-carte]').forEach(function (a) { a.addEventListener('click', function (ev) {
       var d = document.getElementById(a.getAttribute('data-carte')); if (!d || !d.showModal) return; ev.preventDefault(); d.showModal(); }); }); })();</script>` : ''}

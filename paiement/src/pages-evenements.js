@@ -36,15 +36,7 @@ const STYLE_EVT = `<style>
   .ev-participants .av { width:44px; height:44px; border-radius:50%; background:#2a2a2a; overflow:hidden; display:grid; place-items:center; font-weight:800; }
   .ev-participants .av img { width:100%; height:100%; object-fit:cover; } .ev-participants small { font-size:11px; max-width:56px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--doux); }
   dialog.ev-rejoindre { width:min(460px, calc(100vw - 24px)); }
-  .ev-hero { position:relative; margin:0 0 10px; padding:16px 16px 22px; border-radius:22px; text-align:center; overflow:hidden;
-    background:radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--halo) 22%, transparent) 0%, transparent 38%), var(--fond); }
-  .ev-hero-compte { margin:0; text-align:left; font-size:14px; font-weight:600; color:#fff; }
-  .ev-hero[data-effet="fondu"] { background:linear-gradient(180deg, color-mix(in srgb, var(--halo) 28%, var(--fond)) 0%, var(--fond) 45%); }
-  .ev-hero-compte, .ev-hero-et, .ev-hero h1 { position:relative; z-index:1; } .ev-hero-badge .evc-rayons { width:440px; height:440px; margin:-220px 0 0 -220px; }
-  .ev-hero-badge { position:relative; height:150px; display:grid; place-items:center; margin:6px 0 4px; } .ev-hero-badge img, .ev-hero-badge svg { position:relative; }
-  .ev-hero-badge img { height:150px; width:auto; max-width:80%; object-fit:contain; filter:drop-shadow(0 10px 24px rgba(0,0,0,.6)); }
-  .ev-hero-et { margin:0; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--texte); opacity:.85; }
-  .ev-hero h1 { margin:2px 0 0; font-size:clamp(28px, 8vw, 42px); letter-spacing:-0.03em; line-height:1.05; color:var(--texte); } dialog.ev-rejoindre .assistant { display:grid; gap:12px; }
+  .ev-hero { margin:0 0 10px; border-radius:22px; }
 </style>`;
 
 // Classement d'un événement : une liste par stat suivie (podium : or, argent, bronze).
@@ -65,11 +57,11 @@ function classementEvenement(classements = {}, moi = null, stats = ['revenus'], 
 function enTete(e, compte) {
   const c = { ...COULEURS, ...(e.couleurs || {}) };
   const et = e.badge_or || e.badge_argent || e.badge_bronze;
-  const badge = et ? `<img src="/fichiers/images/${echapper(et)}" alt="">` : pieceBadge({ metal: 'or', titre: e.badge_nom || e.titre }, { taille: 120 });
-  return `<section class="ev-hero" data-effet="${c.effet === 'fondu' ? 'fondu' : 'halo'}" style="${Object.keys(COULEURS).filter((k) => k !== 'effet').map((k) => `--${k}:${echapper(c[k])}`).join(';')};--c:${echapper(c.halo)}">
-    ${compte ? `<p class="ev-hero-compte">${echapper(compte)}</p>` : ''}
-    <div class="ev-hero-badge"><span class="evc-rayons" aria-hidden="true"></span>${badge}</div>
-    <p class="ev-hero-et">Événement</p><h1>${echapper(e.titre)}</h1></section>`;
+  const badge = et ? `<img src="/fichiers/images/${echapper(et)}" alt="">` : pieceBadge({ metal: 'or', titre: e.badge_nom || e.titre }, { taille: 110 });
+  return `<section class="ev-scene ev-hero" style="--c:${echapper(c.halo)};--fond:${echapper(c.fond)};--texte:${echapper(c.texte)}"><span class="ev-scene-rayons" aria-hidden="true"></span>
+    <p class="ev-scene-compte">${compte ? echapper(compte).replace(/(\d+)/, '<b>$1</b>') : '&nbsp;'}</p>
+    <div class="ev-scene-badge">${badge}</div>
+    <h1 class="ev-scene-titre">${echapper(e.titre)}</h1></section>`;
 }
 function pageEvenement(config, { espace, e, etat, conditions = [], inscrit = false, classements = {}, nbInscrits = 0, participants = [], moi = null, estCoach = false, ouvrir = false, compte = '', message, erreur }) {
   const [classeEtat, libelleEtat] = ETATS[etat] || ETATS.a_venir;
@@ -178,9 +170,7 @@ function pageNouvelEvenement(config, { espace, erreur }) {
     <div class="champ"><label>Bannière (facultative : tu pourras l'ajouter après)</label><div data-images="/admin/images" data-une><label class="fichier">${ICONE.plus}<span><b>Ajouter une bannière</b><br>Format large, ex. 1200 × 400. Sans bannière : la couleur du challenge.</span><input type="file" accept="image/*" hidden></label>
       <input type="hidden" name="banniere" value=""><div class="apercus" style="margin-top:8px"></div></div></div>
     <div class="champ"><label>Couleurs de la bannière (générée avec le badge)</label>
-      <div class="ev-couleurs">${[['texte', 'Texte'], ['fond', 'Fond'], ['fondu', 'Fondu'], ['halo', 'Halo du badge'], ['bouton', 'Bouton']].map(([k, l]) => `<label><input type="color" name="c_${k}" value="${COULEURS[k]}">${l}</label>`).join('')}</div>
-      <div class="champ" style="margin-top:8px"><label for="ev-effet">Effet derrière le badge (carte et page du challenge)</label><select id="ev-effet" name="effet">${Object.entries(EFFETS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
-        <small>Avec la couleur « Halo du badge » comme couleur d'accent.</small></div>
+      <div class="ev-couleurs">${[['texte', 'Texte'], ['fond', 'Fond'], ['fondu', 'Fondu'], ['halo', 'Accent'], ['bouton', 'Bouton']].map(([k, l]) => `<label><input type="color" name="c_${k}" value="${COULEURS[k]}">${l}</label>`).join('')}</div>
       <div class="ev-apercu" aria-label="Aperçu de la bannière"></div>
       <small>L'aperçu se met à jour avec le nom, les couleurs et le badge or (partie 4).</small></div>
     <div class="ev-section"><h3>2. Les délais</h3><p class="doux petit" style="margin:0">Des nombres de jours, pas des dates : elles se calculent au moment de la mise en ligne.</p></div>

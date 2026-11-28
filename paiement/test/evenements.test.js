@@ -156,7 +156,7 @@ test('coach : bouton « Créer un événement », brouillon sans dates, publicat
     assert.strictEqual(pub.statut, 'publie'); assert.strictEqual(pub.debut, j(5)); assert.strictEqual(pub.fin, j(14));
     // La carte du challenge (bannière) : le badge à débloquer, la description, « Participer ».
     const cl = await (await m.get('/classement', coach)).text();
-    assert.match(cl, /<dialog class="fenetre evc"[\s\S]*Badge à débloquer[\s\S]*Défi 1[\s\S]*href="\/evenements\/\d+\?participer=1"[^>]*>Participer/);
+    assert.match(cl, /<dialog class="fenetre evc ev-scene-dlg"[\s\S]*class="ev-scene-rayons"[\s\S]*Défi 1[\s\S]*Badge à débloquer[\s\S]*href="\/evenements\/\d+\?participer=1"[^>]*>Participer/);
     assert.match(cl, /data-carte="evc-0"/);
     assert.match(await (await m.get('/classement', coach)).text(), /Défi 1/);
     await m.poster('/admin/evenements/2/supprimer', {}, coach);
