@@ -542,3 +542,21 @@ test('connexion par code (application installée) et appareil reconnu : « Me re
     assert.strictEqual((await m.poster('/connexion/code', { demande: b.demande, code: b.code })).status, 410);
   } finally { await m.fermer(); }
 });
+
+test('pages de présentation publiques : vidéo puis « Rejoindre » (bloqué jusqu\'à la fin de la vidéo) ; Community : mobile money ou carte, déjà membre', async () => {
+  const { monter: monter2, cookieSession: cs } = require('./aide');
+  const m = await monter2({ connecte: false });
+  try {
+    m.config.offres.community.wistiaVsl = 'abc123'; m.config.offres.community.lienCarte = 'https://whop.com/overmaxx/community/';
+    const p = await m.get('/rejoindre/community');
+    assert.strictEqual(p.status, 200, 'sans connexion');
+    const t = await p.text();
+    assert.match(t, /Overmaxx Community[\s\S]*wistia\.net\/embed\/iframe\/abc123[\s\S]*Génère 1 500 € par mois[\s\S]*Notre formation privée[\s\S]*href="\/community"[^>]*aria-disabled="true"[^>]*>Rejoindre[\s\S]*Regarde la vidéo jusqu'au bout/);
+    const e = await (await m.get('/rejoindre/elite')).text();
+    assert.match(e, /Overmaxx Elite[\s\S]*3 à 5 lives individuels[\s\S]*href="\/coaching\/elite"[^>]*>Rejoindre/);
+    const pay = await (await m.get('/community', { cookie: cs('700000000000000077', 'nouveau') })).text();
+    assert.match(pay, /Payer par mobile money[\s\S]*SasPay[\s\S]*href="https:\/\/whop\.com\/overmaxx\/community\/"[^>]*>Payer par carte/);
+    m.parcours.assurer('700000000000000078', { pseudo: 'eleve' });
+    assert.match(await (await m.get('/community', { cookie: cs('700000000000000078', 'eleve') })).text(), /Tu es déjà membre/);
+  } finally { await m.fermer(); }
+});

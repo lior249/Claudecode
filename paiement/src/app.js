@@ -377,6 +377,18 @@ Pour participer, il te faut : ${manque}. Obtiens-les avant la fin des inscriptio
     else commandes.db.prepare("DELETE FROM reglages WHERE cle = 'lien_call'").run();
     return res.redirect(303, '/admin/gestion?fait=call');
   });
+  // Le message des offres sur le serveur gratuit : Bob le publie (ou le met à jour) dans le salon choisi.
+  app.post('/admin/discord/offres', formulaire, async (req, res) => {
+    if (!estAdmin(req, res, '/admin/gestion')) return;
+    const t = String(req.body.salon_offres || '').trim();
+    const m = /discord(?:app)?\.com\/channels\/\d+\/(\d{15,22})/.exec(t) || /^(\d{15,22})$/.exec(t);
+    if (!m) return res.redirect(303, `/admin/gestion?erreur=${encodeURIComponent('Colle le lien Discord du salon (https://discord.com/channels/…/…).')}`);
+    commandes.db.prepare('INSERT INTO reglages (cle, valeur, maj_le) VALUES (?, ?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, maj_le = excluded.maj_le').run('salon_offres', m[1], new Date().toISOString());
+    if (!bob || !bob.publierOffres) return res.redirect(303, `/admin/gestion?erreur=${encodeURIComponent('Bob est indisponible : réessaie dans un instant.')}`);
+    const r = await bob.publierOffres(m[1]);
+    if (r.erreur) return res.redirect(303, `/admin/gestion?erreur=${encodeURIComponent(r.erreur)}`);
+    return res.redirect(303, `/admin/gestion?fait=${r.misAJour ? 'offres-maj' : 'offres'}`);
+  });
   app.post('/admin/discord/salons', formulaire, (req, res) => {
     if (!estAdmin(req, res, '/admin/gestion')) return;
     const idDe = (v) => { const t = String(v || '').trim(); if (!t) return ''; const m = /discord(?:app)?\.com\/channels\/\d+\/(\d{15,22})/.exec(t) || /^(\d{15,22})$/.exec(t); return m ? m[1] : null; };
@@ -660,8 +672,18 @@ Pour participer, il te faut : ${manque}. Obtiens-les avant la fin des inscriptio
     const session = lireSession(req, config.secretApp);
     res.send(P.pageBienvenue(config, session ? { pseudo: session.pseudo || 'toi', espace: accueilDe(session) } : { appareil: reconnexion(req) }));
   });
+  // Pages de présentation (publiques) : la vidéo, puis « Rejoindre » (connexion Discord, puis paiement ou candidature).
+  app.get('/rejoindre/community', (req, res) => res.send(P.pagePresentation(config, 'community')));
+  app.get('/rejoindre/elite', (req, res) => res.send(P.pagePresentation(config, 'elite')));
   app.get('/community', (req, res) => {
-    if (connecte(req, res, '/community', community.nom)) res.send(P.pageAccueil(config, community));
+    const session = connecte(req, res, '/community', community.nom);
+    if (!session) return;
+    // Déjà membre (Community active, Elite, accompagnement) : pas de nouveau paiement, son espace.
+    const ici = espaceDe_(session);
+    if (ici && !ici.endsWith('/candidature')) {
+      return res.send(P.pageMessage(config, 'Tu es déjà membre', 'Ton accès Overmaxx est déjà actif : pas besoin de payer à nouveau.', { lien: ici, texteLien: 'Mon espace' }));
+    }
+    res.send(P.pageAccueil(config, community));
   });
   app.get('/community/paiement', (req, res) => {
     if (connecte(req, res, '/community/paiement', community.nom)) res.send(P.pageFormulaire(config, { offre: community, type: 'inscription', retour: '/community' }));
@@ -1756,7 +1778,9 @@ Pour participer, il te faut : ${manque}. Obtiens-les avant la fin des inscriptio
       invitationBob: config.discord.clientId ? `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(config.discord.clientId)}&scope=bot&permissions=268436481` : null };
     res.send(PF.pageGestion(config, { espace: espaceDe(lireSession(req, config.secretApp)), serveurGratuit,
       lienCall: (commandes.db.prepare("SELECT valeur FROM reglages WHERE cle = 'lien_call'").get() || {}).valeur || config.discord.salonCoaching || '',
-      message: { salons: 'Salons du serveur gratuit enregistrés : Bob y publie les prochains résultats.', call: 'Lien du call enregistré.' }[req.query.fait] || null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null, nbEleves: parcours.tous().length, evenements: evenementsEnCours().length,
+      salonOffres: (commandes.db.prepare("SELECT valeur FROM reglages WHERE cle = 'salon_offres'").get() || {}).valeur || '',
+      message: { salons: 'Salons du serveur gratuit enregistrés : Bob y publie les prochains résultats.', call: 'Lien du call enregistré.',
+        offres: 'Message des offres publié par Bob.', 'offres-maj': 'Message des offres mis à jour par Bob.' }[req.query.fait] || null, erreur: req.query.erreur ? String(req.query.erreur).slice(0, 200) : null, nbEleves: parcours.tous().length, evenements: evenementsEnCours().length,
       ressources: commandes.db.prepare("SELECT COUNT(*) n FROM ressources WHERE etat = 'public'").get().n, aValider: ressources.enAttente().length }));
   });
   // Profil du coach.

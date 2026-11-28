@@ -49,6 +49,8 @@ function chargerConfig({ strict = true } = {}) {
         whopPlanId: lire('WHOP_COMMUNITY_PLAN_ID', lire('WHOP_PLAN_ID')),
         roleDiscord: lire('DISCORD_ROLE_COMMUNITY'),
         wistiaGuide: lire('WISTIA_GUIDE_COMMUNITY', lire('WISTIA_MEDIA_ID', '')),
+        wistiaVsl: lire('WISTIA_VSL_COMMUNITY', ''), // vidéo de présentation (page « Rejoins Overmaxx Community »)
+        lienCarte: lire('LIEN_CARTE_COMMUNITY', ''), // paiement par carte : le produit Whop de la Community
         graceJours: Number(lire('ATTENTE_COMMUNITY_JOURS', '15')), // jours en « Attente » avant le retrait du serveur
         base: '/community',
       },

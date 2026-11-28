@@ -940,3 +940,21 @@ test('coaching à valider : Bob envoie Valider / Invalider ; Invalider → les 3
     assert.match(maj.pop().content, /\*\*Validé\.\*\*/);
   } finally { await m.fermer(); }
 });
+
+test('message des offres (serveur gratuit) : « Rejoins Overmaxx », Communauté privée et accompagnement, boutons vers les pages de présentation ; publié puis mis à jour sur place', async () => {
+  const m = await monter();
+  try {
+    const b = await monterBob(m, '2026-11-28T10:00:00.000Z');
+    const json = b.bob.messageOffres().components[0].toJSON();
+    const tout = JSON.stringify(json);
+    assert.strictEqual(json.accent_color, 0x4f46ff);
+    assert.match(tout, /# Rejoins Overmaxx[\s\S]*Génère 1 500 € par mois avec TikTok en 45 jours[\s\S]*Communauté privée[\s\S]*10 000 abonnés[\s\S]*Accompagnement one-on-one[\s\S]*3 à 5 lives individuels/);
+    assert.match(tout, /Voir si c'est fait pour moi[\s\S]*\/rejoindre\/community[\s\S]*Voir si c'est fait pour moi[\s\S]*\/rejoindre\/elite/);
+    const envois = []; const edits = [];
+    const salon = { id: '900000000000000001', send: async (x) => { envois.push(x); return { id: 'M1' }; }, messages: { fetch: async (id) => (id === 'M1' ? { edit: async (x) => edits.push(x) } : null) } };
+    b.d.client.channels = { fetch: async () => salon };
+    assert.deepStrictEqual(await b.bob.publierOffres(salon.id), { ok: true });
+    assert.deepStrictEqual(await b.bob.publierOffres(salon.id), { ok: true, misAJour: true });
+    assert.strictEqual(envois.length, 1); assert.strictEqual(edits.length, 1, 'mis à jour sur place, pas reposté');
+  } finally { await m.fermer(); }
+});

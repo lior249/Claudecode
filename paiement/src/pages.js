@@ -617,6 +617,44 @@ function blocVideo(wistiaId, titre) {
     <span>${echapper(titre)}</span><small>Vidéo bientôt disponible</small></div></div>`;
 }
 
+// Page de présentation d'une offre (publique, sans connexion) : la vidéo, puis l'objectif et les avantages ;
+// « Rejoindre » ne se débloque qu'une fois la vidéo regardée jusqu'au bout (retenu sur cet appareil).
+function pagePresentation(config, cle) {
+  const { OBJECTIF, OFFRES } = require('./offres-presentation');
+  const o = OFFRES[cle]; const offre = config.offres[cle];
+  const vsl = offre.wistiaVsl || '';
+  const video = vsl
+    ? `<div class="video"><iframe class="wistia_embed" name="wistia_embed" src="https://fast.wistia.net/embed/iframe/${echapper(vsl)}?videoFoam=true&playerColor=4f46ff"
+        title="${echapper(o.nomProduit)}" allow="autoplay; fullscreen" allowfullscreen></iframe></div>` : blocVideo('', `Présentation ${o.nomProduit}`);
+  return gabarit(o.nomProduit, `<style>
+  .pr-tete { text-align:center; margin:0 0 14px; } .pr-tete .etiquette { color:#8f8aff; } .pr-tete h1 { margin:4px 0 6px; font-size:clamp(28px, 8vw, 40px); letter-spacing:-0.03em; }
+  .pr-objectif { margin:14px 0; padding:12px 14px; border-radius:14px; background:#0d0c2a; border:1px solid #2b2780; } .pr-objectif b { color:#fff; }
+  .pr-liste { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:8px; } .pr-liste li { display:flex; gap:10px; align-items:flex-start; }
+  .pr-liste .em { width:24px; flex:none; text-align:center; } .pr-liste b { color:#fff; }
+  .pr-rejoindre[aria-disabled="true"] { opacity:.45; pointer-events:none; filter:grayscale(.6); }
+  .pr-rejoindre { background:#4f46ff; border-color:#4f46ff; color:#fff; }
+  .pr-verrou { text-align:center; margin:8px 0 0; }
+</style>
+  <div class="pr-tete"><p class="etiquette">${echapper(o.titre)}</p><h1>${echapper(o.nomProduit)}</h1><p class="doux" style="margin:0">${echapper(o.phrase)}</p></div>
+  ${video}
+  <p class="pr-objectif">🎯 <b>Objectif :</b> ${echapper(OBJECTIF)}</p>
+  <div class="carte"><h2>${o.emoji} Ce que tu obtiens</h2>
+    <ul class="pr-liste">${o.avantages.map(([e, gras, suite]) => `<li><span class="em">${e}</span><span><b>${echapper(gras)}</b> ${echapper(suite)}</span></li>`).join('')}</ul></div>
+  <a class="bouton pr-rejoindre" href="${o.suite}" data-offre="${cle}"${vsl ? ' aria-disabled="true" tabindex="-1"' : ''}>Rejoindre</a>
+  ${vsl ? '<p class="doux petit pr-verrou" data-verrou>🔒 Regarde la vidéo jusqu\'au bout pour débloquer le bouton.</p>' : ''}
+  ${vsl ? `<script src="https://fast.wistia.com/assets/external/E-v1.js" async></script>
+  <script>(function () {
+    var b = document.querySelector('.pr-rejoindre'), v = document.querySelector('[data-verrou]'), k = 'ovx-vsl-${cle}';
+    function ouvrir() { b.removeAttribute('aria-disabled'); b.removeAttribute('tabindex'); if (v) v.hidden = true; try { localStorage.setItem(k, '1'); } catch (e) {} }
+    try { if (localStorage.getItem(k)) ouvrir(); } catch (e) {}
+    window._wq = window._wq || [];
+    window._wq.push({ id: ${JSON.stringify(vsl)}, onReady: function (video) {
+      video.bind('end', ouvrir);
+      video.bind('percentwatchedchanged', function (p) { if (p >= 0.97) ouvrir(); });
+    } });
+  })();</script>` : ''}`, { entete: false });
+}
+
 // overmaxx.online : la seule page ouverte à tous. Son seul but : faire entrer sur le Discord (étape En Attente).
 // Fenêtre « Autorise Bob à t'écrire » : le réglage Discord qui permet à Bob d'envoyer ses messages privés,
 // en 4 captures annotées. Ouverte par tout bouton portant data-tuto-bob (ex. « Rejoindre le Discord »).
@@ -701,6 +739,8 @@ function pageAccueil(config, offre = config.offres.community) {
   </div>
   <a class="bouton" href="${offre.base}/paiement">${ICONE.mobile}Payer par mobile money</a>
   <p class="doux petit centre" style="margin-top:12px">Wave, Orange Money, MTN, Moov, via SasPay.</p>
+  ${offre.lienCarte ? `<a class="bouton secondaire" href="${echapper(offre.lienCarte)}" target="_blank" rel="noopener">Payer par carte</a>
+  <p class="doux petit centre" style="margin-top:12px">Carte bancaire, via Whop. Ton rôle arrive tout seul sur Discord.</p>` : ''}
   <p class="doux petit centre">Déjà membre ? <a href="${offre.base}/renouveler">Renouveler mon abonnement</a></p>`, { entete: false });
 }
 
@@ -991,7 +1031,7 @@ function pageMessage(config, titre, message, { lien = '/', texteLien = 'Retour' 
   ${blocSupport(config)}`);
 }
 
-module.exports = { decompte, SCRIPT_DECOMPTE, banniereEvenements,
+module.exports = { pagePresentation, decompte, SCRIPT_DECOMPTE, banniereEvenements,
   CONTENU, ICONE, echapper, gabarit, gabaritEspace, logo, formatPrix, formatDate, blocSupport, blocVideo,
   pageBienvenue, pageAccueil, fenetreTutoBob, pageEmailWhop, pageFormulaire, pageConfirmation, pageGuide, pageRenouvele, pageMessage,
 };

@@ -797,7 +797,7 @@ function pageAnnonces(config, { espace, annonces = [], nbEleves = 0, eleves = []
 }
 
 // Gestion (coach) : Planifier, Élèves Elite et Ressources, en cases côte à côte (la barre du bas reste courte).
-function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources = 0, aValider = 0, aCompleter = 0, serveurGratuit = null, lienCall = '', message = null, erreur = null }) {
+function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources = 0, aValider = 0, aCompleter = 0, serveurGratuit = null, lienCall = '', salonOffres = '', message = null, erreur = null }) {
   const tuile = (lien, titre, ligne, texte, alerte) => `<a class="pf-carte" href="${lien}" style="min-height:140px"><h3>${titre}</h3>
     <p class="vert">${ligne}</p><p>${texte}</p>${alerte ? `<p style="color:#ffb35c;font-weight:700;margin-top:6px">${alerte}</p>` : ''}</a>`;
   return page('Gestion', `${STYLE_PROFIL}
@@ -810,6 +810,12 @@ function pageGestion(config, { espace, nbEleves = 0, evenements = 0, ressources 
     ${tuile('/notifications?onglet=rappels', 'Mes rappels', 'Tes rappels', 'Une fois, chaque jour ou certains jours.')}
     ${tuile('/admin/evenements', 'Événements', `${evenements} en cours`, 'Créer un challenge : inscriptions, conditions, classement, badges.')}
   </div>
+  <form class="carte" method="post" action="/admin/discord/offres" style="margin-top:14px;display:grid;gap:10px">
+    <div class="envoi-tete"><h2>Message des offres (serveur gratuit)</h2><span class="etat" data-etat="${salonOffres ? 'valide' : 'attente'}">${salonOffres ? 'Publié' : 'À publier'}</span></div>
+    <p class="doux petit" style="margin:0">« Rejoins Overmaxx » : la Communauté privée et l'accompagnement one-on-one, chacun avec « Voir si c'est fait pour moi » (sa page de présentation, vidéo puis « Rejoindre »). Publié une fois, puis mis à jour sur place.</p>
+    <div class="champ"><label for="salon-offres">Lien du salon</label><input id="salon-offres" name="salon_offres" inputmode="url" value="${salonOffres ? `https://discord.com/channels/0/${echapper(salonOffres)}` : ''}" placeholder="https://discord.com/channels/…/…"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bouton" type="submit" style="margin:0;width:auto">${salonOffres ? 'Mettre à jour le message' : 'Publier le message'}</button>
+      <a class="bouton secondaire" href="/rejoindre/community" target="_blank" style="margin:0;width:auto">Page Community</a><a class="bouton secondaire" href="/rejoindre/elite" target="_blank" style="margin:0;width:auto">Page Elite</a></div></form>
   <form class="carte" method="post" action="/admin/discord/call" style="margin-top:14px;display:grid;gap:10px">
     <div class="envoi-tete"><h2>Lancement des calls</h2><span class="etat" data-etat="${lienCall ? 'valide' : 'attente'}">${lienCall ? 'Prêt' : 'Lien à ajouter'}</span></div>
     <p class="doux petit" style="margin:0">10 minutes avant chaque coaching, Bob te demande en privé s'il envoie l'invitation ; tu appuies sur Oui, l'élève reçoit ce lien.</p>

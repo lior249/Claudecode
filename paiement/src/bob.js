@@ -3,7 +3,7 @@
 const {
   Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle,
   SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType, AuditLogEvent,
-  ModalBuilder, TextInputBuilder, TextInputStyle,
+  ModalBuilder, TextInputBuilder, TextInputStyle, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize,
 } = require('discord.js');
 const FR = require('./forum-ressources');
 
@@ -1310,6 +1310,42 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
   const updatesMois = require('./updates-mois').creerUpdatesMois({ db, maintenant });
   const evenementsBob = require('./evenements').creerEvenements({ db, maintenant });
   const fichiersDe = (noms = []) => noms.map((n) => parcours && parcours.cheminImage(n)).filter((c) => c && require('fs').existsSync(c)).slice(0, 5);
+  // Le message des offres (serveur gratuit) : « Rejoins Overmaxx », la Communauté privée et l'accompagnement one-on-one,
+  // chacun avec « Voir si c'est fait pour moi » (sa page de présentation). Publié une fois, puis mis à jour sur place.
+  function messageOffres() {
+    const { OBJECTIF, OFFRES, COULEUR_ELITE } = require('./offres-presentation');
+    const texte = (t) => new TextDisplayBuilder().setContent(t);
+    const ligne = () => new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small);
+    const bouton = (o) => new ActionRowBuilder().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Voir si c\'est fait pour moi').setURL(`${config.baseUrl}${o.page}`));
+    const bloc = (o) => `## ${o.emoji} ${o.titre}\n${o.phrase}\n${o.avantages.map(([e, g, s]) => `${e} **${g}** ${s}`).join('\n')}`;
+    const c = new ContainerBuilder().setAccentColor(COULEUR_ELITE)
+      .addTextDisplayComponents(texte(`# Rejoins Overmaxx\n🎯 **Objectif** : ${OBJECTIF}`))
+      .addSeparatorComponents(ligne())
+      .addTextDisplayComponents(texte(bloc(OFFRES.community)))
+      .addActionRowComponents(bouton(OFFRES.community))
+      .addSeparatorComponents(ligne())
+      .addTextDisplayComponents(texte(bloc(OFFRES.elite)))
+      .addActionRowComponents(bouton(OFFRES.elite));
+    return { components: [c], flags: MessageFlags.IsComponentsV2 };
+  }
+  async function publierOffres(salonId) {
+    const salon = await salonDiscord(salonId);
+    if (!salon || !salon.send) return { erreur: 'Salon introuvable : vérifie le lien, et que Bob voit ce salon (il doit être sur le serveur gratuit).' };
+    const cle = `message_offres:${salon.id}`;
+    const ancien = reglage(cle);
+    try {
+      if (ancien) {
+        const m = await salon.messages.fetch(ancien).catch(() => null);
+        if (m) { await m.edit(messageOffres()); return { ok: true, misAJour: true }; }
+      }
+      const m = await salon.send(messageOffres());
+      ecrireReglage(cle, m.id);
+      return { ok: true };
+    } catch (err) {
+      console.error('[bob] message des offres :', err.message);
+      return { erreur: `Discord a refusé le message : ${err.message}. Vérifie que Bob peut écrire dans ce salon.` };
+    }
+  }
   async function salonDiscord(id) {
     if (!id || !client || !client.channels) return null;
     try { return await client.channels.fetch(id); } catch (err) { console.warn('[bob] salon introuvable :', id, err.message); return null; }
@@ -1976,6 +2012,8 @@ function creerBob({ config, db, commandes, coaching, candidatures, parcours, sui
     rappelsAdmin,
     detecterServeurAttente,
     envoyerInvitationCall,
+    publierOffres,
+    messageOffres,
     rappelsMois,
     cycle,
     surInteraction,
