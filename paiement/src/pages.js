@@ -404,6 +404,10 @@ const STYLE_ESPACE = `
   .sb-lien:hover { background:#151515; color:#fff; }
   .sb-lien.actif { background:#1f1f1f; color:#fff; }
   .sb-badge { margin-left:auto; min-width:20px; padding:1px 7px; border-radius:999px; background:#ff8a00; color:#000; font:700 11.5px/18px var(--police); text-align:center; }
+  .sb-boutons { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .sb-bouton { display:flex; align-items:center; justify-content:center; min-height:36px; padding:6px 8px; border-radius:10px; border:1px solid #2a2a2a; background:#141414;
+    color:#e5e5e5; font-size:12.5px; font-weight:600; text-align:center; line-height:1.2; text-decoration:none; }
+  .sb-bouton:hover { background:#1f1f1f; color:#fff; border-color:#3a3a3a; }
   .sb-pied { margin-top:auto; border-top:1px solid #1c1c1c; padding-top:12px; display:flex; flex-direction:column; gap:4px; }
   .sb-compte { display:flex; align-items:center; gap:10px; padding:6px 10px 10px; }
   .sb-avatar { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:#fff; color:#000; font:800 14px var(--police); flex:none; }
@@ -477,8 +481,8 @@ function gabaritEspace(titre, contenu, { script, nav = [], actif, compte, jetonA
     <nav>${liens}</nav>
     <div class="sb-pied">
       ${compte ? `<div class="sb-compte"><span class="sb-avatar">${echapper(initiale)}</span><div><b>${echapper(compte.pseudo)}</b><small>${echapper(compte.role || '')}</small></div></div>` : ''}
-      <a class="sb-lien" href="/autre-compte" target="_blank" rel="noopener" title="Une 2e connexion dans ce navigateur, sans déconnecter celle-ci">${ICONES_NAV.membres}<span>Autre compte (2e session) ↗</span></a>
-      <a class="sb-lien" href="/deconnexion">${ICONES_NAV.sortie}<span>Se déconnecter</span></a>
+      <div class="sb-boutons"><a class="sb-bouton" href="/autre-compte" target="_blank" rel="noopener">Changer de compte</a>
+        <a class="sb-bouton" href="/deconnexion">Se déconnecter</a></div>
     </div>
   </aside>
   <label for="menu-ouvert" class="sb-voile" aria-hidden="true"></label>
