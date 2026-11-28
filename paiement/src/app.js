@@ -150,7 +150,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
   const challengesBanniere = () => (typeof evenements === 'undefined' ? [] : evenements.actifs().map((e) => ({ titre: e.titre,
     texte: e.objectif || (e.fin === evenements.SANS_FIN ? `À partir du ${e.debut.split('-').reverse().join('/')}` : `Du ${e.debut.split('-').reverse().join('/')} au ${e.fin.split('-').reverse().join('/')}`),
     image: e.banniere, couleur: e.couleur, lien: `/evenements/${e.id}`,
-    carte: { badge: e.badge_or || null, badgeNom: e.badge_nom || e.titre, description: e.description, objectif: e.objectif || evenements.phraseCourse(e), etat: evenements.etat(e),
+    carte: { badge: evenements.etendard(e), badgeNom: e.badge_nom || e.titre, description: e.description, objectif: e.objectif || evenements.phraseCourse(e), etat: evenements.etat(e),
       participer: `/evenements/${e.id}?participer=1`, couleurs: e.couleurs, compte: evenements.compteRebours(e).texte } })));
   const app = express();
   app.disable('x-powered-by');
@@ -364,7 +364,7 @@ function creerApp({ config, commandes, whop, coaching, oauth, bob, candidatures,
     const conditions = Object.fromEntries(Object.keys(b).filter((k) => k.startsWith('cond_')).map((k) => [k.slice(5), b[k]]));
     const delais = b.attente_jours !== undefined ? { attenteJours: b.attente_jours, dureeJours: b.duree_jours, indefinie: b.duree_indefinie === '1', heure: b.heure,
       gagnants: b.gagnants, paliers: Object.fromEntries(Object.keys(evenements.STATS).map((s) => [s, b[`palier_${s}`]])), enLigne: b.action === 'publier',
-      couleurs: { texte: b.c_texte, fond: b.c_fond, fondu: b.c_fondu, halo: b.c_halo, bouton: b.c_bouton } } : {};
+      couleurs: { texte: b.c_texte, fond: b.c_fond, fondu: b.c_fondu, halo: b.c_halo, bouton: b.c_bouton, effet: b.effet } } : {};
     const r = evenements.creer({ titre: b.titre, description: b.description, objectif: b.objectif, banniere: image(b.banniere), affiche: image(b.affiche),
       couleur: b.couleur, debut: b.debut || '', fin: b.fin || '', conditions, stats: [].concat(b.stats || []), reglesPoints: b.regles_points, reglesValidation: b.regles_validation,
       badgeNom: b.badge_nom, badges: { or: image(b.badge_or), argent: image(b.badge_argent), bronze: image(b.badge_bronze) }, ...delais });

@@ -18,7 +18,9 @@ const { TROPHEES, FAMILLES } = require('./trophees');
 const DEBUT_MIN = 1; const DEBUT_MAX = 14; const DUREE_MIN = 1; const DUREE_MAX = 30; const MAX_ACTIFS = 5;
 const SANS_FIN = '9999-12-31';
 // La bannière générée (badge + texte) : 5 couleurs au choix du coach.
-const COULEURS = { texte: '#c8f23a', fond: '#000000', fondu: '#0d0d0d', halo: '#c8f23a', bouton: '#c8f23a' };
+const COULEURS = { texte: '#c8f23a', fond: '#000000', fondu: '#0d0d0d', halo: '#c8f23a', bouton: '#c8f23a', effet: 'halo' };
+// L'effet derrière le badge (carte et fiche) : halo de lumière (rayons) ou fondu linéaire (l'accent descend du haut).
+const EFFETS = { halo: 'Halo de lumière (rayons)', fondu: 'Fondu linéaire (du haut vers le bas)' };
 const HEX = /^#[0-9a-f]{6}$/i;
 const JOUR = 864e5;
 const STATS = { revenus: 'Argent généré', vues: 'Vues', abonnes: 'Abonnés gagnés' };
@@ -128,6 +130,7 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
         JSON.stringify(st), rp, rv || null, bn, badges.or || null, badges.argent || null, badges.bronze || null);
       const id = Number(r.lastInsertRowid);
       const coul = Object.fromEntries(Object.keys(COULEURS).filter((k) => HEX.test(String((couleurs || {})[k] || ''))).map((k) => [k, couleurs[k]]));
+      if (EFFETS[(couleurs || {}).effet]) coul.effet = couleurs.effet;
       db.prepare('UPDATE evenements SET gagnants = ?, paliers = ?, attente_jours = ?, duree_jours = ?, heure = ?, couleurs = ? WHERE id = ?')
         .run(g, Object.keys(pal).length ? JSON.stringify(pal) : null, parDelais ? att : null, parDelais ? dur : null, hr, Object.keys(coul).length ? JSON.stringify(coul) : null, id);
       if (coul.halo) db.prepare('UPDATE evenements SET couleur = ? WHERE id = ?').run(coul.halo, id);
@@ -138,6 +141,8 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
       }
       return { evenement: api.un(id) };
     },
+    // L'étendard du challenge : le badge du plus haut niveau envoyé (or, sinon argent, sinon bronze).
+    etendard(e) { return e.badge_or || e.badge_argent || e.badge_bronze || null; },
     // « Les inscriptions se terminent dans 5 jours » (avant le début), puis « Se termine dans 3 jours ».
     compteRebours(e) {
       const etat = api.etat(e);
@@ -270,4 +275,4 @@ function creerEvenements({ db, maintenant = () => new Date() }) {
   return api;
 }
 
-module.exports = { creerEvenements, DEBUT_MIN, DEBUT_MAX, DUREE_MIN, DUREE_MAX, MAX_ACTIFS, STATS, RANGS, SANS_FIN, COULEURS };
+module.exports = { creerEvenements, DEBUT_MIN, DEBUT_MAX, DUREE_MIN, DUREE_MAX, MAX_ACTIFS, STATS, RANGS, SANS_FIN, COULEURS, EFFETS };

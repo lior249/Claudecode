@@ -450,9 +450,19 @@ const STYLE_ESPACE = `
   .evt-texte em { font-style:normal; align-self:flex-start; margin-top:4px; padding:4px 11px; border-radius:999px; background:rgba(255,255,255,.92); color:#000; font-size:11.5px; font-weight:700; }
   .evts-points { display:flex; flex-direction:column; justify-content:center; gap:5px; flex:none; } .evts-points i { width:6px; height:6px; border-radius:50%; background:#3a3a3a; transition:height .2s; }
   .evts-points i.actif { height:16px; border-radius:3px; background:#fff; }
-  dialog.evc { width:min(420px, calc(100vw - 24px)); text-align:center; }
+  dialog.evc { width:min(420px, calc(100vw - 24px)); text-align:center; overflow-x:hidden; }
+  /* Effets derrière le badge : rayons de lumière qui tournent (halo), ou l'accent qui descend du haut (fondu). */
+  .evc-rayons { position:absolute; left:50%; top:50%; width:460px; height:460px; margin:-230px 0 0 -230px; pointer-events:none; border-radius:50%;
+    background:repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--c) 90%, transparent) 0deg 8deg, transparent 8deg 20deg);
+    -webkit-mask-image:radial-gradient(circle, #000 0%, rgba(0,0,0,.6) 20%, transparent 56%); mask-image:radial-gradient(circle, #000 0%, rgba(0,0,0,.6) 20%, transparent 56%); opacity:.8;
+    animation:evc-tourne 40s linear infinite; }
+  [data-effet="fondu"] .evc-rayons { display:none; }
+  dialog.evc[data-effet="fondu"] { background:linear-gradient(180deg, var(--c) 0%, color-mix(in srgb, var(--c) 45%, #0d0d0d) 22%, #0d0d0d 55%); }
+  @keyframes evc-tourne { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .evc-rayons { animation:none; } }
   .evc-badge { width:170px; height:170px; margin:4px auto 10px; display:grid; place-items:center; position:relative; }
   .evc-badge::before { content:""; position:absolute; inset:-10px; border-radius:50%; background:radial-gradient(circle, color-mix(in srgb, var(--c) 55%, transparent) 0%, transparent 68%); animation:evc-halo 2.4s ease-in-out infinite; }
+  [data-effet="fondu"] .evc-badge::before { display:none; }
   .evc-badge img { position:relative; width:170px; height:170px; object-fit:contain; animation:evc-flotte 3s ease-in-out infinite; filter:drop-shadow(0 10px 24px rgba(0,0,0,.6)); }
   .evc-hexa { position:relative; width:140px; height:156px; display:grid; place-items:center; font:800 34px/1 var(--police); color:#fff; text-shadow:0 2px 6px rgba(0,0,0,.4);
     clip-path:polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background:linear-gradient(160deg, color-mix(in srgb, var(--c) 55%, #fff) 0%, var(--c) 45%, color-mix(in srgb, var(--c) 60%, #000) 100%); }
@@ -492,8 +502,9 @@ function banniereEvenements(evts = []) {
       <span class="evt-texte"><b>${echapper(e.titre)}</b>${e.texte ? `<span>${echapper(e.texte)}</span>` : ''}${e.lien ? '<em>Voir ›</em>' : ''}</span></${balise}>`;
   };
   // La carte du challenge : comme la fenêtre d'un trophée débloqué, le badge à débloquer, puis le texte et « Participer ».
-  const cartes = evts.map((e, i) => (e.carte ? `<dialog class="fenetre evc" id="evc-${i}"><button class="fermer" type="button" aria-label="Fermer" onclick="this.closest('dialog').close()">×</button>
-    <div class="evc-badge" style="--c:${echapper((e.carte.couleurs && e.carte.couleurs.halo) || (/^#[0-9a-f]{6}$/i.test(e.couleur || '') ? e.couleur : '#1a8cff'))}">${e.carte.badge ? `<img src="/fichiers/images/${echapper(e.carte.badge)}" alt="">` : hexa(e)}</div>
+  const accent = (e) => echapper((e.carte.couleurs && e.carte.couleurs.halo) || (/^#[0-9a-f]{6}$/i.test(e.couleur || '') ? e.couleur : '#1a8cff'));
+  const cartes = evts.map((e, i) => (e.carte ? `<dialog class="fenetre evc" id="evc-${i}" data-effet="${(e.carte.couleurs && e.carte.couleurs.effet) === 'fondu' ? 'fondu' : 'halo'}" style="--c:${accent(e)}"><button class="fermer" type="button" aria-label="Fermer" onclick="this.closest('dialog').close()">×</button>
+    <div class="evc-badge"><span class="evc-rayons" aria-hidden="true"></span>${e.carte.badge ? `<img src="/fichiers/images/${echapper(e.carte.badge)}" alt="">` : hexa(e)}</div>
     ${e.carte.compte ? `<p class="evc-compte">${echapper(e.carte.compte)}</p>` : ''}<p class="evc-etiquette">Badge à débloquer · ${echapper(e.carte.badgeNom)}</p>
     <h2>${echapper(e.titre)}</h2>${e.carte.objectif ? `<p class="evc-objectif">${echapper(e.carte.objectif)}</p>` : ''}
     <p class="evc-desc">${echapper(e.carte.description || '')}</p>

@@ -5,7 +5,7 @@ const { echapper, ICONE } = require('./pages');
 const { page, STYLE_ETAPES, SCRIPT_ETAPES } = require('./pages-parcours');
 const { BLOC_BADGES, STYLE_BADGES, SCRIPT_BADGES } = require('./detourage-badges');
 const { pieceTrophee, TROPHEES, FAMILLES } = require('./trophees');
-const { DEBUT_MIN, DEBUT_MAX, DUREE_MIN, DUREE_MAX, MAX_ACTIFS, STATS, RANGS, SANS_FIN, COULEURS } = require('./evenements');
+const { DEBUT_MIN, DEBUT_MAX, DUREE_MIN, DUREE_MAX, MAX_ACTIFS, STATS, RANGS, SANS_FIN, COULEURS, EFFETS } = require('./evenements');
 
 // La pièce d'un badge spécial : l'image envoyée par le coach, sinon une pièce dessinée du métal du rang.
 function pieceBadge(b, { taille = 52 } = {}) {
@@ -39,7 +39,10 @@ const STYLE_EVT = `<style>
   .ev-hero { position:relative; margin:0 0 10px; padding:16px 16px 22px; border-radius:22px; text-align:center; overflow:hidden;
     background:radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--halo) 70%, transparent) 0%, color-mix(in srgb, var(--halo) 18%, transparent) 32%, transparent 60%), linear-gradient(180deg, var(--fondu) 0%, var(--fond) 100%); }
   .ev-hero-compte { margin:0; text-align:left; font-size:14px; font-weight:600; color:#fff; }
-  .ev-hero-badge { height:150px; display:grid; place-items:center; margin:6px 0 4px; } .ev-hero-badge img { height:150px; width:auto; max-width:80%; object-fit:contain; filter:drop-shadow(0 10px 24px rgba(0,0,0,.6)); }
+  .ev-hero[data-effet="fondu"] { background:linear-gradient(180deg, var(--halo) 0%, color-mix(in srgb, var(--halo) 40%, var(--fond)) 30%, var(--fond) 70%); }
+  .ev-hero-compte, .ev-hero-et, .ev-hero h1 { position:relative; z-index:1; } .ev-hero-badge .evc-rayons { width:360px; height:360px; margin:-180px 0 0 -180px; }
+  .ev-hero-badge { position:relative; height:150px; display:grid; place-items:center; margin:6px 0 4px; } .ev-hero-badge img, .ev-hero-badge svg { position:relative; }
+  .ev-hero-badge img { height:150px; width:auto; max-width:80%; object-fit:contain; filter:drop-shadow(0 10px 24px rgba(0,0,0,.6)); }
   .ev-hero-et { margin:0; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--texte); opacity:.85; }
   .ev-hero h1 { margin:2px 0 0; font-size:clamp(28px, 8vw, 42px); letter-spacing:-0.03em; line-height:1.05; color:var(--texte); } dialog.ev-rejoindre .assistant { display:grid; gap:12px; }
 </style>`;
@@ -61,10 +64,11 @@ function classementEvenement(classements = {}, moi = null, stats = ['revenus'], 
 // La fiche en tête de la page : compte à rebours, le badge sur son halo, le nom (couleurs du challenge).
 function enTete(e, compte) {
   const c = { ...COULEURS, ...(e.couleurs || {}) };
-  const badge = e.badge_or ? `<img src="/fichiers/images/${echapper(e.badge_or)}" alt="">` : pieceBadge({ metal: 'or', titre: e.badge_nom || e.titre }, { taille: 120 });
-  return `<section class="ev-hero" style="${Object.keys(COULEURS).map((k) => `--${k}:${echapper(c[k])}`).join(';')}">
+  const et = e.badge_or || e.badge_argent || e.badge_bronze;
+  const badge = et ? `<img src="/fichiers/images/${echapper(et)}" alt="">` : pieceBadge({ metal: 'or', titre: e.badge_nom || e.titre }, { taille: 120 });
+  return `<section class="ev-hero" data-effet="${c.effet === 'fondu' ? 'fondu' : 'halo'}" style="${Object.keys(COULEURS).filter((k) => k !== 'effet').map((k) => `--${k}:${echapper(c[k])}`).join(';')};--c:${echapper(c.halo)}">
     ${compte ? `<p class="ev-hero-compte">${echapper(compte)}</p>` : ''}
-    <div class="ev-hero-badge">${badge}</div>
+    <div class="ev-hero-badge"><span class="evc-rayons" aria-hidden="true"></span>${badge}</div>
     <p class="ev-hero-et">Événement</p><h1>${echapper(e.titre)}</h1></section>`;
 }
 function pageEvenement(config, { espace, e, etat, conditions = [], inscrit = false, classements = {}, nbInscrits = 0, participants = [], moi = null, estCoach = false, ouvrir = false, compte = '', message, erreur }) {
@@ -175,6 +179,8 @@ function pageNouvelEvenement(config, { espace, erreur }) {
       <input type="hidden" name="banniere" value=""><div class="apercus" style="margin-top:8px"></div></div></div>
     <div class="champ"><label>Couleurs de la bannière (générée avec le badge)</label>
       <div class="ev-couleurs">${[['texte', 'Texte'], ['fond', 'Fond'], ['fondu', 'Fondu'], ['halo', 'Halo du badge'], ['bouton', 'Bouton']].map(([k, l]) => `<label><input type="color" name="c_${k}" value="${COULEURS[k]}">${l}</label>`).join('')}</div>
+      <div class="champ" style="margin-top:8px"><label for="ev-effet">Effet derrière le badge (carte et page du challenge)</label><select id="ev-effet" name="effet">${Object.entries(EFFETS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+        <small>Avec la couleur « Halo du badge » comme couleur d'accent.</small></div>
       <div class="ev-apercu" aria-label="Aperçu de la bannière"></div>
       <small>L'aperçu se met à jour avec le nom, les couleurs et le badge or (partie 4).</small></div>
     <div class="ev-section"><h3>2. Les délais</h3><p class="doux petit" style="margin:0">Des nombres de jours, pas des dates : elles se calculent au moment de la mise en ligne.</p></div>
@@ -194,7 +200,7 @@ function pageNouvelEvenement(config, { espace, erreur }) {
     <div class="champ"><label for="ev-points">Pour gagner (facultatif)</label><textarea id="ev-points" name="regles_points" maxlength="2000" placeholder="Vide : « Les 3 premiers à atteindre … gagnent le badge. »"></textarea></div>
     <div class="champ"><label for="ev-valid">Validation des résultats (facultatif)</label><textarea id="ev-valid" name="regles_validation" maxlength="2000" placeholder="ex. Seuls les résultats validés par le coach comptent ; capture obligatoire à chaque update."></textarea></div>
     <div><b style="font-size:14px">Conditions de participation</b><p class="doux petit" style="margin:2px 0 8px">Pour chaque famille, le trophée minimum pour participer (ou aucun).</p><div style="display:grid;gap:12px">${choixConditions}</div></div>
-    <div class="ev-section"><h3>4. La récompense</h3><p class="doux petit" style="margin:0">Un badge par gagnant : or (1er), argent (2e), bronze (3e), selon le nombre de gagnants.</p></div>
+    <div class="ev-section"><h3>4. La récompense</h3><p class="doux petit" style="margin:0">Un badge par gagnant : or (1er), argent (2e), bronze (3e), selon le nombre de gagnants. Le badge du plus haut niveau sert d'étendard (bannière, carte, page).</p></div>
     <div class="champ"><label for="ev-badge">Nom du badge</label><input id="ev-badge" name="badge_nom" maxlength="60" placeholder="ex. Overmaxx 1000"></div>
     ${BLOC_BADGES(ICONE)}
     <div style="display:grid;grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);gap:8px">
